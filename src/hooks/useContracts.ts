@@ -10,6 +10,7 @@ export interface Contract {
   user_id: string;
   client_name: string;
   contract_type: string;
+  bill_type: 'payable' | 'receivable';
   total_amount: number;
   amount_to_receive: number;
   frequency: string;
@@ -39,6 +40,7 @@ export interface ContractPayment {
 export interface CreateContractData {
   client_name: string;
   contract_type: string;
+  bill_type: 'payable' | 'receivable';
   total_amount: number;
   amount_to_receive: number;
   frequency: string;
