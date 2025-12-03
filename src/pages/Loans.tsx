@@ -140,9 +140,29 @@ export default function Loans() {
                         <SelectItem value="single">Pagamento Único</SelectItem>
                         <SelectItem value="installment">Parcelado</SelectItem>
                       </SelectContent>
-                    </Select>
+                  </Select>
                   </div>
                 </div>
+                {formData.payment_type === 'installment' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nº de Parcelas *</Label>
+                      <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Juros por Parcela</Label>
+                      <Input 
+                        type="text" 
+                        readOnly 
+                        value={formData.principal_amount && formData.interest_rate && formData.installments 
+                          ? formatCurrency((parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)) / parseInt(formData.installments || '1'))
+                          : 'R$ 0,00'
+                        } 
+                        className="bg-muted"
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Data Início</Label>
@@ -189,6 +209,8 @@ export default function Loans() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Taxa</TableHead>
+                      <TableHead>Parcelas</TableHead>
+                      <TableHead>Juros/Parcela</TableHead>
                       <TableHead>Saldo</TableHead>
                       <TableHead>Vencimento</TableHead>
                       <TableHead>Status</TableHead>
@@ -196,11 +218,17 @@ export default function Loans() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLoans.map((loan) => (
+                    {filteredLoans.map((loan) => {
+                      const interestPerInstallment = loan.installments && loan.installments > 1 
+                        ? (loan.principal_amount * (loan.interest_rate / 100)) / loan.installments 
+                        : loan.principal_amount * (loan.interest_rate / 100);
+                      return (
                       <TableRow key={loan.id}>
                         <TableCell className="font-medium">{loan.client?.full_name}</TableCell>
                         <TableCell>{formatCurrency(loan.principal_amount)}</TableCell>
                         <TableCell>{formatPercentage(loan.interest_rate)}</TableCell>
+                        <TableCell>{loan.installments || 1}x</TableCell>
+                        <TableCell>{formatCurrency(interestPerInstallment)}</TableCell>
                         <TableCell className="font-semibold">{formatCurrency(loan.remaining_balance)}</TableCell>
                         <TableCell>{formatDate(loan.due_date)}</TableCell>
                         <TableCell><Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge></TableCell>
@@ -215,7 +243,7 @@ export default function Loans() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );})}
                   </TableBody>
                 </Table>
               </div>
