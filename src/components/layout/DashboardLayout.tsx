@@ -1,0 +1,191 @@
+import { ReactNode, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  LayoutDashboard,
+  Users,
+  DollarSign,
+  Calendar,
+  BarChart3,
+  Settings,
+  LogOut,
+  Menu,
+  User,
+  ChevronRight,
+} from 'lucide-react';
+
+interface DashboardLayoutProps {
+  children: ReactNode;
+}
+
+const navigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Clientes', href: '/clients', icon: Users },
+  { name: 'Empréstimos', href: '/loans', icon: DollarSign },
+  { name: 'Mensalidades', href: '/monthly-fees', icon: Calendar },
+  { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Configurações', href: '/settings', icon: Settings },
+];
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const location = useLocation();
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-sidebar-primary rounded-xl flex items-center justify-center">
+            <DollarSign className="w-5 h-5 text-sidebar-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-display font-bold text-lg text-sidebar-foreground">FinanceControl</h1>
+            <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
+          </div>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1 px-3">
+        <nav className="space-y-1">
+          {navigation.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.name}
+                {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+              </Link>
+            );
+          })}
+        </nav>
+      </ScrollArea>
+
+      <div className="p-4 border-t border-sidebar-border">
+        <p className="text-xs text-sidebar-foreground/60 text-center">
+          © 2024 FinanceControl
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
+        <div className="flex flex-col flex-grow gradient-primary">
+          <SidebarContent />
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border">
+        <div className="flex items-center justify-between px-4 py-3">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-72 gradient-primary border-0">
+              <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-primary" />
+            <span className="font-display font-bold">FinanceControl</span>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <User className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled className="text-muted-foreground">
+                {user?.email}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="lg:pl-72">
+        <div className="min-h-screen pt-16 lg:pt-0">
+          {/* Desktop Header */}
+          <header className="hidden lg:flex items-center justify-between px-8 py-4 border-b border-border bg-card">
+            <div>
+              <h2 className="text-lg font-display font-semibold">
+                Bem-vindo de volta!
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Gerencie seus empréstimos e mensalidades
+              </p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <User className="w-4 h-4" />
+                  {user?.email}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Configurações
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </header>
+
+          <div className="p-4 lg:p-8">
+            {children}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
