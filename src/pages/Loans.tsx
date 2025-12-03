@@ -284,7 +284,12 @@ export default function Loans() {
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-                const isOverdue = loan.status === 'overdue';
+                // Check if overdue based on due_date and remaining balance
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = new Date(loan.due_date);
+                dueDate.setHours(0, 0, 0, 0);
+                const isOverdue = !isPaid && (loan.status === 'overdue' || (remainingToReceive > 0 && dueDate < today));
                 
                 const getCardStyle = () => {
                   if (isPaid) {
