@@ -17,15 +17,30 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
+const cleanApiUrl = (url: string): string => {
+  let cleaned = url.replace(/\/+$/, '');
+  const pathPatterns = [
+    /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendText$/i,
+    /\/message$/i,
+  ];
+  for (const pattern of pathPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  return cleaned;
+};
+
 const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
-  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
   const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-  if (!evolutionApiUrl || !evolutionApiKey || !instanceName) {
+  if (!evolutionApiUrlRaw || !evolutionApiKey || !instanceName) {
     console.error("Missing Evolution API configuration");
     return false;
   }
+
+  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
@@ -56,6 +71,25 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+// Progressive alert days - only send on these specific days
+const ALERT_DAYS = [1, 7, 15, 30];
+
+const getAlertMessage = (daysOverdue: number, loansCount: number, loansList: string, totalAmount: number, userName: string): string => {
+  const greeting = userName ? ` ${userName}` : '';
+  const plural = loansCount > 1;
+  
+  if (daysOverdue === 1) {
+    return `⚠️ *Atenção: Atraso de 1 dia*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *1 dia de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nEntre em contato com seu${plural ? 's' : ''} cliente${plural ? 's' : ''} o quanto antes!\n\n_CobraFácil - Alerta automático_`;
+  } else if (daysOverdue === 7) {
+    return `🚨 *Alerta: 1 Semana de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *7 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nÉ importante cobrar esses valores!\n\n_CobraFácil - Alerta automático_`;
+  } else if (daysOverdue === 15) {
+    return `🔴 *Urgente: 15 Dias de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *15 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nConsidere tomar medidas mais firmes!\n\n_CobraFácil - Alerta automático_`;
+  } else if (daysOverdue === 30) {
+    return `🆘 *CRÍTICO: 30 Dias de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *30 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nRecomendamos renegociar ou tomar medidas legais!\n\n_CobraFácil - Alerta automático_`;
+  }
+  return '';
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("check-overdue-loans function called at", new Date().toISOString());
   
@@ -74,7 +108,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Checking for overdue loans as of:", todayStr);
 
-    // Fetch all pending loans with client data
+    // Fetch all pending/overdue loans with client data
     const { data: loans, error: loansError } = await supabase
       .from('loans')
       .select(`
@@ -90,8 +124,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Found ${loans?.length || 0} loans to check`);
 
-    // Group overdue loans by user
-    const userOverdueMap: Map<string, any[]> = new Map();
+    // Group overdue loans by user AND by alert day
+    const userAlertMap: Map<string, Map<number, any[]>> = new Map();
     const overdueUpdates: string[] = [];
 
     for (const loan of loans || []) {
@@ -130,6 +164,9 @@ const handler = async (req: Request): Promise<Response> => {
           overdueUpdates.push(loan.id);
         }
 
+        // Only send alert on specific days (1, 7, 15, 30)
+        if (!ALERT_DAYS.includes(daysOverdue)) continue;
+
         const loanInfo = {
           ...loan,
           clientName: client.full_name,
@@ -139,10 +176,15 @@ const handler = async (req: Request): Promise<Response> => {
           daysOverdue,
         };
 
-        if (!userOverdueMap.has(loan.user_id)) {
-          userOverdueMap.set(loan.user_id, []);
+        if (!userAlertMap.has(loan.user_id)) {
+          userAlertMap.set(loan.user_id, new Map());
         }
-        userOverdueMap.get(loan.user_id)!.push(loanInfo);
+        
+        const userAlerts = userAlertMap.get(loan.user_id)!;
+        if (!userAlerts.has(daysOverdue)) {
+          userAlerts.set(daysOverdue, []);
+        }
+        userAlerts.get(daysOverdue)!.push(loanInfo);
       }
     }
 
@@ -163,8 +205,8 @@ const handler = async (req: Request): Promise<Response> => {
     let sentCount = 0;
     const notifications: any[] = [];
 
-    // Send consolidated message to each user
-    for (const [userId, overdueLoans] of userOverdueMap) {
+    // Send alerts for each user and each alert day
+    for (const [userId, alertDaysMap] of userAlertMap) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('phone, full_name')
@@ -176,29 +218,30 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Sort by days overdue (most overdue first)
-      overdueLoans.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      for (const [alertDay, overdueLoans] of alertDaysMap) {
+        const loansList = overdueLoans.slice(0, 10).map(l => 
+          `• *${l.clientName}*: ${formatCurrency(l.remainingAmount)}`
+        ).join('\n');
 
-      const loansList = overdueLoans.slice(0, 10).map(l => 
-        `• *${l.clientName}*: ${formatCurrency(l.remainingAmount)} (${l.daysOverdue} dia${l.daysOverdue > 1 ? 's' : ''} de atraso)`
-      ).join('\n');
+        const totalAmount = overdueLoans.reduce((sum, l) => sum + l.remainingAmount, 0);
+        const moreLoans = overdueLoans.length > 10 ? `\n_... e mais ${overdueLoans.length - 10} empréstimo(s)_` : '';
 
-      const totalAmount = overdueLoans.reduce((sum, l) => sum + l.remainingAmount, 0);
-      const moreLoans = overdueLoans.length > 10 ? `\n_... e mais ${overdueLoans.length - 10} empréstimo(s)_` : '';
+        const message = getAlertMessage(alertDay, overdueLoans.length, loansList + moreLoans, totalAmount, profile.full_name || '');
 
-      const message = `🚨 *Empréstimos em Atraso*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${overdueLoans.length} empréstimo${overdueLoans.length > 1 ? 's' : ''} em atraso*:\n\n${loansList}${moreLoans}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nEntre em contato com seus clientes para regularizar!\n\n_CobraFácil - Alerta automático_`;
-
-      console.log(`Sending overdue alert to user ${userId} (${overdueLoans.length} loans)`);
-      
-      const sent = await sendWhatsApp(profile.phone, message);
-      if (sent) {
-        sentCount++;
-        notifications.push({
-          user_id: userId,
-          title: `🚨 Alerta de Atrasos`,
-          message: `${overdueLoans.length} empréstimo(s) em atraso - Total: ${formatCurrency(totalAmount)}`,
-          type: 'warning',
-        });
+        if (message) {
+          console.log(`Sending ${alertDay}-day overdue alert to user ${userId} (${overdueLoans.length} loans)`);
+          
+          const sent = await sendWhatsApp(profile.phone, message);
+          if (sent) {
+            sentCount++;
+            notifications.push({
+              user_id: userId,
+              title: `🚨 Atraso de ${alertDay} dia${alertDay > 1 ? 's' : ''}`,
+              message: `${overdueLoans.length} empréstimo(s) - Total: ${formatCurrency(totalAmount)}`,
+              type: 'warning',
+            });
+          }
+        }
       }
     }
 
