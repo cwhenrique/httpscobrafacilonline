@@ -324,6 +324,7 @@ export default function Loans() {
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
+                const isRenegotiated = loan.notes?.includes('Valor prometido');
                 
                 // Check if overdue based on installment dates
                 const today = new Date();
@@ -350,9 +351,14 @@ export default function Loans() {
                   }
                 }
                 
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
+                
                 const getCardStyle = () => {
                   if (isPaid) {
                     return 'bg-primary border-primary';
+                  }
+                  if (isRenegotiated && !isOverdue) {
+                    return 'bg-yellow-500 border-yellow-500';
                   }
                   if (isOverdue) {
                     return 'bg-destructive border-destructive';
@@ -360,32 +366,32 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = (isPaid || isOverdue) ? 'text-white' : '';
-                const mutedTextColor = (isPaid || isOverdue) ? 'text-white/70' : 'text-muted-foreground';
+                const textColor = hasSpecialStyle ? 'text-white' : '';
+                const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
                   <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
-                        <Avatar className={`h-16 w-16 border-2 ${isPaid || isOverdue ? 'border-white/30' : 'border-primary/20'}`}>
+                        <Avatar className={`h-16 w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
                           <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                          <AvatarFallback className={`text-lg font-semibold ${isPaid || isOverdue ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                          <AvatarFallback className={`text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                             {initials}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
-                            <Badge className={isPaid ? 'bg-white/20 text-white border-white/30' : isOverdue ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}>
-                              {getPaymentStatusLabel(loan.status)}
+                            <Badge className={hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}>
+                              {isRenegotiated && !isOverdue ? 'Renegociado' : getPaymentStatusLabel(loan.status)}
                             </Badge>
                           </div>
-                          <p className={`text-2xl font-bold mt-1 ${isPaid || isOverdue ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                          <p className={`text-2xl font-bold mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
                           <p className={`text-xs ${mutedTextColor}`}>restante a receber</p>
                         </div>
                       </div>
                       
-                      <div className={`grid grid-cols-2 gap-3 mt-4 p-3 rounded-lg text-sm ${isPaid || isOverdue ? 'bg-white/10' : 'bg-muted/30'}`}>
+                      <div className={`grid grid-cols-2 gap-3 mt-4 p-3 rounded-lg text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
                           <p className={`text-xs ${mutedTextColor}`}>Emprestado</p>
                           <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
@@ -415,20 +421,20 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                      <div className={`flex gap-2 mt-4 pt-4 ${isPaid || isOverdue ? 'border-t border-white/20' : 'border-t'}`}>
+                      <div className={`flex gap-2 mt-4 pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <Button 
-                          variant={isPaid || isOverdue ? 'secondary' : 'outline'} 
+                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="sm" 
-                          className={`flex-1 ${isPaid || isOverdue ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                          className={`flex-1 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                           onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
                         >
                           <CreditCard className="w-4 h-4 mr-2" />
                           Pagamento
                         </Button>
                         <Button 
-                          variant={isPaid || isOverdue ? 'secondary' : 'outline'} 
+                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="icon" 
-                          className={isPaid || isOverdue ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}
+                          className={hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}
                           onClick={() => openRenegotiateDialog(loan.id)}
                           title="Renegociar"
                         >
@@ -437,10 +443,10 @@ export default function Loans() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className={isPaid || isOverdue ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}
+                          className={hasSpecialStyle ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}
                           onClick={() => setDeleteId(loan.id)}
                         >
-                          <Trash2 className={`w-4 h-4 ${isPaid || isOverdue ? '' : 'text-destructive'}`} />
+                          <Trash2 className={`w-4 h-4 ${hasSpecialStyle ? '' : 'text-destructive'}`} />
                         </Button>
                       </div>
                     </CardContent>
