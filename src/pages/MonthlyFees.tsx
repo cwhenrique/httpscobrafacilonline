@@ -27,7 +27,7 @@ export default function MonthlyFees() {
     due_day: '5',
   });
 
-  const monthlyClients = clients.filter(c => c.client_type === 'monthly' || c.client_type === 'both');
+  // Mostrar todos os clientes no dropdown
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +69,7 @@ export default function MonthlyFees() {
                   <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
                     <SelectContent>
-                      {monthlyClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                      {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
