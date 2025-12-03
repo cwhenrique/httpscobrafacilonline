@@ -27,6 +27,25 @@ const formatPhoneNumber = (phone: string): string => {
   return cleaned;
 };
 
+const cleanApiUrl = (url: string): string => {
+  // Remove trailing slashes
+  let cleaned = url.replace(/\/+$/, '');
+  
+  // Remove any path that might have been accidentally included
+  // Common patterns: /message/sendText/InstanceName
+  const pathPatterns = [
+    /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendText$/i,
+    /\/message$/i,
+  ];
+  
+  for (const pattern of pathPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  return cleaned;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("send-whatsapp function called");
   
@@ -35,14 +54,21 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+    const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
     const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
     const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-    if (!evolutionApiUrl || !evolutionApiKey || !instanceName) {
+    console.log("Raw EVOLUTION_API_URL:", evolutionApiUrlRaw);
+    console.log("EVOLUTION_INSTANCE_NAME:", instanceName);
+
+    if (!evolutionApiUrlRaw || !evolutionApiKey || !instanceName) {
       console.error("Missing Evolution API configuration");
       throw new Error("Evolution API not configured");
     }
+
+    // Clean the API URL to remove any accidentally included paths
+    const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
+    console.log("Cleaned EVOLUTION_API_URL:", evolutionApiUrl);
 
     const { phone, message }: WhatsAppRequest = await req.json();
     
@@ -51,22 +77,22 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const formattedPhone = formatPhoneNumber(phone);
+    const fullUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
+    
     console.log(`Sending WhatsApp to: ${formattedPhone}`);
+    console.log(`Full API URL: ${fullUrl}`);
 
-    const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: formattedPhone,
-          text: message,
-        }),
-      }
-    );
+    const response = await fetch(fullUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": evolutionApiKey,
+      },
+      body: JSON.stringify({
+        number: formattedPhone,
+        text: message,
+      }),
+    });
 
     const responseData = await response.json();
     console.log("Evolution API response:", responseData);
