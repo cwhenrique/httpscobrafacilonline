@@ -283,73 +283,91 @@ export default function Loans() {
                 const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
+                const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
+                const isOverdue = loan.status === 'overdue';
+                
                 const getCardStyle = () => {
-                  if (loan.status === 'paid' || remainingToReceive <= 0) {
-                    return 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800';
+                  if (isPaid) {
+                    return 'bg-primary border-primary';
                   }
-                  if (loan.status === 'overdue') {
-                    return 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800';
+                  if (isOverdue) {
+                    return 'bg-destructive border-destructive';
                   }
                   return 'bg-card';
                 };
                 
+                const textColor = (isPaid || isOverdue) ? 'text-white' : '';
+                const mutedTextColor = (isPaid || isOverdue) ? 'text-white/70' : 'text-muted-foreground';
+                
                 return (
-                  <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()}`}>
+                  <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
-                        <Avatar className="h-16 w-16 border-2 border-primary/20">
+                        <Avatar className={`h-16 w-16 border-2 ${isPaid || isOverdue ? 'border-white/30' : 'border-primary/20'}`}>
                           <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                          <AvatarFallback className={`text-lg font-semibold ${isPaid || isOverdue ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                             {initials}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
-                            <Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge>
+                            <Badge className={isPaid ? 'bg-white/20 text-white border-white/30' : isOverdue ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}>
+                              {getPaymentStatusLabel(loan.status)}
+                            </Badge>
                           </div>
-                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(remainingToReceive)}</p>
-                          <p className="text-xs text-muted-foreground">restante a receber</p>
+                          <p className={`text-2xl font-bold mt-1 ${isPaid || isOverdue ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                          <p className={`text-xs ${mutedTextColor}`}>restante a receber</p>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3 mt-4 p-3 bg-muted/30 rounded-lg text-sm">
+                      <div className={`grid grid-cols-2 gap-3 mt-4 p-3 rounded-lg text-sm ${isPaid || isOverdue ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
-                          <p className="text-muted-foreground text-xs">Emprestado</p>
+                          <p className={`text-xs ${mutedTextColor}`}>Emprestado</p>
                           <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground text-xs">Total a Receber</p>
+                          <p className={`text-xs ${mutedTextColor}`}>Total a Receber</p>
                           <p className="font-semibold">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <Percent className="w-4 h-4" />
                           <span>Juros: {formatPercentage(loan.interest_rate)}/parcela</span>
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <CreditCard className="w-4 h-4" />
                           <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <Calendar className="w-4 h-4" />
                           <span>Venc: {formatDate(loan.due_date)}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <DollarSign className="w-4 h-4" />
                           <span>Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
                       </div>
                       
-                      <div className="flex gap-2 mt-4 pt-4 border-t">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}>
+                      <div className={`flex gap-2 mt-4 pt-4 ${isPaid || isOverdue ? 'border-t border-white/20' : 'border-t'}`}>
+                        <Button 
+                          variant={isPaid || isOverdue ? 'secondary' : 'outline'} 
+                          size="sm" 
+                          className={`flex-1 ${isPaid || isOverdue ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                          onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
+                        >
                           <CreditCard className="w-4 h-4 mr-2" />
                           Pagamento
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(loan.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className={isPaid || isOverdue ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}
+                          onClick={() => setDeleteId(loan.id)}
+                        >
+                          <Trash2 className={`w-4 h-4 ${isPaid || isOverdue ? '' : 'text-destructive'}`} />
                         </Button>
                       </div>
                     </CardContent>
