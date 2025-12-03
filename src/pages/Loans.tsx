@@ -402,36 +402,29 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
+                      <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <Percent className="w-4 h-4" />
-                          <span>{formatPercentage(loan.interest_rate)}</span>
+                          <span>Juros: {formatPercentage(loan.interest_rate)}</span>
                         </div>
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <CreditCard className="w-4 h-4" />
-                          <span>{numInstallments}x</span>
+                          <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
+                        </div>
+                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
+                          <Calendar className="w-4 h-4" />
+                          <span>Venc: {(() => {
+                            const dates = (loan.installment_dates as string[]) || [];
+                            const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                            const nextDate = dates[paidCount] || loan.due_date;
+                            return formatDate(nextDate);
+                          })()}</span>
                         </div>
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <DollarSign className="w-4 h-4" />
-                          <span>{formatCurrency(loan.total_paid || 0)}</span>
+                          <span>Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
                       </div>
-                      
-                      {((loan.installment_dates as string[]) || []).length > 0 && (
-                        <div className={`mt-3 p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
-                          <p className={`text-xs font-medium mb-1 ${mutedTextColor}`}>Vencimentos</p>
-                          <div className="flex flex-wrap gap-1">
-                            {(loan.installment_dates as string[]).map((date, idx) => (
-                              <span 
-                                key={idx} 
-                                className={`text-xs px-2 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/20' : 'bg-background border'}`}
-                              >
-                                {idx + 1}ª {formatDate(date)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       
                       <div className={`flex gap-2 mt-4 pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <Button 
