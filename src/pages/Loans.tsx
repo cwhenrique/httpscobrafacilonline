@@ -411,9 +411,19 @@ export default function Loans() {
                           <CreditCard className="w-4 h-4" />
                           <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
                         </div>
-                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
-                          <Calendar className="w-4 h-4" />
-                          <span>Venc: {formatDate(loan.due_date)}</span>
+                        <div className={`flex items-start gap-2 ${mutedTextColor}`}>
+                          <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <div className="flex flex-col">
+                            {((loan.installment_dates as string[]) || []).length > 0 ? (
+                              (loan.installment_dates as string[]).map((date, idx) => (
+                                <span key={idx} className="text-xs">
+                                  {idx + 1}ª: {formatDate(date)}
+                                </span>
+                              ))
+                            ) : (
+                              <span>Venc: {formatDate(loan.due_date)}</span>
+                            )}
+                          </div>
                         </div>
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <DollarSign className="w-4 h-4" />
