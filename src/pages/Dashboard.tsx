@@ -7,7 +7,7 @@ import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FinancialChart } from '@/components/dashboard/FinancialChart';
+import { FinancialChart, InterestChart } from '@/components/dashboard/FinancialChart';
 import {
   DollarSign,
   TrendingUp,
@@ -140,7 +140,10 @@ export default function Dashboard() {
 
         {/* Financial Evolution Chart */}
         {!loansLoading && !paymentsLoading && (
-          <FinancialChart loans={loans} payments={payments} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <FinancialChart loans={loans} payments={payments} />
+            <InterestChart payments={payments} />
+          </div>
         )}
 
         {/* Overdue Loans Alert */}
