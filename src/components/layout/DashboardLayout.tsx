@@ -95,7 +95,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { isProfileComplete, loading: profileLoading } = useProfile();
+  const { isProfileComplete, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -202,7 +202,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </main>
 
       {/* Profile Setup Modal - blocks usage until profile is complete */}
-      <ProfileSetupModal open={showProfileModal} />
+      <ProfileSetupModal open={showProfileModal} onComplete={refetchProfile} />
     </div>
   );
 }

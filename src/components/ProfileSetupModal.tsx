@@ -1,25 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, User, Phone, Building, AlertCircle } from 'lucide-react';
-import { useProfile } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProfileSetupModalProps {
   open: boolean;
+  onComplete: () => void;
 }
 
-export function ProfileSetupModal({ open }: ProfileSetupModalProps) {
-  const { profile, updateProfile } = useProfile();
+export function ProfileSetupModal({ open, onComplete }: ProfileSetupModalProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: profile?.full_name || '',
-    phone: profile?.phone || '',
-    company_name: profile?.company_name || '',
+    full_name: '',
+    phone: '',
+    company_name: '',
   });
   const [errors, setErrors] = useState<{ full_name?: string; phone?: string }>({});
+
+  useEffect(() => {
+    if (open && user) {
+      // Fetch current profile data when modal opens
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setFormData({
+              full_name: data.full_name || '',
+              phone: formatPhone(data.phone || ''),
+              company_name: data.company_name || '',
+            });
+          }
+        });
+    }
+  }, [open, user]);
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -50,19 +72,24 @@ export function ProfileSetupModal({ open }: ProfileSetupModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    if (!validateForm() || !user) return;
 
     setLoading(true);
-    const { error } = await updateProfile({
-      full_name: formData.full_name.trim(),
-      phone: formData.phone.replace(/\D/g, ''),
-      company_name: formData.company_name.trim() || null,
-    });
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.replace(/\D/g, ''),
+        company_name: formData.company_name.trim() || null,
+      })
+      .eq('id', user.id);
 
     if (error) {
       toast.error('Erro ao salvar perfil');
     } else {
       toast.success('Perfil configurado com sucesso!');
+      onComplete();
     }
     setLoading(false);
   };
@@ -75,9 +102,9 @@ export function ProfileSetupModal({ open }: ProfileSetupModalProps) {
             <AlertCircle className="w-5 h-5 text-amber-500" />
             Configure seu Perfil
           </DialogTitle>
-        <DialogDescription>
-          Para utilizar o CobraFácil, preencha as informações abaixo. Seu telefone será usado para receber notificações que irão te auxiliar na gestão com seus clientes.
-        </DialogDescription>
+          <DialogDescription>
+            Para utilizar o CobraFácil, preencha as informações abaixo. Seu telefone será usado para receber notificações que irão te auxiliar na gestão com seus clientes.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
