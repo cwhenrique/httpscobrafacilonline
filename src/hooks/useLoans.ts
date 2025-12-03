@@ -292,6 +292,13 @@ export function useLoans() {
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
+    // Get loan info before update for notification
+    const { data: loanData } = await supabase
+      .from('loans')
+      .select('principal_amount, total_paid, clients(full_name)')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase
       .from('loans')
       .update({
@@ -310,6 +317,36 @@ export function useLoans() {
     }
 
     toast.success('Empréstimo renegociado com sucesso!');
+    
+    // Send WhatsApp notification for renegotiation
+    if (loanData) {
+      const clientName = (loanData.clients as any)?.full_name || 'Cliente';
+      const numInstallments = data.installments || 1;
+      const interestPerInstallment = loanData.principal_amount * (data.interest_rate / 100);
+      const totalToReceive = loanData.principal_amount + (interestPerInstallment * numInstallments);
+      const totalPaid = loanData.total_paid || 0;
+      const remainingToReceive = totalToReceive - totalPaid;
+      
+      const phone = await getUserPhone(user.id);
+      if (phone) {
+        let message = `🔄 *Empréstimo Renegociado*\n\n`;
+        message += `👤 Cliente: *${clientName}*\n`;
+        message += `💰 Valor original: *${formatCurrency(loanData.principal_amount)}*\n`;
+        message += `📊 Nova taxa: *${data.interest_rate}% por parcela*\n`;
+        message += `📅 Novas parcelas: *${numInstallments}x*\n`;
+        if (data.installment_dates && data.installment_dates.length > 0) {
+          message += `⏰ Próximo vencimento: *${formatDate(data.installment_dates[0])}*\n`;
+        }
+        message += `💵 Total a receber: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
+        if (data.notes) {
+          message += `📝 Obs: ${data.notes}\n`;
+        }
+        message += `\n_CobraFácil - Renegociação registrada_`;
+        
+        await sendWhatsAppNotification(phone, message);
+      }
+    }
+    
     await fetchLoans();
     return { success: true };
   };
