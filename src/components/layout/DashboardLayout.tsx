@@ -49,7 +49,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <DollarSign className="w-5 h-5 text-sidebar-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-display font-bold text-lg text-sidebar-foreground">FinanceControl</h1>
+            <h1 className="font-display font-bold text-lg text-sidebar-foreground">CobraFácil</h1>
             <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
           </div>
         </div>
@@ -82,7 +82,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="p-4 border-t border-sidebar-border">
         <p className="text-xs text-sidebar-foreground/60 text-center">
-          © 2024 FinanceControl
+          © 2024 CobraFácil
         </p>
       </div>
     </div>
@@ -124,7 +124,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary" />
-            <span className="font-display font-bold">FinanceControl</span>
+            <span className="font-display font-bold">CobraFácil</span>
           </div>
 
           <DropdownMenu>

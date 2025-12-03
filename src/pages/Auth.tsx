@@ -81,7 +81,7 @@ export default function Auth() {
             <DollarSign className="w-8 h-8 text-primary-foreground" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-display">FinanceControl</CardTitle>
+            <CardTitle className="text-2xl font-display">CobraFácil</CardTitle>
             <CardDescription className="text-muted-foreground">
               Sistema de Gestão de Empréstimos e Mensalidades
             </CardDescription>
