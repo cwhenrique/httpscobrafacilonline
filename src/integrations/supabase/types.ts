@@ -113,6 +113,107 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_payments: {
+        Row: {
+          amount: number
+          contract_id: string
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          paid_date: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          contract_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          contract_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_payments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contracts: {
+        Row: {
+          amount_to_receive: number
+          client_name: string
+          contract_type: string
+          created_at: string
+          first_payment_date: string
+          frequency: string
+          id: string
+          installments: number
+          notes: string | null
+          payment_method: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_to_receive: number
+          client_name: string
+          contract_type?: string
+          created_at?: string
+          first_payment_date: string
+          frequency?: string
+          id?: string
+          installments?: number
+          notes?: string | null
+          payment_method?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_to_receive?: number
+          client_name?: string
+          contract_type?: string
+          created_at?: string
+          first_payment_date?: string
+          frequency?: string
+          id?: string
+          installments?: number
+          notes?: string | null
+          payment_method?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       loan_payments: {
         Row: {
           amount: number
