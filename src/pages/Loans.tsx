@@ -296,13 +296,22 @@ export default function Loans() {
                             <Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge>
                           </div>
                           <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(loan.remaining_balance)}</p>
-                          {loan.remaining_balance < loan.principal_amount && (
-                            <p className="text-xs text-muted-foreground">de {formatCurrency(loan.principal_amount)} emprestado</p>
-                          )}
+                          <p className="text-xs text-muted-foreground">restante a receber</p>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+                      <div className="grid grid-cols-2 gap-3 mt-4 p-3 bg-muted/30 rounded-lg text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">Emprestado</p>
+                          <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Total a Receber</p>
+                          <p className="font-semibold">{formatCurrency(loan.principal_amount + (interestPerInstallment * numInstallments))}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Percent className="w-4 h-4" />
                           <span>Juros: {formatPercentage(loan.interest_rate)}/parcela</span>
