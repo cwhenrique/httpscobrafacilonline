@@ -1,1 +1,10 @@
 project_id = "yulegybknvtanqkipsbj"
+
+[functions.send-whatsapp]
+verify_jwt = true
+
+[functions.check-loan-reminders]
+verify_jwt = false
+
+[functions.check-overdue-loans]
+verify_jwt = false
