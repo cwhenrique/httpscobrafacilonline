@@ -200,10 +200,14 @@ export function useLoans() {
       await updateClientScore(loan.client_id);
       
       const clientName = (loan.clients as any)?.full_name || 'Cliente';
-      // O trigger do banco já atualizou os valores, usar diretamente
-      const isPaidOff = loan.remaining_balance <= 0;
-      const newRemainingBalance = loan.remaining_balance;
+      
+      // Calcular igual ao card: total a receber = principal + juros totais
+      const numInstallments = loan.installments || 1;
+      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
       const newTotalPaid = loan.total_paid || 0;
+      const remainingToReceive = totalToReceive - newTotalPaid;
+      const isPaidOff = remainingToReceive <= 0;
       
       // Create notification for payment received
       await createNotificationRecord(user.id, {
@@ -236,7 +240,7 @@ export function useLoans() {
           message += `📅 Data: *${formatDate(payment.payment_date)}*\n\n`;
           message += `📊 *Situação atual:*\n`;
           message += `• Pago: ${formatCurrency(newTotalPaid)}\n`;
-          message += `• Restante: ${formatCurrency(newRemainingBalance > 0 ? newRemainingBalance : 0)}\n\n`;
+          message += `• Restante: ${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}\n\n`;
           message += `_CobraFácil - Confirmação automática_`;
         }
         
