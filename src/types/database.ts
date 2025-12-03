@@ -65,6 +65,7 @@ export interface MonthlyFee {
   amount: number;
   description: string | null;
   due_day: number;
+  interest_rate: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

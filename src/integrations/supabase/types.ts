@@ -220,6 +220,7 @@ export type Database = {
           description: string | null
           due_day: number
           id: string
+          interest_rate: number | null
           is_active: boolean
           updated_at: string
           user_id: string
@@ -231,6 +232,7 @@ export type Database = {
           description?: string | null
           due_day?: number
           id?: string
+          interest_rate?: number | null
           is_active?: boolean
           updated_at?: string
           user_id: string
@@ -242,6 +244,7 @@ export type Database = {
           description?: string | null
           due_day?: number
           id?: string
+          interest_rate?: number | null
           is_active?: boolean
           updated_at?: string
           user_id?: string

@@ -61,6 +61,7 @@ export function useMonthlyFees() {
     amount: number;
     description?: string;
     due_day: number;
+    interest_rate?: number;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
