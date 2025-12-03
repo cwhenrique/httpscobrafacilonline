@@ -755,6 +755,7 @@ export default function Loans() {
                   }
                 }
                 
+                const isDaily = loan.payment_type === 'daily';
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
                 
                 const getCardStyle = () => {
@@ -766,6 +767,9 @@ export default function Loans() {
                   }
                   if (isOverdue) {
                     return 'bg-destructive border-destructive';
+                  }
+                  if (isDaily) {
+                    return 'bg-sky-100 border-sky-300 dark:bg-sky-900/30 dark:border-sky-700';
                   }
                   return 'bg-card';
                 };
