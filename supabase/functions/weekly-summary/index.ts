@@ -71,6 +71,20 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+const getContractTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    'aluguel_casa': 'Aluguel Casa',
+    'aluguel_kitnet': 'Aluguel Kitnet',
+    'aluguel_apartamento': 'Aluguel Apartamento',
+    'aluguel_sala': 'Aluguel Sala',
+    'mensalidade': 'Mensalidade',
+    'servico_mensal': 'Serviço Mensal',
+    'parcelado': 'Parcelado',
+    'avista': 'À Vista',
+  };
+  return labels[type] || type;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("weekly-summary function called at", new Date().toISOString());
   
@@ -115,6 +129,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const profile of profiles || []) {
       if (!profile.phone) continue;
 
+      // ========== LOANS SECTION ==========
       // Fetch payments from last week
       const { data: payments, error: paymentsError } = await supabase
         .from('loan_payments')
@@ -138,15 +153,9 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (loansError) {
         console.error(`Error fetching loans for user ${profile.id}:`, loansError);
-        continue;
       }
 
-      if (!loans || loans.length === 0) {
-        console.log(`User ${profile.id} has no loans, skipping`);
-        continue;
-      }
-
-      // Calculate statistics
+      // Calculate loan statistics
       const totalReceivedLastWeek = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const paymentsCount = payments?.length || 0;
 
@@ -157,7 +166,7 @@ const handler = async (req: Request): Promise<Response> => {
       let totalOverdue = 0;
       let totalPending = 0;
 
-      for (const loan of loans) {
+      for (const loan of loans || []) {
         if (loan.status === 'paid') continue;
 
         const client = loan.clients as { full_name: string };
@@ -209,35 +218,197 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
+      // ========== CONTRACTS SECTION ==========
+      // Fetch contract payments from last week (paid)
+      const { data: contractPaymentsLastWeek, error: cpLastWeekError } = await supabase
+        .from('contract_payments')
+        .select(`
+          *,
+          contracts!inner(client_name, contract_type, bill_type)
+        `)
+        .eq('user_id', profile.id)
+        .eq('status', 'paid')
+        .gte('paid_date', lastWeekStartStr)
+        .lte('paid_date', todayStr);
+
+      if (cpLastWeekError) {
+        console.error(`Error fetching contract payments for user ${profile.id}:`, cpLastWeekError);
+      }
+
+      // Fetch contract payments due this week
+      const { data: contractPaymentsThisWeek, error: cpThisWeekError } = await supabase
+        .from('contract_payments')
+        .select(`
+          *,
+          contracts!inner(client_name, contract_type, bill_type)
+        `)
+        .eq('user_id', profile.id)
+        .neq('status', 'paid')
+        .gte('due_date', todayStr)
+        .lte('due_date', thisWeekEndStr);
+
+      if (cpThisWeekError) {
+        console.error(`Error fetching contract payments this week for user ${profile.id}:`, cpThisWeekError);
+      }
+
+      // Fetch overdue contract payments
+      const { data: overdueContractPayments, error: cpOverdueError } = await supabase
+        .from('contract_payments')
+        .select(`
+          *,
+          contracts!inner(client_name, contract_type, bill_type)
+        `)
+        .eq('user_id', profile.id)
+        .neq('status', 'paid')
+        .lt('due_date', todayStr);
+
+      if (cpOverdueError) {
+        console.error(`Error fetching overdue contract payments for user ${profile.id}:`, cpOverdueError);
+      }
+
+      // ========== BILLS SECTION ==========
+      // Fetch bills paid last week
+      const { data: billsLastWeek, error: billsLastWeekError } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('status', 'paid')
+        .gte('paid_date', lastWeekStartStr)
+        .lte('paid_date', todayStr);
+
+      if (billsLastWeekError) {
+        console.error(`Error fetching bills last week for user ${profile.id}:`, billsLastWeekError);
+      }
+
+      // Fetch bills due this week
+      const { data: billsThisWeek, error: billsThisWeekError } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('user_id', profile.id)
+        .neq('status', 'paid')
+        .gte('due_date', todayStr)
+        .lte('due_date', thisWeekEndStr);
+
+      if (billsThisWeekError) {
+        console.error(`Error fetching bills this week for user ${profile.id}:`, billsThisWeekError);
+      }
+
+      // Fetch overdue bills
+      const { data: overdueBills, error: overdueBillsError } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('user_id', profile.id)
+        .neq('status', 'paid')
+        .lt('due_date', todayStr);
+
+      if (overdueBillsError) {
+        console.error(`Error fetching overdue bills for user ${profile.id}:`, overdueBillsError);
+      }
+
+      // Calculate contract statistics
+      const receivablesLastWeek = (contractPaymentsLastWeek || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'receivable'
+      );
+      const payablesLastWeek = (contractPaymentsLastWeek || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'payable'
+      );
+
+      const receivablesThisWeek = (contractPaymentsThisWeek || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'receivable'
+      );
+      const payablesThisWeek = (contractPaymentsThisWeek || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'payable'
+      );
+
+      const overdueReceivables = (overdueContractPayments || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'receivable'
+      );
+      const overduePayables = (overdueContractPayments || []).filter(cp => 
+        (cp.contracts as any).bill_type === 'payable'
+      );
+
+      const totalReceivablesLastWeek = receivablesLastWeek.reduce((sum, cp) => sum + Number(cp.amount), 0);
+      const totalPayablesLastWeek = payablesLastWeek.reduce((sum, cp) => sum + Number(cp.amount), 0) + 
+        (billsLastWeek || []).reduce((sum, b) => sum + Number(b.amount), 0);
+
+      const totalReceivablesThisWeek = receivablesThisWeek.reduce((sum, cp) => sum + Number(cp.amount), 0);
+      const totalPayablesThisWeek = payablesThisWeek.reduce((sum, cp) => sum + Number(cp.amount), 0) + 
+        (billsThisWeek || []).reduce((sum, b) => sum + Number(b.amount), 0);
+
+      const totalOverdueReceivables = overdueReceivables.reduce((sum, cp) => sum + Number(cp.amount), 0);
+      const totalOverduePayables = overduePayables.reduce((sum, cp) => sum + Number(cp.amount), 0) + 
+        (overdueBills || []).reduce((sum, b) => sum + Number(b.amount), 0);
+
       // Build message
-      let message = `📅 *Resumo Semanal*\n\nOlá${profile.full_name ? `, ${profile.full_name}` : ''}!\n\n`;
+      let message = `📅 *RESUMO SEMANAL*\n\nOlá${profile.full_name ? `, ${profile.full_name}` : ''}!\n\n`;
       
-      // Last week stats
-      message += `📊 *Semana anterior:*\n`;
-      message += `• Pagamentos recebidos: *${paymentsCount}*\n`;
-      message += `• Total recebido: *${formatCurrency(totalReceivedLastWeek)}*\n\n`;
+      // ========== EMPRÉSTIMOS ==========
+      if ((loans || []).length > 0) {
+        message += `💰 *EMPRÉSTIMOS*\n`;
+        message += `━━━━━━━━━━━━━━━━\n`;
+        message += `📊 *Semana anterior:*\n`;
+        message += `• Pagamentos: *${paymentsCount}*\n`;
+        message += `• Recebido: *${formatCurrency(totalReceivedLastWeek)}*\n\n`;
 
-      // This week preview
-      message += `🔮 *Esta semana:*\n`;
-      message += `• Vencimentos: *${dueThisWeek.length}*\n`;
-      message += `• A receber: *${formatCurrency(totalDueThisWeek)}*\n\n`;
+        message += `🔮 *Esta semana:*\n`;
+        message += `• Vencimentos: *${dueThisWeek.length}*\n`;
+        message += `• A receber: *${formatCurrency(totalDueThisWeek)}*\n`;
 
-      if (dueThisWeek.length > 0) {
-        message += `📋 *Próximos vencimentos:*\n`;
-        message += dueThisWeek.slice(0, 5).map(l => 
-          `• ${l.clientName}: ${formatCurrency(l.amount)} (${formatDate(new Date(l.dueDate))})`
-        ).join('\n');
-        if (dueThisWeek.length > 5) {
-          message += `\n_... e mais ${dueThisWeek.length - 5}_`;
+        if (overdueLoans.length > 0) {
+          message += `• 🚨 Atrasados: *${overdueLoans.length}* (${formatCurrency(totalOverdue)})\n`;
         }
-        message += `\n\n`;
+        message += `\n`;
       }
 
-      if (overdueLoans.length > 0) {
-        message += `🚨 *Em atraso: ${overdueLoans.length}* (${formatCurrency(totalOverdue)})\n\n`;
+      // ========== CONTAS A RECEBER ==========
+      if (receivablesLastWeek.length > 0 || receivablesThisWeek.length > 0 || overdueReceivables.length > 0) {
+        message += `📦 *CONTAS A RECEBER*\n`;
+        message += `━━━━━━━━━━━━━━━━\n`;
+        message += `📊 *Semana anterior:*\n`;
+        message += `• Recebido: *${receivablesLastWeek.length}* (${formatCurrency(totalReceivablesLastWeek)})\n\n`;
+
+        message += `🔮 *Esta semana:*\n`;
+        message += `• Vencimentos: *${receivablesThisWeek.length}*\n`;
+        message += `• A receber: *${formatCurrency(totalReceivablesThisWeek)}*\n`;
+
+        if (overdueReceivables.length > 0) {
+          message += `• 🚨 Atrasados: *${overdueReceivables.length}* (${formatCurrency(totalOverdueReceivables)})\n`;
+        }
+        message += `\n`;
       }
 
-      message += `💰 *Total pendente: ${formatCurrency(totalPending)}*\n\n`;
+      // ========== CONTAS A PAGAR ==========
+      const totalPayablesCount = payablesLastWeek.length + (billsLastWeek || []).length;
+      const totalPayablesThisWeekCount = payablesThisWeek.length + (billsThisWeek || []).length;
+      const totalOverduePayablesCount = overduePayables.length + (overdueBills || []).length;
+
+      if (totalPayablesCount > 0 || totalPayablesThisWeekCount > 0 || totalOverduePayablesCount > 0) {
+        message += `💳 *CONTAS A PAGAR*\n`;
+        message += `━━━━━━━━━━━━━━━━\n`;
+        message += `📊 *Semana anterior:*\n`;
+        message += `• Pago: *${totalPayablesCount}* (${formatCurrency(totalPayablesLastWeek)})\n\n`;
+
+        message += `🔮 *Esta semana:*\n`;
+        message += `• Vencimentos: *${totalPayablesThisWeekCount}*\n`;
+        message += `• A pagar: *${formatCurrency(totalPayablesThisWeek)}*\n`;
+
+        if (totalOverduePayablesCount > 0) {
+          message += `• ⚠️ Atrasadas: *${totalOverduePayablesCount}* (${formatCurrency(totalOverduePayables)})\n`;
+        }
+        message += `\n`;
+      }
+
+      // ========== RESUMO GERAL ==========
+      message += `📈 *RESUMO GERAL*\n`;
+      message += `━━━━━━━━━━━━━━━━\n`;
+      const totalToReceive = totalDueThisWeek + totalReceivablesThisWeek;
+      const totalToPay = totalPayablesThisWeek;
+      const balance = totalToReceive - totalToPay;
+
+      message += `• A receber: *${formatCurrency(totalToReceive)}*\n`;
+      message += `• A pagar: *${formatCurrency(totalToPay)}*\n`;
+      message += `• Saldo previsto: *${formatCurrency(balance)}*\n\n`;
+
       message += `Bons negócios esta semana! 💪\n\n`;
       message += `_CobraFácil - Resumo semanal_`;
 
