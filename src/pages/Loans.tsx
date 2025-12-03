@@ -212,22 +212,6 @@ export default function Loans() {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Juros Total</Label>
-                      <Input 
-                        type="text" 
-                        readOnly 
-                        value={formData.principal_amount && formData.interest_rate && formData.installments 
-                          ? formatCurrency(
-                              formData.interest_mode === 'per_installment'
-                                ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1')
-                                : parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
-                            )
-                          : 'R$ 0,00'
-                        } 
-                        className="bg-muted"
-                      />
-                    </div>
                   </>
                 )}
                 <div className="grid grid-cols-2 gap-4">
