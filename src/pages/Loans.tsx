@@ -24,6 +24,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
@@ -148,9 +149,60 @@ export default function Loans() {
     }
   };
 
-  const filteredLoans = loans.filter(loan =>
-    loan.client?.full_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const getLoanStatus = (loan: typeof loans[0]) => {
+    const numInstallments = loan.installments || 1;
+    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+    const principalPerInstallment = loan.principal_amount / numInstallments;
+    const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+    
+    const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
+    const isRenegotiated = loan.notes?.includes('Valor prometido');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let isOverdue = false;
+    if (!isPaid && remainingToReceive > 0) {
+      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      const dates = (loan.installment_dates as string[]) || [];
+      
+      if (dates.length > 0 && paidInstallments < dates.length) {
+        const nextDueDate = new Date(dates[paidInstallments]);
+        nextDueDate.setHours(0, 0, 0, 0);
+        isOverdue = today > nextDueDate;
+      } else {
+        const dueDate = new Date(loan.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        isOverdue = today > dueDate;
+      }
+    }
+    
+    return { isPaid, isRenegotiated, isOverdue };
+  };
+
+  const filteredLoans = loans.filter(loan => {
+    const matchesSearch = loan.client?.full_name.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    
+    if (statusFilter === 'all') return true;
+    
+    const { isPaid, isRenegotiated, isOverdue } = getLoanStatus(loan);
+    
+    switch (statusFilter) {
+      case 'paid':
+        return isPaid;
+      case 'overdue':
+        return isOverdue && !isPaid;
+      case 'renegotiated':
+        return isRenegotiated && !isPaid && !isOverdue;
+      case 'pending':
+        return !isPaid && !isOverdue && !isRenegotiated;
+      default:
+        return true;
+    }
+  });
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
@@ -440,6 +492,48 @@ export default function Loans() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('all')}
+            >
+              Todos
+            </Button>
+            <Button
+              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('pending')}
+              className={statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}
+            >
+              Em Dia
+            </Button>
+            <Button
+              variant={statusFilter === 'paid' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('paid')}
+              className={statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}
+            >
+              Pagos
+            </Button>
+            <Button
+              variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('overdue')}
+              className={statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}
+            >
+              Em Atraso
+            </Button>
+            <Button
+              variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('renegotiated')}
+              className={statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}
+            >
+              Renegociados
+            </Button>
           </div>
           
           {loading ? (
