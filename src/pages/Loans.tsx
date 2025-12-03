@@ -106,11 +106,13 @@ export default function Loans() {
     interest_rate: '',
     interest_type: 'simple' as InterestType,
     interest_mode: 'per_installment' as 'per_installment' | 'on_total',
-    payment_type: 'single' as LoanPaymentType,
+    payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
     start_date: new Date().toISOString().split('T')[0],
     due_date: '',
     notes: '',
+    daily_amount: '',
+    daily_period: '15' as '15' | '30',
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -139,6 +141,28 @@ export default function Loans() {
       }
     }
   }, [formData.payment_type, formData.start_date, formData.installments]);
+
+  // Generate daily payment dates
+  useEffect(() => {
+    if (formData.payment_type === 'daily' && formData.start_date) {
+      const numDays = parseInt(formData.daily_period) || 15;
+      const startDate = new Date(formData.start_date);
+      const newDates: string[] = [];
+      
+      for (let i = 0; i < numDays; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + (i + 1)); // Daily intervals
+        newDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      setInstallmentDates(newDates);
+      setFormData(prev => ({ 
+        ...prev, 
+        due_date: newDates[newDates.length - 1],
+        installments: numDays.toString()
+      }));
+    }
+  }, [formData.payment_type, formData.start_date, formData.daily_period]);
 
   const updateInstallmentDate = (index: number, date: string) => {
     const newDates = [...installmentDates];
@@ -215,6 +239,36 @@ export default function Loans() {
       toast.error('Selecione um cliente');
       return;
     }
+    
+    // Para pagamento diário, calcular valores a partir do valor diário
+    if (formData.payment_type === 'daily') {
+      if (!formData.daily_amount || parseFloat(formData.daily_amount) <= 0) {
+        toast.error('Informe o valor da parcela diária');
+        return;
+      }
+      
+      const dailyAmount = parseFloat(formData.daily_amount);
+      const numDays = parseInt(formData.daily_period);
+      const totalAmount = dailyAmount * numDays;
+      
+      await createLoan({
+        client_id: formData.client_id,
+        principal_amount: totalAmount,
+        interest_rate: 0, // Sem juros adicional para diário
+        interest_type: formData.interest_type,
+        interest_mode: formData.interest_mode,
+        payment_type: 'daily',
+        installments: numDays,
+        start_date: formData.start_date,
+        due_date: formData.due_date,
+        notes: formData.notes ? `${formData.notes}\nParcela diária: R$ ${dailyAmount.toFixed(2)}` : `Parcela diária: R$ ${dailyAmount.toFixed(2)}`,
+        installment_dates: installmentDates,
+      });
+      setIsDialogOpen(false);
+      resetForm();
+      return;
+    }
+    
     if (!formData.principal_amount || parseFloat(formData.principal_amount) <= 0) {
       toast.error('Informe o valor do empréstimo');
       return;
@@ -276,6 +330,7 @@ export default function Loans() {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       interest_mode: 'on_total', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
+      daily_amount: '', daily_period: '15',
     });
     setInstallmentDates([]);
   };
@@ -425,27 +480,44 @@ export default function Loans() {
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Valor *</Label>
-                    <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required />
+                {formData.payment_type !== 'daily' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Valor *</Label>
+                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Taxa de Juros (%) * <span className="text-xs text-muted-foreground">(por parcela)</span></Label>
+                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Taxa de Juros (%) * <span className="text-xs text-muted-foreground">(por parcela)</span></Label>
-                    <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tipo de Juros</Label>
-                    <Select value={formData.interest_type} onValueChange={(v: InterestType) => setFormData({ ...formData, interest_type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="simple">Simples</SelectItem>
-                        <SelectItem value="compound">Composto</SelectItem>
-                      </SelectContent>
+                )}
+                {formData.payment_type !== 'daily' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de Juros</Label>
+                      <Select value={formData.interest_type} onValueChange={(v: InterestType) => setFormData({ ...formData, interest_type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="simple">Simples</SelectItem>
+                          <SelectItem value="compound">Composto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Modalidade</Label>
+                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Pagamento Único</SelectItem>
+                          <SelectItem value="installment">Parcelado</SelectItem>
+                          <SelectItem value="daily">Diário</SelectItem>
+                        </SelectContent>
                     </Select>
+                    </div>
                   </div>
+                )}
+                {formData.payment_type === 'daily' && (
                   <div className="space-y-2">
                     <Label>Modalidade</Label>
                     <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
@@ -453,10 +525,11 @@ export default function Loans() {
                       <SelectContent>
                         <SelectItem value="single">Pagamento Único</SelectItem>
                         <SelectItem value="installment">Parcelado</SelectItem>
+                        <SelectItem value="daily">Diário</SelectItem>
                       </SelectContent>
-                  </Select>
+                    </Select>
                   </div>
-                </div>
+                )}
                 {formData.payment_type === 'installment' && (
                   <>
                     <div className="grid grid-cols-2 gap-4">
@@ -476,6 +549,37 @@ export default function Loans() {
                           className="bg-muted"
                         />
                       </div>
+                    </div>
+                  </>
+                )}
+                {formData.payment_type === 'daily' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor da Parcela Diária (R$) *</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.daily_amount} 
+                          onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} 
+                          placeholder="Valor combinado por dia"
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Período de Cobrança *</Label>
+                        <Select value={formData.daily_period} onValueChange={(v: '15' | '30') => setFormData({ ...formData, daily_period: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="15">15 dias</SelectItem>
+                            <SelectItem value="30">30 dias</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                      <p className="text-sm"><strong>Total a receber:</strong> {formData.daily_amount ? formatCurrency(parseFloat(formData.daily_amount) * parseInt(formData.daily_period)) : 'R$ 0,00'}</p>
+                      <p className="text-xs text-muted-foreground">Cliente pagará {formData.daily_period} parcelas de {formData.daily_amount ? formatCurrency(parseFloat(formData.daily_amount)) : 'R$ 0,00'}</p>
                     </div>
                   </>
                 )}
@@ -505,6 +609,21 @@ export default function Loans() {
                               onChange={(e) => updateInstallmentDate(index, e.target.value)} 
                               className="flex-1"
                             />
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+                {formData.payment_type === 'daily' && installmentDates.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Datas de Cobrança ({installmentDates.length} dias)</Label>
+                    <ScrollArea className="h-[150px] rounded-md border p-3">
+                      <div className="space-y-1">
+                        {installmentDates.map((date, index) => (
+                          <div key={index} className="flex items-center gap-3 text-sm">
+                            <span className="font-medium w-16">Dia {index + 1}</span>
+                            <span className="text-muted-foreground">{formatDate(date)}</span>
                           </div>
                         ))}
                       </div>
