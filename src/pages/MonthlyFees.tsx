@@ -29,11 +29,8 @@ export default function MonthlyFees() {
     client_id: '',
     amount: '',
     description: '',
-    due_day: '5',
-    referenceMonth: new Date(),
+    dueDate: new Date(),
   });
-
-  // Mostrar todos os clientes no dropdown
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +38,10 @@ export default function MonthlyFees() {
       client_id: formData.client_id,
       amount: parseFloat(formData.amount),
       description: formData.description,
-      due_day: parseInt(formData.due_day),
+      due_day: formData.dueDate.getDate(),
     });
     setIsDialogOpen(false);
-    setFormData({ client_id: '', amount: '', description: '', due_day: '5', referenceMonth: new Date() });
+    setFormData({ client_id: '', amount: '', description: '', dueDate: new Date() });
   };
 
   const handleGeneratePayment = async (feeId: string) => {
@@ -79,31 +76,26 @@ export default function MonthlyFees() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Valor *</Label>
-                  <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Dia Vencimento *</Label>
-                    <Input type="number" min="1" max="28" value={formData.due_day} onChange={(e) => setFormData({ ...formData, due_day: e.target.value })} required />
+                    <Label>Valor *</Label>
+                    <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Mês/Ano Referência *</Label>
+                    <Label>Data de Vencimento *</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.referenceMonth && "text-muted-foreground")}>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.dueDate && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.referenceMonth ? format(formData.referenceMonth, "MMMM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
+                          {formData.dueDate ? format(formData.dueDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <CalendarPicker
                           mode="single"
-                          selected={formData.referenceMonth}
-                          onSelect={(date) => date && setFormData({ ...formData, referenceMonth: date })}
+                          selected={formData.dueDate}
+                          onSelect={(date) => date && setFormData({ ...formData, dueDate: date })}
                           initialFocus
-                          className={cn("p-3 pointer-events-auto")}
                         />
                       </PopoverContent>
                     </Popover>
