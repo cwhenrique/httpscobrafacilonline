@@ -154,7 +154,16 @@ export default function Loans() {
                   </div>
                   <div className="space-y-2">
                     <Label>Taxa de Juros (%) *</Label>
-                    <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
+                    <div className="flex gap-2">
+                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="flex-1" />
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
+                        <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on_total">Total</SelectItem>
+                          <SelectItem value="per_installment">Por Parcela</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -187,18 +196,6 @@ export default function Loans() {
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
                       </div>
                       <div className="space-y-2">
-                        <Label>Cálculo do Juros</Label>
-                        <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="on_total">% sobre valor total</SelectItem>
-                            <SelectItem value="per_installment">% por parcela</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
                         <Label>Juros por Parcela</Label>
                         <Input 
                           type="text" 
@@ -214,22 +211,22 @@ export default function Loans() {
                           className="bg-muted"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Juros Total</Label>
-                        <Input 
-                          type="text" 
-                          readOnly 
-                          value={formData.principal_amount && formData.interest_rate && formData.installments 
-                            ? formatCurrency(
-                                formData.interest_mode === 'per_installment'
-                                  ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1')
-                                  : parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
-                              )
-                            : 'R$ 0,00'
-                          } 
-                          className="bg-muted"
-                        />
-                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Juros Total</Label>
+                      <Input 
+                        type="text" 
+                        readOnly 
+                        value={formData.principal_amount && formData.interest_rate && formData.installments 
+                          ? formatCurrency(
+                              formData.interest_mode === 'per_installment'
+                                ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1')
+                                : parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
+                            )
+                          : 'R$ 0,00'
+                        } 
+                        className="bg-muted"
+                      />
                     </div>
                   </>
                 )}
