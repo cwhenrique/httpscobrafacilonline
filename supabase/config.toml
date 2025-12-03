@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.check-bills-due]
 verify_jwt = false
+
+[functions.check-contract-reminders]
+verify_jwt = false
+
+[functions.check-overdue-contracts]
+verify_jwt = false
