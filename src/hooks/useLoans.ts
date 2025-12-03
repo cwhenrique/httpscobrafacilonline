@@ -142,14 +142,28 @@ export function useLoans() {
       let message = `✅ *Novo Empréstimo Registrado*\n\n`;
       message += `👤 Cliente: *${clientName}*\n`;
       message += `💰 Valor: *${formatCurrency(loan.principal_amount)}*\n`;
-      message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
       
-      if (loan.payment_type === 'installment' && numInstallments > 1) {
+      if (loan.payment_type === 'daily') {
+        // Daily payment loan - no interest shown
+        const dailyAmount = loan.principal_amount / numInstallments;
+        message += `📆 Tipo: *Pagamento Diário*\n`;
+        message += `💵 Valor diário: *${formatCurrency(dailyAmount)}*\n`;
+        message += `📅 Dias de cobrança: *${numInstallments} dias*\n\n`;
+        
+        if (loan.installment_dates && loan.installment_dates.length > 0) {
+          message += `*Datas selecionadas:*\n`;
+          loan.installment_dates.forEach((date, index) => {
+            message += `• Dia ${index + 1}: ${formatDate(date)}\n`;
+          });
+        }
+      } else if (loan.payment_type === 'installment' && numInstallments > 1) {
+        message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
         message += `📅 Parcelas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
         if (loan.installment_dates && loan.installment_dates.length > 0) {
           message += `⏰ 1ª Parcela: *${formatDate(loan.installment_dates[0])}*\n`;
         }
       } else {
+        message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
         message += `📅 Vencimento: *${formatDate(loan.due_date)}*\n`;
         message += `💵 Total a receber: *${formatCurrency(loan.principal_amount + interestPerInstallment)}*\n`;
       }
