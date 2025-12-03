@@ -284,12 +284,31 @@ export default function Loans() {
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-                // Check if overdue based on due_date and remaining balance
+                
+                // Check if overdue based on installment dates
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const dueDate = new Date(loan.due_date);
-                dueDate.setHours(0, 0, 0, 0);
-                const isOverdue = !isPaid && (loan.status === 'overdue' || (remainingToReceive > 0 && dueDate < today));
+                
+                let isOverdue = false;
+                if (!isPaid && remainingToReceive > 0) {
+                  // Calculate how many installments have been paid
+                  const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                  
+                  // Get installment dates array
+                  const dates = (loan.installment_dates as string[]) || [];
+                  
+                  if (dates.length > 0 && paidInstallments < dates.length) {
+                    // Check if the next due installment date has passed
+                    const nextDueDate = new Date(dates[paidInstallments]);
+                    nextDueDate.setHours(0, 0, 0, 0);
+                    isOverdue = today > nextDueDate;
+                  } else {
+                    // Fallback to general due_date for single payment loans
+                    const dueDate = new Date(loan.due_date);
+                    dueDate.setHours(0, 0, 0, 0);
+                    isOverdue = today > dueDate;
+                  }
+                }
                 
                 const getCardStyle = () => {
                   if (isPaid) {
