@@ -21,6 +21,36 @@ export default function Dashboard() {
   const { loans, loading: loansLoading } = useLoans();
 
   const recentLoans = loans.slice(0, 5);
+  
+  // Filter overdue loans
+  const overdueLoans = loans.filter((loan) => {
+    if (loan.status === 'paid') return false;
+    
+    const numInstallments = loan.installments || 1;
+    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+    
+    if (remainingToReceive <= 0) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const principalPerInstallment = loan.principal_amount / numInstallments;
+    const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+    const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+    const dates = (loan.installment_dates as string[]) || [];
+    
+    if (dates.length > 0 && paidInstallments < dates.length) {
+      const nextDueDate = new Date(dates[paidInstallments]);
+      nextDueDate.setHours(0, 0, 0, 0);
+      return today > nextDueDate;
+    } else {
+      const dueDate = new Date(loan.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return today > dueDate;
+    }
+  });
 
   const statCards = [
     {
@@ -100,6 +130,62 @@ export default function Dashboard() {
             </Card>
           ))}
         </div>
+
+        {/* Overdue Loans Alert */}
+        {!loansLoading && overdueLoans.length > 0 && (
+          <Card className="shadow-soft border-destructive bg-destructive/5">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-destructive/10">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                </div>
+                <CardTitle className="text-lg font-display text-destructive">
+                  Empréstimos em Atraso ({overdueLoans.length})
+                </CardTitle>
+              </div>
+              <Link to="/loans">
+                <Button variant="outline" size="sm" className="gap-1 border-destructive text-destructive hover:bg-destructive/10">
+                  Ver todos
+                  <ArrowUpRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {overdueLoans.slice(0, 5).map((loan) => {
+                  const numInstallments = loan.installments || 1;
+                  const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+                  const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+                  const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+                  
+                  const dueDate = new Date(loan.due_date);
+                  const today = new Date();
+                  const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                  
+                  return (
+                    <div
+                      key={loan.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+                    >
+                      <div>
+                        <p className="font-medium">{loan.client?.full_name}</p>
+                        <p className="text-sm text-destructive">
+                          {daysOverdue} {daysOverdue === 1 ? 'dia' : 'dias'} em atraso
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-destructive">{formatCurrency(remainingToReceive)}</p>
+                        <Badge className="bg-destructive text-white">
+                          Em Atraso
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent Loans */}
         <Card className="shadow-soft">
