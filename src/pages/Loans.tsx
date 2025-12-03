@@ -43,10 +43,8 @@ export default function Loans() {
 
   const [paymentData, setPaymentData] = useState({
     amount: '',
-    principal_paid: '',
-    interest_paid: '',
     payment_date: new Date().toISOString().split('T')[0],
-    notes: '',
+    payment_type: 'partial' as 'partial' | 'total',
   });
 
   // Generate installment dates when start_date or installments change
@@ -102,17 +100,30 @@ export default function Loans() {
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLoanId) return;
+    
+    const selectedLoan = loans.find(l => l.id === selectedLoanId);
+    if (!selectedLoan) return;
+    
+    const amount = paymentData.payment_type === 'total' 
+      ? selectedLoan.remaining_balance 
+      : parseFloat(paymentData.amount);
+    
+    // Calculate how much goes to interest vs principal
+    const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+    const interest_paid = Math.min(amount, interestPerInstallment);
+    const principal_paid = amount - interest_paid;
+    
     await registerPayment({
       loan_id: selectedLoanId,
-      amount: parseFloat(paymentData.amount),
-      principal_paid: parseFloat(paymentData.principal_paid),
-      interest_paid: parseFloat(paymentData.interest_paid),
+      amount: amount,
+      principal_paid: principal_paid,
+      interest_paid: interest_paid,
       payment_date: paymentData.payment_date,
-      notes: paymentData.notes,
+      notes: '',
     });
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', principal_paid: '', interest_paid: '', payment_date: new Date().toISOString().split('T')[0], notes: '' });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial' });
   };
 
   const resetForm = () => {
@@ -327,30 +338,84 @@ export default function Loans() {
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
           <DialogContent>
             <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
-            <form onSubmit={handlePaymentSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Valor Total *</Label>
-                <Input type="number" step="0.01" value={paymentData.amount} onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Principal Pago</Label>
-                  <Input type="number" step="0.01" value={paymentData.principal_paid} onChange={(e) => setPaymentData({ ...paymentData, principal_paid: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Juros Pago</Label>
-                  <Input type="number" step="0.01" value={paymentData.interest_paid} onChange={(e) => setPaymentData({ ...paymentData, interest_paid: e.target.value })} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Data do Pagamento</Label>
-                <Input type="date" value={paymentData.payment_date} onChange={(e) => setPaymentData({ ...paymentData, payment_date: e.target.value })} />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
-                <Button type="submit">Registrar</Button>
-              </div>
-            </form>
+            {selectedLoanId && (() => {
+              const selectedLoan = loans.find(l => l.id === selectedLoanId);
+              if (!selectedLoan) return null;
+              const numInstallments = selectedLoan.installments || 1;
+              const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+              const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+              const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+              
+              return (
+                <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={selectedLoan.client?.avatar_url || ''} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {selectedLoan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{selectedLoan.client?.full_name}</p>
+                        <p className="text-sm text-muted-foreground">Saldo: {formatCurrency(selectedLoan.remaining_balance)}</p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Parcela: {formatCurrency(totalPerInstallment)} ({formatCurrency(principalPerInstallment)} + {formatCurrency(interestPerInstallment)} juros)
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Tipo de Pagamento</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={paymentData.payment_type === 'partial' ? 'default' : 'outline'}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '' })}
+                      >
+                        Parcial
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: selectedLoan.remaining_balance.toString() })}
+                      >
+                        Total ({formatCurrency(selectedLoan.remaining_balance)})
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {paymentData.payment_type === 'partial' && (
+                    <div className="space-y-2">
+                      <Label>Valor Pago *</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={paymentData.amount} 
+                        onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} 
+                        placeholder={`Ex: ${totalPerInstallment.toFixed(2)}`}
+                        required 
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label>Data do Pagamento</Label>
+                    <Input 
+                      type="date" 
+                      value={paymentData.payment_date} 
+                      onChange={(e) => setPaymentData({ ...paymentData, payment_date: e.target.value })} 
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit">Registrar Pagamento</Button>
+                  </div>
+                </form>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
