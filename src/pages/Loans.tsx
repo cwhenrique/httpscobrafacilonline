@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, fetchLoans } = useLoans();
-  const { clients, updateClient } = useClients();
+  const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -37,6 +37,38 @@ export default function Loans() {
   });
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    full_name: '',
+    phone: '',
+    address: '',
+    notes: '',
+  });
+  const [creatingClient, setCreatingClient] = useState(false);
+
+  const handleCreateClientInline = async () => {
+    if (!newClientData.full_name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    
+    setCreatingClient(true);
+    const result = await createClient({
+      full_name: newClientData.full_name,
+      phone: newClientData.phone || undefined,
+      address: newClientData.address || undefined,
+      notes: newClientData.notes || undefined,
+      client_type: 'loan',
+    });
+    
+    if (result.data) {
+      setFormData(prev => ({ ...prev, client_id: result.data!.id }));
+      setShowNewClientForm(false);
+      setNewClientData({ full_name: '', phone: '', address: '', notes: '' });
+      await fetchClients();
+    }
+    setCreatingClient(false);
+  };
 
   const handleAvatarUpload = async (clientId: string, file: File) => {
     if (!file) return;
@@ -226,13 +258,72 @@ export default function Loans() {
               <DialogHeader><DialogTitle>Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Cliente *</Label>
-                  <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                    <SelectContent>
-                      {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <Label>Cliente *</Label>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-auto py-1 text-xs text-primary"
+                      onClick={() => setShowNewClientForm(!showNewClientForm)}
+                    >
+                      {showNewClientForm ? 'Selecionar existente' : '+ Novo cliente'}
+                    </Button>
+                  </div>
+                  
+                  {!showNewClientForm ? (
+                    <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                      <SelectContent>
+                        {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Nome completo *</Label>
+                        <Input 
+                          value={newClientData.full_name}
+                          onChange={(e) => setNewClientData({ ...newClientData, full_name: e.target.value })}
+                          placeholder="Nome do cliente"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Telefone</Label>
+                        <Input 
+                          value={newClientData.phone}
+                          onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Endereço</Label>
+                        <Input 
+                          value={newClientData.address}
+                          onChange={(e) => setNewClientData({ ...newClientData, address: e.target.value })}
+                          placeholder="Endereço completo"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Observações</Label>
+                        <Textarea 
+                          value={newClientData.notes}
+                          onChange={(e) => setNewClientData({ ...newClientData, notes: e.target.value })}
+                          rows={2}
+                          placeholder="Observações sobre o cliente"
+                        />
+                      </div>
+                      <Button 
+                        type="button" 
+                        size="sm" 
+                        className="w-full"
+                        onClick={handleCreateClientInline}
+                        disabled={creatingClient}
+                      >
+                        {creatingClient ? 'Criando...' : 'Criar Cliente'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
