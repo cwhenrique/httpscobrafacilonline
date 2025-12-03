@@ -80,7 +80,7 @@ export default function MonthlyFees() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Valor *</Label>
+                    <Label>Valor Emprestado *</Label>
                     <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
                   </div>
                   <div className="space-y-2">
