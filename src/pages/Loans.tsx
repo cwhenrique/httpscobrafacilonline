@@ -279,6 +279,8 @@ export default function Loans() {
                 const principalPerInstallment = loan.principal_amount / numInstallments;
                 const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
                 const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+                const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+                const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 return (
                   <Card key={loan.id} className="shadow-soft hover:shadow-md transition-shadow">
@@ -295,7 +297,7 @@ export default function Loans() {
                             <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
                             <Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge>
                           </div>
-                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(loan.remaining_balance)}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(remainingToReceive)}</p>
                           <p className="text-xs text-muted-foreground">restante a receber</p>
                         </div>
                       </div>
@@ -307,7 +309,7 @@ export default function Loans() {
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Total a Receber</p>
-                          <p className="font-semibold">{formatCurrency(loan.principal_amount + (interestPerInstallment * numInstallments))}</p>
+                          <p className="font-semibold">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
                       
