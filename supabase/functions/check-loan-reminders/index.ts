@@ -27,7 +27,6 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
     return false;
   }
 
-  // Format phone number
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
@@ -98,17 +97,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Found ${loans?.length || 0} pending loans`);
 
-    let sentCount = 0;
-    const notifications: any[] = [];
+    // Group loans by user_id to send consolidated messages
+    const userLoansMap: Map<string, { 
+      loans: any[], 
+      reminderDay: number 
+    }[]> = new Map();
 
     for (const loan of loans || []) {
       const client = loan.clients as { full_name: string; phone: string | null };
       
-      if (!client.phone) {
-        console.log(`Client ${client.full_name} has no phone number, skipping`);
-        continue;
-      }
-
       // Check installment dates
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
@@ -124,7 +121,6 @@ const handler = async (req: Request): Promise<Response> => {
         nextDueDate = installmentDates[paidInstallments];
       } else {
         nextDueDate = loan.due_date;
-        // For single payment, remaining balance is the amount
         if (loan.payment_type === 'single') {
           installmentAmount = loan.remaining_balance + (loan.principal_amount * (loan.interest_rate / 100));
         }
@@ -135,29 +131,70 @@ const handler = async (req: Request): Promise<Response> => {
       // Check if due date matches any reminder date
       for (const reminder of reminderDates) {
         if (nextDueDate === reminder.date) {
-          const dueDate = new Date(nextDueDate);
-          const message = `📅 *Lembrete de Pagamento*\n\nOlá ${client.full_name}!\n\nSeu pagamento no valor de ${formatCurrency(installmentAmount)} vence em *${reminder.days} dia${reminder.days > 1 ? 's' : ''}* (${formatDate(dueDate)}).\n\nEvite juros e multas, efetue o pagamento em dia!\n\n_Mensagem automática_`;
+          const loanInfo = {
+            ...loan,
+            clientName: client.full_name,
+            clientPhone: client.phone,
+            installmentAmount,
+            dueDate: nextDueDate,
+          };
 
-          console.log(`Sending ${reminder.days}-day reminder to ${client.full_name}`);
-          
-          const sent = await sendWhatsApp(client.phone, message);
-          if (sent) {
-            sentCount++;
-            notifications.push({
-              user_id: loan.user_id,
-              loan_id: loan.id,
-              client_id: loan.client_id,
-              title: `📱 Lembrete Enviado`,
-              message: `Lembrete de ${reminder.days} dia(s) enviado para ${client.full_name}`,
-              type: 'info',
-            });
+          if (!userLoansMap.has(loan.user_id)) {
+            userLoansMap.set(loan.user_id, []);
           }
-          break; // Only send one reminder per loan
+          
+          const existingReminder = userLoansMap.get(loan.user_id)!.find(r => r.reminderDay === reminder.days);
+          if (existingReminder) {
+            existingReminder.loans.push(loanInfo);
+          } else {
+            userLoansMap.get(loan.user_id)!.push({ loans: [loanInfo], reminderDay: reminder.days });
+          }
+          break;
         }
       }
     }
 
-    // Create in-app notifications for sent messages
+    let sentCount = 0;
+    const notifications: any[] = [];
+
+    // Get user profiles to get their phone numbers
+    for (const [userId, reminders] of userLoansMap) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('phone, full_name')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || !profile?.phone) {
+        console.log(`User ${userId} has no phone configured, skipping`);
+        continue;
+      }
+
+      for (const reminder of reminders) {
+        const loansList = reminder.loans.map(l => 
+          `• *${l.clientName}*: ${formatCurrency(l.installmentAmount)} (vence ${formatDate(new Date(l.dueDate))})`
+        ).join('\n');
+
+        const totalAmount = reminder.loans.reduce((sum, l) => sum + l.installmentAmount, 0);
+
+        const message = `📋 *Lembrete de Cobranças*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* para os próximos *${reminder.reminderDay} dia${reminder.reminderDay > 1 ? 's' : ''}*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\n_CobraFácil - Lembrete automático_`;
+
+        console.log(`Sending ${reminder.reminderDay}-day reminder to user ${userId}`);
+        
+        const sent = await sendWhatsApp(profile.phone, message);
+        if (sent) {
+          sentCount++;
+          notifications.push({
+            user_id: userId,
+            title: `📋 Lembrete Enviado`,
+            message: `Lembrete de ${reminder.loans.length} cobrança(s) para ${reminder.reminderDay} dia(s)`,
+            type: 'info',
+          });
+        }
+      }
+    }
+
+    // Create in-app notifications
     if (notifications.length > 0) {
       const { error: notifError } = await supabase
         .from('notifications')

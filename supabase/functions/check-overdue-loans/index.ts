@@ -81,17 +81,17 @@ const handler = async (req: Request): Promise<Response> => {
         *,
         clients!inner(full_name, phone)
       `)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'overdue']);
 
     if (loansError) {
       console.error("Error fetching loans:", loansError);
       throw loansError;
     }
 
-    console.log(`Found ${loans?.length || 0} pending loans to check`);
+    console.log(`Found ${loans?.length || 0} loans to check`);
 
-    let sentCount = 0;
-    const notifications: any[] = [];
+    // Group overdue loans by user
+    const userOverdueMap: Map<string, any[]> = new Map();
     const overdueUpdates: string[] = [];
 
     for (const loan of loans || []) {
@@ -121,35 +121,28 @@ const handler = async (req: Request): Promise<Response> => {
       const dueDate = new Date(nextDueDate);
       dueDate.setHours(0, 0, 0, 0);
 
-      // Check if overdue (due date is before today)
+      // Check if overdue
       if (dueDate < today) {
         const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         
         // Update loan status to overdue
-        overdueUpdates.push(loan.id);
-
-        // Only send WhatsApp once per day for overdue (check if we already notified today)
-        // We'll use a simple approach: send on day 1, 3, 7, 14, 30 of being overdue
-        const notifyDays = [1, 3, 7, 14, 30];
-        
-        if (notifyDays.includes(daysOverdue) && client.phone) {
-          const message = `⚠️ *Pagamento em Atraso*\n\nOlá ${client.full_name}!\n\nSeu pagamento está *${daysOverdue} dia${daysOverdue > 1 ? 's' : ''} em atraso*.\n\n💰 Valor devido: ${formatCurrency(remainingAmount > 0 ? remainingAmount : totalPerInstallment)}\n📅 Vencimento: ${formatDate(dueDate)}\n\nRegularize sua situação o mais rápido possível para evitar maiores encargos.\n\n_Mensagem automática_`;
-
-          console.log(`Sending overdue notice (${daysOverdue} days) to ${client.full_name}`);
-          
-          const sent = await sendWhatsApp(client.phone, message);
-          if (sent) {
-            sentCount++;
-            notifications.push({
-              user_id: loan.user_id,
-              loan_id: loan.id,
-              client_id: loan.client_id,
-              title: `⚠️ Cobrança Enviada`,
-              message: `Notificação de atraso (${daysOverdue} dias) enviada para ${client.full_name}`,
-              type: 'warning',
-            });
-          }
+        if (loan.status !== 'overdue') {
+          overdueUpdates.push(loan.id);
         }
+
+        const loanInfo = {
+          ...loan,
+          clientName: client.full_name,
+          clientPhone: client.phone,
+          remainingAmount: remainingAmount > 0 ? remainingAmount : totalPerInstallment,
+          dueDate: nextDueDate,
+          daysOverdue,
+        };
+
+        if (!userOverdueMap.has(loan.user_id)) {
+          userOverdueMap.set(loan.user_id, []);
+        }
+        userOverdueMap.get(loan.user_id)!.push(loanInfo);
       }
     }
 
@@ -167,6 +160,48 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    let sentCount = 0;
+    const notifications: any[] = [];
+
+    // Send consolidated message to each user
+    for (const [userId, overdueLoans] of userOverdueMap) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('phone, full_name')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || !profile?.phone) {
+        console.log(`User ${userId} has no phone configured, skipping`);
+        continue;
+      }
+
+      // Sort by days overdue (most overdue first)
+      overdueLoans.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+      const loansList = overdueLoans.slice(0, 10).map(l => 
+        `• *${l.clientName}*: ${formatCurrency(l.remainingAmount)} (${l.daysOverdue} dia${l.daysOverdue > 1 ? 's' : ''} de atraso)`
+      ).join('\n');
+
+      const totalAmount = overdueLoans.reduce((sum, l) => sum + l.remainingAmount, 0);
+      const moreLoans = overdueLoans.length > 10 ? `\n_... e mais ${overdueLoans.length - 10} empréstimo(s)_` : '';
+
+      const message = `🚨 *Empréstimos em Atraso*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${overdueLoans.length} empréstimo${overdueLoans.length > 1 ? 's' : ''} em atraso*:\n\n${loansList}${moreLoans}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nEntre em contato com seus clientes para regularizar!\n\n_CobraFácil - Alerta automático_`;
+
+      console.log(`Sending overdue alert to user ${userId} (${overdueLoans.length} loans)`);
+      
+      const sent = await sendWhatsApp(profile.phone, message);
+      if (sent) {
+        sentCount++;
+        notifications.push({
+          user_id: userId,
+          title: `🚨 Alerta de Atrasos`,
+          message: `${overdueLoans.length} empréstimo(s) em atraso - Total: ${formatCurrency(totalAmount)}`,
+          type: 'warning',
+        });
+      }
+    }
+
     // Create in-app notifications
     if (notifications.length > 0) {
       const { error: notifError } = await supabase
@@ -178,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(`Sent ${sentCount} overdue notices`);
+    console.log(`Sent ${sentCount} overdue alerts`);
 
     return new Response(
       JSON.stringify({ 
