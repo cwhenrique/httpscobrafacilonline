@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -15,8 +14,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent } from 'lucide-react';
 
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan } = useLoans();
@@ -246,72 +246,80 @@ export default function Loans() {
           </Dialog>
         </div>
 
-        <Card className="shadow-soft">
-          <CardHeader>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-48 w-full rounded-xl" />))}
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">{[...Array(5)].map((_, i) => (<Skeleton key={i} className="h-16 w-full" />))}</div>
-            ) : filteredLoans.length === 0 ? (
-              <div className="text-center py-12">
-                <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Taxa</TableHead>
-                      <TableHead>Parcelas</TableHead>
-                      <TableHead>Juros/Parcela</TableHead>
-                      <TableHead>Saldo</TableHead>
-                      <TableHead>Vencimento</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLoans.map((loan) => {
-                      const interestPerInstallment = loan.interest_mode === 'per_installment'
-                        ? loan.principal_amount * (loan.interest_rate / 100)
-                        : loan.installments && loan.installments > 1 
-                          ? (loan.principal_amount * (loan.interest_rate / 100)) / loan.installments 
-                          : loan.principal_amount * (loan.interest_rate / 100);
-                      return (
-                      <TableRow key={loan.id}>
-                        <TableCell className="font-medium">{loan.client?.full_name}</TableCell>
-                        <TableCell>{formatCurrency(loan.principal_amount)}</TableCell>
-                        <TableCell>{formatPercentage(loan.interest_rate)} {loan.interest_mode === 'per_installment' ? '/parcela' : ''}</TableCell>
-                        <TableCell>{loan.installments || 1}x</TableCell>
-                        <TableCell>{formatCurrency(interestPerInstallment)}</TableCell>
-                        <TableCell className="font-semibold">{formatCurrency(loan.remaining_balance)}</TableCell>
-                        <TableCell>{formatDate(loan.due_date)}</TableCell>
-                        <TableCell><Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}>
-                              <CreditCard className="w-4 h-4 text-primary" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(loan.id)}>
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+          ) : filteredLoans.length === 0 ? (
+            <div className="text-center py-12">
+              <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredLoans.map((loan) => {
+                const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+                const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+                return (
+                  <Card key={loan.id} className="shadow-soft hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-4">
+                        <Avatar className="h-16 w-16 border-2 border-primary/20">
+                          <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
+                            <Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );})}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(loan.principal_amount)}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Percent className="w-4 h-4" />
+                          <span>Juros: {formatPercentage(loan.interest_rate)}/parcela</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CreditCard className="w-4 h-4" />
+                          <span>{loan.installments || 1}x de {formatCurrency(interestPerInstallment)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Calendar className="w-4 h-4" />
+                          <span>Venc: {formatDate(loan.due_date)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-primary" />
+                          <span className="font-semibold">Saldo: {formatCurrency(loan.remaining_balance)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 mt-4 pt-4 border-t">
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pagamento
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(loan.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
           <DialogContent>

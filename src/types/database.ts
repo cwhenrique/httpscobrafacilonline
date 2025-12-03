@@ -20,6 +20,7 @@ export interface Client {
   phone: string | null;
   address: string | null;
   notes: string | null;
+  avatar_url: string | null;
   client_type: ClientType;
   created_at: string;
   updated_at: string;
