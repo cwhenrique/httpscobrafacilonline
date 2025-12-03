@@ -208,6 +208,25 @@ export default function Loans() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação de campos obrigatórios
+    if (!formData.client_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+    if (!formData.principal_amount || parseFloat(formData.principal_amount) <= 0) {
+      toast.error('Informe o valor do empréstimo');
+      return;
+    }
+    if (!formData.interest_rate || parseFloat(formData.interest_rate) < 0) {
+      toast.error('Informe a taxa de juros');
+      return;
+    }
+    if (!formData.due_date) {
+      toast.error('Informe a data de vencimento');
+      return;
+    }
+    
     await createLoan({
       ...formData,
       principal_amount: parseFloat(formData.principal_amount),
