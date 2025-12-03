@@ -75,9 +75,9 @@ export function ProfileSetupModal({ open }: ProfileSetupModalProps) {
             <AlertCircle className="w-5 h-5 text-amber-500" />
             Configure seu Perfil
           </DialogTitle>
-          <DialogDescription>
-            Para utilizar o CobraFácil, preencha as informações abaixo. Seu telefone será usado para receber notificações de cobranças.
-          </DialogDescription>
+        <DialogDescription>
+          Para utilizar o CobraFácil, preencha as informações abaixo. Seu telefone será usado para receber notificações que irão te auxiliar na gestão com seus clientes.
+        </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
@@ -112,7 +112,7 @@ export function ProfileSetupModal({ open }: ProfileSetupModalProps) {
               <p className="text-sm text-destructive">{errors.phone}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Você receberá lembretes de cobranças neste número
+              Você receberá notificações para te auxiliar na gestão
             </p>
           </div>
 
