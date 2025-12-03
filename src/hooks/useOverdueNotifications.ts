@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Loan } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useOverdueNotifications(loans: Loan[], loading: boolean) {
   const notifiedRef = useRef(false);
+  const { user } = useAuth();
 
   const getOverdueLoans = (loans: Loan[]) => {
     const today = new Date();
@@ -32,6 +35,22 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
         dueDate.setHours(0, 0, 0, 0);
         return today > dueDate;
       }
+    });
+  };
+
+  const createOverdueNotification = async (overdueCount: number, totalAmount: number) => {
+    if (!user) return;
+    
+    const formattedAmount = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(totalAmount);
+
+    await supabase.from('notifications').insert({
+      user_id: user.id,
+      title: '⚠️ Empréstimos em Atraso',
+      message: `Você tem ${overdueCount} ${overdueCount === 1 ? 'empréstimo' : 'empréstimos'} em atraso totalizando ${formattedAmount}`,
+      type: 'warning',
     });
   };
 
@@ -81,24 +100,28 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
       const overdueLoans = getOverdueLoans(loans);
       
       if (overdueLoans.length > 0) {
-        const hasPermission = await requestNotificationPermission();
-        
-        if (hasPermission) {
-          const totalAmount = overdueLoans.reduce((sum, loan) => {
-            const numInstallments = loan.installments || 1;
-            const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-            const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
-            return sum + (totalToReceive - (loan.total_paid || 0));
-          }, 0);
+        const totalAmount = overdueLoans.reduce((sum, loan) => {
+          const numInstallments = loan.installments || 1;
+          const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+          const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+          return sum + (totalToReceive - (loan.total_paid || 0));
+        }, 0);
 
+        // Create in-app notification
+        await createOverdueNotification(overdueLoans.length, totalAmount);
+
+        // Also show browser notification
+        const hasPermission = await requestNotificationPermission();
+        if (hasPermission) {
           showNotification(overdueLoans.length, totalAmount);
-          notifiedRef.current = true;
         }
+        
+        notifiedRef.current = true;
       }
     };
 
     checkAndNotify();
-  }, [loans, loading]);
+  }, [loans, loading, user]);
 
   return {
     requestPermission: requestNotificationPermission,
