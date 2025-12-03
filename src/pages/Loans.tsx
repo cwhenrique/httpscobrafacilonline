@@ -477,7 +477,7 @@ export default function Loans() {
                             return formatDate(nextDate);
                           })()}</span>
                         </div>
-                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
+                        <div className={`flex items-center gap-2 p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                           <DollarSign className="w-4 h-4" />
                           <span>Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
