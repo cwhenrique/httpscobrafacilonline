@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 import { 
   User, 
   Mail, 
@@ -17,15 +20,24 @@ import {
   CheckCircle,
   DollarSign,
   Users,
-  TrendingUp
+  TrendingUp,
+  Save,
+  X,
+  Loader2,
+  Lock
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Profile() {
   const { user } = useAuth();
-  const { profile, loading } = useProfile();
-  const navigate = useNavigate();
+  const { profile, loading, updateProfile, refetch } = useProfile();
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    full_name: '',
+    phone: '',
+    company_name: '',
+  });
   const [stats, setStats] = useState({
     totalClients: 0,
     totalLoans: 0,
@@ -39,6 +51,16 @@ export default function Profile() {
       fetchStats();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || '',
+        phone: formatPhone(profile.phone || ''),
+        company_name: profile.company_name || '',
+      });
+    }
+  }, [profile]);
 
   const fetchStats = async () => {
     if (!user) return;
@@ -73,9 +95,55 @@ export default function Profile() {
     }).format(new Date(dateString));
   };
 
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 11) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
   const getInitials = (name: string | null) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const handleSave = async () => {
+    if (!formData.full_name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+
+    const phoneNumbers = formData.phone.replace(/\D/g, '');
+    if (!phoneNumbers || phoneNumbers.length < 10) {
+      toast.error('Telefone inválido');
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await updateProfile({
+      full_name: formData.full_name.trim(),
+      phone: phoneNumbers,
+      company_name: formData.company_name.trim() || null,
+    });
+
+    if (error) {
+      toast.error('Erro ao salvar perfil');
+    } else {
+      toast.success('Perfil atualizado com sucesso!');
+      setIsEditing(false);
+      refetch();
+    }
+    setSaving(false);
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      full_name: profile?.full_name || '',
+      phone: formatPhone(profile?.phone || ''),
+      company_name: profile?.company_name || '',
+    });
+    setIsEditing(false);
   };
 
   if (loading) {
@@ -97,10 +165,27 @@ export default function Profile() {
             <h1 className="text-2xl font-display font-bold">Meu Perfil</h1>
             <p className="text-muted-foreground">Informações da sua conta</p>
           </div>
-          <Button onClick={() => navigate('/settings')} variant="outline">
-            <Edit className="w-4 h-4 mr-2" />
-            Editar Perfil
-          </Button>
+          {!isEditing ? (
+            <Button onClick={() => setIsEditing(true)} variant="outline">
+              <Edit className="w-4 h-4 mr-2" />
+              Editar Perfil
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button onClick={handleCancel} variant="outline" disabled={saving}>
+                <X className="w-4 h-4 mr-2" />
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Salvar
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Profile Card */}
@@ -110,19 +195,37 @@ export default function Profile() {
             <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12">
               <Avatar className="w-24 h-24 border-4 border-background shadow-lg">
                 <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
-                  {getInitials(profile?.full_name)}
+                  {getInitials(formData.full_name || profile?.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 pb-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-bold">{profile?.full_name || 'Usuário'}</h2>
+                  {isEditing ? (
+                    <Input
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      placeholder="Seu nome completo"
+                      className="max-w-xs text-xl font-bold h-auto py-1"
+                    />
+                  ) : (
+                    <h2 className="text-xl font-bold">{profile?.full_name || 'Usuário'}</h2>
+                  )}
                   <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
                     <CheckCircle className="w-3 h-3 mr-1" />
                     Ativo
                   </Badge>
                 </div>
-                {profile?.company_name && (
-                  <p className="text-muted-foreground">{profile.company_name}</p>
+                {isEditing ? (
+                  <Input
+                    value={formData.company_name}
+                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                    placeholder="Nome da empresa (opcional)"
+                    className="max-w-xs mt-2 h-auto py-1 text-sm"
+                  />
+                ) : (
+                  profile?.company_name && (
+                    <p className="text-muted-foreground">{profile.company_name}</p>
+                  )
                 )}
               </div>
             </div>
@@ -143,37 +246,53 @@ export default function Profile() {
                 <div className="p-2 rounded-lg bg-muted">
                   <Mail className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Email</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <Lock className="w-3 h-3 text-muted-foreground" />
+                  </div>
                   <p className="font-medium">{profile?.email || user?.email}</p>
+                  <p className="text-xs text-muted-foreground">Não pode ser alterado</p>
                 </div>
               </div>
+
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-muted">
                   <Phone className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-muted-foreground">WhatsApp</p>
-                  <p className="font-medium">
-                    {profile?.phone ? (
-                      `(${profile.phone.slice(0, 2)}) ${profile.phone.slice(2, 7)}-${profile.phone.slice(7)}`
-                    ) : (
-                      <span className="text-muted-foreground">Não informado</span>
-                    )}
-                  </p>
+                  {isEditing ? (
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
+                      placeholder="(00) 00000-0000"
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="font-medium">
+                      {profile?.phone ? (
+                        `(${profile.phone.slice(0, 2)}) ${profile.phone.slice(2, 7)}-${profile.phone.slice(7)}`
+                      ) : (
+                        <span className="text-muted-foreground">Não informado</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
-              {profile?.company_name && (
+
+              {(profile?.company_name || isEditing) && !isEditing && (
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-muted">
                     <Building className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Empresa</p>
-                    <p className="font-medium">{profile.company_name}</p>
+                    <p className="font-medium">{profile?.company_name || 'Não informado'}</p>
                   </div>
                 </div>
               )}
+
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-muted">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
