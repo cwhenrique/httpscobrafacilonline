@@ -35,6 +35,7 @@ export function useLoans() {
     principal_amount: number;
     interest_rate: number;
     interest_type: InterestType;
+    interest_mode?: 'per_installment' | 'on_total';
     payment_type: LoanPaymentType;
     installments?: number;
     start_date: string;

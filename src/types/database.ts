@@ -25,6 +25,8 @@ export interface Client {
   updated_at: string;
 }
 
+export type InterestMode = 'per_installment' | 'on_total';
+
 export interface Loan {
   id: string;
   user_id: string;
@@ -32,6 +34,7 @@ export interface Loan {
   principal_amount: number;
   interest_rate: number;
   interest_type: InterestType;
+  interest_mode: InterestMode;
   payment_type: LoanPaymentType;
   installments: number;
   installment_dates: string[];
