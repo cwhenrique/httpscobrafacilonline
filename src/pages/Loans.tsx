@@ -143,27 +143,13 @@ export default function Loans() {
     }
   }, [formData.payment_type, formData.start_date, formData.installments]);
 
-  // Generate daily payment dates
+  // Reset dates when switching to daily payment type
   useEffect(() => {
-    if (formData.payment_type === 'daily' && formData.start_date) {
-      const numDays = parseInt(formData.daily_period) || 15;
-      const startDate = new Date(formData.start_date);
-      const newDates: string[] = [];
-      
-      for (let i = 0; i < numDays; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + (i + 1)); // Daily intervals
-        newDates.push(date.toISOString().split('T')[0]);
-      }
-      
-      setInstallmentDates(newDates);
-      setFormData(prev => ({ 
-        ...prev, 
-        due_date: newDates[newDates.length - 1],
-        installments: numDays.toString()
-      }));
+    if (formData.payment_type === 'daily') {
+      // Clear previous dates to allow manual selection
+      setInstallmentDates([]);
     }
-  }, [formData.payment_type, formData.start_date, formData.daily_period]);
+  }, [formData.payment_type]);
 
   const updateInstallmentDate = (index: number, date: string) => {
     const newDates = [...installmentDates];
