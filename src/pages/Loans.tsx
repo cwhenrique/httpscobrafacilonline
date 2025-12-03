@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useClients } from '@/hooks/useClients';
@@ -16,11 +16,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent, RefreshCw } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent, RefreshCw, Camera } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan } = useLoans();
-  const { clients } = useClients();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, fetchLoans } = useLoans();
+  const { clients, updateClient } = useClients();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -33,6 +35,36 @@ export default function Loans() {
     promised_date: '',
     notes: '',
   });
+  const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarUpload = async (clientId: string, file: File) => {
+    if (!file) return;
+    
+    setUploadingClientId(clientId);
+    
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${clientId}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('client-avatars')
+      .upload(filePath, file, { upsert: true });
+    
+    if (uploadError) {
+      toast.error('Erro ao fazer upload da foto');
+      setUploadingClientId(null);
+      return;
+    }
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('client-avatars')
+      .getPublicUrl(filePath);
+    
+    await updateClient(clientId, { avatar_url: publicUrl });
+    await fetchLoans();
+    setUploadingClientId(null);
+    toast.success('Foto atualizada!');
+  };
   
   const [formData, setFormData] = useState({
     client_id: '',
@@ -373,12 +405,37 @@ export default function Loans() {
                   <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
-                        <Avatar className={`h-16 w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
-                          <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                          <AvatarFallback className={`text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative group">
+                          <Avatar className={`h-16 w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                            <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
+                            <AvatarFallback className={`text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <button
+                            type="button"
+                            className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${uploadingClientId === loan.client_id ? 'opacity-100' : ''}`}
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (file && loan.client_id) {
+                                  handleAvatarUpload(loan.client_id, file);
+                                }
+                              };
+                              input.click();
+                            }}
+                            disabled={uploadingClientId === loan.client_id}
+                          >
+                            {uploadingClientId === loan.client_id ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Camera className="w-5 h-5 text-white" />
+                            )}
+                          </button>
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
