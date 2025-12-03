@@ -1,7 +1,9 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { cn } from '@/lib/utils';
+import { ProfileSetupModal } from '@/components/ProfileSetupModal';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -93,7 +95,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { isProfileComplete, loading: profileLoading } = useProfile();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Don't show modal on settings page or while loading
+  const showProfileModal = !profileLoading && !isProfileComplete && location.pathname !== '/settings';
 
   const handleSignOut = async () => {
     await signOut();
@@ -193,6 +200,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </div>
       </main>
+
+      {/* Profile Setup Modal - blocks usage until profile is complete */}
+      <ProfileSetupModal open={showProfileModal} />
     </div>
   );
 }
