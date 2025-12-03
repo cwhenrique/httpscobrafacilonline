@@ -5,6 +5,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { updateClientScore } from '@/lib/updateClientScore';
 
+// Helper to create notification
+const createNotificationRecord = async (
+  userId: string,
+  notification: {
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'success';
+    loan_id?: string;
+    client_id?: string;
+  }
+) => {
+  await supabase.from('notifications').insert({
+    user_id: userId,
+    ...notification,
+  });
+};
+
 export function useLoans() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,12 +119,31 @@ export function useLoans() {
     // Get the loan to find client_id and update their score
     const { data: loan } = await supabase
       .from('loans')
-      .select('client_id')
+      .select('client_id, remaining_balance, principal_amount, clients(full_name)')
       .eq('id', payment.loan_id)
       .single();
     
     if (loan) {
       await updateClientScore(loan.client_id);
+      
+      // Create notification for payment received
+      const clientName = (loan.clients as any)?.full_name || 'Cliente';
+      const formattedAmount = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(payment.amount);
+      
+      const isPaidOff = (loan.remaining_balance - payment.principal_paid) <= 0;
+      
+      await createNotificationRecord(user.id, {
+        title: isPaidOff ? '✅ Empréstimo Quitado!' : '💰 Pagamento Recebido',
+        message: isPaidOff 
+          ? `${clientName} quitou o empréstimo de ${formattedAmount}`
+          : `${clientName} realizou um pagamento de ${formattedAmount}`,
+        type: 'success',
+        loan_id: payment.loan_id,
+        client_id: loan.client_id,
+      });
     }
     
     await fetchLoans();

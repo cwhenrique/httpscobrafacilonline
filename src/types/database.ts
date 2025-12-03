@@ -106,3 +106,15 @@ export interface DashboardStats {
   upcomingDue: number;
   activeClients: number;
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  is_read: boolean;
+  loan_id: string | null;
+  client_id: string | null;
+  created_at: string;
+}
