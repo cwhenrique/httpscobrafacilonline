@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, getPaymentStatusLabel } from '@/lib/calcula
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
+import { LoanSimulator } from '@/components/LoanSimulator';
 
 export default function Reports() {
   const { stats } = useDashboardStats();
@@ -136,6 +137,9 @@ export default function Reports() {
             )}
           </CardContent>
         </Card>
+
+        {/* Loan Simulator */}
+        <LoanSimulator />
       </div>
     </DashboardLayout>
   );
