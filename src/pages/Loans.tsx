@@ -264,7 +264,10 @@ export default function Loans() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredLoans.map((loan) => {
+                const numInstallments = loan.installments || 1;
+                const principalPerInstallment = loan.principal_amount / numInstallments;
                 const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+                const totalPerInstallment = principalPerInstallment + interestPerInstallment;
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 return (
                   <Card key={loan.id} className="shadow-soft hover:shadow-md transition-shadow">
@@ -292,7 +295,7 @@ export default function Loans() {
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CreditCard className="w-4 h-4" />
-                          <span>{loan.installments || 1}x de {formatCurrency(interestPerInstallment)}</span>
+                          <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Calendar className="w-4 h-4" />
