@@ -166,6 +166,7 @@ export type Database = {
       contracts: {
         Row: {
           amount_to_receive: number
+          bill_type: string
           client_name: string
           contract_type: string
           created_at: string
@@ -182,6 +183,7 @@ export type Database = {
         }
         Insert: {
           amount_to_receive: number
+          bill_type?: string
           client_name: string
           contract_type?: string
           created_at?: string
@@ -198,6 +200,7 @@ export type Database = {
         }
         Update: {
           amount_to_receive?: number
+          bill_type?: string
           client_name?: string
           contract_type?: string
           created_at?: string
