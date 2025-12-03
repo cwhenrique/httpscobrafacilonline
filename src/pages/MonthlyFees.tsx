@@ -8,12 +8,17 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
-import { Plus, Calendar, Check } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function MonthlyFees() {
   const { monthlyFees, payments, loading, createMonthlyFee, generateMonthlyPayment, registerPayment } = useMonthlyFees();
@@ -25,6 +30,7 @@ export default function MonthlyFees() {
     amount: '',
     description: '',
     due_day: '5',
+    referenceMonth: new Date(),
   });
 
   // Mostrar todos os clientes no dropdown
@@ -38,7 +44,7 @@ export default function MonthlyFees() {
       due_day: parseInt(formData.due_day),
     });
     setIsDialogOpen(false);
-    setFormData({ client_id: '', amount: '', description: '', due_day: '5' });
+    setFormData({ client_id: '', amount: '', description: '', due_day: '5', referenceMonth: new Date() });
   };
 
   const handleGeneratePayment = async (feeId: string) => {
@@ -73,14 +79,34 @@ export default function MonthlyFees() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Valor *</Label>
+                  <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Valor *</Label>
-                    <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
-                  </div>
                   <div className="space-y-2">
                     <Label>Dia Vencimento *</Label>
                     <Input type="number" min="1" max="28" value={formData.due_day} onChange={(e) => setFormData({ ...formData, due_day: e.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Mês/Ano Referência *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.referenceMonth && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.referenceMonth ? format(formData.referenceMonth, "MMMM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={formData.referenceMonth}
+                          onSelect={(date) => date && setFormData({ ...formData, referenceMonth: date })}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -109,7 +135,7 @@ export default function MonthlyFees() {
                   <div className="space-y-3">{[...Array(3)].map((_, i) => (<Skeleton key={i} className="h-16 w-full" />))}</div>
                 ) : monthlyFees.length === 0 ? (
                   <div className="text-center py-12">
-                    <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <CalendarIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">Nenhuma mensalidade cadastrada</p>
                   </div>
                 ) : (
