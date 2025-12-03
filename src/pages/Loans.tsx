@@ -29,11 +29,10 @@ export default function Loans() {
   const [installmentDates, setInstallmentDates] = useState<string[]>([]);
   const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
   const [renegotiateData, setRenegotiateData] = useState({
-    interest_rate: '',
-    installments: '1',
+    promised_amount: '',
+    promised_date: '',
     notes: '',
   });
-  const [renegotiateDates, setRenegotiateDates] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     client_id: '',
@@ -146,64 +145,29 @@ export default function Loans() {
     if (!loan) return;
     
     setSelectedLoanId(loanId);
+    const today = new Date();
+    today.setDate(today.getDate() + 15);
     setRenegotiateData({
-      interest_rate: loan.interest_rate.toString(),
-      installments: (loan.installments || 1).toString(),
+      promised_amount: '',
+      promised_date: today.toISOString().split('T')[0],
       notes: loan.notes || '',
     });
-    
-    // Generate default dates starting from today
-    const numInstallments = loan.installments || 1;
-    const newDates: string[] = [];
-    const today = new Date();
-    for (let i = 0; i < numInstallments; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() + (15 * (i + 1)));
-      newDates.push(date.toISOString().split('T')[0]);
-    }
-    setRenegotiateDates(newDates);
     setIsRenegotiateDialogOpen(true);
   };
 
-  const updateRenegotiateDate = (index: number, date: string) => {
-    const newDates = [...renegotiateDates];
-    newDates[index] = date;
-    setRenegotiateDates(newDates);
-  };
-
-  // Update renegotiate dates when installments change
-  useEffect(() => {
-    if (isRenegotiateDialogOpen) {
-      const numInstallments = parseInt(renegotiateData.installments) || 1;
-      const currentLength = renegotiateDates.length;
-      
-      if (numInstallments !== currentLength) {
-        const today = new Date();
-        const newDates: string[] = [];
-        for (let i = 0; i < numInstallments; i++) {
-          if (i < currentLength && renegotiateDates[i]) {
-            newDates.push(renegotiateDates[i]);
-          } else {
-            const date = new Date(today);
-            date.setDate(date.getDate() + (15 * (i + 1)));
-            newDates.push(date.toISOString().split('T')[0]);
-          }
-        }
-        setRenegotiateDates(newDates);
-      }
-    }
-  }, [renegotiateData.installments, isRenegotiateDialogOpen]);
-
   const handleRenegotiateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLoanId || renegotiateDates.length === 0) return;
+    if (!selectedLoanId || !renegotiateData.promised_date) return;
+    
+    const loan = loans.find(l => l.id === selectedLoanId);
+    if (!loan) return;
     
     await renegotiateLoan(selectedLoanId, {
-      interest_rate: parseFloat(renegotiateData.interest_rate),
-      installments: parseInt(renegotiateData.installments),
-      installment_dates: renegotiateDates,
-      due_date: renegotiateDates[renegotiateDates.length - 1],
-      notes: renegotiateData.notes,
+      interest_rate: loan.interest_rate,
+      installments: 1,
+      installment_dates: [renegotiateData.promised_date],
+      due_date: renegotiateData.promised_date,
+      notes: renegotiateData.notes + (renegotiateData.promised_amount ? `\nValor prometido: R$ ${renegotiateData.promised_amount}` : ''),
     });
     
     setIsRenegotiateDialogOpen(false);
@@ -614,47 +578,25 @@ export default function Loans() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Nova Taxa de Juros (%)</Label>
+                      <Label>Valor Prometido (R$)</Label>
                       <Input 
                         type="number" 
                         step="0.01" 
-                        value={renegotiateData.interest_rate} 
-                        onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_rate: e.target.value })} 
-                        required 
+                        value={renegotiateData.promised_amount} 
+                        onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_amount: e.target.value })} 
+                        placeholder="Ex: 500,00"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Nº de Parcelas</Label>
+                      <Label>Data do Pagamento *</Label>
                       <Input 
-                        type="number" 
-                        min="1" 
-                        value={renegotiateData.installments} 
-                        onChange={(e) => setRenegotiateData({ ...renegotiateData, installments: e.target.value })} 
+                        type="date" 
+                        value={renegotiateData.promised_date} 
+                        onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
                         required 
                       />
                     </div>
                   </div>
-                  
-                  {renegotiateDates.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Novos Vencimentos</Label>
-                      <ScrollArea className="h-[200px] rounded-md border p-3">
-                        <div className="space-y-2">
-                          {renegotiateDates.map((date, index) => (
-                            <div key={index} className="flex items-center gap-3">
-                              <span className="text-sm font-medium w-20">Parcela {index + 1}</span>
-                              <Input 
-                                type="date" 
-                                value={date} 
-                                onChange={(e) => updateRenegotiateDate(index, e.target.value)} 
-                                className="flex-1"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
                   
                   <div className="space-y-2">
                     <Label>Observações</Label>
