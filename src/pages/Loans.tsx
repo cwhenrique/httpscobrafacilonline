@@ -258,28 +258,41 @@ export default function Loans() {
               <DialogHeader><DialogTitle>Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Cliente *</Label>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-auto py-1 text-xs text-primary"
-                      onClick={() => setShowNewClientForm(!showNewClientForm)}
-                    >
-                      {showNewClientForm ? 'Selecionar existente' : '+ Novo cliente'}
-                    </Button>
-                  </div>
+                  <Label>Cliente *</Label>
                   
                   {!showNewClientForm ? (
-                    <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                      <SelectContent>
-                        {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
+                        <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                        <SelectContent>
+                          {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full border-dashed border-primary text-primary hover:bg-primary/10"
+                        onClick={() => setShowNewClientForm(true)}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Cadastrar novo cliente
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-primary">Novo Cliente</span>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-auto py-1 text-xs"
+                          onClick={() => setShowNewClientForm(false)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Nome completo *</Label>
                         <Input 
