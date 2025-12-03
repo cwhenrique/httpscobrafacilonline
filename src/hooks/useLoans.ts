@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loan, LoanPayment, InterestType, LoanPaymentType } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { updateClientScore } from '@/lib/updateClientScore';
 
 export function useLoans() {
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -64,6 +65,10 @@ export function useLoans() {
     }
 
     toast.success('Empréstimo criado com sucesso!');
+    
+    // Update client score after creating loan
+    await updateClientScore(loan.client_id);
+    
     await fetchLoans();
     return { data: data as Loan };
   };
@@ -93,6 +98,18 @@ export function useLoans() {
     }
 
     toast.success('Pagamento registrado com sucesso!');
+    
+    // Get the loan to find client_id and update their score
+    const { data: loan } = await supabase
+      .from('loans')
+      .select('client_id')
+      .eq('id', payment.loan_id)
+      .single();
+    
+    if (loan) {
+      await updateClientScore(loan.client_id);
+    }
+    
     await fetchLoans();
     return { data: data as LoanPayment };
   };

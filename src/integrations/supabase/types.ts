@@ -22,8 +22,14 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          late_payments: number | null
           notes: string | null
+          on_time_payments: number | null
           phone: string | null
+          score: number | null
+          score_updated_at: string | null
+          total_loans: number | null
+          total_paid: number | null
           updated_at: string
           user_id: string
         }
@@ -34,8 +40,14 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          late_payments?: number | null
           notes?: string | null
+          on_time_payments?: number | null
           phone?: string | null
+          score?: number | null
+          score_updated_at?: string | null
+          total_loans?: number | null
+          total_paid?: number | null
           updated_at?: string
           user_id: string
         }
@@ -46,8 +58,14 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          late_payments?: number | null
           notes?: string | null
+          on_time_payments?: number | null
           phone?: string | null
+          score?: number | null
+          score_updated_at?: string | null
+          total_loans?: number | null
+          total_paid?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -303,7 +321,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_client_score: {
+        Args: { p_late: number; p_on_time: number; p_total_loans: number }
+        Returns: number
+      }
     }
     Enums: {
       client_type: "loan" | "monthly" | "both"

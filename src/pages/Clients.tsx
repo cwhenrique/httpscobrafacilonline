@@ -43,6 +43,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
 import { Plus, Search, Pencil, Trash2, Users } from 'lucide-react';
+import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 
 export default function Clients() {
   const { clients, loading, createClient, updateClient, deleteClient } = useClients();
@@ -249,6 +250,7 @@ export default function Clients() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>Tipo</TableHead>
+                      <TableHead>Score</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -262,6 +264,15 @@ export default function Clients() {
                           <Badge className={getClientTypeBadgeColor(client.client_type)}>
                             {getClientTypeLabel(client.client_type)}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <ClientScoreBadge 
+                            score={client.score || 100}
+                            totalLoans={client.total_loans || 0}
+                            totalPaid={client.total_paid || 0}
+                            onTimePayments={client.on_time_payments || 0}
+                            latePayments={client.late_payments || 0}
+                          />
                         </TableCell>
                         <TableCell>{formatDate(client.created_at)}</TableCell>
                         <TableCell className="text-right">
