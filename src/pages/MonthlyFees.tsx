@@ -30,6 +30,7 @@ export default function MonthlyFees() {
     amount: '',
     description: '',
     dueDate: new Date(),
+    interest_rate: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,9 +40,10 @@ export default function MonthlyFees() {
       amount: parseFloat(formData.amount),
       description: formData.description,
       due_day: formData.dueDate.getDate(),
+      interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) : 0,
     });
     setIsDialogOpen(false);
-    setFormData({ client_id: '', amount: '', description: '', dueDate: new Date() });
+    setFormData({ client_id: '', amount: '', description: '', dueDate: new Date(), interest_rate: '' });
   };
 
   const handleGeneratePayment = async (feeId: string) => {
@@ -82,24 +84,28 @@ export default function MonthlyFees() {
                     <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Data de Vencimento *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.dueDate && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.dueDate ? format(formData.dueDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={formData.dueDate}
-                          onSelect={(date) => date && setFormData({ ...formData, dueDate: date })}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Label>Juros (% ao mês)</Label>
+                    <Input type="number" step="0.01" min="0" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} placeholder="0" />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Vencimento *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formData.dueDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.dueDate ? format(formData.dueDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarPicker
+                        mode="single"
+                        selected={formData.dueDate}
+                        onSelect={(date) => date && setFormData({ ...formData, dueDate: date })}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label>Descrição</Label>
