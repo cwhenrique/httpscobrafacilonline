@@ -111,8 +111,8 @@ export default function Settings() {
                 <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
                 <div>
                   <p className="font-medium text-amber-700 dark:text-amber-400">Complete seu perfil</p>
-                  <p className="text-sm text-muted-foreground">
-                    Preencha os campos obrigatórios abaixo para receber notificações de cobranças no seu WhatsApp.
+                <p className="text-sm text-muted-foreground">
+                    Preencha os campos obrigatórios abaixo para receber notificações que irão te auxiliar na gestão com seus clientes.
                   </p>
                 </div>
               </div>
@@ -169,7 +169,7 @@ export default function Settings() {
                   <p className="text-sm text-destructive">{errors.phone}</p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Você receberá lembretes de cobranças neste número
+                  Você receberá notificações para te auxiliar na gestão com seus clientes
                 </p>
               </div>
             </CardContent>
