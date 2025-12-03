@@ -38,6 +38,7 @@ const navigation = [
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Meu Perfil', href: '/profile', icon: User },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
