@@ -17,15 +17,30 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
+const cleanApiUrl = (url: string): string => {
+  let cleaned = url.replace(/\/+$/, '');
+  const pathPatterns = [
+    /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendText$/i,
+    /\/message$/i,
+  ];
+  for (const pattern of pathPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  return cleaned;
+};
+
 const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
-  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
   const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-  if (!evolutionApiUrl || !evolutionApiKey || !instanceName) {
+  if (!evolutionApiUrlRaw || !evolutionApiKey || !instanceName) {
     console.error("Missing Evolution API configuration");
     return false;
   }
+
+  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
@@ -71,8 +86,8 @@ const handler = async (req: Request): Promise<Response> => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Calculate dates for 1, 3, and 7 days ahead
-    const reminderDays = [1, 3, 7];
+    // Calculate dates for TODAY (0), 1, 3, and 7 days ahead
+    const reminderDays = [0, 1, 3, 7];
     const reminderDates = reminderDays.map(days => {
       const date = new Date(today);
       date.setDate(date.getDate() + days);
@@ -177,7 +192,20 @@ const handler = async (req: Request): Promise<Response> => {
 
         const totalAmount = reminder.loans.reduce((sum, l) => sum + l.installmentAmount, 0);
 
-        const message = `📋 *Lembrete de Cobranças*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* para os próximos *${reminder.reminderDay} dia${reminder.reminderDay > 1 ? 's' : ''}*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\n_CobraFácil - Lembrete automático_`;
+        let message: string;
+        let notifTitle: string;
+        
+        if (reminder.reminderDay === 0) {
+          // Same day - TODAY
+          message = `⏰ *VENCIMENTO HOJE!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* que vence${reminder.loans.length > 1 ? 'm' : ''} *HOJE*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\nNão deixe de cobrar!\n\n_CobraFácil - Alerta automático_`;
+          notifTitle = `⏰ Vencimento Hoje`;
+        } else if (reminder.reminderDay === 1) {
+          message = `📅 *Vencimento Amanhã*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* que vence${reminder.loans.length > 1 ? 'm' : ''} *amanhã*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\nPrepare-se para cobrar!\n\n_CobraFácil - Lembrete automático_`;
+          notifTitle = `📅 Vencimento Amanhã`;
+        } else {
+          message = `📋 *Lembrete de Cobranças*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* para os próximos *${reminder.reminderDay} dias*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\n_CobraFácil - Lembrete automático_`;
+          notifTitle = `📋 Lembrete ${reminder.reminderDay} dias`;
+        }
 
         console.log(`Sending ${reminder.reminderDay}-day reminder to user ${userId}`);
         
@@ -186,8 +214,8 @@ const handler = async (req: Request): Promise<Response> => {
           sentCount++;
           notifications.push({
             user_id: userId,
-            title: `📋 Lembrete Enviado`,
-            message: `Lembrete de ${reminder.loans.length} cobrança(s) para ${reminder.reminderDay} dia(s)`,
+            title: notifTitle,
+            message: `${reminder.loans.length} cobrança(s) - Total: ${formatCurrency(totalAmount)}`,
             type: 'info',
           });
         }

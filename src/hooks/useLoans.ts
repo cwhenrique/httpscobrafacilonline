@@ -22,6 +22,47 @@ const createNotificationRecord = async (
   });
 };
 
+// Helper to send WhatsApp via edge function
+const sendWhatsAppNotification = async (phone: string, message: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+      body: { phone, message },
+    });
+    
+    if (error) {
+      console.error('Error sending WhatsApp:', error);
+      return false;
+    }
+    
+    return data?.success || false;
+  } catch (error) {
+    console.error('Failed to send WhatsApp notification:', error);
+    return false;
+  }
+};
+
+// Helper to get user profile phone
+const getUserPhone = async (userId: string): Promise<string | null> => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('phone, full_name')
+    .eq('id', userId)
+    .single();
+  
+  return data?.phone || null;
+};
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+};
+
+const formatDate = (date: string): string => {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(date));
+};
+
 export function useLoans() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +114,10 @@ export function useLoans() {
         total_paid: 0,
         installment_dates: loan.installment_dates || [],
       })
-      .select()
+      .select(`
+        *,
+        client:clients(full_name)
+      `)
       .single();
 
     if (error) {
@@ -85,6 +129,35 @@ export function useLoans() {
     
     // Update client score after creating loan
     await updateClientScore(loan.client_id);
+    
+    // Send WhatsApp notification for new loan
+    const phone = await getUserPhone(user.id);
+    if (phone && data) {
+      const clientName = (data.client as any)?.full_name || 'Cliente';
+      const numInstallments = loan.installments || 1;
+      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      const principalPerInstallment = loan.principal_amount / numInstallments;
+      const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+      
+      let message = `✅ *Novo Empréstimo Registrado*\n\n`;
+      message += `👤 Cliente: *${clientName}*\n`;
+      message += `💰 Valor: *${formatCurrency(loan.principal_amount)}*\n`;
+      message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
+      
+      if (loan.payment_type === 'installment' && numInstallments > 1) {
+        message += `📅 Parcelas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
+        if (loan.installment_dates && loan.installment_dates.length > 0) {
+          message += `⏰ 1ª Parcela: *${formatDate(loan.installment_dates[0])}*\n`;
+        }
+      } else {
+        message += `📅 Vencimento: *${formatDate(loan.due_date)}*\n`;
+        message += `💵 Total a receber: *${formatCurrency(loan.principal_amount + interestPerInstallment)}*\n`;
+      }
+      
+      message += `\n_CobraFácil - Registro automático_`;
+      
+      await sendWhatsAppNotification(phone, message);
+    }
     
     await fetchLoans();
     return { data: data as Loan };
@@ -119,31 +192,55 @@ export function useLoans() {
     // Get the loan to find client_id and update their score
     const { data: loan } = await supabase
       .from('loans')
-      .select('client_id, remaining_balance, principal_amount, clients(full_name)')
+      .select('client_id, remaining_balance, principal_amount, interest_rate, installments, total_paid, clients(full_name)')
       .eq('id', payment.loan_id)
       .single();
     
     if (loan) {
       await updateClientScore(loan.client_id);
       
-      // Create notification for payment received
       const clientName = (loan.clients as any)?.full_name || 'Cliente';
-      const formattedAmount = new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      }).format(payment.amount);
-      
       const isPaidOff = (loan.remaining_balance - payment.principal_paid) <= 0;
+      const newRemainingBalance = loan.remaining_balance - payment.principal_paid;
+      const newTotalPaid = (loan.total_paid || 0) + payment.amount;
       
+      // Create notification for payment received
       await createNotificationRecord(user.id, {
         title: isPaidOff ? '✅ Empréstimo Quitado!' : '💰 Pagamento Recebido',
         message: isPaidOff 
-          ? `${clientName} quitou o empréstimo de ${formattedAmount}`
-          : `${clientName} realizou um pagamento de ${formattedAmount}`,
+          ? `${clientName} quitou o empréstimo de ${formatCurrency(payment.amount)}`
+          : `${clientName} realizou um pagamento de ${formatCurrency(payment.amount)}`,
         type: 'success',
         loan_id: payment.loan_id,
         client_id: loan.client_id,
       });
+      
+      // Send WhatsApp notification for payment received
+      const phone = await getUserPhone(user.id);
+      if (phone) {
+        let message: string;
+        
+        if (isPaidOff) {
+          message = `🎉 *Empréstimo Quitado!*\n\n`;
+          message += `👤 Cliente: *${clientName}*\n`;
+          message += `💰 Último pagamento: *${formatCurrency(payment.amount)}*\n`;
+          message += `📅 Data: *${formatDate(payment.payment_date)}*\n`;
+          message += `✅ Total recebido: *${formatCurrency(newTotalPaid)}*\n\n`;
+          message += `Parabéns! Empréstimo totalmente quitado! 🙌\n\n`;
+          message += `_CobraFácil - Confirmação automática_`;
+        } else {
+          message = `💵 *Pagamento Recebido*\n\n`;
+          message += `👤 Cliente: *${clientName}*\n`;
+          message += `💰 Valor: *${formatCurrency(payment.amount)}*\n`;
+          message += `📅 Data: *${formatDate(payment.payment_date)}*\n\n`;
+          message += `📊 *Situação atual:*\n`;
+          message += `• Pago: ${formatCurrency(newTotalPaid)}\n`;
+          message += `• Restante: ${formatCurrency(newRemainingBalance > 0 ? newRemainingBalance : 0)}\n\n`;
+          message += `_CobraFácil - Confirmação automática_`;
+        }
+        
+        await sendWhatsAppNotification(phone, message);
+      }
     }
     
     await fetchLoans();
