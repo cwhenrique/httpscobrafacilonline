@@ -112,7 +112,7 @@ export default function Loans() {
     due_date: '',
     notes: '',
     daily_amount: '',
-    daily_period: '15' as '15' | '30',
+    daily_period: '15',
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -567,14 +567,15 @@ export default function Loans() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Período de Cobrança *</Label>
-                        <Select value={formData.daily_period} onValueChange={(v: '15' | '30') => setFormData({ ...formData, daily_period: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="15">15 dias</SelectItem>
-                            <SelectItem value="30">30 dias</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label>Período de Cobrança (dias) *</Label>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          value={formData.daily_period} 
+                          onChange={(e) => setFormData({ ...formData, daily_period: e.target.value })}
+                          placeholder="Ex: 15, 30, 45..."
+                          required
+                        />
                       </div>
                     </div>
                     <div className="p-3 bg-muted/50 rounded-lg space-y-1">
