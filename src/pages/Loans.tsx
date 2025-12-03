@@ -16,7 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent, RefreshCw, Camera } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -616,19 +617,47 @@ export default function Loans() {
                     </ScrollArea>
                   </div>
                 )}
-                {formData.payment_type === 'daily' && installmentDates.length > 0 && (
+                {formData.payment_type === 'daily' && (
                   <div className="space-y-2">
-                    <Label>Datas de Cobrança ({installmentDates.length} dias)</Label>
-                    <ScrollArea className="h-[150px] rounded-md border p-3">
-                      <div className="space-y-1">
-                        {installmentDates.map((date, index) => (
-                          <div key={index} className="flex items-center gap-3 text-sm">
-                            <span className="font-medium w-16">Dia {index + 1}</span>
-                            <span className="text-muted-foreground">{formatDate(date)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                    <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
+                    <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar/remover os dias de cobrança</p>
+                    <div className="border rounded-md p-3">
+                      <Calendar
+                        mode="multiple"
+                        selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
+                        onSelect={(dates) => {
+                          if (dates) {
+                            const sortedDates = dates
+                              .map(d => d.toISOString().split('T')[0])
+                              .sort();
+                            setInstallmentDates(sortedDates);
+                            if (sortedDates.length > 0) {
+                              setFormData(prev => ({
+                                ...prev,
+                                due_date: sortedDates[sortedDates.length - 1],
+                                installments: sortedDates.length.toString(),
+                                daily_period: sortedDates.length.toString()
+                              }));
+                            }
+                          } else {
+                            setInstallmentDates([]);
+                          }
+                        }}
+                        className="pointer-events-auto"
+                      />
+                    </div>
+                    {installmentDates.length > 0 && (
+                      <ScrollArea className="h-[100px] rounded-md border p-3">
+                        <div className="space-y-1">
+                          {installmentDates.map((date, index) => (
+                            <div key={index} className="flex items-center gap-3 text-sm">
+                              <span className="font-medium w-16">Dia {index + 1}</span>
+                              <span className="text-muted-foreground">{formatDate(date)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
                   </div>
                 )}
                 <div className="space-y-2">
@@ -826,7 +855,7 @@ export default function Loans() {
                           <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
                         </div>
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
-                          <Calendar className="w-4 h-4" />
+                          <CalendarIcon className="w-4 h-4" />
                           <span>Venc: {(() => {
                             const dates = (loan.installment_dates as string[]) || [];
                             const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
