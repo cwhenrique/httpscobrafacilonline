@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useLoans } from '@/hooks/useLoans';
+import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +20,9 @@ import { Button } from '@/components/ui/button';
 export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
   const { loans, loading: loansLoading } = useLoans();
+  
+  // Enable browser notifications for overdue loans
+  useOverdueNotifications(loans, loansLoading);
 
   const recentLoans = loans.slice(0, 5);
   
