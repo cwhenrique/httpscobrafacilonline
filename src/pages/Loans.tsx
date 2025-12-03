@@ -33,7 +33,7 @@ export default function Loans() {
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
-    interest_mode: 'on_total' as 'per_installment' | 'on_total',
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total',
     payment_type: 'single' as LoanPaymentType,
     installments: '1',
     start_date: new Date().toISOString().split('T')[0],
@@ -153,17 +153,8 @@ export default function Loans() {
                     <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Taxa de Juros (%) *</Label>
-                    <div className="flex gap-2">
-                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="flex-1" />
-                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
-                        <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="on_total">Total</SelectItem>
-                          <SelectItem value="per_installment">Por Parcela</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Label>Taxa de Juros (%) * <span className="text-xs text-muted-foreground">(por parcela)</span></Label>
+                    <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -200,12 +191,8 @@ export default function Loans() {
                         <Input 
                           type="text" 
                           readOnly 
-                          value={formData.principal_amount && formData.interest_rate && formData.installments 
-                            ? formatCurrency(
-                                formData.interest_mode === 'per_installment'
-                                  ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
-                                  : (parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)) / parseInt(formData.installments || '1')
-                              )
+                          value={formData.principal_amount && formData.interest_rate
+                            ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
                             : 'R$ 0,00'
                           } 
                           className="bg-muted"
