@@ -4,6 +4,8 @@ import { Loan, LoanPayment } from '@/types/database';
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -115,6 +117,105 @@ export function FinancialChart({ loans, payments }: FinancialChartProps) {
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function InterestChart({ payments }: { payments: LoanPayment[] }) {
+  const chartData = useMemo(() => {
+    const last6Months: { month: string; year: number; monthIndex: number }[] = [];
+    const today = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      last6Months.push({
+        month: MONTH_NAMES[date.getMonth()],
+        year: date.getFullYear(),
+        monthIndex: date.getMonth(),
+      });
+    }
+
+    let accumulated = 0;
+    return last6Months.map(({ month, year, monthIndex }) => {
+      const monthPayments = payments.filter((payment) => {
+        const paymentDate = new Date(payment.payment_date);
+        return paymentDate.getMonth() === monthIndex && paymentDate.getFullYear() === year;
+      });
+      
+      const jurosNoMes = monthPayments.reduce((sum, payment) => sum + (payment.interest_paid || 0), 0);
+      accumulated += jurosNoMes;
+
+      return {
+        name: `${month}/${year.toString().slice(-2)}`,
+        'Juros no Mês': jurosNoMes,
+        'Juros Acumulado': accumulated,
+      };
+    });
+  }, [payments]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value);
+  };
+
+  return (
+    <Card className="shadow-soft">
+      <CardHeader>
+        <CardTitle className="text-lg font-display">Tendência de Juros Recebidos</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fontSize: 12 }} 
+                className="text-muted-foreground"
+              />
+              <YAxis 
+                tickFormatter={formatCurrency} 
+                tick={{ fontSize: 12 }} 
+                className="text-muted-foreground"
+                width={70}
+              />
+              <Tooltip
+                formatter={(value: number) => [
+                  new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  }).format(value),
+                ]}
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+                labelStyle={{ color: 'hsl(var(--foreground))' }}
+              />
+              <Legend />
+              <Line 
+                type="monotone"
+                dataKey="Juros no Mês" 
+                stroke="hsl(var(--warning))" 
+                strokeWidth={2}
+                dot={{ fill: 'hsl(var(--warning))', r: 4 }}
+              />
+              <Line 
+                type="monotone"
+                dataKey="Juros Acumulado" 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={2}
+                dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </CardContent>
