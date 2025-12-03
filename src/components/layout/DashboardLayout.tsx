@@ -38,7 +38,6 @@ const navigation = [
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
-  { name: 'Meu Perfil', href: '/profile', icon: User },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
@@ -59,7 +58,31 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
+      {/* Profile Section - Top of menu */}
+      <div className="px-3 mb-4">
+        <Link
+          to="/profile"
+          onClick={onNavigate}
+          className={cn(
+            'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 border',
+            location.pathname === '/profile'
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-accent'
+              : 'bg-sidebar-accent/20 text-sidebar-foreground border-sidebar-border/50 hover:bg-sidebar-accent/40'
+          )}
+        >
+          <div className="w-9 h-9 rounded-full bg-sidebar-primary/20 flex items-center justify-center">
+            <User className="w-5 h-5 text-sidebar-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm truncate">Meu Perfil</p>
+            <p className="text-xs text-sidebar-foreground/60">Ver informações</p>
+          </div>
+          <ChevronRight className="w-4 h-4 opacity-60" />
+        </Link>
+      </div>
+
       <ScrollArea className="flex-1 px-3">
+        <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
         <nav className="space-y-1">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
