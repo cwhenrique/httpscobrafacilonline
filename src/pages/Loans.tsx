@@ -33,6 +33,7 @@ export default function Loans() {
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
+    interest_mode: 'on_total' as 'per_installment' | 'on_total',
     payment_type: 'single' as LoanPaymentType,
     installments: '1',
     start_date: new Date().toISOString().split('T')[0],
@@ -117,7 +118,7 @@ export default function Loans() {
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
-      payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
+      interest_mode: 'on_total', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
     });
     setInstallmentDates([]);
   };
@@ -179,24 +180,58 @@ export default function Loans() {
                   </div>
                 </div>
                 {formData.payment_type === 'installment' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nº de Parcelas *</Label>
-                      <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nº de Parcelas *</Label>
+                        <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cálculo do Juros</Label>
+                        <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="on_total">% sobre valor total</SelectItem>
+                            <SelectItem value="per_installment">% por parcela</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Juros por Parcela</Label>
-                      <Input 
-                        type="text" 
-                        readOnly 
-                        value={formData.principal_amount && formData.interest_rate && formData.installments 
-                          ? formatCurrency((parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)) / parseInt(formData.installments || '1'))
-                          : 'R$ 0,00'
-                        } 
-                        className="bg-muted"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Juros por Parcela</Label>
+                        <Input 
+                          type="text" 
+                          readOnly 
+                          value={formData.principal_amount && formData.interest_rate && formData.installments 
+                            ? formatCurrency(
+                                formData.interest_mode === 'per_installment'
+                                  ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
+                                  : (parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)) / parseInt(formData.installments || '1')
+                              )
+                            : 'R$ 0,00'
+                          } 
+                          className="bg-muted"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Juros Total</Label>
+                        <Input 
+                          type="text" 
+                          readOnly 
+                          value={formData.principal_amount && formData.interest_rate && formData.installments 
+                            ? formatCurrency(
+                                formData.interest_mode === 'per_installment'
+                                  ? parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1')
+                                  : parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100)
+                              )
+                            : 'R$ 0,00'
+                          } 
+                          className="bg-muted"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -276,14 +311,16 @@ export default function Loans() {
                   </TableHeader>
                   <TableBody>
                     {filteredLoans.map((loan) => {
-                      const interestPerInstallment = loan.installments && loan.installments > 1 
-                        ? (loan.principal_amount * (loan.interest_rate / 100)) / loan.installments 
-                        : loan.principal_amount * (loan.interest_rate / 100);
+                      const interestPerInstallment = loan.interest_mode === 'per_installment'
+                        ? loan.principal_amount * (loan.interest_rate / 100)
+                        : loan.installments && loan.installments > 1 
+                          ? (loan.principal_amount * (loan.interest_rate / 100)) / loan.installments 
+                          : loan.principal_amount * (loan.interest_rate / 100);
                       return (
                       <TableRow key={loan.id}>
                         <TableCell className="font-medium">{loan.client?.full_name}</TableCell>
                         <TableCell>{formatCurrency(loan.principal_amount)}</TableCell>
-                        <TableCell>{formatPercentage(loan.interest_rate)}</TableCell>
+                        <TableCell>{formatPercentage(loan.interest_rate)} {loan.interest_mode === 'per_installment' ? '/parcela' : ''}</TableCell>
                         <TableCell>{loan.installments || 1}x</TableCell>
                         <TableCell>{formatCurrency(interestPerInstallment)}</TableCell>
                         <TableCell className="font-semibold">{formatCurrency(loan.remaining_balance)}</TableCell>

@@ -102,6 +102,7 @@ export type Database = {
           id: string
           installment_dates: Json | null
           installments: number | null
+          interest_mode: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate: number
           interest_type: Database["public"]["Enums"]["interest_type"]
           notes: string | null
@@ -122,6 +123,7 @@ export type Database = {
           id?: string
           installment_dates?: Json | null
           installments?: number | null
+          interest_mode?: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
           notes?: string | null
@@ -142,6 +144,7 @@ export type Database = {
           id?: string
           installment_dates?: Json | null
           installments?: number | null
+          interest_mode?: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate?: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
           notes?: string | null
@@ -301,6 +304,7 @@ export type Database = {
     }
     Enums: {
       client_type: "loan" | "monthly" | "both"
+      interest_mode: "per_installment" | "on_total"
       interest_type: "simple" | "compound"
       loan_payment_type: "single" | "installment"
       payment_status: "paid" | "pending" | "overdue"
@@ -432,6 +436,7 @@ export const Constants = {
   public: {
     Enums: {
       client_type: ["loan", "monthly", "both"],
+      interest_mode: ["per_installment", "on_total"],
       interest_type: ["simple", "compound"],
       loan_payment_type: ["single", "installment"],
       payment_status: ["paid", "pending", "overdue"],
