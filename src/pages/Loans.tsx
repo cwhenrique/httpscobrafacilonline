@@ -16,10 +16,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar, Percent, RefreshCw } from 'lucide-react';
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan } = useLoans();
   const { clients } = useClients();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -27,6 +27,13 @@ export default function Loans() {
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [installmentDates, setInstallmentDates] = useState<string[]>([]);
+  const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
+  const [renegotiateData, setRenegotiateData] = useState({
+    interest_rate: '',
+    installments: '1',
+    notes: '',
+  });
+  const [renegotiateDates, setRenegotiateDates] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     client_id: '',
@@ -132,6 +139,75 @@ export default function Loans() {
       interest_mode: 'on_total', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
     });
     setInstallmentDates([]);
+  };
+
+  const openRenegotiateDialog = (loanId: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+    
+    setSelectedLoanId(loanId);
+    setRenegotiateData({
+      interest_rate: loan.interest_rate.toString(),
+      installments: (loan.installments || 1).toString(),
+      notes: loan.notes || '',
+    });
+    
+    // Generate default dates starting from today
+    const numInstallments = loan.installments || 1;
+    const newDates: string[] = [];
+    const today = new Date();
+    for (let i = 0; i < numInstallments; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + (15 * (i + 1)));
+      newDates.push(date.toISOString().split('T')[0]);
+    }
+    setRenegotiateDates(newDates);
+    setIsRenegotiateDialogOpen(true);
+  };
+
+  const updateRenegotiateDate = (index: number, date: string) => {
+    const newDates = [...renegotiateDates];
+    newDates[index] = date;
+    setRenegotiateDates(newDates);
+  };
+
+  // Update renegotiate dates when installments change
+  useEffect(() => {
+    if (isRenegotiateDialogOpen) {
+      const numInstallments = parseInt(renegotiateData.installments) || 1;
+      const currentLength = renegotiateDates.length;
+      
+      if (numInstallments !== currentLength) {
+        const today = new Date();
+        const newDates: string[] = [];
+        for (let i = 0; i < numInstallments; i++) {
+          if (i < currentLength && renegotiateDates[i]) {
+            newDates.push(renegotiateDates[i]);
+          } else {
+            const date = new Date(today);
+            date.setDate(date.getDate() + (15 * (i + 1)));
+            newDates.push(date.toISOString().split('T')[0]);
+          }
+        }
+        setRenegotiateDates(newDates);
+      }
+    }
+  }, [renegotiateData.installments, isRenegotiateDialogOpen]);
+
+  const handleRenegotiateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLoanId || renegotiateDates.length === 0) return;
+    
+    await renegotiateLoan(selectedLoanId, {
+      interest_rate: parseFloat(renegotiateData.interest_rate),
+      installments: parseInt(renegotiateData.installments),
+      installment_dates: renegotiateDates,
+      due_date: renegotiateDates[renegotiateDates.length - 1],
+      notes: renegotiateData.notes,
+    });
+    
+    setIsRenegotiateDialogOpen(false);
+    setSelectedLoanId(null);
   };
 
   return (
@@ -386,6 +462,15 @@ export default function Loans() {
                           Pagamento
                         </Button>
                         <Button 
+                          variant={isPaid || isOverdue ? 'secondary' : 'outline'} 
+                          size="icon" 
+                          className={isPaid || isOverdue ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}
+                          onClick={() => openRenegotiateDialog(loan.id)}
+                          title="Renegociar"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </Button>
+                        <Button 
                           variant="ghost" 
                           size="icon" 
                           className={isPaid || isOverdue ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}
@@ -498,6 +583,98 @@ export default function Loans() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={isRenegotiateDialogOpen} onOpenChange={setIsRenegotiateDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Renegociar Dívida</DialogTitle>
+            </DialogHeader>
+            {selectedLoanId && (() => {
+              const selectedLoan = loans.find(l => l.id === selectedLoanId);
+              if (!selectedLoan) return null;
+              
+              return (
+                <form onSubmit={handleRenegotiateSubmit} className="space-y-4">
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={selectedLoan.client?.avatar_url || ''} />
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {selectedLoan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{selectedLoan.client?.full_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Saldo devedor: {formatCurrency(selectedLoan.remaining_balance)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nova Taxa de Juros (%)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={renegotiateData.interest_rate} 
+                        onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_rate: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nº de Parcelas</Label>
+                      <Input 
+                        type="number" 
+                        min="1" 
+                        value={renegotiateData.installments} 
+                        onChange={(e) => setRenegotiateData({ ...renegotiateData, installments: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                  </div>
+                  
+                  {renegotiateDates.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Novos Vencimentos</Label>
+                      <ScrollArea className="h-[200px] rounded-md border p-3">
+                        <div className="space-y-2">
+                          {renegotiateDates.map((date, index) => (
+                            <div key={index} className="flex items-center gap-3">
+                              <span className="text-sm font-medium w-20">Parcela {index + 1}</span>
+                              <Input 
+                                type="date" 
+                                value={date} 
+                                onChange={(e) => updateRenegotiateDate(index, e.target.value)} 
+                                className="flex-1"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <Textarea 
+                      value={renegotiateData.notes} 
+                      onChange={(e) => setRenegotiateData({ ...renegotiateData, notes: e.target.value })} 
+                      rows={2}
+                      placeholder="Motivo da renegociação..."
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={() => setIsRenegotiateDialogOpen(false)}>Cancelar</Button>
+                    <Button type="submit">Renegociar</Button>
+                  </div>
+                </form>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
