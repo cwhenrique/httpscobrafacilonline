@@ -34,6 +34,7 @@ export default function Loans() {
   const [renegotiateData, setRenegotiateData] = useState({
     promised_amount: '',
     promised_date: '',
+    remaining_amount: '',
     notes: '',
   });
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
@@ -283,12 +284,20 @@ export default function Loans() {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
+    // Calculate remaining amount (total to receive - total paid)
+    const numInstallments = loan.installments || 1;
+    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    const totalPaid = loan.total_paid || 0;
+    const remainingAmount = totalToReceive - totalPaid;
+    
     setSelectedLoanId(loanId);
     const today = new Date();
     today.setDate(today.getDate() + 15);
     setRenegotiateData({
       promised_amount: '',
       promised_date: today.toISOString().split('T')[0],
+      remaining_amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : '0',
       notes: loan.notes || '',
     });
     setIsRenegotiateDialogOpen(true);
@@ -301,12 +310,20 @@ export default function Loans() {
     const loan = loans.find(l => l.id === selectedLoanId);
     if (!loan) return;
     
+    let notesText = renegotiateData.notes;
+    if (renegotiateData.remaining_amount) {
+      notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
+    }
+    if (renegotiateData.promised_amount) {
+      notesText += `\nValor prometido: R$ ${renegotiateData.promised_amount}`;
+    }
+    
     await renegotiateLoan(selectedLoanId, {
       interest_rate: loan.interest_rate,
       installments: 1,
       installment_dates: [renegotiateData.promised_date],
       due_date: renegotiateData.promised_date,
-      notes: renegotiateData.notes + (renegotiateData.promised_amount ? `\nValor prometido: R$ ${renegotiateData.promised_amount}` : ''),
+      notes: notesText,
     });
     
     setIsRenegotiateDialogOpen(false);
@@ -864,6 +881,18 @@ export default function Loans() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Valor que Falta (R$)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={renegotiateData.remaining_amount} 
+                      onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
+                      placeholder="Calculado automaticamente"
+                    />
+                    <p className="text-xs text-muted-foreground">Valor calculado automaticamente, mas você pode editar</p>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
