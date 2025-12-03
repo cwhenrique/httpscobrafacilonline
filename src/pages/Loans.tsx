@@ -142,12 +142,16 @@ export default function Loans() {
     const selectedLoan = loans.find(l => l.id === selectedLoanId);
     if (!selectedLoan) return;
     
+    const numInstallments = selectedLoan.installments || 1;
+    const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+    const totalToReceive = selectedLoan.principal_amount + (interestPerInstallment * numInstallments);
+    const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
+    
     const amount = paymentData.payment_type === 'total' 
-      ? selectedLoan.remaining_balance 
+      ? remainingToReceive 
       : parseFloat(paymentData.amount);
     
     // Calculate how much goes to interest vs principal
-    const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
     const interest_paid = Math.min(amount, interestPerInstallment);
     const principal_paid = amount - interest_paid;
     
@@ -529,6 +533,8 @@ export default function Loans() {
               const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
               const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
               const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+              const totalToReceive = selectedLoan.principal_amount + (interestPerInstallment * numInstallments);
+              const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
               
               return (
                 <form onSubmit={handlePaymentSubmit} className="space-y-4">
@@ -542,7 +548,7 @@ export default function Loans() {
                       </Avatar>
                       <div>
                         <p className="font-semibold">{selectedLoan.client?.full_name}</p>
-                        <p className="text-sm text-muted-foreground">Saldo: {formatCurrency(selectedLoan.remaining_balance)}</p>
+                        <p className="text-sm text-muted-foreground">Restante: {formatCurrency(remainingToReceive)}</p>
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -563,9 +569,9 @@ export default function Loans() {
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: selectedLoan.remaining_balance.toString() })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString() })}
                       >
-                        Total ({formatCurrency(selectedLoan.remaining_balance)})
+                        Total ({formatCurrency(remainingToReceive)})
                       </Button>
                     </div>
                   </div>
