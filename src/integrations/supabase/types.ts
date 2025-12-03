@@ -100,6 +100,7 @@ export type Database = {
           created_at: string
           due_date: string
           id: string
+          installment_dates: Json | null
           installments: number | null
           interest_rate: number
           interest_type: Database["public"]["Enums"]["interest_type"]
@@ -119,6 +120,7 @@ export type Database = {
           created_at?: string
           due_date: string
           id?: string
+          installment_dates?: Json | null
           installments?: number | null
           interest_rate: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
@@ -138,6 +140,7 @@ export type Database = {
           created_at?: string
           due_date?: string
           id?: string
+          installment_dates?: Json | null
           installments?: number | null
           interest_rate?: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
