@@ -17,6 +17,7 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          avatar_url: string | null
           client_type: Database["public"]["Enums"]["client_type"]
           created_at: string
           full_name: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          avatar_url?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           created_at?: string
           full_name: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          avatar_url?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           created_at?: string
           full_name?: string
