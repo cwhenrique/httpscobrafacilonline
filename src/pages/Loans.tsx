@@ -295,7 +295,10 @@ export default function Loans() {
                             <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
                             <Badge className={getPaymentStatusColor(loan.status)}>{getPaymentStatusLabel(loan.status)}</Badge>
                           </div>
-                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(loan.principal_amount)}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">{formatCurrency(loan.remaining_balance)}</p>
+                          {loan.remaining_balance < loan.principal_amount && (
+                            <p className="text-xs text-muted-foreground">de {formatCurrency(loan.principal_amount)} emprestado</p>
+                          )}
                         </div>
                       </div>
                       
@@ -312,9 +315,9 @@ export default function Loans() {
                           <Calendar className="w-4 h-4" />
                           <span>Venc: {formatDate(loan.due_date)}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-primary" />
-                          <span className="font-semibold">Saldo: {formatCurrency(loan.remaining_balance)}</span>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <DollarSign className="w-4 h-4" />
+                          <span>Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
                       </div>
                       
