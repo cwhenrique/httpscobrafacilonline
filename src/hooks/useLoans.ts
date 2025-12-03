@@ -200,9 +200,10 @@ export function useLoans() {
       await updateClientScore(loan.client_id);
       
       const clientName = (loan.clients as any)?.full_name || 'Cliente';
-      const isPaidOff = (loan.remaining_balance - payment.principal_paid) <= 0;
-      const newRemainingBalance = loan.remaining_balance - payment.principal_paid;
-      const newTotalPaid = (loan.total_paid || 0) + payment.amount;
+      // O trigger do banco já atualizou os valores, usar diretamente
+      const isPaidOff = loan.remaining_balance <= 0;
+      const newRemainingBalance = loan.remaining_balance;
+      const newTotalPaid = loan.total_paid || 0;
       
       // Create notification for payment received
       await createNotificationRecord(user.id, {
