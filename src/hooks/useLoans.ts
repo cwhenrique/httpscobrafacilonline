@@ -128,6 +128,37 @@ export function useLoans() {
     return { success: true };
   };
 
+  const renegotiateLoan = async (id: string, data: {
+    interest_rate: number;
+    installments: number;
+    installment_dates: string[];
+    due_date: string;
+    notes?: string;
+  }) => {
+    if (!user) return { error: new Error('Usuário não autenticado') };
+
+    const { error } = await supabase
+      .from('loans')
+      .update({
+        interest_rate: data.interest_rate,
+        installments: data.installments,
+        installment_dates: data.installment_dates,
+        due_date: data.due_date,
+        notes: data.notes,
+        status: 'pending',
+      })
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao renegociar empréstimo');
+      return { error };
+    }
+
+    toast.success('Empréstimo renegociado com sucesso!');
+    await fetchLoans();
+    return { success: true };
+  };
+
   useEffect(() => {
     fetchLoans();
   }, [user]);
@@ -140,5 +171,6 @@ export function useLoans() {
     registerPayment,
     getLoanPayments,
     deleteLoan,
+    renegotiateLoan,
   };
 }
