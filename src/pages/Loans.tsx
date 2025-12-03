@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useClients } from '@/hooks/useClients';
@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
 import { Plus, Search, Trash2, DollarSign, CreditCard } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export default function Loans() {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [installmentDates, setInstallmentDates] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     client_id: '',
@@ -46,6 +48,37 @@ export default function Loans() {
     notes: '',
   });
 
+  // Generate installment dates when start_date or installments change
+  useEffect(() => {
+    if (formData.payment_type === 'installment' && formData.start_date) {
+      const numInstallments = parseInt(formData.installments) || 1;
+      const startDate = new Date(formData.start_date);
+      const newDates: string[] = [];
+      
+      for (let i = 0; i < numInstallments; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + (15 * (i + 1))); // Default 15 days interval
+        newDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      setInstallmentDates(newDates);
+      // Set the last installment date as the due_date
+      if (newDates.length > 0) {
+        setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
+      }
+    }
+  }, [formData.payment_type, formData.start_date, formData.installments]);
+
+  const updateInstallmentDate = (index: number, date: string) => {
+    const newDates = [...installmentDates];
+    newDates[index] = date;
+    setInstallmentDates(newDates);
+    // Update due_date to the last installment date
+    if (index === newDates.length - 1) {
+      setFormData(prev => ({ ...prev, due_date: date }));
+    }
+  };
+
   const filteredLoans = loans.filter(loan =>
     loan.client?.full_name.toLowerCase().includes(search.toLowerCase())
   );
@@ -59,6 +92,7 @@ export default function Loans() {
       principal_amount: parseFloat(formData.principal_amount),
       interest_rate: parseFloat(formData.interest_rate),
       installments: parseInt(formData.installments),
+      installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
     });
     setIsDialogOpen(false);
     resetForm();
@@ -85,6 +119,7 @@ export default function Loans() {
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
     });
+    setInstallmentDates([]);
   };
 
   return (
@@ -99,7 +134,7 @@ export default function Loans() {
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" />Novo Empréstimo</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -168,11 +203,33 @@ export default function Loans() {
                     <Label>Data Início</Label>
                     <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Data Vencimento *</Label>
-                    <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required />
-                  </div>
+                  {formData.payment_type === 'single' && (
+                    <div className="space-y-2">
+                      <Label>Data Vencimento *</Label>
+                      <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required />
+                    </div>
+                  )}
                 </div>
+                {formData.payment_type === 'installment' && installmentDates.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Vencimento das Parcelas</Label>
+                    <ScrollArea className="h-[150px] rounded-md border p-3">
+                      <div className="space-y-2">
+                        {installmentDates.map((date, index) => (
+                          <div key={index} className="flex items-center gap-3">
+                            <span className="text-sm font-medium w-20">Parcela {index + 1}</span>
+                            <Input 
+                              type="date" 
+                              value={date} 
+                              onChange={(e) => updateInstallmentDate(index, e.target.value)} 
+                              className="flex-1"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Observações</Label>
                   <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
