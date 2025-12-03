@@ -16,7 +16,6 @@ import {
   LayoutDashboard,
   Users,
   DollarSign,
-  Calendar,
   BarChart3,
   Settings,
   LogOut,
@@ -33,7 +32,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clientes', href: '/clients', icon: Users },
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
-  { name: 'Mensalidades', href: '/monthly-fees', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
@@ -157,7 +155,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 Bem-vindo de volta!
               </h2>
               <p className="text-sm text-muted-foreground">
-                Gerencie seus empréstimos e mensalidades
+                Gerencie seus empréstimos
               </p>
             </div>
             <DropdownMenu>
