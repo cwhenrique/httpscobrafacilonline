@@ -2,10 +2,12 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useLoans } from '@/hooks/useLoans';
+import { useAllPayments } from '@/hooks/useAllPayments';
 import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FinancialChart } from '@/components/dashboard/FinancialChart';
 import {
   DollarSign,
   TrendingUp,
@@ -20,6 +22,7 @@ import { Button } from '@/components/ui/button';
 export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
   const { loans, loading: loansLoading } = useLoans();
+  const { payments, loading: paymentsLoading } = useAllPayments();
   
   // Enable browser notifications for overdue loans
   useOverdueNotifications(loans, loansLoading);
@@ -134,6 +137,11 @@ export default function Dashboard() {
             </Card>
           ))}
         </div>
+
+        {/* Financial Evolution Chart */}
+        {!loansLoading && !paymentsLoading && (
+          <FinancialChart loans={loans} payments={payments} />
+        )}
 
         {/* Overdue Loans Alert */}
         {!loansLoading && overdueLoans.length > 0 && (
