@@ -282,8 +282,19 @@ export default function Loans() {
                 const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
                 const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+                
+                const getCardStyle = () => {
+                  if (loan.status === 'paid' || remainingToReceive <= 0) {
+                    return 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800';
+                  }
+                  if (loan.status === 'overdue') {
+                    return 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800';
+                  }
+                  return 'bg-card';
+                };
+                
                 return (
-                  <Card key={loan.id} className="shadow-soft hover:shadow-md transition-shadow">
+                  <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
                         <Avatar className="h-16 w-16 border-2 border-primary/20">
