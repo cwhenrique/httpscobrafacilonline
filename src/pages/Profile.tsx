@@ -24,7 +24,9 @@ import {
   Save,
   X,
   Loader2,
-  Lock
+  Lock,
+  MessageCircle,
+  Send
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -33,6 +35,7 @@ export default function Profile() {
   const { profile, loading, updateProfile, refetch } = useProfile();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -144,6 +147,35 @@ export default function Profile() {
       company_name: profile?.company_name || '',
     });
     setIsEditing(false);
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!profile?.phone) {
+      toast.error('Cadastre um número de telefone primeiro');
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          phone: profile.phone,
+          message: `🧪 *Teste do CobraFácil*\n\nOlá ${profile.full_name || ''}!\n\nEsta é uma mensagem de teste do sistema de notificações.\n\n✅ Se você está recebendo esta mensagem, a integração com WhatsApp está funcionando corretamente!\n\n_Mensagem automática de teste_`,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success('Mensagem de teste enviada com sucesso!');
+      } else {
+        throw new Error(data?.error || 'Erro ao enviar mensagem');
+      }
+    } catch (error: any) {
+      console.error('Error sending test:', error);
+      toast.error(`Erro ao enviar teste: ${error.message}`);
+    }
+    setSendingTest(false);
   };
 
   if (loading) {
@@ -355,6 +387,43 @@ export default function Profile() {
             </CardContent>
           </Card>
         </div>
+
+        {/* WhatsApp Test Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-green-500" />
+              Teste de Notificações WhatsApp
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Envie uma mensagem de teste para verificar se as notificações estão funcionando corretamente.
+            </p>
+            <Button 
+              onClick={handleTestWhatsApp} 
+              disabled={sendingTest || !profile?.phone}
+              className="gap-2"
+            >
+              {sendingTest ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Enviar Teste para WhatsApp
+                </>
+              )}
+            </Button>
+            {!profile?.phone && (
+              <p className="text-xs text-destructive mt-2">
+                Cadastre um número de telefone para testar
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
