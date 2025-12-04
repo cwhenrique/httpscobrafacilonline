@@ -297,13 +297,15 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <Link to="/auth">
-              <Button size="lg" className="text-sm sm:text-lg px-6 sm:px-10 h-12 sm:h-16 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300 animate-bounce-subtle">
-                <Zap className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-                <span className="hidden sm:inline">QUERO ORGANIZAR MINHAS COBRANÇAS</span>
-                <span className="sm:hidden">ORGANIZAR COBRANÇAS</span>
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              className="text-sm sm:text-lg px-6 sm:px-10 h-12 sm:h-16 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300 animate-bounce-subtle"
+              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              <Zap className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
+              <span className="hidden sm:inline">QUERO ORGANIZAR MINHAS COBRANÇAS</span>
+              <span className="sm:hidden">ORGANIZAR COBRANÇAS</span>
+            </Button>
           </motion.div>
 
           {/* Premium Badge */}
