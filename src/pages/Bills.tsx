@@ -364,72 +364,69 @@ export default function Bills() {
   );
 
   const ContractsList = ({ contractsList, billType }: { contractsList: Contract[], billType: 'payable' | 'receivable' }) => (
-    <div className="grid gap-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {contractsList.map((contract) => (
-        <Card key={contract.id} className="overflow-hidden">
+        <Card key={contract.id} className={cn("overflow-hidden transition-all", billType === 'receivable' ? 'border-primary/30' : 'border-orange-500/30')}>
           <CardContent className="p-4">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", 
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", 
                   billType === 'receivable' ? 'bg-primary/20' : 'bg-orange-500/20')}>
-                  <User className={cn("w-6 h-6", billType === 'receivable' ? 'text-primary' : 'text-orange-600')} />
+                  <User className={cn("w-5 h-5", billType === 'receivable' ? 'text-primary' : 'text-orange-600')} />
                 </div>
                 <div>
-                  <p className="font-semibold text-lg">{contract.client_name}</p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Badge variant="outline">{getContractTypeLabel(contract.contract_type)}</Badge>
-                    <span>•</span>
-                    <span>{getFrequencyLabel(contract.frequency)}</span>
-                  </div>
+                  <p className="font-semibold">{contract.client_name}</p>
+                  <Badge variant="outline" className="text-xs">{getContractTypeLabel(contract.contract_type)}</Badge>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="icon" variant="ghost" onClick={() => toggleContractExpand(contract.id)}>
-                  {expandedContract === contract.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </Button>
-                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleteContractId(contract.id)}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+              <Badge variant="secondary">{getFrequencyLabel(contract.frequency)}</Badge>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Valor mensal</p>
-                <p className="font-semibold">R$ {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <div className="space-y-2 mb-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Valor mensal</span>
+                <span className="font-bold">R$ {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Parcelas</p>
-                <p className="font-semibold">{contract.installments}x</p>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Parcelas</span>
+                <span className="font-semibold">{contract.installments}x</span>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className={cn("font-semibold", billType === 'receivable' ? 'text-primary' : 'text-orange-600')}>
+              <div className={cn("flex justify-between items-center p-2 rounded-lg", billType === 'receivable' ? 'bg-primary/10' : 'bg-orange-500/10')}>
+                <span className="text-sm text-muted-foreground">Total</span>
+                <span className={cn("font-bold text-lg", billType === 'receivable' ? 'text-primary' : 'text-orange-600')}>
                   R$ {contract.amount_to_receive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                </span>
               </div>
             </div>
 
-            {contract.notes && <p className="text-sm text-muted-foreground mt-2 italic">"{contract.notes}"</p>}
+            {contract.notes && <p className="text-xs text-muted-foreground mb-3 italic">"{contract.notes}"</p>}
+
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
+                {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                Parcelas
+              </Button>
+              <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteContractId(contract.id)}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
 
             {expandedContract === contract.id && contractPayments[contract.id] && (
               <div className="mt-4 pt-4 border-t space-y-2">
-                <p className="text-sm font-medium mb-3">Parcelas:</p>
                 {contractPayments[contract.id].map((payment) => (
-                  <div key={payment.id} className={cn("flex items-center justify-between p-3 rounded-lg", getPaymentStatusStyle(payment.status, payment.due_date))}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium">{payment.installment_number}ª parcela</span>
-                      <span className="text-sm">{format(parseISO(payment.due_date), "dd/MM/yyyy")}</span>
+                  <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm", getPaymentStatusStyle(payment.status, payment.due_date))}>
+                    <div>
+                      <span className="font-medium">{payment.installment_number}ª</span>
+                      <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       {payment.status !== 'paid' ? (
-                        <Button size="sm" variant="outline" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
-                          <Check className="w-3 h-3 mr-1" />
-                          {billType === 'receivable' ? 'Receber' : 'Pagar'}
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
+                          <Check className="w-3 h-3" />
                         </Button>
                       ) : (
-                        <Badge className="bg-primary text-primary-foreground">{billType === 'receivable' ? 'Recebido' : 'Pago'}</Badge>
+                        <Check className="w-4 h-4 text-primary" />
                       )}
                     </div>
                   </div>
