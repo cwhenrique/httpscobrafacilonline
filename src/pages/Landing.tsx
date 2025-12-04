@@ -321,19 +321,19 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-8 text-xs sm:text-sm px-2"
+            className="grid grid-cols-3 sm:flex sm:flex-wrap sm:justify-center gap-2 sm:gap-4 mt-8 text-xs sm:text-sm px-4 max-w-sm sm:max-w-none mx-auto"
           >
-            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-              <span className="font-medium text-foreground">Vitalício</span>
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Vitalício</span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-              <span className="font-medium text-foreground">Atualizações</span>
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Updates</span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-              <span className="font-medium text-foreground">Suporte</span>
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Suporte</span>
             </div>
           </motion.div>
           
