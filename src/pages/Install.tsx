@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Smartphone, Share, Plus, MoreVertical, CheckCircle2, Apple, Chrome } from "lucide-react";
+import { Download, Smartphone, Share, Plus, MoreVertical, CheckCircle2, ArrowLeft, TabletSmartphone, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import cobrafacilLogo from "@/assets/cobrafacil-logo.png";
 
@@ -62,12 +62,15 @@ const Install = () => {
       {/* Header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/dashboard" className="flex items-center gap-2">
             <img src={cobrafacilLogo} alt="CobraFácil" className="h-8 w-auto" />
             <span className="font-bold text-xl text-foreground">CobraFácil</span>
           </Link>
-          <Link to="/auth">
-            <Button variant="outline" size="sm">Entrar</Button>
+          <Link to="/dashboard">
+            <Button variant="outline" size="sm" className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Voltar ao Dashboard
+            </Button>
           </Link>
         </div>
       </header>
@@ -134,11 +137,11 @@ const Install = () => {
                   <Tabs defaultValue={isIOS ? "ios" : "android"} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 mb-6">
                       <TabsTrigger value="ios" className="gap-2">
-                        <Apple className="w-4 h-4" />
+                        <TabletSmartphone className="w-4 h-4" />
                         iPhone / iPad
                       </TabsTrigger>
                       <TabsTrigger value="android" className="gap-2">
-                        <Chrome className="w-4 h-4" />
+                        <Globe className="w-4 h-4" />
                         Android
                       </TabsTrigger>
                     </TabsList>
@@ -375,14 +378,12 @@ const Install = () => {
             </CardContent>
           </Card>
 
-          {/* CTA */}
+          {/* Back to Dashboard */}
           <div className="text-center">
-            <p className="text-muted-foreground mb-4">
-              Ainda não tem conta?
-            </p>
-            <Link to="/auth">
-              <Button size="lg">
-                Criar Conta Grátis
+            <Link to="/dashboard">
+              <Button size="lg" variant="outline" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Voltar ao Dashboard
               </Button>
             </Link>
           </div>
