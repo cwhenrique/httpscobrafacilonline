@@ -1277,6 +1277,52 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Contact / WhatsApp Section */}
+      <section className="py-20 px-4 bg-gradient-to-b from-background to-card">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeInUp}
+          transition={{ duration: 0.6 }}
+          className="container mx-auto max-w-3xl text-center px-2"
+        >
+          <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 md:p-12 shadow-xl">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-green-500" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Tem alguma dúvida?
+            </h2>
+            <p className="text-base sm:text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+              Fale diretamente com nossa equipe pelo WhatsApp. Estamos prontos para tirar todas as suas dúvidas sobre o CobraFácil.
+            </p>
+            
+            <a 
+              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e tenho uma dúvida." 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block w-full sm:w-auto"
+            >
+              <Button size="lg" className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white text-base sm:text-lg px-6 sm:px-8 h-12 sm:h-14 shadow-lg shadow-green-500/20">
+                <MessageCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                <span>Chamar no WhatsApp</span>
+              </Button>
+            </a>
+
+            <div className="mt-8 pt-8 border-t border-border">
+              <p className="text-sm text-muted-foreground mb-4">Ou entre em contato por:</p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <MessageCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-foreground font-medium">(17) 99214-7232</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
       {/* FAQ Section */}
       <section className="py-24 px-4 relative">
         <div className="container mx-auto max-w-3xl">
@@ -1343,51 +1389,6 @@ const Landing = () => {
             </Button>
           </Link>
         </div>
-      </section>
-
-      {/* Contact / WhatsApp Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-background to-card">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={fadeInUp}
-          transition={{ duration: 0.6 }}
-          className="container mx-auto max-w-3xl text-center"
-        >
-          <div className="bg-card border border-border rounded-3xl p-8 md:p-12 shadow-xl">
-            <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <MessageCircle className="w-8 h-8 text-green-500" />
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Tem alguma dúvida?
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-              Fale diretamente com nossa equipe pelo WhatsApp. Estamos prontos para tirar todas as suas dúvidas sobre o CobraFácil.
-            </p>
-            
-            <a 
-              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e tenho uma dúvida." 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 h-14 shadow-lg shadow-green-500/20">
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Chamar no WhatsApp
-              </Button>
-            </a>
-
-            <div className="mt-8 pt-8 border-t border-border">
-              <p className="text-sm text-muted-foreground mb-4">Ou entre em contato por:</p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm">
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <MessageCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-foreground font-medium">(17) 99214-7232</span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
       </section>
 
       {/* Footer */}
