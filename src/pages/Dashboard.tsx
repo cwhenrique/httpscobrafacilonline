@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
@@ -111,6 +112,9 @@ export default function Dashboard() {
           <h1 className="text-2xl font-display font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Visão geral do seu sistema financeiro</p>
         </div>
+
+        {/* PWA Install Banner */}
+        <PWAInstallBanner variant="card" />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
