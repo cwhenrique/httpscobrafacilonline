@@ -564,9 +564,9 @@ export default function Loans() {
               <DialogTrigger asChild>
                 <Button size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
               </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto">
-              <DialogHeader><DialogTitle className="text-lg sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
+              <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 <div className="space-y-2">
                   <Label>Cliente *</Label>
                   
@@ -648,37 +648,37 @@ export default function Loans() {
                   )}
                 </div>
                 {formData.payment_type !== 'daily' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Valor *</Label>
-                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required />
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Valor *</Label>
+                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Taxa de Juros (%) *</Label>
-                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
+                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
                   </div>
                 )}
                 {formData.payment_type !== 'daily' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Juros Aplicado</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                       <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="per_installment">Por Parcela</SelectItem>
-                          <SelectItem value="on_total">Sobre o Total</SelectItem>
+                          <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
+                          <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Modalidade</Label>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Modalidade</Label>
                       <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="single">Pagamento Único</SelectItem>
-                          <SelectItem value="installment">Parcelado</SelectItem>
-                          <SelectItem value="daily">Diário</SelectItem>
+                          <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
+                          <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
+                          <SelectItem value="daily" className="text-xs sm:text-sm">Diário</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -699,13 +699,13 @@ export default function Loans() {
                 )}
                 {formData.payment_type === 'installment' && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Nº de Parcelas *</Label>
-                        <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">Nº de Parcelas *</Label>
+                        <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>{formData.interest_mode === 'per_installment' ? 'Juros por Parcela' : 'Juros Total'}</Label>
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">{formData.interest_mode === 'per_installment' ? 'Juros Total' : 'Juros Total'}</Label>
                         <Input 
                           type="text" 
                           readOnly 
@@ -715,7 +715,7 @@ export default function Loans() {
                               : formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1'))
                             : 'R$ 0,00'
                           } 
-                          className="bg-muted"
+                          className="bg-muted h-9 sm:h-10 text-sm"
                         />
                       </div>
                     </div>
@@ -753,31 +753,31 @@ export default function Loans() {
                     </div>
                   </>
                 )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Data Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
+                <div className={`grid gap-2 sm:gap-4 ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Data Início</Label>
+                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                   </div>
                   {formData.payment_type === 'single' && (
-                    <div className="space-y-2">
-                      <Label>Data Vencimento *</Label>
-                      <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required />
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Data Vencimento *</Label>
+                      <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
                   )}
                 </div>
                 {formData.payment_type === 'installment' && installmentDates.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Vencimento das Parcelas</Label>
-                    <ScrollArea className="h-[150px] rounded-md border p-3">
-                      <div className="space-y-2">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Vencimento das Parcelas</Label>
+                    <ScrollArea className="h-[120px] sm:h-[150px] rounded-md border p-2 sm:p-3">
+                      <div className="space-y-1.5 sm:space-y-2">
                         {installmentDates.map((date, index) => (
-                          <div key={index} className="flex items-center gap-3">
-                            <span className="text-sm font-medium w-20">Parcela {index + 1}</span>
+                          <div key={index} className="flex items-center gap-2 sm:gap-3">
+                            <span className="text-xs sm:text-sm font-medium w-16 sm:w-20">Parcela {index + 1}</span>
                             <Input 
                               type="date" 
                               value={date} 
                               onChange={(e) => updateInstallmentDate(index, e.target.value)} 
-                              className="flex-1"
+                              className="flex-1 h-8 sm:h-10 text-xs sm:text-sm"
                             />
                           </div>
                         ))}
@@ -828,13 +828,13 @@ export default function Loans() {
                     )}
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label>Observações</Label>
-                  <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Observações</Label>
+                  <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                  <Button type="submit">Criar</Button>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
+                  <Button type="submit" className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar</Button>
                 </div>
               </form>
             </DialogContent>
