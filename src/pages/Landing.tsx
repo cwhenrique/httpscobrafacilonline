@@ -357,6 +357,50 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Garantia Section */}
+      <section className="py-8 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="flex flex-col md:flex-row items-center justify-center gap-6 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-3xl p-6 md:p-8">
+              <div className="flex-shrink-0">
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+                  <Shield className="w-10 h-10 md:w-12 md:h-12 text-primary-foreground" />
+                </div>
+              </div>
+              <div className="text-center md:text-left">
+                <h3 className="text-xl md:text-2xl font-bold text-foreground mb-2">
+                  Garantia Incondicional de 7 Dias
+                </h3>
+                <p className="text-muted-foreground max-w-xl">
+                  Teste o CobraFácil por 7 dias. Se por qualquer motivo você não gostar ou achar que não é para você, 
+                  devolvemos <strong className="text-foreground">100% do seu dinheiro</strong>. Sem perguntas, sem burocracia.
+                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm">
+                  <span className="flex items-center gap-2 text-primary font-medium">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Reembolso garantido
+                  </span>
+                  <span className="flex items-center gap-2 text-primary font-medium">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Sem perguntas
+                  </span>
+                  <span className="flex items-center gap-2 text-primary font-medium">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Processo simples
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Comparison Section */}
       <section className="py-12 px-4 relative bg-muted/30">
         <div className="container mx-auto">
