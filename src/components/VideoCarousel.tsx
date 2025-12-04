@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -23,6 +23,8 @@ const videoTestimonials: VideoTestimonial[] = [
 
 const VideoCarousel = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
@@ -30,6 +32,22 @@ const VideoCarousel = () => {
     skipSnaps: false,
     dragFree: false,
   });
+
+  // Intersection Observer to detect when carousel is visible
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.3 }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();
@@ -60,7 +78,7 @@ const VideoCarousel = () => {
     `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&loop=1&playlist=${videoId}&controls=1&modestbranding=1&rel=0&showinfo=0`;
 
   return (
-    <div className="relative max-w-6xl mx-auto">
+    <div ref={containerRef} className="relative max-w-6xl mx-auto">
       {/* Navigation Buttons */}
       <Button
         variant="outline"
@@ -99,7 +117,7 @@ const VideoCarousel = () => {
                   className="overflow-hidden glass-premium border-primary/20 hover:border-primary/40 transition-all duration-300"
                 >
                   <div className="relative aspect-[9/16]">
-                    {selectedIndex === index ? (
+                    {isVisible && selectedIndex === index ? (
                       <iframe
                         src={getEmbedUrl(video.videoId)}
                         title={`Depoimento ${index + 1}`}
