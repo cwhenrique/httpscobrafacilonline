@@ -117,6 +117,16 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
+
+  /* Date input calendar icon styling */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(52%) sepia(89%) saturate(421%) hue-rotate(88deg) brightness(96%) contrast(92%);
+    cursor: pointer;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    filter: invert(62%) sepia(89%) saturate(421%) hue-rotate(88deg) brightness(96%) contrast(92%);
+  }
 }
 
 @layer utilities {
