@@ -42,6 +42,9 @@ import calendarPage from "@/assets/calendar-page.png";
 import reportsPage from "@/assets/reports-page.png";
 import simulatorPage from "@/assets/simulator-page.png";
 import scoreDeClientes from "@/assets/score-de-clientes.png";
+import whatsappAlert01 from "@/assets/whatsapp-alert-01.png";
+import whatsappAlert02 from "@/assets/whatsapp-alert-02.png";
+import whatsappAlert03 from "@/assets/whatsapp-alert-03.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -839,8 +842,24 @@ const Landing = () => {
               </ul>
             </div>
             <div className="order-1">
-              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">Screenshot dos Alertas WhatsApp</span>
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 overflow-hidden">
+                <div className="grid grid-cols-3 gap-2">
+                  <img 
+                    src={whatsappAlert01} 
+                    alt="Alerta WhatsApp - Novo empréstimo parcelado" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <img 
+                    src={whatsappAlert02} 
+                    alt="Alerta WhatsApp - Novo empréstimo único" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <img 
+                    src={whatsappAlert03} 
+                    alt="Alerta WhatsApp - Pagamento diário" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                </div>
               </div>
             </div>
           </motion.div>
