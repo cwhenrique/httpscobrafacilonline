@@ -705,14 +705,14 @@ export default function Loans() {
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                       </div>
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">{formData.interest_mode === 'per_installment' ? 'Juros Total' : 'Juros Total'}</Label>
+                        <Label className="text-xs sm:text-sm">Juros Total</Label>
                         <Input 
                           type="text" 
                           readOnly 
                           value={formData.principal_amount && formData.interest_rate
                             ? formData.interest_mode === 'per_installment'
-                              ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
-                              : formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1'))
+                              ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1'))
+                              : formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
                             : 'R$ 0,00'
                           } 
                           className="bg-muted h-9 sm:h-10 text-sm"
