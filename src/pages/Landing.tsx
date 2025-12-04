@@ -1193,13 +1193,13 @@ const Landing = () => {
                       <span className="text-foreground text-xs sm:text-sm font-medium">Sem mensalidades nunca mais</span>
                     </li>
                   </ul>
-                  <Link to="/auth" className="block">
+                  <a href="https://pay.cakto.com.br/fhwfptb" target="_blank" rel="noopener noreferrer" className="block">
                     <Button size="lg" className="w-full text-sm sm:text-lg h-12 sm:h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
                       <Zap className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                       <span className="hidden sm:inline">QUERO ACESSO VITALÍCIO</span>
                       <span className="sm:hidden">ACESSO VITALÍCIO</span>
                     </Button>
-                  </Link>
+                  </a>
                   <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-2">
                     <Shield className="w-4 h-4 flex-shrink-0" />
                     <span>Pague em até 12x • Garantia de 7 dias</span>
