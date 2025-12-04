@@ -396,72 +396,72 @@ export default function Bills() {
   );
 
   const ContractsList = ({ contractsList, billType }: { contractsList: Contract[], billType: 'payable' | 'receivable' }) => (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {contractsList.map((contract) => (
         <Card key={contract.id} className={cn("overflow-hidden transition-all", billType === 'receivable' ? 'border-primary/30' : 'border-orange-500/30')}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", 
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-start justify-between mb-3 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0", 
                   billType === 'receivable' ? 'bg-primary/20' : 'bg-orange-500/20')}>
-                  <User className={cn("w-5 h-5", billType === 'receivable' ? 'text-primary' : 'text-orange-600')} />
+                  <User className={cn("w-4 h-4 sm:w-5 sm:h-5", billType === 'receivable' ? 'text-primary' : 'text-orange-600')} />
                 </div>
-                <div>
-                  <p className="font-semibold">{contract.client_name}</p>
-                  <Badge variant="outline" className="text-xs">{getContractTypeLabel(contract.contract_type)}</Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm sm:text-base truncate">{contract.client_name}</p>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs">{getContractTypeLabel(contract.contract_type)}</Badge>
                 </div>
               </div>
-              <Badge variant="secondary">{getFrequencyLabel(contract.frequency)}</Badge>
+              <Badge variant="secondary" className="text-[10px] sm:text-xs flex-shrink-0">{getFrequencyLabel(contract.frequency)}</Badge>
             </div>
 
-            <div className="space-y-2 mb-4">
+            <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Valor mensal</span>
-                <span className="font-bold">R$ {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">Valor mensal</span>
+                <span className="font-bold text-sm sm:text-base">R$ {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Parcelas</span>
-                <span className="font-semibold">{contract.installments}x</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">Parcelas</span>
+                <span className="font-semibold text-sm sm:text-base">{contract.installments}x</span>
               </div>
               <div className={cn("flex justify-between items-center p-2 rounded-lg", billType === 'receivable' ? 'bg-primary/10' : 'bg-orange-500/10')}>
-                <span className="text-sm text-muted-foreground">Total</span>
-                <span className={cn("font-bold text-lg", billType === 'receivable' ? 'text-primary' : 'text-orange-600')}>
+                <span className="text-xs sm:text-sm text-muted-foreground">Total</span>
+                <span className={cn("font-bold text-sm sm:text-lg", billType === 'receivable' ? 'text-primary' : 'text-orange-600')}>
                   R$ {contract.amount_to_receive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
 
-            {contract.notes && <p className="text-xs text-muted-foreground mb-3 italic">"{contract.notes}"</p>}
+            {contract.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mb-3 italic line-clamp-2">"{contract.notes}"</p>}
 
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
+            <div className="flex gap-1.5 sm:gap-2">
+              <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleContractExpand(contract.id)}>
                 {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                 Parcelas
               </Button>
-              <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}>
-                <Edit className="w-4 h-4" />
+              <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditContractDialog(contract)}>
+                <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </Button>
-              <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteContractId(contract.id)}>
-                <Trash2 className="w-4 h-4" />
+              <Button size="icon" variant="outline" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => setDeleteContractId(contract.id)}>
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </Button>
             </div>
 
             {expandedContract === contract.id && contractPayments[contract.id] && (
-              <div className="mt-4 pt-4 border-t space-y-2">
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-1.5 sm:space-y-2">
                 {contractPayments[contract.id].map((payment) => (
-                  <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm", getPaymentStatusStyle(payment.status, payment.due_date))}>
-                    <div>
+                  <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", getPaymentStatusStyle(payment.status, payment.due_date))}>
+                    <div className="min-w-0">
                       <span className="font-medium">{payment.installment_number}ª</span>
-                      <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                      <span className="ml-1 sm:ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       {payment.status !== 'paid' ? (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
+                        <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
                           <Check className="w-3 h-3" />
                         </Button>
                       ) : (
-                        <Check className="w-4 h-4 text-primary" />
+                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
                       )}
                     </div>
                   </div>
@@ -476,59 +476,59 @@ export default function Bills() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-2xl font-display font-bold">Gestão Financeira</h1>
-          <p className="text-muted-foreground">Gerencie contas a pagar, a receber e contratos</p>
+          <h1 className="text-xl sm:text-2xl font-display font-bold">Gestão Financeira</h1>
+          <p className="text-sm text-muted-foreground">Gerencie contas a pagar, a receber e contratos</p>
         </div>
 
         <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'payable' | 'receivable')} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="receivable" className="gap-2">
-              <DollarSign className="w-4 h-4" />
-              Contas a Receber
+          <TabsList className="grid w-full grid-cols-2 h-auto">
+            <TabsTrigger value="receivable" className="gap-1.5 px-2 py-2 sm:px-4 text-xs sm:text-sm">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Contas a</span> Receber
             </TabsTrigger>
-            <TabsTrigger value="payable" className="gap-2">
-              <FileText className="w-4 h-4" />
-              Contas a Pagar
+            <TabsTrigger value="payable" className="gap-1.5 px-2 py-2 sm:px-4 text-xs sm:text-sm">
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Contas a</span> Pagar
             </TabsTrigger>
           </TabsList>
 
           {/* CONTAS A RECEBER */}
-          <TabsContent value="receivable" className="mt-6 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <TabsContent value="receivable" className="mt-4 sm:mt-6 space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                      <FileSignature className="w-5 h-5 text-primary" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <FileSignature className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{receivableContracts.length}</p>
-                      <p className="text-xs text-muted-foreground">Contratos</p>
+                    <div className="min-w-0">
+                      <p className="text-lg sm:text-2xl font-bold">{receivableContracts.length}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Contratos</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="md:col-span-2">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <DollarSign className="w-5 h-5 text-primary" />
+              <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-lg sm:text-2xl font-bold text-primary truncate">
+                      <p className="text-sm sm:text-xl font-bold text-primary truncate">
                         R$ {receivableContracts.reduce((acc, c) => acc + c.amount_to_receive, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-muted-foreground">Total a Receber</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Total a Receber</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="relative flex-1 max-w-md">
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center sm:justify-between">
+              <div className="relative flex-1 w-full sm:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
               </div>
@@ -537,9 +537,9 @@ export default function Bills() {
                 if (open) setContractForm(prev => ({ ...prev, bill_type: 'receivable' }));
               }}>
                 <DialogTrigger asChild>
-                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
+                  <Button className="gap-2 w-full sm:w-auto"><Plus className="w-4 h-4" />Novo Contrato</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>Novo Contrato - A Receber</DialogTitle></DialogHeader>
                   <ContractForm billType="receivable" />
                 </DialogContent>
@@ -547,13 +547,13 @@ export default function Bills() {
             </div>
 
             {contractsLoading ? (
-              <div className="text-center py-12"><p className="text-muted-foreground">Carregando contratos...</p></div>
+              <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando contratos...</p></div>
             ) : filteredContracts.length === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <FileSignature className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-semibold mb-2">Nenhum contrato encontrado</h3>
-                  <p className="text-muted-foreground text-sm">Crie contratos de aluguel ou mensalidades para gerenciar cobranças</p>
+                <CardContent className="py-8 sm:py-12 text-center">
+                  <FileSignature className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum contrato encontrado</h3>
+                  <p className="text-muted-foreground text-xs sm:text-sm">Crie contratos de aluguel ou mensalidades para gerenciar cobranças</p>
                 </CardContent>
               </Card>
             ) : (
@@ -562,52 +562,52 @@ export default function Bills() {
           </TabsContent>
 
           {/* CONTAS A PAGAR */}
-          <TabsContent value="payable" className="mt-6 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <TabsContent value="payable" className="mt-4 sm:mt-6 space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-muted-foreground" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.total}</p>
-                      <p className="text-xs text-muted-foreground">Contas</p>
+                    <div className="min-w-0">
+                      <p className="text-lg sm:text-2xl font-bold">{stats.total}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Contas</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-yellow-600" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                      <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.pending}</p>
-                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                    <div className="min-w-0">
+                      <p className="text-lg sm:text-2xl font-bold">{stats.pending}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Pendentes</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center">
-                      <DollarSign className="w-5 h-5 text-destructive" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-destructive/20 flex items-center justify-center flex-shrink-0">
+                      <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.overdue}</p>
-                      <p className="text-xs text-muted-foreground">Atrasadas</p>
+                    <div className="min-w-0">
+                      <p className="text-lg sm:text-2xl font-bold">{stats.overdue}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Atrasadas</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-r from-orange-500/10 to-red-500/10 border-orange-500/30">
-                <CardContent className="p-4">
+              <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30">
+                <CardContent className="p-3 sm:p-4">
                   <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Total a Pagar</p>
-                    <p className="text-lg sm:text-2xl font-bold text-orange-600 truncate">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Total a Pagar</p>
+                    <p className="text-sm sm:text-xl font-bold text-orange-600 truncate">
                       R$ {stats.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
@@ -616,18 +616,18 @@ export default function Bills() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <TabsList>
-                  <TabsTrigger value="bills" className="gap-2"><FileText className="w-4 h-4" />Contas</TabsTrigger>
-                  <TabsTrigger value="contracts" className="gap-2"><FileSignature className="w-4 h-4" />Contratos</TabsTrigger>
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center sm:justify-between">
+                <TabsList className="w-full sm:w-auto">
+                  <TabsTrigger value="bills" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Contas</TabsTrigger>
+                  <TabsTrigger value="contracts" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><FileSignature className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Contratos</TabsTrigger>
                 </TabsList>
 
                 {activeTab === 'bills' ? (
                   <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
-                      <Button className="gap-2"><Plus className="w-4 h-4" />Nova Conta</Button>
+                      <Button className="gap-2 w-full sm:w-auto"><Plus className="w-4 h-4" />Nova Conta</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle></DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
@@ -664,9 +664,9 @@ export default function Bills() {
                     if (open) setContractForm(prev => ({ ...prev, bill_type: 'payable' }));
                   }}>
                     <DialogTrigger asChild>
-                      <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
+                      <Button className="gap-2 w-full sm:w-auto"><Plus className="w-4 h-4" />Novo Contrato</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-lg">
+                    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Novo Contrato - A Pagar</DialogTitle></DialogHeader>
                       <ContractForm billType="payable" />
                     </DialogContent>
@@ -674,74 +674,74 @@ export default function Bills() {
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                <div className="relative flex-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mt-4">
+                <div className="relative flex-1 w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder={activeTab === 'bills' ? "Buscar por nome ou descrição..." : "Buscar por cliente..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
                 </div>
                 {activeTab === 'bills' && (
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>Todas</Button>
-                    <Button variant={filter === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('pending')}>Pendentes</Button>
-                    <Button variant={filter === 'overdue' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('overdue')}>Atrasadas</Button>
-                    <Button variant={filter === 'paid' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('paid')}>Pagas</Button>
+                    <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" className="text-xs sm:text-sm" onClick={() => setFilter('all')}>Todas</Button>
+                    <Button variant={filter === 'pending' ? 'default' : 'outline'} size="sm" className="text-xs sm:text-sm" onClick={() => setFilter('pending')}>Pendentes</Button>
+                    <Button variant={filter === 'overdue' ? 'default' : 'outline'} size="sm" className="text-xs sm:text-sm" onClick={() => setFilter('overdue')}>Atrasadas</Button>
+                    <Button variant={filter === 'paid' ? 'default' : 'outline'} size="sm" className="text-xs sm:text-sm" onClick={() => setFilter('paid')}>Pagas</Button>
                   </div>
                 )}
               </div>
 
               <TabsContent value="bills" className="mt-4">
                 {billsLoading ? (
-                  <div className="text-center py-12"><p className="text-muted-foreground">Carregando contas...</p></div>
+                  <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando contas...</p></div>
                 ) : filteredBills.length === 0 ? (
                   <Card>
-                    <CardContent className="py-12 text-center">
-                      <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                      <h3 className="font-semibold mb-2">Nenhuma conta encontrada</h3>
-                      <p className="text-muted-foreground text-sm">{searchTerm ? 'Tente ajustar sua busca' : 'Clique em "Nova Conta" para cadastrar'}</p>
+                    <CardContent className="py-8 sm:py-12 text-center">
+                      <FileText className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhuma conta encontrada</h3>
+                      <p className="text-muted-foreground text-xs sm:text-sm">{searchTerm ? 'Tente ajustar sua busca' : 'Clique em "Nova Conta" para cadastrar'}</p>
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {filteredBills.map((bill) => (
                       <Card key={bill.id} className={cn('transition-all', getCardStyle(bill))}>
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                                <User className="w-5 h-5 text-muted-foreground" />
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-start justify-between mb-3 gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                                <User className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                               </div>
-                              <div>
-                                <p className="font-semibold">{bill.payee_name}</p>
-                                <p className="text-sm text-muted-foreground">{bill.description}</p>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm sm:text-base truncate">{bill.payee_name}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate">{bill.description}</p>
                               </div>
                             </div>
                             {getStatusBadge(bill)}
                           </div>
-                          <div className="space-y-2 mb-4">
+                          <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Valor</span>
-                              <span className="font-bold text-lg">R$ {bill.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              <span className="text-xs sm:text-sm text-muted-foreground">Valor</span>
+                              <span className="font-bold text-sm sm:text-lg">R$ {bill.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Vencimento</span>
-                              <span className="text-sm">{format(parseISO(bill.due_date), "dd 'de' MMMM", { locale: ptBR })}</span>
+                              <span className="text-xs sm:text-sm text-muted-foreground">Vencimento</span>
+                              <span className="text-xs sm:text-sm">{format(parseISO(bill.due_date), "dd 'de' MMM", { locale: ptBR })}</span>
                             </div>
                             {bill.paid_date && (
                               <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">Pago em</span>
-                                <span className="text-sm text-primary">{format(parseISO(bill.paid_date), "dd 'de' MMMM", { locale: ptBR })}</span>
+                                <span className="text-xs sm:text-sm text-muted-foreground">Pago em</span>
+                                <span className="text-xs sm:text-sm text-primary">{format(parseISO(bill.paid_date), "dd 'de' MMM", { locale: ptBR })}</span>
                               </div>
                             )}
-                            {bill.notes && <p className="text-xs text-muted-foreground mt-2 italic">"{bill.notes}"</p>}
+                            {bill.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 italic line-clamp-2">"{bill.notes}"</p>}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1.5 sm:gap-2">
                             {getBillStatus(bill) !== 'paid' && (
-                              <Button size="sm" variant="default" className="flex-1 gap-1" onClick={() => markAsPaid.mutateAsync(bill.id)} disabled={markAsPaid.isPending}>
+                              <Button size="sm" variant="default" className="flex-1 gap-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => markAsPaid.mutateAsync(bill.id)} disabled={markAsPaid.isPending}>
                                 <Check className="w-3 h-3" />Pagar
                               </Button>
                             )}
-                            <Button size="icon" variant="outline" onClick={() => openEditDialog(bill)}><Edit className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(bill.id)}><Trash2 className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditDialog(bill)}><Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+                            <Button size="icon" variant="outline" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => setDeleteId(bill.id)}><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -752,13 +752,13 @@ export default function Bills() {
 
               <TabsContent value="contracts" className="mt-4">
                 {contractsLoading ? (
-                  <div className="text-center py-12"><p className="text-muted-foreground">Carregando contratos...</p></div>
+                  <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando contratos...</p></div>
                 ) : filteredContracts.length === 0 ? (
                   <Card>
-                    <CardContent className="py-12 text-center">
-                      <FileSignature className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                      <h3 className="font-semibold mb-2">Nenhum contrato encontrado</h3>
-                      <p className="text-muted-foreground text-sm">Cadastre contratos de aluguel ou outros pagamentos recorrentes</p>
+                    <CardContent className="py-8 sm:py-12 text-center">
+                      <FileSignature className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum contrato encontrado</h3>
+                      <p className="text-muted-foreground text-xs sm:text-sm">Cadastre contratos de aluguel ou outros pagamentos recorrentes</p>
                     </CardContent>
                   </Card>
                 ) : (
@@ -771,7 +771,7 @@ export default function Bills() {
 
         {/* Edit Bill Dialog */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Editar Conta</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -833,7 +833,7 @@ export default function Bills() {
 
         {/* Edit Contract Dialog */}
         <Dialog open={isEditContractOpen} onOpenChange={setIsEditContractOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Editar Contrato</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
