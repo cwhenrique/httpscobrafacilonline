@@ -453,7 +453,7 @@ const Landing = () => {
                 <CardContent className="p-8">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-foreground">Outras Plataformas</h3>
-                    <Badge className="px-3 py-1.5 bg-red-600 text-white border-0 font-semibold">💸 Mensalidade</Badge>
+                    <span className="px-3 py-1.5 rounded-full text-sm font-semibold" style={{ backgroundColor: '#991b1b', color: '#ffffff' }}>💸 Mensalidade</span>
                   </div>
                   <div className="space-y-4">
                     {competitorProblems.map((problem, index) => (
