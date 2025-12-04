@@ -1246,11 +1246,11 @@ const Landing = () => {
                       <span className="text-muted-foreground text-sm">Suporte prioritário</span>
                     </li>
                   </ul>
-                  <Link to="/auth" className="block">
+                  <a href="https://pay.cakto.com.br/37et5v3" target="_blank" rel="noopener noreferrer" className="block">
                     <Button variant="outline" size="lg" className="w-full h-12 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
                       Assinar Anual
                     </Button>
-                  </Link>
+                  </a>
                 </CardContent>
               </Card>
             </motion.div>
