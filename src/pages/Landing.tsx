@@ -1389,7 +1389,7 @@ const Landing = () => {
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <a 
-              href="https://wa.me/5500000000000?text=Olá! Vim do site do CobraFácil e gostaria de mais informações." 
+              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e gostaria de mais informações." 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex-shrink-0"
