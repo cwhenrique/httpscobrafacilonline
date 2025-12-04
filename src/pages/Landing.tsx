@@ -1098,62 +1098,64 @@ const Landing = () => {
               className="md:-my-4"
             >
               <Card className="bg-gradient-to-b from-primary/5 via-card to-primary/5 border-2 border-primary h-full relative overflow-hidden shadow-2xl shadow-primary/30">
-                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-3 text-sm font-bold tracking-wide">
-                  🔥 MAIS VENDIDO - MELHOR ESCOLHA
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-2 sm:py-3 text-xs sm:text-sm font-bold tracking-wide px-2">
+                  <span className="hidden sm:inline">🔥 MAIS VENDIDO - MELHOR ESCOLHA</span>
+                  <span className="sm:hidden">🔥 MAIS VENDIDO</span>
                 </div>
-                <div className="absolute -right-12 top-24 rotate-45 bg-red-500 text-white text-xs font-bold py-1 px-12">
+                <div className="absolute -right-12 top-20 sm:top-24 rotate-45 bg-red-500 text-white text-xs font-bold py-1 px-12">
                   ECONOMIZE
                 </div>
-                <CardContent className="p-8 pt-16">
-                  <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                      <Sparkles className="w-8 h-8 text-primary-foreground" />
+                <CardContent className="p-6 sm:p-8 pt-14 sm:pt-16">
+                  <div className="text-center mb-6 sm:mb-8">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+                      <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
                     </div>
                     <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
-                    <div className="text-5xl font-bold text-primary mb-1">
-                      R$ 199<span className="text-2xl">,90</span>
+                    <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
+                      R$ 199<span className="text-xl sm:text-2xl">,90</span>
                     </div>
                     <p className="text-sm text-muted-foreground">pagamento único</p>
-                    <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2">
+                    <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 sm:px-4 py-2">
                       <Star className="w-4 h-4 text-primary fill-primary" />
-                      <span className="text-sm font-semibold text-primary">Acesso para sempre!</span>
+                      <span className="text-xs sm:text-sm font-semibold text-primary">Acesso para sempre!</span>
                     </div>
                   </div>
-                  <ul className="space-y-4 mb-8">
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Acesso vitalício garantido</span>
+                  <ul className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Acesso vitalício garantido</span>
                     </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Todas as funcionalidades</span>
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Todas as funcionalidades</span>
                     </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Alertas de cobranças no WhatsApp</span>
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Alertas de cobranças no WhatsApp</span>
                     </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Suporte via WhatsApp</span>
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Suporte via WhatsApp</span>
                     </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Atualizações gratuitas</span>
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Atualizações gratuitas</span>
                     </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Sem mensalidades nunca mais</span>
+                    <li className="flex items-center gap-2 sm:gap-3">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-xs sm:text-sm font-medium">Sem mensalidades nunca mais</span>
                     </li>
                   </ul>
                   <Link to="/auth" className="block">
-                    <Button size="lg" className="w-full text-lg h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
-                      <Zap className="w-5 h-5 mr-2" />
-                      QUERO ACESSO VITALÍCIO
+                    <Button size="lg" className="w-full text-sm sm:text-lg h-12 sm:h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
+                      <Zap className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                      <span className="hidden sm:inline">QUERO ACESSO VITALÍCIO</span>
+                      <span className="sm:hidden">ACESSO VITALÍCIO</span>
                     </Button>
                   </Link>
                   <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Pague em até 12x • Garantia de 7 dias
+                    <Shield className="w-4 h-4 flex-shrink-0" />
+                    <span>Pague em até 12x • Garantia de 7 dias</span>
                   </p>
                 </CardContent>
               </Card>
