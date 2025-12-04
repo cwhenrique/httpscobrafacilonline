@@ -835,40 +835,179 @@ const Landing = () => {
               Escolha Seu Plano
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Comece a usar hoje mesmo
+              Comece a Usar Hoje Mesmo
             </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Escolha o plano ideal para você. Quanto maior o período, maior a economia!
+            </p>
           </motion.div>
+          
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Plano Mensal */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <Card className="bg-card border-border h-full">
+                <CardContent className="p-6">
+                  <div className="text-center mb-6">
+                    <Badge variant="outline" className="mb-4 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
+                    <div className="text-4xl font-bold text-foreground mb-1">
+                      R$ 39<span className="text-2xl">,90</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">por mês</p>
+                  </div>
+                  <ul className="space-y-3 mb-8">
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Acesso a todas funcionalidades</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Suporte por email</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Ideal para testar</span>
+                    </li>
+                  </ul>
+                  <Link to="/auth" className="block">
+                    <Button variant="outline" size="lg" className="w-full">
+                      Começar Teste
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Plano Vitalício - DESTAQUE */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={scaleIn}
+              transition={{ delay: 0.1 }}
+            >
+              <Card className="bg-card border-2 border-primary h-full relative overflow-hidden shadow-2xl shadow-primary/20 scale-105">
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-2 text-sm font-bold">
+                  🔥 MAIS VENDIDO - MELHOR CUSTO-BENEFÍCIO
+                </div>
+                <CardContent className="p-6 pt-12">
+                  <div className="text-center mb-6">
+                    <Badge className="mb-4 bg-primary text-primary-foreground font-bold">Vitalício</Badge>
+                    <div className="text-5xl font-bold text-primary mb-1">
+                      R$ 199<span className="text-2xl">,90</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">pagamento único</p>
+                    <div className="mt-2 inline-flex items-center gap-2 bg-primary/10 rounded-full px-3 py-1">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-semibold text-primary">Acesso para sempre!</span>
+                    </div>
+                  </div>
+                  <ul className="space-y-3 mb-8">
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Acesso vitalício garantido</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Todas as funcionalidades</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Atualizações gratuitas</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Suporte prioritário</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Sem mensalidades nunca mais</span>
+                    </li>
+                  </ul>
+                  <Link to="/auth" className="block">
+                    <Button size="lg" className="w-full text-lg h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg">
+                      <Zap className="w-5 h-5 mr-2" />
+                      Quero Acesso Vitalício
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-center text-muted-foreground mt-4">
+                    💳 Pague em até 12x no cartão
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Plano Anual */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="bg-card border-border h-full">
+                <CardContent className="p-6">
+                  <div className="text-center mb-6">
+                    <Badge variant="outline" className="mb-4 border-primary/50 text-primary">Anual</Badge>
+                    <div className="text-4xl font-bold text-foreground mb-1">
+                      R$ 147<span className="text-2xl">,90</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">por ano</p>
+                    <div className="mt-2 text-xs text-primary font-medium">
+                      Economia de R$ 330/ano vs mensal
+                    </div>
+                  </div>
+                  <ul className="space-y-3 mb-8">
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Acesso por 12 meses</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Todas as funcionalidades</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-muted-foreground text-sm">Suporte prioritário</span>
+                    </li>
+                  </ul>
+                  <Link to="/auth" className="block">
+                    <Button variant="outline" size="lg" className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                      Assinar Anual
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+
+          {/* Garantia */}
           <motion.div
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={scaleIn}
-            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="mt-12 text-center"
           >
-            <Card className="max-w-lg mx-auto bg-card border-primary/30 overflow-hidden relative shadow-xl">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary" />
-              <CardContent className="p-8">
-                <div className="text-center mb-6">
-                  <Badge className="mb-4 bg-primary text-primary-foreground">Mais Popular</Badge>
-                  <div className="text-5xl font-bold text-foreground mb-2">Grátis</div>
-                  <p className="text-muted-foreground">Para sempre no plano básico</p>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {includedFeatures.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/auth" className="block">
-                  <Button size="lg" className="w-full text-lg h-14">
-                    Criar Conta Grátis
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="inline-flex items-center gap-3 bg-card border border-border rounded-2xl px-6 py-4">
+              <Shield className="w-8 h-8 text-primary" />
+              <div className="text-left">
+                <div className="font-bold text-foreground">Garantia de 7 Dias</div>
+                <div className="text-sm text-muted-foreground">Se não gostar, devolvemos 100% do seu dinheiro</div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
