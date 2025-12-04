@@ -227,9 +227,8 @@ const Landing = () => {
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
           >
-            <Badge className="mb-6 bg-primary/10 text-primary border-primary/30 px-4 py-2">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Sistema Completo de Gestão de Empréstimos
+            <Badge className="mb-6 bg-red-500/10 text-red-600 border-red-500/30 px-4 py-2 text-sm font-bold">
+              🔥 CHEGA DE PERDER DINHEIRO COM CALOTE!
             </Badge>
           </motion.div>
           
@@ -240,14 +239,14 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight text-foreground"
           >
-            Pare de Perder Dinheiro.
+            Você Empresta, Aluga ou Presta Serviços?
             <br />
             <span className="text-primary">
-              Cobre com Facilidade
+              Nunca Mais Esqueça de Cobrar!
             </span>
           </motion.h1>
 
-          {/* Feature Badges */}
+          {/* Target Audience Badges */}
           <motion.div 
             initial="hidden"
             animate="visible"
@@ -255,17 +254,14 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="flex flex-wrap justify-center gap-3 mb-8"
           >
-            <Badge variant="outline" className="border-border text-muted-foreground px-4 py-2">
-              <Calculator className="w-4 h-4 mr-2 text-primary" />
-              Cálculo Automático
+            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
+              💰 Empréstimos Autônomos
             </Badge>
-            <Badge variant="outline" className="border-border text-muted-foreground px-4 py-2">
-              <MessageCircle className="w-4 h-4 mr-2 text-primary" />
-              Alertas WhatsApp
+            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
+              🏠 Aluguel de Casas e Kitnets
             </Badge>
-            <Badge variant="outline" className="border-border text-muted-foreground px-4 py-2">
-              <TrendingUp className="w-4 h-4 mr-2 text-primary" />
-              Score de Clientes
+            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
+              🛠️ Prestadores de Serviço
             </Badge>
           </motion.div>
           
@@ -274,10 +270,10 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto"
+            className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto"
           >
-            O único sistema que calcula juros automaticamente, envia alertas no WhatsApp
-            e organiza todas as suas cobranças em um só lugar.
+            Sistema completo para quem trabalha com <strong className="text-foreground">empréstimos, aluguéis ou mensalidades</strong>. 
+            Calcula juros automático, avisa no WhatsApp e controla tudo em um só lugar.
           </motion.p>
           
           <motion.div 
@@ -288,16 +284,16 @@ const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-8 h-14 shadow-lg shadow-primary/25">
-                <Sparkles className="w-5 h-5 mr-2" />
-                Descobrir Todas as Funcionalidades
+              <Button size="lg" className="text-lg px-8 h-14 shadow-lg shadow-primary/25 font-bold">
+                <Zap className="w-5 h-5 mr-2" />
+                COMEÇAR AGORA - É GRÁTIS
               </Button>
             </Link>
-            <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 rounded-xl px-4 py-3 border border-border">
-              <Shield className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-2 text-muted-foreground bg-green-500/10 rounded-xl px-4 py-3 border border-green-500/30">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
               <div className="text-left">
-                <div className="text-sm font-semibold text-foreground">100% Grátis</div>
-                <div className="text-xs">Teste sem compromisso</div>
+                <div className="text-sm font-bold text-green-600">SEM MENSALIDADE</div>
+                <div className="text-xs">Use 100% grátis, para sempre</div>
               </div>
             </div>
           </motion.div>
@@ -320,7 +316,7 @@ const Landing = () => {
             </span>
             <span className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-primary" />
-              Cancele quando quiser
+              Sem pegadinha
             </span>
           </motion.div>
           
@@ -333,10 +329,10 @@ const Landing = () => {
             className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto"
           >
             {[
-              { value: "R$ 10M+", label: "Gerenciados" },
-              { value: "500+", label: "Cobradores Ativos" },
+              { value: "1.350+", label: "Clientes Ativos" },
+              { value: "R$ 0", label: "Sem Mensalidade" },
               { value: "⭐ 4.9/5", label: "Avaliação" },
-              { value: "97%", label: "Satisfação" },
+              { value: "98.9%", label: "Satisfação" },
             ].map((stat, index) => (
               <motion.div 
                 key={index} 
