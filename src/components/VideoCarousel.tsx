@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { motion } from "framer-motion";
-import { Play, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface VideoTestimonial {
@@ -22,7 +22,6 @@ const videoTestimonials: VideoTestimonial[] = [
 ];
 
 const VideoCarousel = () => {
-  const [activeVideo, setActiveVideo] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -58,7 +57,7 @@ const VideoCarousel = () => {
     `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   const getEmbedUrl = (videoId: string) =>
-    `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0`;
 
   return (
     <div className="relative max-w-6xl mx-auto">
@@ -97,25 +96,25 @@ const VideoCarousel = () => {
                 transition={{ duration: 0.3 }}
               >
                 <Card 
-                  className="overflow-hidden glass-premium border-primary/20 hover:border-primary/40 transition-all duration-300 group cursor-pointer"
-                  onClick={() => setActiveVideo(video.videoId)}
+                  className="overflow-hidden glass-premium border-primary/20 hover:border-primary/40 transition-all duration-300"
                 >
                   <div className="relative aspect-[9/16]">
-                    <img
-                      src={getThumbnail(video.videoId)}
-                      alt={`Depoimento ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/30 transition-colors">
-                      <motion.div
-                        whileHover={{ scale: 1.15 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="w-16 h-16 bg-primary rounded-full flex items-center justify-center shadow-glow"
-                      >
-                        <Play className="w-7 h-7 text-primary-foreground ml-1" />
-                      </motion.div>
-                    </div>
+                    {selectedIndex === index ? (
+                      <iframe
+                        src={getEmbedUrl(video.videoId)}
+                        title={`Depoimento ${index + 1}`}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <img
+                        src={getThumbnail(video.videoId)}
+                        alt={`Depoimento ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
                   </div>
                 </Card>
               </motion.div>
@@ -138,38 +137,6 @@ const VideoCarousel = () => {
           />
         ))}
       </div>
-
-      {/* Video Modal */}
-      {activeVideo && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setActiveVideo(null)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="relative w-full max-w-lg aspect-[9/16] bg-black rounded-2xl overflow-hidden shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setActiveVideo(null)}
-              className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <iframe
-              src={getEmbedUrl(activeVideo)}
-              title="Video depoimento"
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </motion.div>
-        </motion.div>
-      )}
     </div>
   );
 };
