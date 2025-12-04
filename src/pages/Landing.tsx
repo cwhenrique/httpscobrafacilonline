@@ -511,6 +511,146 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Multi-Device Section */}
+      <section className="py-16 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <Smartphone className="w-4 h-4" />
+              <span>Acesse de Qualquer Lugar</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Funciona em <span className="gradient-text">Todos os Dispositivos</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Use no computador, tablet ou celular. E ainda pode instalar como um aplicativo no seu smartphone!
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
+            {/* Desktop */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <rect width="20" height="14" x="2" y="3" rx="2"/>
+                    <line x1="8" x2="16" y1="21" y2="21"/>
+                    <line x1="12" x2="12" y1="17" y2="21"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Computador</h3>
+                <p className="text-muted-foreground">
+                  Acesse pelo navegador no seu PC ou notebook. Tela grande para melhor visualização.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Tablet */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.1 }}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
+                    <line x1="12" x2="12.01" y1="18" y2="18"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Tablet</h3>
+                <p className="text-muted-foreground">
+                  Perfeito para usar enquanto visita clientes. Praticidade na palma da mão.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Mobile */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <Smartphone className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Celular</h3>
+                <p className="text-muted-foreground">
+                  Leve o CobraFácil no bolso. Consulte e registre pagamentos a qualquer momento.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Install as App Banner */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="relative badge-premium rounded-3xl p-8 md:p-10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/10" />
+              <div className="absolute -left-20 -top-20 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
+              <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
+              
+              <div className="relative flex flex-col md:flex-row items-center gap-8">
+                <div className="flex-shrink-0">
+                  <div className="w-24 h-24 bg-gradient-to-br from-primary to-green-600 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6">
+                    <DollarSign className="w-12 h-12 text-primary-foreground" />
+                  </div>
+                </div>
+                <div className="text-center md:text-left flex-1">
+                  <div className="inline-flex items-center gap-2 bg-primary/20 rounded-full px-4 py-1.5 text-xs font-bold text-primary mb-3">
+                    <Zap className="w-3 h-3" />
+                    <span>INSTALE COMO APLICATIVO</span>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+                    Crie um Atalho no Seu Celular
+                  </h3>
+                  <p className="text-muted-foreground text-lg mb-4">
+                    Adicione o CobraFácil à tela inicial do seu celular como se fosse um aplicativo da loja. 
+                    <strong className="text-foreground"> Sem precisar baixar nada!</strong> Acesse com um toque, sem abrir o navegador.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Funciona offline</span>
+                    </div>
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Carregamento rápido</span>
+                    </div>
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Sem ocupar espaço</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Detailed Features Section */}
       <section className="py-16 px-4 relative">
         <div className="container mx-auto">
