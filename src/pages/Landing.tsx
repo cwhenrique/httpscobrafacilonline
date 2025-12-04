@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VideoCarousel from "@/components/VideoCarousel";
+import heroPerson from "@/assets/hero-person.png";
 
 // Animation variants
 const fadeInUp = {
@@ -246,7 +247,16 @@ const Landing = () => {
       </motion.header>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden">
+      <section className="pt-32 pb-20 px-4 relative overflow-hidden min-h-[90vh] flex items-center">
+        {/* Background Person Image */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <img 
+            src={heroPerson} 
+            alt="" 
+            className="h-full w-auto object-cover opacity-10 max-w-none"
+          />
+        </div>
+        
         <div className="container mx-auto text-center relative">
           <motion.div
             initial="hidden"
@@ -288,20 +298,14 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
+            className="flex justify-center"
           >
-            <Link to="/auth">
-              <Button size="lg" className="text-lg px-8 h-14 w-full sm:w-auto shadow-glow group">
-                Começar Agora - Grátis
-                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
             <Button variant="outline" size="lg" className="text-lg px-8 h-14 glass-premium hover:bg-card/80" asChild>
               <a href="#features">Ver funcionalidades</a>
             </Button>
           </motion.div>
           
-          {/* Stats */}
+          {/* Features Grid */}
           <motion.div 
             initial="hidden"
             animate="visible"
@@ -310,19 +314,19 @@ const Landing = () => {
             className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto"
           >
             {[
-              { value: "R$ 10M+", label: "Gerenciados" },
-              { value: "500+", label: "Cobradores" },
-              { value: "99.9%", label: "Uptime" },
-              { value: "24/7", label: "Disponível" },
-            ].map((stat, index) => (
+              { icon: Calculator, label: "Cálculo Automático" },
+              { icon: MessageCircle, label: "Alertas WhatsApp" },
+              { icon: Calendar, label: "Calendário" },
+              { icon: Users, label: "Score de Clientes" },
+            ].map((item, index) => (
               <motion.div 
                 key={index} 
                 variants={scaleIn}
                 whileHover={{ scale: 1.05, y: -5 }}
                 className="text-center p-4 rounded-2xl glass-premium"
               >
-                <div className="text-2xl sm:text-3xl font-bold text-primary">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <item.icon className="w-8 h-8 text-primary mx-auto mb-2" />
+                <div className="text-sm font-medium text-foreground">{item.label}</div>
               </motion.div>
             ))}
           </motion.div>
