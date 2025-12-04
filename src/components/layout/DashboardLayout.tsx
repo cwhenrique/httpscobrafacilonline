@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Calendar,
   Receipt,
+  Calculator,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 
@@ -40,6 +41,7 @@ const navigation = [
   { name: 'Contas a Pagar', href: '/bills', icon: Receipt },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
