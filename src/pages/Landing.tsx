@@ -297,14 +297,13 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.35 }}
-            className="mt-8 inline-flex items-center gap-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 border border-amber-500/40 rounded-2xl px-6 py-4"
+            className="mt-4"
           >
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">👑</span>
-              <div className="text-left">
-                <div className="text-sm font-bold text-amber-600 dark:text-amber-400">PAGAMENTO ÚNICO</div>
-                <div className="text-xs text-muted-foreground">Pague uma vez, use para sempre. Sem mensalidades!</div>
-              </div>
+            <div className="inline-flex items-center justify-center gap-3 bg-primary/10 border-2 border-primary/30 rounded-xl px-10 h-16 text-lg font-bold">
+              <CheckCircle2 className="w-6 h-6 text-primary" />
+              <span className="text-primary">PAGAMENTO ÚNICO</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-foreground">Pague uma vez, use para sempre</span>
             </div>
           </motion.div>
 
