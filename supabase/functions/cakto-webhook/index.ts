@@ -87,9 +87,10 @@ serve(async (req) => {
   }
 
   try {
-    // Validate webhook secret
+    // Validate webhook secret (from header OR URL parameter)
     const webhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
-    const receivedSecret = req.headers.get('x-webhook-secret');
+    const url = new URL(req.url);
+    const receivedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
     
     if (webhookSecret && receivedSecret !== webhookSecret) {
       console.error('Invalid webhook secret');
