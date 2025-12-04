@@ -1388,10 +1388,11 @@ const Landing = () => {
               e.preventDefault();
               document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
             }}
+            className="inline-flex justify-center w-full sm:w-auto"
           >
-            <Button size="lg" variant="secondary" className="text-lg px-10 h-16 shadow-lg">
+            <Button size="lg" variant="secondary" className="w-full sm:w-auto text-base sm:text-lg px-6 sm:px-10 h-14 sm:h-16 shadow-lg">
               Adquirir o Acesso Vitalício
-              <ArrowRight className="w-5 h-5 ml-2" />
+              <ArrowRight className="w-5 h-5 ml-2 flex-shrink-0" />
             </Button>
           </a>
         </div>
