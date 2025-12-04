@@ -270,10 +270,10 @@ export default function CalendarView() {
                           key={index}
                           onClick={() => setSelectedDate(date)}
                           className={cn(
-                            'relative aspect-square p-0.5 sm:p-1 rounded-md sm:rounded-lg transition-all hover:bg-muted/50',
+                            'relative aspect-square p-0.5 sm:p-1 rounded-md sm:rounded-lg transition-all hover:bg-muted/50 border border-primary/20',
                             isOutside && 'opacity-30',
-                            isToday(date) && 'ring-1 sm:ring-2 ring-primary ring-offset-1 sm:ring-offset-2',
-                            isSelected && 'bg-primary/10 ring-1 sm:ring-2 ring-primary',
+                            isToday(date) && 'ring-1 sm:ring-2 ring-primary ring-offset-1 sm:ring-offset-2 border-primary',
+                            isSelected && 'bg-primary/10 ring-1 sm:ring-2 ring-primary border-primary',
                           )}
                         >
                           <span className={cn(
