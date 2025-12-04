@@ -218,6 +218,7 @@ const Landing = () => {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-background/80" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/50" />
+          <div className="absolute inset-0 grid-pattern opacity-50" />
         </div>
         
         <div className="container mx-auto text-center relative">
@@ -227,9 +228,10 @@ const Landing = () => {
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
           >
-            <Badge className="mb-6 bg-red-500/10 text-red-600 border-red-500/30 px-4 py-2 text-sm font-bold">
-              🔥 CHEGA DE PERDER DINHEIRO COM CALOTE!
-            </Badge>
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-6 py-3 text-sm font-bold text-primary mb-6">
+              <span className="animate-pulse">🔥</span>
+              <span>CHEGA DE PERDER DINHEIRO COM CALOTE!</span>
+            </div>
           </motion.div>
           
           <motion.h1 
@@ -241,7 +243,7 @@ const Landing = () => {
           >
             Você Empresta, Aluga ou Presta Serviços?
             <br />
-            <span className="text-primary">
+            <span className="gradient-text-animated">
               Nunca Mais Esqueça de Cobrar!
             </span>
           </motion.h1>
@@ -254,15 +256,18 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="flex flex-wrap justify-center gap-3 mb-8"
           >
-            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
-              💰 Empréstimos Autônomos
-            </Badge>
-            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
-              🏠 Aluguel de Casas e Kitnets
-            </Badge>
-            <Badge className="bg-primary/20 text-primary border-primary/40 px-4 py-2 font-semibold">
-              🛠️ Prestadores de Serviço
-            </Badge>
+            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+              <span>💰</span>
+              <span>Empréstimos Autônomos</span>
+            </div>
+            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+              <span>🏠</span>
+              <span>Aluguel de Casas e Kitnets</span>
+            </div>
+            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+              <span>🛠️</span>
+              <span>Prestadores de Serviço</span>
+            </div>
           </motion.div>
           
           <motion.p 
@@ -284,7 +289,7 @@ const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-10 h-16 shadow-2xl shadow-primary/40 font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300">
+              <Button size="lg" className="text-lg px-10 h-16 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300 animate-bounce-subtle">
                 <Zap className="w-6 h-6 mr-2" />
                 QUERO ORGANIZAR MINHAS COBRANÇAS
               </Button>
@@ -297,13 +302,16 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.35 }}
-            className="mt-4"
+            className="mt-6"
           >
-            <div className="inline-flex items-center justify-center gap-3 bg-primary/10 border-2 border-primary/30 rounded-xl px-10 h-16 text-lg font-bold">
-              <CheckCircle2 className="w-6 h-6 text-primary" />
-              <span className="text-primary">PAGAMENTO ÚNICO</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="text-foreground">Pague uma vez, use para sempre</span>
+            <div className="inline-flex items-center justify-center gap-3 badge-premium badge-glow rounded-2xl px-8 py-4 text-lg">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm">
+                <CheckCircle2 className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-primary">PAGAMENTO ÚNICO</div>
+                <div className="text-sm text-muted-foreground">Pague uma vez, use para sempre</div>
+              </div>
             </div>
           </motion.div>
 
@@ -313,20 +321,20 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-wrap justify-center gap-6 mt-8 text-sm text-muted-foreground"
+            className="flex flex-wrap justify-center gap-4 mt-8 text-sm"
           >
-            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
-              <Shield className="w-4 h-4 text-primary" />
-              Acesso vitalício
-            </span>
-            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              Atualizações inclusas
-            </span>
-            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
-              <Zap className="w-4 h-4 text-primary" />
-              Suporte prioritário
-            </span>
+            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
+              <Shield className="w-5 h-5 text-primary" />
+              <span className="font-medium text-foreground">Acesso vitalício</span>
+            </div>
+            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <span className="font-medium text-foreground">Atualizações inclusas</span>
+            </div>
+            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
+              <Zap className="w-5 h-5 text-primary" />
+              <span className="font-medium text-foreground">Suporte prioritário</span>
+            </div>
           </motion.div>
           
           {/* Stats */}
@@ -346,11 +354,11 @@ const Landing = () => {
               <motion.div 
                 key={index} 
                 variants={scaleIn}
-                className="text-center p-6 rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border shadow-lg hover:shadow-xl transition-shadow"
+                className="stat-card text-center p-6 rounded-2xl hover:scale-105 transition-all duration-300 cursor-default"
               >
                 {stat.icon && <span className="text-2xl">{stat.icon}</span>}
-                <div className="text-2xl sm:text-3xl font-bold text-primary mt-1">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <div className="text-2xl sm:text-3xl font-bold gradient-text mt-1">{stat.value}</div>
+                <div className="text-sm text-muted-foreground font-medium">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
@@ -367,33 +375,41 @@ const Landing = () => {
             variants={fadeInUp}
             className="max-w-4xl mx-auto"
           >
-            <div className="flex flex-col md:flex-row items-center justify-center gap-6 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-3xl p-6 md:p-8">
-              <div className="flex-shrink-0">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                  <Shield className="w-10 h-10 md:w-12 md:h-12 text-primary-foreground" />
+            <div className="relative flex flex-col md:flex-row items-center justify-center gap-6 badge-premium rounded-3xl p-8 md:p-10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
+              <div className="absolute top-0 left-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
+              
+              <div className="flex-shrink-0 relative">
+                <div className="w-24 h-24 md:w-28 md:h-28 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-glow animate-pulse-glow">
+                  <Shield className="w-12 h-12 md:w-14 md:h-14 text-primary-foreground" />
                 </div>
               </div>
-              <div className="text-center md:text-left">
-                <h3 className="text-xl md:text-2xl font-bold text-foreground mb-2">
+              <div className="text-center md:text-left relative">
+                <div className="inline-flex items-center gap-2 badge-premium rounded-full px-4 py-1.5 text-xs font-bold text-primary mb-3">
+                  <span>✨</span>
+                  <span>RISCO ZERO</span>
+                </div>
+                <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
                   Garantia Incondicional de 7 Dias
                 </h3>
-                <p className="text-muted-foreground max-w-xl">
-                  Teste o CobraFácil por 7 dias. Se por qualquer motivo você não gostar ou achar que não é para você, 
-                  devolvemos <strong className="text-foreground">100% do seu dinheiro</strong>. Sem perguntas, sem burocracia.
+                <p className="text-muted-foreground max-w-xl text-lg">
+                  Teste o CobraFácil por 7 dias. Se por qualquer motivo você não gostar, 
+                  devolvemos <strong className="text-primary">100% do seu dinheiro</strong>. Sem perguntas.
                 </p>
-                <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm">
-                  <span className="flex items-center gap-2 text-primary font-medium">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Reembolso garantido
-                  </span>
-                  <span className="flex items-center gap-2 text-primary font-medium">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Sem perguntas
-                  </span>
-                  <span className="flex items-center gap-2 text-primary font-medium">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Processo simples
-                  </span>
+                <div className="mt-5 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">Reembolso garantido</span>
+                  </div>
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">Sem burocracia</span>
+                  </div>
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">Processo simples</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -402,29 +418,30 @@ const Landing = () => {
       </section>
 
       {/* Comparison Section */}
-      <section className="py-12 px-4 relative bg-muted/30">
-        <div className="container mx-auto">
+      <section className="py-16 px-4 relative bg-muted/30">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
-            className="text-center mb-10"
+            className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30 px-4 py-2 font-semibold">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Compare e Economize
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Chega de Pagar Mensalidade Todo Mês
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <TrendingUp className="w-4 h-4" />
+              <span>Compare e Economize</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Chega de Pagar <span className="gradient-text">Mensalidade</span> Todo Mês
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
               Veja a diferença entre plataformas com mensalidade e o CobraFácil
             </p>
           </motion.div>
           
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {/* Competitors */}
             <motion.div
               initial="hidden"
@@ -432,24 +449,24 @@ const Landing = () => {
               viewport={{ once: true }}
               variants={fadeInUp}
             >
-              <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-500/30 h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
+              <Card className="bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-950/10 border-red-200 dark:border-red-500/30 h-full shadow-lg">
+                <CardContent className="p-8">
+                  <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-foreground">Outras Plataformas</h3>
-                    <Badge variant="destructive">Mensalidade</Badge>
+                    <Badge variant="destructive" className="px-3 py-1">💸 Mensalidade</Badge>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {competitorProblems.map((problem, index) => (
-                      <div key={index} className="flex items-center gap-3 text-muted-foreground">
+                      <div key={index} className="flex items-center gap-3 text-muted-foreground bg-red-100/50 dark:bg-red-900/20 rounded-lg px-4 py-3">
                         <X className="w-5 h-5 text-red-500 flex-shrink-0" />
                         <span>{problem}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-6 pt-6 border-t border-red-200 dark:border-red-500/20">
+                  <div className="mt-8 pt-6 border-t border-red-200 dark:border-red-500/20">
                     <div className="text-sm text-muted-foreground">Custo anual estimado</div>
-                    <div className="text-3xl font-bold text-red-500">R$ 600+/ano</div>
-                    <div className="text-xs text-muted-foreground">em mensalidades recorrentes</div>
+                    <div className="text-4xl font-bold text-red-500">R$ 600+/ano</div>
+                    <div className="text-sm text-muted-foreground">em mensalidades recorrentes</div>
                   </div>
                 </CardContent>
               </Card>
@@ -463,27 +480,29 @@ const Landing = () => {
               variants={fadeInUp}
               transition={{ delay: 0.1 }}
             >
-              <Card className="bg-primary/5 border-primary/30 h-full relative overflow-hidden shadow-lg shadow-primary/10">
-                <div className="absolute top-0 right-0 bg-gradient-to-r from-primary to-green-600 text-primary-foreground text-xs font-bold px-4 py-1.5 rounded-bl-lg">
+              <Card className="card-premium bg-gradient-to-b from-primary/5 to-primary/10 border-2 border-primary/30 h-full relative overflow-hidden shadow-xl shadow-primary/15">
+                <div className="absolute top-0 right-0 bg-gradient-to-r from-primary to-green-600 text-primary-foreground text-xs font-bold px-4 py-2 rounded-bl-xl">
                   ✨ MELHOR ESCOLHA
                 </div>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
+                <CardContent className="p-8">
+                  <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-foreground">CobraFácil</h3>
-                    <Badge className="bg-primary text-primary-foreground font-bold">Pagamento Único</Badge>
+                    <div className="badge-premium badge-glow rounded-full px-4 py-1.5">
+                      <span className="text-primary font-bold text-sm">Pagamento Único</span>
+                    </div>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {cobraFacilBenefits.map((benefit, index) => (
-                      <div key={index} className="flex items-center gap-3 text-muted-foreground">
+                      <div key={index} className="flex items-center gap-3 text-foreground stat-card rounded-lg px-4 py-3">
                         <Check className="w-5 h-5 text-primary flex-shrink-0" />
-                        <span>{benefit}</span>
+                        <span className="font-medium">{benefit}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-6 pt-6 border-t border-primary/20">
+                  <div className="mt-8 pt-6 border-t border-primary/20">
                     <div className="text-sm text-muted-foreground">Investimento</div>
-                    <div className="text-3xl font-bold text-primary">1x e Pronto!</div>
-                    <div className="text-xs text-muted-foreground">acesso vitalício garantido</div>
+                    <div className="text-4xl font-bold gradient-text">1x e Pronto!</div>
+                    <div className="text-sm text-muted-foreground">acesso vitalício garantido</div>
                   </div>
                 </CardContent>
               </Card>
