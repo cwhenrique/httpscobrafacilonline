@@ -37,6 +37,9 @@ import heroPerson from "@/assets/hero-person.png";
 import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
 import dashboardOverview from "@/assets/dashboard-overview.png";
 import loansManagement from "@/assets/loans-management.png";
+import loansCards from "@/assets/loans-cards.png";
+import calendarPage from "@/assets/calendar-page.png";
+import reportsPage from "@/assets/reports-page.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -752,8 +755,8 @@ const Landing = () => {
             <div className="order-1">
               <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
                 <img 
-                  src={loansManagement} 
-                  alt="Gestão de Empréstimos CobraFácil - Controle completo de clientes e empréstimos" 
+                  src={loansCards} 
+                  alt="Cards de Empréstimos CobraFácil - Visualização por status" 
                   className="w-full h-auto rounded-xl"
                 />
               </div>
@@ -792,8 +795,12 @@ const Landing = () => {
               </ul>
             </div>
             <div className="order-1 md:order-2">
-              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">Screenshot do Calendário</span>
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={calendarPage} 
+                  alt="Calendário de Cobranças CobraFácil - Visualize datas de vencimento" 
+                  className="w-full h-auto rounded-xl"
+                />
               </div>
             </div>
           </motion.div>
