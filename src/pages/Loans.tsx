@@ -227,6 +227,11 @@ export default function Loans() {
       return;
     }
     
+    if (!formData.principal_amount || parseFloat(formData.principal_amount) <= 0) {
+      toast.error('Informe o valor total emprestado');
+      return;
+    }
+    
     if (!formData.daily_amount || parseFloat(formData.daily_amount) <= 0) {
       toast.error('Informe o valor da parcela diária');
       return;
@@ -237,13 +242,14 @@ export default function Loans() {
       return;
     }
     
+    const principalAmount = parseFloat(formData.principal_amount);
     const dailyAmount = parseFloat(formData.daily_amount);
     const numDays = installmentDates.length;
-    const totalAmount = dailyAmount * numDays;
+    const totalToReceive = dailyAmount * numDays;
     
     await createLoan({
       client_id: formData.client_id,
-      principal_amount: totalAmount,
+      principal_amount: principalAmount,
       interest_rate: 0,
       interest_type: 'simple',
       interest_mode: 'per_installment',
@@ -251,7 +257,9 @@ export default function Loans() {
       installments: numDays,
       start_date: formData.start_date,
       due_date: installmentDates[installmentDates.length - 1],
-      notes: formData.notes ? `${formData.notes}\nParcela diária: R$ ${dailyAmount.toFixed(2)}` : `Parcela diária: R$ ${dailyAmount.toFixed(2)}`,
+      notes: formData.notes 
+        ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}` 
+        : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}`,
       installment_dates: installmentDates,
     });
     setIsDailyDialogOpen(false);
@@ -441,28 +449,39 @@ export default function Loans() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
+                      <Label>Valor Total Emprestado (R$) *</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={formData.principal_amount} 
+                        onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} 
+                        placeholder="Ex: 1000.00"
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label>Valor da Parcela Diária (R$) *</Label>
                       <Input 
                         type="number" 
                         step="0.01" 
                         value={formData.daily_amount} 
                         onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} 
+                        placeholder="Ex: 50.00"
                         required 
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Valor Total Emprestado (R$)</Label>
-                      <Input 
-                        type="text" 
-                        readOnly 
-                        value={formData.daily_amount && installmentDates.length > 0 
-                          ? formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)
-                          : 'R$ 0,00'
-                        }
-                        className="bg-muted"
-                      />
-                    </div>
                   </div>
+                  {formData.principal_amount && formData.daily_amount && (
+                    <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-3 space-y-1">
+                      <p className="text-sm font-medium">Resumo:</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * (installmentDates.length || parseInt(formData.daily_period) || 0))}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * (installmentDates.length || parseInt(formData.daily_period) || 0)) - parseFloat(formData.principal_amount))}
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Data de Início</Label>
                     <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
