@@ -521,7 +521,7 @@ export default function Loans() {
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Datas de Cobrança ({installmentDates.length} dias)</Label>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Clique nas datas para selecionar os dias de cobrança</p>
-                    <div className="border rounded-md p-2 sm:p-3">
+                    <div className="border rounded-md p-2 sm:p-3 bg-background text-foreground">
                       <Calendar
                         mode="multiple"
                         selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
