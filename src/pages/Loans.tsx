@@ -278,32 +278,9 @@ export default function Loans() {
       return;
     }
     
-    // Para pagamento diário, calcular valores a partir do valor diário
+    // Para pagamento diário no formulário regular, não permitir - redirecionar para "Novo Diário"
     if (formData.payment_type === 'daily') {
-      if (!formData.daily_amount || parseFloat(formData.daily_amount) <= 0) {
-        toast.error('Informe o valor da parcela diária');
-        return;
-      }
-      
-      const dailyAmount = parseFloat(formData.daily_amount);
-      const numDays = parseInt(formData.daily_period);
-      const totalAmount = dailyAmount * numDays;
-      
-      await createLoan({
-        client_id: formData.client_id,
-        principal_amount: totalAmount,
-        interest_rate: 0, // Sem juros adicional para diário
-        interest_type: formData.interest_type,
-        interest_mode: formData.interest_mode,
-        payment_type: 'daily',
-        installments: numDays,
-        start_date: formData.start_date,
-        due_date: formData.due_date,
-        notes: formData.notes ? `${formData.notes}\nParcela diária: R$ ${dailyAmount.toFixed(2)}` : `Parcela diária: R$ ${dailyAmount.toFixed(2)}`,
-        installment_dates: installmentDates,
-      });
-      setIsDialogOpen(false);
-      resetForm();
+      toast.error('Use o botão "Novo Diário" para criar empréstimos diários');
       return;
     }
     
@@ -481,7 +458,8 @@ export default function Loans() {
                         Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))}
+                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))} 
+                        ({(((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount)) / parseFloat(formData.principal_amount) * 100).toFixed(1)}%)
                       </p>
                     </div>
                   )}
