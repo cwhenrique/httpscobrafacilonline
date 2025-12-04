@@ -106,6 +106,11 @@ export function useLoans() {
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
+    console.log('createLoan received loan object:', JSON.stringify(loan, null, 2));
+    console.log('loan.remaining_balance:', loan.remaining_balance, 'type:', typeof loan.remaining_balance);
+    console.log('loan.total_interest:', loan.total_interest, 'type:', typeof loan.total_interest);
+    console.log('loan.interest_rate:', loan.interest_rate, 'type:', typeof loan.interest_rate);
+
     // Build insert object explicitly to ensure daily loan values are preserved
     const insertData = {
       client_id: loan.client_id,
@@ -119,23 +124,17 @@ export function useLoans() {
       due_date: loan.due_date,
       notes: loan.notes || null,
       user_id: user.id,
-      remaining_balance: loan.remaining_balance !== undefined ? loan.remaining_balance : loan.principal_amount,
-      total_interest: loan.total_interest !== undefined ? loan.total_interest : 0,
+      remaining_balance: (loan.remaining_balance !== undefined && loan.remaining_balance !== null) 
+        ? loan.remaining_balance 
+        : loan.principal_amount,
+      total_interest: (loan.total_interest !== undefined && loan.total_interest !== null) 
+        ? loan.total_interest 
+        : 0,
       total_paid: 0,
       installment_dates: loan.installment_dates || [],
     };
 
-    // Debug log for daily loans
-    if (loan.payment_type === 'daily') {
-      console.log('Creating daily loan with:', {
-        principal_amount: loan.principal_amount,
-        interest_rate: loan.interest_rate,
-        total_interest: loan.total_interest,
-        remaining_balance: loan.remaining_balance,
-        insertData_remaining_balance: insertData.remaining_balance,
-        insertData_total_interest: insertData.total_interest,
-      });
-    }
+    console.log('insertData being sent to Supabase:', JSON.stringify(insertData, null, 2));
 
     const { data, error } = await supabase
       .from('loans')
