@@ -9,21 +9,24 @@ const corsHeaders = {
 // Default password for new users
 const DEFAULT_PASSWORD = 'mudar@123';
 
-// Clean API URL - remove trailing slashes and common path segments
+// Clean API URL - remove trailing slashes and any path segments
 function cleanApiUrl(url: string): string {
-  let cleanUrl = url.replace(/\/+$/, '');
-  const pathsToRemove = ['/message/sendText', '/message', '/send'];
-  for (const path of pathsToRemove) {
-    if (cleanUrl.endsWith(path)) {
-      cleanUrl = cleanUrl.slice(0, -path.length);
-    }
+  // Remove trailing slashes
+  let cleaned = url.replace(/\/+$/, '');
+  
+  // Remove any path that might have been accidentally included
+  // Common patterns: /message/sendText/InstanceName
+  const pathPatterns = [
+    /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendText$/i,
+    /\/message$/i,
+  ];
+  
+  for (const pattern of pathPatterns) {
+    cleaned = cleaned.replace(pattern, '');
   }
-  // Remove instance name if it's at the end
-  const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
-  if (instanceName && cleanUrl.endsWith(`/${instanceName}`)) {
-    cleanUrl = cleanUrl.slice(0, -(instanceName.length + 1));
-  }
-  return cleanUrl;
+  
+  return cleaned;
 }
 
 // Send WhatsApp message via Evolution API
