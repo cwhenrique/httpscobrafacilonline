@@ -1382,12 +1382,18 @@ const Landing = () => {
           >
             Junte-se a centenas de cobradores que já usam o CobraFácil
           </motion.p>
-          <Link to="/auth">
+          <a 
+            href="#pricing" 
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
             <Button size="lg" variant="secondary" className="text-lg px-10 h-16 shadow-lg">
-              Começar Agora - É Grátis
+              Adquirir o Acesso Vitalício
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
-          </Link>
+          </a>
         </div>
       </section>
 
