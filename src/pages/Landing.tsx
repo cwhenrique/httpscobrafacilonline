@@ -41,6 +41,7 @@ import loansCards from "@/assets/loans-cards.png";
 import calendarPage from "@/assets/calendar-page.png";
 import reportsPage from "@/assets/reports-page.png";
 import simulatorPage from "@/assets/simulator-page.png";
+import scoreDeClientes from "@/assets/score-de-clientes.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -876,8 +877,12 @@ const Landing = () => {
               </ul>
             </div>
             <div className="order-1 md:order-2">
-              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">Screenshot do Score de Clientes</span>
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={scoreDeClientes} 
+                  alt="Score de Clientes CobraFácil - Avalie a confiabilidade dos clientes" 
+                  className="w-full h-auto rounded-xl"
+                />
               </div>
             </div>
           </motion.div>
