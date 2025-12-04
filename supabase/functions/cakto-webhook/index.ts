@@ -16,6 +16,23 @@ function generatePassword(length = 12): string {
   return password;
 }
 
+// Clean API URL - remove trailing slashes and common path segments
+function cleanApiUrl(url: string): string {
+  let cleanUrl = url.replace(/\/+$/, '');
+  const pathsToRemove = ['/message/sendText', '/message', '/send'];
+  for (const path of pathsToRemove) {
+    if (cleanUrl.endsWith(path)) {
+      cleanUrl = cleanUrl.slice(0, -path.length);
+    }
+  }
+  // Remove instance name if it's at the end
+  const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+  if (instanceName && cleanUrl.endsWith(`/${instanceName}`)) {
+    cleanUrl = cleanUrl.slice(0, -(instanceName.length + 1));
+  }
+  return cleanUrl;
+}
+
 // Send WhatsApp message via Evolution API
 async function sendWhatsAppMessage(phone: string, message: string) {
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
@@ -35,8 +52,12 @@ async function sendWhatsAppMessage(phone: string, message: string) {
     formattedPhone = '55' + formattedPhone;
   }
 
+  const cleanedUrl = cleanApiUrl(evolutionApiUrl);
+  const fullUrl = `${cleanedUrl}/message/sendText/${evolutionInstanceName}`;
+  console.log('Sending WhatsApp to URL:', fullUrl);
+
   try {
-    const response = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
