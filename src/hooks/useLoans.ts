@@ -125,6 +125,18 @@ export function useLoans() {
       installment_dates: loan.installment_dates || [],
     };
 
+    // Debug log for daily loans
+    if (loan.payment_type === 'daily') {
+      console.log('Creating daily loan with:', {
+        principal_amount: loan.principal_amount,
+        interest_rate: loan.interest_rate,
+        total_interest: loan.total_interest,
+        remaining_balance: loan.remaining_balance,
+        insertData_remaining_balance: insertData.remaining_balance,
+        insertData_total_interest: insertData.total_interest,
+      });
+    }
+
     const { data, error } = await supabase
       .from('loans')
       .insert(insertData)
