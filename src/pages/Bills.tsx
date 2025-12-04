@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
-import { useContracts, Contract, CreateContractData, ContractPayment } from '@/hooks/useContracts';
+import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, Calendar, User, DollarSign, FileText, FileSignature, ChevronDown, ChevronUp } from 'lucide-react';
@@ -40,20 +40,30 @@ import { cn } from '@/lib/utils';
 
 export default function Bills() {
   const { bills, isLoading: billsLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills();
-  const { contracts, isLoading: contractsLoading, createContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
+  const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isContractOpen, setIsContractOpen] = useState(false);
+  const [isEditContractOpen, setIsEditContractOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteContractId, setDeleteContractId] = useState<string | null>(null);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
   const [mainTab, setMainTab] = useState<'payable' | 'receivable'>('receivable');
   const [activeTab, setActiveTab] = useState('contracts');
   const [expandedContract, setExpandedContract] = useState<string | null>(null);
   const [contractPayments, setContractPayments] = useState<Record<string, ContractPayment[]>>({});
+  
+  const [editContractForm, setEditContractForm] = useState<UpdateContractData>({
+    client_name: '',
+    contract_type: '',
+    total_amount: 0,
+    amount_to_receive: 0,
+    notes: '',
+  });
 
   const [formData, setFormData] = useState<CreateBillData>({
     description: '',
@@ -148,6 +158,28 @@ export default function Bills() {
       notes: bill.notes || '',
     });
     setIsEditOpen(true);
+  };
+
+  const openEditContractDialog = (contract: Contract) => {
+    setEditingContract(contract);
+    setEditContractForm({
+      client_name: contract.client_name,
+      contract_type: contract.contract_type,
+      total_amount: contract.total_amount,
+      amount_to_receive: contract.amount_to_receive,
+      notes: contract.notes || '',
+    });
+    setIsEditContractOpen(true);
+  };
+
+  const handleEditContract = async () => {
+    if (!editingContract) return;
+    await updateContract.mutateAsync({
+      id: editingContract.id,
+      data: editContractForm,
+    });
+    setIsEditContractOpen(false);
+    setEditingContract(null);
   };
 
   const getBillStatus = (bill: Bill) => {
@@ -405,6 +437,9 @@ export default function Bills() {
               <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
                 {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                 Parcelas
+              </Button>
+              <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}>
+                <Edit className="w-4 h-4" />
               </Button>
               <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteContractId(contract.id)}>
                 <Trash2 className="w-4 h-4" />
@@ -795,6 +830,89 @@ export default function Bills() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Edit Contract Dialog */}
+        <Dialog open={isEditContractOpen} onOpenChange={setIsEditContractOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Editar Contrato</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>{editingContract?.bill_type === 'receivable' ? 'Cliente / Inquilino' : 'Pagar para'}</Label>
+                <Input
+                  value={editContractForm.client_name || ''}
+                  onChange={(e) => setEditContractForm({ ...editContractForm, client_name: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Tipo de contrato</Label>
+                <Select
+                  value={editContractForm.contract_type}
+                  onValueChange={(value) => setEditContractForm({ ...editContractForm, contract_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aluguel_casa">Aluguel de Casa</SelectItem>
+                    <SelectItem value="aluguel_kitnet">Aluguel de Kitnet</SelectItem>
+                    <SelectItem value="aluguel_apartamento">Aluguel de Apartamento</SelectItem>
+                    <SelectItem value="aluguel_sala">Aluguel de Sala Comercial</SelectItem>
+                    <SelectItem value="mensalidade">Mensalidade</SelectItem>
+                    <SelectItem value="servico_mensal">Serviço Mensal</SelectItem>
+                    <SelectItem value="parcelado">Parcelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor mensal (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editContractForm.total_amount || ''}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setEditContractForm({ 
+                        ...editContractForm, 
+                        total_amount: value,
+                        amount_to_receive: value * (editingContract?.installments || 1)
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total do contrato (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editContractForm.amount_to_receive || ''}
+                    onChange={(e) => setEditContractForm({ ...editContractForm, amount_to_receive: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Observação</Label>
+                <Textarea
+                  value={editContractForm.notes || ''}
+                  onChange={(e) => setEditContractForm({ ...editContractForm, notes: e.target.value })}
+                />
+              </div>
+
+              <Button
+                onClick={handleEditContract}
+                disabled={!editContractForm.client_name || updateContract.isPending}
+                className="w-full"
+              >
+                {updateContract.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
