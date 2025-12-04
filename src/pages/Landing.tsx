@@ -227,9 +227,9 @@ const Landing = () => {
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-6 py-3 text-sm font-bold text-primary mb-6">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 badge-premium badge-glow rounded-full px-4 py-2 sm:px-6 sm:py-3 text-xs sm:text-sm font-bold text-primary mb-6">
               <span className="animate-pulse">🔥</span>
-              <span>CHEGA DE PERDER DINHEIRO COM CALOTE!</span>
+              <span>CHEGA DE PERDER DINHEIRO!</span>
             </div>
           </motion.div>
           
@@ -253,19 +253,19 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="flex flex-wrap justify-center gap-3 mb-8"
+            className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 px-2"
           >
-            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+            <div className="badge-premium rounded-full px-3 py-1.5 sm:px-5 sm:py-2.5 text-primary font-semibold flex items-center gap-1.5 sm:gap-2 hover:scale-105 transition-transform cursor-default text-xs sm:text-sm">
               <span>💰</span>
-              <span>Empréstimos Autônomos</span>
+              <span>Empréstimos</span>
             </div>
-            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+            <div className="badge-premium rounded-full px-3 py-1.5 sm:px-5 sm:py-2.5 text-primary font-semibold flex items-center gap-1.5 sm:gap-2 hover:scale-105 transition-transform cursor-default text-xs sm:text-sm">
               <span>🏠</span>
-              <span>Aluguel de Casas e Kitnets</span>
+              <span>Aluguéis</span>
             </div>
-            <div className="badge-premium rounded-full px-5 py-2.5 text-primary font-semibold flex items-center gap-2 hover:scale-105 transition-transform cursor-default">
+            <div className="badge-premium rounded-full px-3 py-1.5 sm:px-5 sm:py-2.5 text-primary font-semibold flex items-center gap-1.5 sm:gap-2 hover:scale-105 transition-transform cursor-default text-xs sm:text-sm">
               <span>🛠️</span>
-              <span>Prestadores de Serviço</span>
+              <span>Serviços</span>
             </div>
           </motion.div>
           
@@ -288,9 +288,10 @@ const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-10 h-16 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300 animate-bounce-subtle">
-                <Zap className="w-6 h-6 mr-2" />
-                QUERO ORGANIZAR MINHAS COBRANÇAS
+              <Button size="lg" className="text-sm sm:text-lg px-6 sm:px-10 h-12 sm:h-16 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300 animate-bounce-subtle">
+                <Zap className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
+                <span className="hidden sm:inline">QUERO ORGANIZAR MINHAS COBRANÇAS</span>
+                <span className="sm:hidden">ORGANIZAR COBRANÇAS</span>
               </Button>
             </Link>
           </motion.div>
@@ -301,15 +302,15 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.35 }}
-            className="mt-6"
+            className="mt-6 px-2"
           >
-            <div className="inline-flex items-center justify-center gap-3 badge-premium badge-glow rounded-2xl px-8 py-4 text-lg">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm">
-                <CheckCircle2 className="w-5 h-5 text-primary-foreground" />
+            <div className="inline-flex items-center justify-center gap-2 sm:gap-3 badge-premium badge-glow rounded-xl sm:rounded-2xl px-4 py-2.5 sm:px-8 sm:py-4 text-sm sm:text-lg">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               </div>
               <div className="text-left">
-                <div className="font-bold text-primary">PAGAMENTO ÚNICO</div>
-                <div className="text-sm text-muted-foreground">Pague uma vez, use para sempre</div>
+                <div className="font-bold text-primary text-xs sm:text-base">PAGAMENTO ÚNICO</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Pague uma vez, use para sempre</div>
               </div>
             </div>
           </motion.div>
@@ -320,19 +321,19 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-wrap justify-center gap-4 mt-8 text-sm"
+            className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-8 text-xs sm:text-sm px-2"
           >
-            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
-              <Shield className="w-5 h-5 text-primary" />
-              <span className="font-medium text-foreground">Acesso vitalício</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+              <span className="font-medium text-foreground">Vitalício</span>
             </div>
-            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
-              <span className="font-medium text-foreground">Atualizações inclusas</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+              <span className="font-medium text-foreground">Atualizações</span>
             </div>
-            <div className="flex items-center gap-2 stat-card px-5 py-3 rounded-full">
-              <Zap className="w-5 h-5 text-primary" />
-              <span className="font-medium text-foreground">Suporte prioritário</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 stat-card px-3 py-2 sm:px-5 sm:py-3 rounded-full">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+              <span className="font-medium text-foreground">Suporte</span>
             </div>
           </motion.div>
           
