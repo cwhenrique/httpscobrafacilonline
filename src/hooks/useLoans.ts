@@ -146,11 +146,17 @@ export function useLoans() {
       message += `💰 Valor: *${formatCurrency(loan.principal_amount)}*\n`;
       
       if (loan.payment_type === 'daily') {
-        // Daily payment loan - no interest shown
-        const dailyAmount = loan.principal_amount / numInstallments;
+        // Daily payment loan - use total_interest which stores the daily installment amount
+        const dailyAmount = loan.total_interest || (loan.principal_amount / numInstallments);
+        const totalToReceive = dailyAmount * numInstallments;
+        const profit = totalToReceive - loan.principal_amount;
+        const profitPercent = (profit / loan.principal_amount) * 100;
+        
         message += `📆 Tipo: *Pagamento Diário*\n`;
         message += `💵 Valor diário: *${formatCurrency(dailyAmount)}*\n`;
-        message += `📅 Dias de cobrança: *${numInstallments} dias*\n\n`;
+        message += `📅 Dias de cobrança: *${numInstallments} dias*\n`;
+        message += `💰 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
+        message += `📈 Lucro: *${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)*\n\n`;
         
         if (loan.installment_dates && loan.installment_dates.length > 0) {
           message += `*Datas selecionadas:*\n`;

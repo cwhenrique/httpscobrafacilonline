@@ -1006,7 +1006,7 @@ export default function Loans() {
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <Percent className="w-4 h-4" />
                           {isDaily ? (
-                            <span>Lucro: {formatCurrency(dailyProfit)}</span>
+                            <span>Lucro: {formatCurrency(dailyProfit)} ({((dailyProfit / loan.principal_amount) * 100).toFixed(1)}%)</span>
                           ) : (
                             <span>Juros: {formatPercentage(loan.interest_rate)}</span>
                           )}
