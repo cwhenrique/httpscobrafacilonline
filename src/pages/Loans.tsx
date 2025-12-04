@@ -451,17 +451,17 @@ export default function Loans() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-display font-bold">Empréstimos</h1>
-            <p className="text-muted-foreground">Gerencie seus empréstimos</p>
+            <h1 className="text-xl sm:text-2xl font-display font-bold">Empréstimos</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus empréstimos</p>
           </div>
           <div className="flex gap-2">
             <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-sky-500 text-sky-600 hover:bg-sky-500/10">
-                  <Clock className="w-4 h-4" />Novo Diário
+                <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -562,10 +562,10 @@ export default function Loans() {
             </Dialog>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="w-4 h-4" />Novo Empréstimo</Button>
+                <Button size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
               </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Novo Empréstimo</DialogTitle></DialogHeader>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto">
+              <DialogHeader><DialogTitle className="text-lg sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Cliente *</Label>
@@ -842,17 +842,18 @@ export default function Loans() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+            <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <Button
               variant={statusFilter === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('all')}
+              className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
             >
               Todos
             </Button>
@@ -860,15 +861,15 @@ export default function Loans() {
               variant={statusFilter === 'pending' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('pending')}
-              className={statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
             >
-              Em Dia
+              <span className="hidden xs:inline">Em </span>Dia
             </Button>
             <Button
               variant={statusFilter === 'paid' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('paid')}
-              className={statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
             >
               Pagos
             </Button>
@@ -876,40 +877,40 @@ export default function Loans() {
               variant={statusFilter === 'overdue' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('overdue')}
-              className={statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
             >
-              Em Atraso
+              Atraso
             </Button>
             <Button
               variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('renegotiated')}
-              className={statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}`}
             >
-              Renegociados
+              <span className="hidden xs:inline">Reneg.</span><span className="xs:hidden">Ren.</span>
             </Button>
             <Button
               variant={statusFilter === 'daily' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('daily')}
-              className={statusFilter === 'daily' ? 'bg-sky-500' : 'border-sky-500 text-sky-600 hover:bg-sky-500/10'}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'daily' ? 'bg-sky-500' : 'border-sky-500 text-sky-600 hover:bg-sky-500/10'}`}
             >
               <Clock className="w-3 h-3 mr-1" />
-              Diário
+              <span className="hidden xs:inline">Diário</span><span className="xs:hidden">Diá.</span>
             </Button>
           </div>
           
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-48 w-full rounded-xl" />))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-40 sm:h-48 w-full rounded-xl" />))}
             </div>
           ) : filteredLoans.length === 0 ? (
-            <div className="text-center py-12">
-              <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
+            <div className="text-center py-8 sm:py-12">
+              <DollarSign className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+              <p className="text-sm sm:text-base text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {filteredLoans.map((loan) => {
                 const isDaily = loan.payment_type === 'daily';
                 const numInstallments = loan.installments || 1;
@@ -982,12 +983,12 @@ export default function Loans() {
                 
                 return (
                   <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="relative group">
-                          <Avatar className={`h-16 w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-start gap-3 sm:gap-4">
+                        <div className="relative group flex-shrink-0">
+                          <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
                             <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                            <AvatarFallback className={`text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                            <AvatarFallback className={`text-sm sm:text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                               {initials}
                             </AvatarFallback>
                           </Avatar>
@@ -1009,89 +1010,89 @@ export default function Loans() {
                             disabled={uploadingClientId === loan.client_id}
                           >
                             {uploadingClientId === loan.client_id ? (
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             ) : (
-                              <Camera className="w-5 h-5 text-white" />
+                              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             )}
                           </button>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h3 className="font-semibold text-lg truncate">{loan.client?.full_name}</h3>
-                            <Badge className={hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}>
-                              {isRenegotiated && !isOverdue ? 'Renegociado' : getPaymentStatusLabel(loan.status)}
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
+                            <Badge className={`text-[10px] sm:text-xs flex-shrink-0 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                              {isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                             </Badge>
                           </div>
-                          <p className={`text-2xl font-bold mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
-                          <p className={`text-xs ${mutedTextColor}`}>restante a receber</p>
+                          <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
                         </div>
                       </div>
                       
-                      <div className={`grid grid-cols-2 gap-3 mt-4 p-3 rounded-lg text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                      <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
-                          <p className={`text-xs ${mutedTextColor}`}>Emprestado</p>
-                          <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
+                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
+                          <p className="font-semibold truncate">{formatCurrency(loan.principal_amount)}</p>
                         </div>
                         <div>
-                          <p className={`text-xs ${mutedTextColor}`}>Total a Receber</p>
-                          <p className="font-semibold">{formatCurrency(totalToReceive)}</p>
+                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
+                          <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
-                          <Percent className="w-4 h-4" />
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm">
+                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                          <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           {isDaily ? (
-                            <span>Lucro: {formatCurrency(dailyProfit)} ({((dailyProfit / loan.principal_amount) * 100).toFixed(1)}%)</span>
+                            <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
                           ) : (
-                            <span>Juros: {formatPercentage(loan.interest_rate)}</span>
+                            <span className="truncate">Juros: {formatPercentage(loan.interest_rate)}</span>
                           )}
                         </div>
-                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
-                          <CreditCard className="w-4 h-4" />
-                          <span>{numInstallments}x de {formatCurrency(totalPerInstallment)}</span>
+                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                          <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallment)}</span>
                         </div>
-                        <div className={`flex items-center gap-2 ${mutedTextColor}`}>
-                          <CalendarIcon className="w-4 h-4" />
-                          <span>Venc: {(() => {
+                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                          <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">Venc: {(() => {
                             const dates = (loan.installment_dates as string[]) || [];
                             const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
                             const nextDate = dates[paidCount] || loan.due_date;
                             return formatDate(nextDate);
                           })()}</span>
                         </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
-                          <DollarSign className="w-4 h-4" />
-                          <span>Pago: {formatCurrency(loan.total_paid || 0)}</span>
+                        <div className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                          <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
                       </div>
                       
-                      <div className={`flex gap-2 mt-4 pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                      <div className={`flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <Button 
                           variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="sm" 
-                          className={`flex-1 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                          className={`flex-1 h-8 sm:h-9 text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                           onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
                         >
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Pagamento
+                          <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                          <span className="hidden xs:inline">Pagamento</span><span className="xs:hidden">Pagar</span>
                         </Button>
                         <Button 
                           variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="icon" 
-                          className={hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}
+                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                           onClick={() => openRenegotiateDialog(loan.id)}
                           title="Renegociar"
                         >
-                          <RefreshCw className="w-4 h-4" />
+                          <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className={hasSpecialStyle ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}
+                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}`}
                           onClick={() => setDeleteId(loan.id)}
                         >
-                          <Trash2 className={`w-4 h-4 ${hasSpecialStyle ? '' : 'text-destructive'}`} />
+                          <Trash2 className={`w-3 h-3 sm:w-4 sm:h-4 ${hasSpecialStyle ? '' : 'text-destructive'}`} />
                         </Button>
                       </div>
                     </CardContent>
