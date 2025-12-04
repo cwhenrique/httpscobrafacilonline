@@ -316,7 +316,7 @@ export default function Loans() {
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
-      interest_mode: 'on_total', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
+      interest_mode: 'per_installment', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
       daily_amount: '', daily_period: '15',
     });
     setInstallmentDates([]);
@@ -474,7 +474,7 @@ export default function Loans() {
                       <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required />
                     </div>
                     <div className="space-y-2">
-                      <Label>Taxa de Juros (%) * <span className="text-xs text-muted-foreground">(por parcela)</span></Label>
+                      <Label>Taxa de Juros (%) *</Label>
                       <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required />
                     </div>
                   </div>
@@ -482,12 +482,12 @@ export default function Loans() {
                 {formData.payment_type !== 'daily' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Tipo de Juros</Label>
-                      <Select value={formData.interest_type} onValueChange={(v: InterestType) => setFormData({ ...formData, interest_type: v })}>
+                      <Label>Juros Aplicado</Label>
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="simple">Simples</SelectItem>
-                          <SelectItem value="compound">Composto</SelectItem>
+                          <SelectItem value="per_installment">Por Parcela</SelectItem>
+                          <SelectItem value="on_total">Sobre o Total</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -500,7 +500,7 @@ export default function Loans() {
                           <SelectItem value="installment">Parcelado</SelectItem>
                           <SelectItem value="daily">Diário</SelectItem>
                         </SelectContent>
-                    </Select>
+                      </Select>
                     </div>
                   </div>
                 )}
@@ -525,12 +525,14 @@ export default function Loans() {
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required />
                       </div>
                       <div className="space-y-2">
-                        <Label>Juros por Parcela</Label>
+                        <Label>{formData.interest_mode === 'per_installment' ? 'Juros por Parcela' : 'Juros Total'}</Label>
                         <Input 
                           type="text" 
                           readOnly 
                           value={formData.principal_amount && formData.interest_rate
-                            ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
+                            ? formData.interest_mode === 'per_installment'
+                              ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
+                              : formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1'))
                             : 'R$ 0,00'
                           } 
                           className="bg-muted"
