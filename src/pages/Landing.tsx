@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,9 @@ import {
   Zap,
   BarChart3,
   MessageCircle,
-  Play,
-  X,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import VideoCarousel from "@/components/VideoCarousel";
 
 // Animation variants
 const fadeInUp = {
@@ -61,7 +60,6 @@ const scaleIn = {
 const Landing = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -148,44 +146,6 @@ const Landing = () => {
       number: "03",
       title: "Receba alertas",
       description: "Seja notificado no WhatsApp sobre vencimentos e atrasos",
-    },
-  ];
-
-  const videoTestimonials = [
-    {
-      id: "1",
-      name: "Carlos Silva",
-      role: "Cobrador Autônomo",
-      thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    },
-    {
-      id: "2",
-      name: "Maria Santos",
-      role: "Financeira",
-      thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    },
-    {
-      id: "3",
-      name: "José Oliveira",
-      role: "Empresário",
-      thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=300&fit=crop",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    },
-    {
-      id: "4",
-      name: "Ana Costa",
-      role: "Agiota",
-      thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=300&fit=crop",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    },
-    {
-      id: "5",
-      name: "Pedro Lima",
-      role: "Investidor",
-      thumbnail: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=300&fit=crop",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
     },
   ];
 
@@ -540,100 +500,8 @@ const Landing = () => {
               O que nossos clientes dizem
             </h2>
           </motion.div>
-          {/* Video Carousel */}
-          <div className="relative max-w-6xl mx-auto">
-            <motion.div 
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-100px" }}
-              variants={staggerContainer}
-              className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              {videoTestimonials.map((video, index) => (
-                <motion.div 
-                  key={video.id} 
-                  variants={fadeInUp}
-                  className="flex-shrink-0 w-[300px] sm:w-[350px] snap-center"
-                >
-                  <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer"
-                    onClick={() => setActiveVideo(video.id)}
-                  >
-                    <div className="relative aspect-video">
-                      <img 
-                        src={video.thumbnail} 
-                        alt={video.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/50 transition-colors">
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className="w-16 h-16 bg-primary rounded-full flex items-center justify-center shadow-lg"
-                        >
-                          <Play className="w-7 h-7 text-primary-foreground ml-1" />
-                        </motion.div>
-                      </div>
-                    </div>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                          <span className="text-primary font-semibold">
-                            {video.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-semibold text-foreground">{video.name}</div>
-                          <div className="text-sm text-muted-foreground">{video.role}</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </motion.div>
-            
-            {/* Scroll indicators */}
-            <div className="flex justify-center gap-2 mt-4">
-              {videoTestimonials.map((_, index) => (
-                <div 
-                  key={index}
-                  className="w-2 h-2 rounded-full bg-primary/30"
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Video Modal */}
-          {activeVideo && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-              onClick={() => setActiveVideo(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="relative w-full max-w-4xl aspect-video bg-black rounded-xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setActiveVideo(null)}
-                  className="absolute -top-12 right-0 text-white hover:text-primary transition-colors"
-                >
-                  <X className="w-8 h-8" />
-                </button>
-                <iframe
-                  src={videoTestimonials.find(v => v.id === activeVideo)?.videoUrl}
-                  title="Video depoimento"
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </motion.div>
-            </motion.div>
-          )}
+          
+          <VideoCarousel />
         </div>
       </section>
 
