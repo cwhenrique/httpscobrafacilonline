@@ -27,6 +27,7 @@ import {
   Calendar,
   Receipt,
   Calculator,
+  Globe,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 
@@ -42,6 +43,7 @@ const navigation = [
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
   { name: 'Simulador', href: '/simulator', icon: Calculator },
+  { name: 'Landing Page', href: '/', icon: Globe },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
