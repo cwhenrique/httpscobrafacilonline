@@ -1,0 +1,65 @@
+{
+  "info": {
+    "name": "CobraFácil - Cakto Webhook",
+    "description": "Coleção para testar o webhook de integração com Cakto",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Cakto Webhook - Criar Usuário",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-webhook-secret",
+            "value": "ladjsadsad$5"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"b7b5bd08-ab99-47a5-8ad8-462ce4cc5bcd\",\n  \"event\": \"subscription_created\",\n  \"data\": {\n    \"id\": \"ab9f3df8-6c59-4904-9db3-da743c98e4f2\",\n    \"refId\": \"DLY9R5E\",\n    \"customer\": {\n      \"name\": \"João Silva\",\n      \"email\": \"joao.silva@exemplo.com\",\n      \"phone\": \"34999999999\",\n      \"docNumber\": \"12345678909\",\n      \"birthDate\": null,\n      \"docType\": \"cpf\"\n    },\n    \"status\": \"paid\",\n    \"amount\": 199.90,\n    \"paymentMethod\": \"credit_card\",\n    \"paidAt\": \"2025-12-04T23:26:04.574813+00:00\",\n    \"createdAt\": \"2025-12-04T23:26:04.574813+00:00\",\n    \"offer\": {\n      \"id\": \"B8BcHrY\",\n      \"name\": \"CobraFácil Vitalício\",\n      \"price\": 199.90\n    },\n    \"product\": {\n      \"name\": \"CobraFácil\",\n      \"id\": \"ff3fdf61-e88f-43b5-982a-32d50f112414\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "https://yulegybknvtanqkipsbj.supabase.co/functions/v1/cakto-webhook",
+          "protocol": "https",
+          "host": ["yulegybknvtanqkipsbj", "supabase", "co"],
+          "path": ["functions", "v1", "cakto-webhook"]
+        },
+        "description": "Envia um evento de pagamento aprovado para criar um novo usuário no CobraFácil.\n\nParâmetros editáveis:\n- customer.name: Nome do cliente\n- customer.email: Email do cliente (será o login)\n- customer.phone: Telefone do cliente (para WhatsApp)\n- status: Status do pagamento (paid, pending, refunded, etc.)"
+      },
+      "response": []
+    },
+    {
+      "name": "Cakto Webhook - Pagamento Pendente",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-webhook-secret",
+            "value": "ladjsadsad$5"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"b7b5bd08-ab99-47a5-8ad8-462ce4cc5bcd\",\n  \"event\": \"subscription_created\",\n  \"data\": {\n    \"id\": \"test-pending-123\",\n    \"refId\": \"PENDING1\",\n    \"customer\": {\n      \"name\": \"Cliente Teste Pendente\",\n      \"email\": \"pendente@exemplo.com\",\n      \"phone\": \"34988888888\",\n      \"docNumber\": \"98765432100\",\n      \"docType\": \"cpf\"\n    },\n    \"status\": \"pending\",\n    \"amount\": 199.90,\n    \"paymentMethod\": \"pix\",\n    \"createdAt\": \"2025-12-04T23:26:04.574813+00:00\"\n  }\n}"
+        },
+        "url": {
+          "raw": "https://yulegybknvtanqkipsbj.supabase.co/functions/v1/cakto-webhook",
+          "protocol": "https",
+          "host": ["yulegybknvtanqkipsbj", "supabase", "co"],
+          "path": ["functions", "v1", "cakto-webhook"]
+        },
+        "description": "Teste com status pendente - NÃO deve criar usuário"
+      },
+      "response": []
+    }
+  ]
+}
