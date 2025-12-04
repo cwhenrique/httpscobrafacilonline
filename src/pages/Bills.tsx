@@ -512,12 +512,12 @@ export default function Bills() {
               </Card>
               <Card className="md:col-span-2">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <DollarSign className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-primary">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-lg sm:text-2xl font-bold text-primary truncate">
                         R$ {receivableContracts.reduce((acc, c) => acc + c.amount_to_receive, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs text-muted-foreground">Total a Receber</p>
@@ -605,9 +605,9 @@ export default function Bills() {
               </Card>
               <Card className="bg-gradient-to-r from-orange-500/10 to-red-500/10 border-orange-500/30">
                 <CardContent className="p-4">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Total a Pagar</p>
-                    <p className="text-2xl font-bold text-orange-600">
+                    <p className="text-lg sm:text-2xl font-bold text-orange-600 truncate">
                       R$ {stats.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
