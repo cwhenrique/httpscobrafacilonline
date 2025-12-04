@@ -61,6 +61,7 @@ const scaleIn = {
 const Landing = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -187,8 +188,6 @@ const Landing = () => {
       videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
     },
   ];
-
-  const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
   const faqs = [
     {
