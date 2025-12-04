@@ -34,6 +34,7 @@ import {
 import { motion } from "framer-motion";
 import VideoCarousel from "@/components/VideoCarousel";
 import heroPerson from "@/assets/hero-person.png";
+import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -191,10 +192,8 @@ const Landing = () => {
         className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-primary-foreground" />
-            </div>
+          <div className="flex items-center gap-2">
+            <img src={cobraFacilLogo} alt="CobraFácil" className="h-10 w-auto" />
             <span className="font-bold text-xl text-foreground">CobraFácil</span>
             <span className="hidden sm:inline text-sm text-muted-foreground">sistema de gestão de empréstimos</span>
           </div>
