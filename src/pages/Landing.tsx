@@ -227,18 +227,47 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Global Background Effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute inset-0 gradient-hero" />
+        <div className="absolute inset-0 grid-pattern" />
+        <div className="absolute inset-0 noise-overlay" />
+      </div>
+
+      {/* Floating Orbs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <motion.div
+          animate={{ y: [-20, 20, -20], x: [-10, 10, -10] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[10%] left-[10%] w-72 h-72 bg-primary/20 rounded-full blur-3xl"
+        />
+        <motion.div
+          animate={{ y: [20, -20, 20], x: [10, -10, 10] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute top-[60%] right-[5%] w-96 h-96 bg-primary/15 rounded-full blur-3xl"
+        />
+        <motion.div
+          animate={{ y: [-15, 15, -15] }}
+          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-[20%] left-[20%] w-64 h-64 bg-accent/30 rounded-full blur-3xl"
+        />
+      </div>
+
       {/* Header */}
       <motion.header 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
+        className="fixed top-0 left-0 right-0 z-50 glass-premium"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <motion.div 
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-glow-sm"
+            >
               <DollarSign className="w-5 h-5 text-primary-foreground" />
-            </div>
+            </motion.div>
             <span className="font-bold text-xl text-foreground">CobraFácil</span>
           </div>
           <div className="flex items-center gap-3">
@@ -248,7 +277,7 @@ const Landing = () => {
               </Button>
             </Link>
             <Link to="/auth">
-              <Button size="sm" className="hidden sm:flex">
+              <Button size="sm" className="hidden sm:flex shadow-glow-sm">
                 Criar Conta Grátis
               </Button>
             </Link>
@@ -258,7 +287,6 @@ const Landing = () => {
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 pointer-events-none" />
         <div className="container mx-auto text-center relative">
           <motion.div
             initial="hidden"
@@ -266,7 +294,7 @@ const Landing = () => {
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
           >
-            <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+            <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15 backdrop-blur-sm">
               <Zap className="w-3 h-3 mr-1" />
               Sistema completo de gestão de empréstimos
             </Badge>
@@ -277,11 +305,11 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight"
+            className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground mb-6 leading-tight"
           >
             Gerencie seus empréstimos
             <br />
-            <span className="text-primary">com facilidade</span>
+            <span className="text-primary bg-clip-text">com facilidade</span>
           </motion.h1>
           
           <motion.p 
@@ -289,7 +317,7 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto"
+            className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto"
           >
             Nunca mais perca uma cobrança. Sistema completo para cobradores e financeiras 
             com cálculo automático de juros e alertas no WhatsApp.
@@ -303,12 +331,12 @@ const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-8 h-14 w-full sm:w-auto">
+              <Button size="lg" className="text-lg px-8 h-14 w-full sm:w-auto shadow-glow group">
                 Começar Agora - Grátis
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
-            <Button variant="outline" size="lg" className="text-lg px-8 h-14" asChild>
+            <Button variant="outline" size="lg" className="text-lg px-8 h-14 glass-premium hover:bg-card/80" asChild>
               <a href="#features">Ver funcionalidades</a>
             </Button>
           </motion.div>
@@ -319,7 +347,7 @@ const Landing = () => {
             animate="visible"
             variants={staggerContainer}
             transition={{ delay: 0.5 }}
-            className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto"
+            className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto"
           >
             {[
               { value: "R$ 10M+", label: "Gerenciados" },
@@ -330,7 +358,8 @@ const Landing = () => {
               <motion.div 
                 key={index} 
                 variants={scaleIn}
-                className="text-center"
+                whileHover={{ scale: 1.05, y: -5 }}
+                className="text-center p-4 rounded-2xl glass-premium"
               >
                 <div className="text-2xl sm:text-3xl font-bold text-primary">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -341,8 +370,9 @@ const Landing = () => {
       </section>
 
       {/* Problems Section */}
-      <section className="py-20 px-4 bg-muted/30">
-        <div className="container mx-auto">
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-muted/50 via-muted/30 to-transparent" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -366,12 +396,15 @@ const Landing = () => {
             className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
             {problems.map((problem, index) => (
-              <motion.div key={index} variants={fadeInUp}>
-                <Card className="bg-destructive/5 border-destructive/20 hover:border-destructive/40 transition-colors h-full">
+              <motion.div key={index} variants={fadeInUp} whileHover={{ y: -5 }}>
+                <Card className="glass-premium bg-destructive/5 border-destructive/20 hover:border-destructive/40 hover:shadow-lg transition-all duration-300 h-full">
                   <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <problem.icon className="w-6 h-6 text-destructive" />
-                    </div>
+                    <motion.div 
+                      whileHover={{ scale: 1.1, rotate: -5 }}
+                      className="w-14 h-14 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                    >
+                      <problem.icon className="w-7 h-7 text-destructive" />
+                    </motion.div>
                     <h3 className="font-semibold text-foreground mb-2">{problem.title}</h3>
                     <p className="text-sm text-muted-foreground">{problem.description}</p>
                   </CardContent>
@@ -411,12 +444,17 @@ const Landing = () => {
             className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {features.map((feature, index) => (
-              <motion.div key={index} variants={fadeInUp}>
-                <Card className="group hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full">
-                  <CardContent className="p-6">
-                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:scale-110 transition-all duration-300">
-                      <feature.icon className="w-6 h-6 text-primary group-hover:text-primary-foreground transition-colors" />
-                    </div>
+              <motion.div key={index} variants={fadeInUp} whileHover={{ y: -8 }}>
+                <Card className="group glass-premium hover:border-primary/50 hover:shadow-glow-sm transition-all duration-500 h-full overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <CardContent className="p-6 relative">
+                    <motion.div 
+                      whileHover={{ scale: 1.15, rotate: 5 }}
+                      transition={{ type: "spring", stiffness: 400 }}
+                      className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:shadow-glow-sm transition-all duration-300"
+                    >
+                      <feature.icon className="w-7 h-7 text-primary group-hover:text-primary-foreground transition-colors" />
+                    </motion.div>
                     <h3 className="font-semibold text-lg text-foreground mb-2">{feature.title}</h3>
                     <p className="text-muted-foreground">{feature.description}</p>
                   </CardContent>
@@ -428,17 +466,19 @@ const Landing = () => {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 px-4 bg-muted/30">
-        <div className="container mx-auto">
+      <section className="py-24 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-3xl" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
-            className="text-center mb-12"
+            className="text-center mb-16"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
               Como funciona
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
@@ -459,19 +499,21 @@ const Landing = () => {
               <motion.div 
                 key={index} 
                 variants={fadeInUp}
+                whileHover={{ y: -5 }}
                 className="relative text-center"
               >
                 <motion.div 
-                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  whileHover={{ scale: 1.15, rotate: 10 }}
                   transition={{ type: "spring", stiffness: 300 }}
-                  className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/25"
+                  className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-glow relative overflow-hidden"
                 >
-                  <span className="text-2xl font-bold text-primary-foreground">{step.number}</span>
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+                  <span className="text-2xl font-bold text-primary-foreground relative">{step.number}</span>
                 </motion.div>
                 <h3 className="font-semibold text-lg text-foreground mb-2">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>
                 {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-[2px] bg-gradient-to-r from-primary/50 to-transparent" />
+                  <div className="hidden md:block absolute top-10 left-[60%] w-[80%] h-[2px] bg-gradient-to-r from-primary/50 to-transparent" />
                 )}
               </motion.div>
             ))}
@@ -480,8 +522,9 @@ const Landing = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto">
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-muted/40 via-transparent to-transparent" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -595,8 +638,10 @@ const Landing = () => {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 px-4 bg-muted/30">
-        <div className="container mx-auto">
+      <section className="py-24 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-muted/30 to-muted/50" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -605,7 +650,7 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
               Preço
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
@@ -622,16 +667,17 @@ const Landing = () => {
             variants={scaleIn}
             transition={{ duration: 0.6 }}
           >
-            <Card className="max-w-lg mx-auto border-primary/50 shadow-xl shadow-primary/10">
-              <CardContent className="p-8">
+            <Card className="max-w-lg mx-auto glass-premium border-primary/50 shadow-glow overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10" />
+              <CardContent className="p-8 relative">
                 <div className="text-center mb-6">
-                  <Badge className="mb-4 bg-primary text-primary-foreground">Mais Popular</Badge>
+                  <Badge className="mb-4 bg-primary text-primary-foreground shadow-glow-sm">Mais Popular</Badge>
                   <motion.div 
                     initial={{ scale: 0.5 }}
                     whileInView={{ scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-                    className="text-5xl font-bold text-foreground mb-2"
+                    className="text-6xl font-bold text-foreground mb-2"
                   >
                     Grátis
                   </motion.div>
@@ -650,14 +696,16 @@ const Landing = () => {
                       variants={fadeInUp}
                       className="flex items-center gap-3"
                     >
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                      </div>
                       <span className="text-foreground">{feature}</span>
                     </motion.li>
                   ))}
                 </motion.ul>
                 <Link to="/auth" className="block">
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button size="lg" className="w-full text-lg h-14">
+                    <Button size="lg" className="w-full text-lg h-14 shadow-glow">
                       Criar Conta Grátis
                       <ArrowRight className="w-5 h-5 ml-2" />
                     </Button>
@@ -670,8 +718,9 @@ const Landing = () => {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-3xl">
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-muted/30 to-transparent" />
+        <div className="container mx-auto max-w-3xl relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -680,7 +729,7 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
               FAQ
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
@@ -696,7 +745,7 @@ const Landing = () => {
             <Accordion type="single" collapsible className="space-y-4">
               {faqs.map((faq, index) => (
                 <motion.div key={index} variants={fadeInUp}>
-                  <AccordionItem value={`item-${index}`} className="bg-card border rounded-lg px-6">
+                  <AccordionItem value={`item-${index}`} className="glass-premium border rounded-xl px-6 hover:border-primary/30 transition-colors">
                     <AccordionTrigger className="text-left text-foreground hover:text-primary">
                       {faq.question}
                     </AccordionTrigger>
@@ -718,18 +767,30 @@ const Landing = () => {
         viewport={{ once: true, margin: "-100px" }}
         variants={fadeIn}
         transition={{ duration: 0.8 }}
-        className="py-20 px-4 bg-primary"
+        className="py-24 px-4 relative overflow-hidden"
       >
-        <div className="container mx-auto text-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/90" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
+        <motion.div 
+          animate={{ y: [-10, 10, -10] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"
+        />
+        <motion.div 
+          animate={{ y: [10, -10, 10] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-10 right-10 w-48 h-48 bg-white/10 rounded-full blur-2xl"
+        />
+        <div className="container mx-auto text-center relative">
           <motion.h2 
             variants={fadeInUp}
-            className="text-3xl sm:text-4xl font-bold text-primary-foreground mb-4"
+            className="text-3xl sm:text-5xl font-bold text-primary-foreground mb-6"
           >
             Pronto para organizar suas cobranças?
           </motion.h2>
           <motion.p 
             variants={fadeInUp}
-            className="text-primary-foreground/80 mb-8 max-w-xl mx-auto"
+            className="text-primary-foreground/80 mb-10 max-w-xl mx-auto text-lg"
           >
             Junte-se a centenas de cobradores que já usam o CobraFácil para gerenciar seus empréstimos
           </motion.p>
@@ -738,7 +799,7 @@ const Landing = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Button size="lg" variant="secondary" className="text-lg px-8 h-14">
+              <Button size="lg" variant="secondary" className="text-lg px-10 h-16 shadow-xl shadow-black/20">
                 Começar Agora - É Grátis
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
@@ -754,30 +815,37 @@ const Landing = () => {
         viewport={{ once: true }}
         variants={fadeIn}
         transition={{ duration: 0.6 }}
-        className="py-12 px-4 bg-card border-t border-border"
+        className="py-12 px-4 glass-premium border-t border-border relative"
       >
         <div className="container mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <motion.div 
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-glow-sm"
+              >
                 <DollarSign className="w-5 h-5 text-primary-foreground" />
-              </div>
+              </motion.div>
               <span className="font-bold text-xl text-foreground">CobraFácil</span>
             </div>
             <div className="flex items-center gap-4">
-              <Shield className="w-5 h-5 text-muted-foreground" />
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-primary" />
+              </div>
               <span className="text-sm text-muted-foreground">
                 Seus dados protegidos com criptografia
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <Smartphone className="w-5 h-5 text-muted-foreground" />
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Smartphone className="w-4 h-4 text-primary" />
+              </div>
               <span className="text-sm text-muted-foreground">
                 Funciona em qualquer dispositivo
               </span>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-border text-center">
+          <div className="mt-8 pt-8 border-t border-border/50 text-center">
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} CobraFácil. Todos os direitos reservados.
             </p>
