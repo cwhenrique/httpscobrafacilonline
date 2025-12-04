@@ -6,15 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-secret',
 };
 
-// Generate random password
-function generatePassword(length = 12): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
+// Default password for new users
+const DEFAULT_PASSWORD = 'mudar@123';
 
 // Clean API URL - remove trailing slashes and common path segments
 function cleanApiUrl(url: string): string {
@@ -163,8 +156,8 @@ serve(async (req) => {
       );
     }
 
-    // Generate password for new user
-    const generatedPassword = generatePassword(12);
+    // Use default password for new user
+    const generatedPassword = DEFAULT_PASSWORD;
 
     // Create new user in Supabase Auth
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
