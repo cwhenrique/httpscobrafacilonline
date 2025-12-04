@@ -448,6 +448,259 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Detailed Features Section */}
+      <section className="py-16 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30 px-4 py-2 font-semibold">
+              <Smartphone className="w-4 h-4 mr-2" />
+              Conheça o Sistema
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Tudo Que Você Precisa em Um Só Lugar
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Veja em detalhes cada funcionalidade que vai transformar sua gestão de cobranças
+            </p>
+          </motion.div>
+
+          {/* Feature 1 - Dashboard */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Dashboard</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Visão Geral Completa
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Acompanhe em tempo real todos os seus empréstimos, valores a receber, pagamentos atrasados e muito mais. Tudo em uma única tela intuitiva.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Total emprestado e recebido</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Alertas de atrasos em destaque</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Gráficos de evolução financeira</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot do Dashboard</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 2 - Empréstimos */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Empréstimos</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Gestão Completa de Empréstimos
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Cadastre empréstimos com juros simples ou por parcela. O sistema calcula tudo automaticamente e exibe em cards visuais e organizados.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Cálculo automático de juros</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Parcelas com datas personalizadas</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Status visual: em dia, atrasado, pago</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot de Empréstimos</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 3 - Calendário */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Calendário</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Calendário de Cobranças
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Visualize todas as datas de vencimento em um calendário intuitivo. Nunca mais esqueça de cobrar ninguém.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Indicadores visuais por status</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Detalhes ao clicar na data</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Estatísticas mensais</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot do Calendário</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 4 - Alertas WhatsApp */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">WhatsApp</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Alertas Automáticos no WhatsApp
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Receba resumos diários, alertas de vencimento e avisos de atraso direto no seu WhatsApp. Você sempre informado.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Resumo diário às 8h</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Alertas de vencimento no dia</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Avisos progressivos de atraso</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot dos Alertas WhatsApp</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 5 - Score de Clientes */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Score</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Score de Clientes
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Sistema inteligente que avalia a confiabilidade de cada cliente baseado no histórico de pagamentos. Saiba quem é bom pagador.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Score de 0 a 150 pontos</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Atualização automática</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Indicador visual por cores</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot do Score de Clientes</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 6 - Simulador */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Simulador</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Simulador de Empréstimos
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Planeje empréstimos antes de criar. Simule valores, juros e parcelas para apresentar propostas aos seus clientes.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Cálculo instantâneo</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Tabela de parcelas detalhada</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Total de juros e valor final</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
+                <span className="text-muted-foreground text-sm">Screenshot do Simulador</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section id="features" className="py-24 px-4 relative">
         <div className="container mx-auto">
