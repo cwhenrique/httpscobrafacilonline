@@ -17,7 +17,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
 import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -27,7 +26,7 @@ export default function Loans() {
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending'>('all');
-  const [loanTab, setLoanTab] = useState<'regular' | 'daily'>('regular');
+  const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
@@ -200,11 +199,6 @@ export default function Loans() {
     const matchesSearch = loan.client?.full_name.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
     
-    // Filter by loan tab (regular vs daily)
-    const isDaily = loan.payment_type === 'daily';
-    if (loanTab === 'regular' && isDaily) return false;
-    if (loanTab === 'daily' && !isDaily) return false;
-    
     if (statusFilter === 'all') return true;
     
     const { isPaid, isRenegotiated, isOverdue } = getLoanStatus(loan);
@@ -222,9 +216,6 @@ export default function Loans() {
         return true;
     }
   });
-  
-  const regularLoansCount = loans.filter(l => l.payment_type !== 'daily').length;
-  const dailyLoansCount = loans.filter(l => l.payment_type === 'daily').length;
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
@@ -390,10 +381,83 @@ export default function Loans() {
             <h1 className="text-2xl font-display font-bold">Empréstimos</h1>
             <p className="text-muted-foreground">Gerencie seus empréstimos</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="w-4 h-4" />Novo Empréstimo</Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 border-sky-500 text-sky-600 hover:bg-sky-500/10">
+                  <Clock className="w-4 h-4" />Novo Diário
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>Novo Empréstimo Diário</DialogTitle></DialogHeader>
+                <form onSubmit={(e) => { e.preventDefault(); setFormData(prev => ({ ...prev, payment_type: 'daily' })); handleSubmit(e); setIsDailyDialogOpen(false); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Cliente *</Label>
+                    <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                      <SelectContent>
+                        {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Valor da Parcela Diária (R$) *</Label>
+                      <Input type="number" step="0.01" value={formData.daily_amount} onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de Início</Label>
+                      <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
+                    <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar os dias de cobrança</p>
+                    <div className="border rounded-md p-3">
+                      <Calendar
+                        mode="multiple"
+                        selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
+                        onSelect={(dates) => {
+                          if (dates) {
+                            const sortedDates = dates.map(d => d.toISOString().split('T')[0]).sort();
+                            setInstallmentDates(sortedDates);
+                            if (sortedDates.length > 0) {
+                              setFormData(prev => ({
+                                ...prev,
+                                due_date: sortedDates[sortedDates.length - 1],
+                                installments: sortedDates.length.toString(),
+                                daily_period: sortedDates.length.toString()
+                              }));
+                            }
+                          } else {
+                            setInstallmentDates([]);
+                          }
+                        }}
+                        className="pointer-events-auto"
+                      />
+                    </div>
+                    {installmentDates.length > 0 && formData.daily_amount && (
+                      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-3 space-y-1">
+                        <p className="text-sm font-medium">Resumo:</p>
+                        <p className="text-sm text-muted-foreground">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); resetForm(); }}>Cancelar</Button>
+                    <Button type="submit" className="bg-sky-500 hover:bg-sky-600">Criar Diário</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2"><Plus className="w-4 h-4" />Novo Empréstimo</Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -669,67 +733,55 @@ export default function Loans() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
-        <Tabs value={loanTab} onValueChange={(v) => setLoanTab(v as 'regular' | 'daily')} className="space-y-4">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="regular" className="gap-2">
-              <CreditCard className="w-4 h-4" />
-              Empréstimos ({regularLoansCount})
-            </TabsTrigger>
-            <TabsTrigger value="daily" className="gap-2">
-              <Clock className="w-4 h-4" />
-              Diário ({dailyLoansCount})
-            </TabsTrigger>
-          </TabsList>
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
 
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Buscar empréstimos..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={statusFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('all')}
-              >
-                Todos
-              </Button>
-              <Button
-                variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('pending')}
-                className={statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}
-              >
-                Em Dia
-              </Button>
-              <Button
-                variant={statusFilter === 'paid' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('paid')}
-                className={statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}
-              >
-                Pagos
-              </Button>
-              <Button
-                variant={statusFilter === 'overdue' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('overdue')}
-                className={statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}
-              >
-                Em Atraso
-              </Button>
-              <Button
-                variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter('renegotiated')}
-                className={statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}
-              >
-                Renegociados
-              </Button>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('all')}
+            >
+              Todos
+            </Button>
+            <Button
+              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('pending')}
+              className={statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}
+            >
+              Em Dia
+            </Button>
+            <Button
+              variant={statusFilter === 'paid' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('paid')}
+              className={statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}
+            >
+              Pagos
+            </Button>
+            <Button
+              variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('overdue')}
+              className={statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}
+            >
+              Em Atraso
+            </Button>
+            <Button
+              variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('renegotiated')}
+              className={statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}
+            >
+              Renegociados
+            </Button>
           </div>
           
           {loading ? (
@@ -918,7 +970,7 @@ export default function Loans() {
               })}
             </div>
           )}
-        </Tabs>
+        </div>
 
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
           <DialogContent>
