@@ -842,7 +842,7 @@ const Landing = () => {
             </p>
           </motion.div>
           
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
             {/* Plano Mensal */}
             <motion.div
               initial="hidden"
@@ -850,23 +850,22 @@ const Landing = () => {
               viewport={{ once: true }}
               variants={fadeInUp}
             >
-              <Card className="bg-card border-border h-full">
-                <CardContent className="p-6">
-                  <div className="text-center mb-6">
+              <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
+                <CardContent className="p-8">
+                  <div className="text-center mb-8">
+                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Clock className="w-6 h-6 text-muted-foreground" />
+                    </div>
                     <Badge variant="outline" className="mb-4 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
                     <div className="text-4xl font-bold text-foreground mb-1">
                       R$ 39<span className="text-2xl">,90</span>
                     </div>
                     <p className="text-sm text-muted-foreground">por mês</p>
                   </div>
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-4 mb-8">
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Acesso a todas funcionalidades</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
+                      <span className="text-muted-foreground text-sm">Todas as funcionalidades</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
@@ -878,7 +877,7 @@ const Landing = () => {
                     </li>
                   </ul>
                   <Link to="/auth" className="block">
-                    <Button variant="outline" size="lg" className="w-full">
+                    <Button variant="outline" size="lg" className="w-full h-12">
                       Começar Teste
                     </Button>
                   </Link>
@@ -893,24 +892,31 @@ const Landing = () => {
               viewport={{ once: true }}
               variants={scaleIn}
               transition={{ delay: 0.1 }}
+              className="md:-my-4"
             >
-              <Card className="bg-card border-2 border-primary h-full relative overflow-hidden shadow-2xl shadow-primary/20 scale-105">
-                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-2 text-sm font-bold">
-                  🔥 MAIS VENDIDO - MELHOR CUSTO-BENEFÍCIO
+              <Card className="bg-gradient-to-b from-primary/5 via-card to-primary/5 border-2 border-primary h-full relative overflow-hidden shadow-2xl shadow-primary/30">
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-3 text-sm font-bold tracking-wide">
+                  🔥 MAIS VENDIDO - MELHOR ESCOLHA
                 </div>
-                <CardContent className="p-6 pt-12">
-                  <div className="text-center mb-6">
-                    <Badge className="mb-4 bg-primary text-primary-foreground font-bold">Vitalício</Badge>
+                <div className="absolute -right-12 top-24 rotate-45 bg-red-500 text-white text-xs font-bold py-1 px-12">
+                  ECONOMIZE
+                </div>
+                <CardContent className="p-8 pt-16">
+                  <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+                      <Sparkles className="w-8 h-8 text-primary-foreground" />
+                    </div>
+                    <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
                     <div className="text-5xl font-bold text-primary mb-1">
                       R$ 199<span className="text-2xl">,90</span>
                     </div>
                     <p className="text-sm text-muted-foreground">pagamento único</p>
-                    <div className="mt-2 inline-flex items-center gap-2 bg-primary/10 rounded-full px-3 py-1">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-xs font-semibold text-primary">Acesso para sempre!</span>
+                    <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2">
+                      <Star className="w-4 h-4 text-primary fill-primary" />
+                      <span className="text-sm font-semibold text-primary">Acesso para sempre!</span>
                     </div>
                   </div>
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-4 mb-8">
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                       <span className="text-foreground text-sm font-medium">Acesso vitalício garantido</span>
@@ -921,11 +927,15 @@ const Landing = () => {
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Atualizações gratuitas</span>
+                      <span className="text-foreground text-sm font-medium">Alertas de cobranças no WhatsApp</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-sm font-medium">Suporte prioritário</span>
+                      <span className="text-foreground text-sm font-medium">Suporte via WhatsApp</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-foreground text-sm font-medium">Atualizações gratuitas</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
@@ -933,13 +943,14 @@ const Landing = () => {
                     </li>
                   </ul>
                   <Link to="/auth" className="block">
-                    <Button size="lg" className="w-full text-lg h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg">
+                    <Button size="lg" className="w-full text-lg h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
                       <Zap className="w-5 h-5 mr-2" />
-                      Quero Acesso Vitalício
+                      QUERO ACESSO VITALÍCIO
                     </Button>
                   </Link>
-                  <p className="text-xs text-center text-muted-foreground mt-4">
-                    💳 Pague em até 12x no cartão
+                  <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Pague em até 12x • Garantia de 7 dias
                   </p>
                 </CardContent>
               </Card>
@@ -953,19 +964,22 @@ const Landing = () => {
               variants={fadeInUp}
               transition={{ delay: 0.2 }}
             >
-              <Card className="bg-card border-border h-full">
-                <CardContent className="p-6">
-                  <div className="text-center mb-6">
+              <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
+                <CardContent className="p-8">
+                  <div className="text-center mb-8">
+                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="w-6 h-6 text-primary" />
+                    </div>
                     <Badge variant="outline" className="mb-4 border-primary/50 text-primary">Anual</Badge>
                     <div className="text-4xl font-bold text-foreground mb-1">
                       R$ 147<span className="text-2xl">,90</span>
                     </div>
                     <p className="text-sm text-muted-foreground">por ano</p>
-                    <div className="mt-2 text-xs text-primary font-medium">
-                      Economia de R$ 330/ano vs mensal
+                    <div className="mt-2 text-xs text-primary font-semibold bg-primary/10 rounded-full px-3 py-1 inline-block">
+                      Economia de R$ 330/ano
                     </div>
                   </div>
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-4 mb-8">
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                       <span className="text-muted-foreground text-sm">Acesso por 12 meses</span>
@@ -976,15 +990,11 @@ const Landing = () => {
                     </li>
                     <li className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                       <span className="text-muted-foreground text-sm">Suporte prioritário</span>
                     </li>
                   </ul>
                   <Link to="/auth" className="block">
-                    <Button variant="outline" size="lg" className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                    <Button variant="outline" size="lg" className="w-full h-12 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
                       Assinar Anual
                     </Button>
                   </Link>
