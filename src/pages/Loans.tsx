@@ -219,6 +219,45 @@ export default function Loans() {
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
+  const handleDailySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.client_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+    
+    if (!formData.daily_amount || parseFloat(formData.daily_amount) <= 0) {
+      toast.error('Informe o valor da parcela diária');
+      return;
+    }
+    
+    if (installmentDates.length === 0) {
+      toast.error('Selecione pelo menos uma data de cobrança');
+      return;
+    }
+    
+    const dailyAmount = parseFloat(formData.daily_amount);
+    const numDays = installmentDates.length;
+    const totalAmount = dailyAmount * numDays;
+    
+    await createLoan({
+      client_id: formData.client_id,
+      principal_amount: totalAmount,
+      interest_rate: 0,
+      interest_type: 'simple',
+      interest_mode: 'per_installment',
+      payment_type: 'daily',
+      installments: numDays,
+      start_date: formData.start_date,
+      due_date: installmentDates[installmentDates.length - 1],
+      notes: formData.notes ? `${formData.notes}\nParcela diária: R$ ${dailyAmount.toFixed(2)}` : `Parcela diária: R$ ${dailyAmount.toFixed(2)}`,
+      installment_dates: installmentDates,
+    });
+    setIsDailyDialogOpen(false);
+    resetForm();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -390,7 +429,7 @@ export default function Loans() {
               </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Novo Empréstimo Diário</DialogTitle></DialogHeader>
-                <form onSubmit={(e) => { e.preventDefault(); setFormData(prev => ({ ...prev, payment_type: 'daily' })); handleSubmit(e); setIsDailyDialogOpen(false); }} className="space-y-4">
+                <form onSubmit={handleDailySubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label>Cliente *</Label>
                     <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
