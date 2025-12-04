@@ -442,12 +442,30 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Valor da Parcela Diária (R$) *</Label>
-                      <Input type="number" step="0.01" value={formData.daily_amount} onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} required />
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={formData.daily_amount} 
+                        onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} 
+                        required 
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Data de Início</Label>
-                      <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
+                      <Label>Valor Total Emprestado (R$)</Label>
+                      <Input 
+                        type="text" 
+                        readOnly 
+                        value={formData.daily_amount && installmentDates.length > 0 
+                          ? formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)
+                          : 'R$ 0,00'
+                        }
+                        className="bg-muted"
+                      />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data de Início</Label>
+                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
