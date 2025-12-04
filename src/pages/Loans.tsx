@@ -248,23 +248,35 @@ export default function Loans() {
     const totalToReceive = dailyAmount * numDays;
     const profit = totalToReceive - principalAmount;
     
-    await createLoan({
+    console.log('handleDailySubmit values:', {
+      principalAmount,
+      dailyAmount,
+      numDays,
+      totalToReceive,
+      profit,
+    });
+    
+    const loanData = {
       client_id: formData.client_id,
       principal_amount: principalAmount,
-      interest_rate: profit, // Store profit in interest_rate for daily loans
-      interest_type: 'simple',
-      interest_mode: 'per_installment',
-      payment_type: 'daily',
+      interest_rate: profit,
+      interest_type: 'simple' as const,
+      interest_mode: 'per_installment' as const,
+      payment_type: 'daily' as const,
       installments: numDays,
       start_date: formData.start_date,
       due_date: installmentDates[installmentDates.length - 1],
-      remaining_balance: totalToReceive, // Store total to receive initially
-      total_interest: dailyAmount, // Store daily installment amount
+      remaining_balance: totalToReceive,
+      total_interest: dailyAmount,
       notes: formData.notes 
         ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
         : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`,
       installment_dates: installmentDates,
-    });
+    };
+    
+    console.log('loanData being passed to createLoan:', loanData);
+    
+    await createLoan(loanData);
     setIsDailyDialogOpen(false);
     resetForm();
   };
