@@ -106,16 +106,28 @@ export function useLoans() {
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
+    // Build insert object explicitly to ensure daily loan values are preserved
+    const insertData = {
+      client_id: loan.client_id,
+      principal_amount: loan.principal_amount,
+      interest_rate: loan.interest_rate,
+      interest_type: loan.interest_type,
+      interest_mode: loan.interest_mode || 'on_total',
+      payment_type: loan.payment_type,
+      installments: loan.installments || 1,
+      start_date: loan.start_date,
+      due_date: loan.due_date,
+      notes: loan.notes || null,
+      user_id: user.id,
+      remaining_balance: loan.remaining_balance !== undefined ? loan.remaining_balance : loan.principal_amount,
+      total_interest: loan.total_interest !== undefined ? loan.total_interest : 0,
+      total_paid: 0,
+      installment_dates: loan.installment_dates || [],
+    };
+
     const { data, error } = await supabase
       .from('loans')
-      .insert({
-        ...loan,
-        user_id: user.id,
-        remaining_balance: loan.remaining_balance ?? loan.principal_amount,
-        total_interest: loan.total_interest ?? 0,
-        total_paid: 0,
-        installment_dates: loan.installment_dates || [],
-      })
+      .insert(insertData)
       .select(`
         *,
         client:clients(full_name)
