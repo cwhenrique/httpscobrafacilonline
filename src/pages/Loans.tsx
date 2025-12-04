@@ -471,14 +471,14 @@ export default function Loans() {
                       />
                     </div>
                   </div>
-                  {formData.principal_amount && formData.daily_amount && (
+                  {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
                     <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-3 space-y-1">
-                      <p className="text-sm font-medium">Resumo:</p>
+                      <p className="text-sm font-medium">Resumo ({installmentDates.length} parcelas):</p>
                       <p className="text-sm text-muted-foreground">
-                        Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * (installmentDates.length || parseInt(formData.daily_period) || 0))}
+                        Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * (installmentDates.length || parseInt(formData.daily_period) || 0)) - parseFloat(formData.principal_amount))}
+                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))}
                       </p>
                     </div>
                   )}
