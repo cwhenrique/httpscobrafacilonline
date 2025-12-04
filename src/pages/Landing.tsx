@@ -613,8 +613,8 @@ const Landing = () => {
               
               <div className="relative flex flex-col md:flex-row items-center gap-8">
                 <div className="flex-shrink-0">
-                  <div className="w-24 h-24 bg-gradient-to-br from-primary to-green-600 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6">
-                    <DollarSign className="w-12 h-12 text-primary-foreground" />
+                  <div className="w-24 h-24 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6 border-2 border-primary/30">
+                    <img src={cobraFacilLogo} alt="CobraFácil" className="w-16 h-16 object-contain" />
                   </div>
                 </div>
                 <div className="text-center md:text-left flex-1">
