@@ -464,62 +464,64 @@ export default function Loans() {
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Novo Empréstimo Diário</DialogTitle></DialogHeader>
-                <form onSubmit={handleDailySubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Cliente *</Label>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
+                <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo Diário</DialogTitle></DialogHeader>
+                <form onSubmit={handleDailySubmit} className="space-y-3 sm:space-y-4">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Cliente *</Label>
                     <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                      <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
                       <SelectContent>
                         {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Valor Total Emprestado (R$) *</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Valor Emprestado (R$) *</Label>
                       <Input 
                         type="number" 
                         step="0.01" 
                         value={formData.principal_amount} 
                         onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} 
-                        placeholder="Ex: 1000.00"
+                        placeholder="Ex: 1000"
                         required 
+                        className="h-9 sm:h-10 text-sm"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Valor da Parcela Diária (R$) *</Label>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Parcela Diária (R$) *</Label>
                       <Input 
                         type="number" 
                         step="0.01" 
                         value={formData.daily_amount} 
                         onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} 
-                        placeholder="Ex: 50.00"
+                        placeholder="Ex: 50"
                         required 
+                        className="h-9 sm:h-10 text-sm"
                       />
                     </div>
                   </div>
                   {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
-                    <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-3 space-y-1">
-                      <p className="text-sm font-medium">Resumo ({installmentDates.length} parcelas):</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1">
+                      <p className="text-xs sm:text-sm font-medium">Resumo ({installmentDates.length} parcelas):</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))} 
                         ({(((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount)) / parseFloat(formData.principal_amount) * 100).toFixed(1)}%)
                       </p>
                     </div>
                   )}
-                  <div className="space-y-2">
-                    <Label>Data de Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Data de Início</Label>
+                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="h-9 sm:h-10 text-sm" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
-                    <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar os dias de cobrança</p>
-                    <div className="border rounded-md p-3">
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Datas de Cobrança ({installmentDates.length} dias)</Label>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Clique nas datas para selecionar os dias de cobrança</p>
+                    <div className="border rounded-md p-2 sm:p-3">
                       <Calendar
                         mode="multiple"
                         selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
@@ -539,23 +541,23 @@ export default function Loans() {
                             setInstallmentDates([]);
                           }
                         }}
-                        className="pointer-events-auto"
+                        className="pointer-events-auto text-xs sm:text-sm"
                       />
                     </div>
                     {installmentDates.length > 0 && formData.daily_amount && (
-                      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-3 space-y-1">
-                        <p className="text-sm font-medium">Resumo:</p>
-                        <p className="text-sm text-muted-foreground">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
+                      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1">
+                        <p className="text-xs sm:text-sm font-medium">Resumo:</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
                       </div>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Observações</Label>
+                    <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); resetForm(); }}>Cancelar</Button>
-                    <Button type="submit" className="bg-sky-500 hover:bg-sky-600">Criar Diário</Button>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); resetForm(); }} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
+                    <Button type="submit" className="bg-sky-500 hover:bg-sky-600 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar Diário</Button>
                   </div>
                 </form>
               </DialogContent>
