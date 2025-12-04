@@ -167,18 +167,18 @@ const Landing = () => {
     "Contas a pagar e receber",
   ];
 
-  const traditionalProblems = [
-    "Conteúdo genérico para todos",
-    "Sem acompanhamento individual",
-    "Material desatualizado",
-    "Sem flexibilidade de horários",
+  const competitorProblems = [
+    "Mensalidade todo mês que nunca para",
+    "Preços que aumentam sem aviso",
+    "Funcionalidades bloqueadas em planos caros",
+    "Paga mesmo sem usar no mês",
   ];
 
   const cobraFacilBenefits = [
-    "Sistema 100% personalizado",
-    "Alertas automáticos no WhatsApp",
-    "Cálculos sempre atualizados",
-    "Acesse quando e onde quiser",
+    "Pagamento único, use para sempre",
+    "Todas as funcionalidades liberadas",
+    "Atualizações gratuitas incluídas",
+    "Sem surpresas na fatura",
   ];
 
   return (
@@ -208,7 +208,7 @@ const Landing = () => {
       </motion.header>
 
       {/* Hero Section */}
-      <section className="pt-24 pb-12 px-4 relative min-h-screen flex items-center">
+      <section className="pt-24 pb-8 px-4 relative min-h-[90vh] flex items-center">
         {/* Background Image */}
         <div className="absolute inset-0 overflow-hidden">
           <img 
@@ -358,7 +358,7 @@ const Landing = () => {
       </section>
 
       {/* Comparison Section */}
-      <section className="py-24 px-4 relative bg-muted/30">
+      <section className="py-12 px-4 relative bg-muted/30">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -366,21 +366,22 @@ const Landing = () => {
             viewport={{ once: true, margin: "-100px" }}
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
-            className="text-center mb-12"
+            className="text-center mb-10"
           >
-            <Badge className="mb-4 bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
-              💰 Compare e Economize
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30 px-4 py-2 font-semibold">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Compare e Economize
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Quanto Você Está Perdendo com Controle Manual?
+              Chega de Pagar Mensalidade Todo Mês
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Veja a diferença absurda de organização e tempo
+              Veja a diferença entre plataformas com mensalidade e o CobraFácil
             </p>
           </motion.div>
           
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {/* Traditional Way */}
+            {/* Competitors */}
             <motion.div
               initial="hidden"
               whileInView="visible"
@@ -390,11 +391,11 @@ const Landing = () => {
               <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-500/30 h-full">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-foreground">Controle Manual</h3>
-                    <Badge variant="destructive">Ultrapassado</Badge>
+                    <h3 className="text-xl font-bold text-foreground">Outras Plataformas</h3>
+                    <Badge variant="destructive">Mensalidade</Badge>
                   </div>
                   <div className="space-y-3">
-                    {traditionalProblems.map((problem, index) => (
+                    {competitorProblems.map((problem, index) => (
                       <div key={index} className="flex items-center gap-3 text-muted-foreground">
                         <X className="w-5 h-5 text-red-500 flex-shrink-0" />
                         <span>{problem}</span>
@@ -402,9 +403,9 @@ const Landing = () => {
                     ))}
                   </div>
                   <div className="mt-6 pt-6 border-t border-red-200 dark:border-red-500/20">
-                    <div className="text-sm text-muted-foreground">Prejuízo estimado</div>
-                    <div className="text-3xl font-bold text-red-500">R$ 5.000+/ano</div>
-                    <div className="text-xs text-muted-foreground">em cobranças esquecidas</div>
+                    <div className="text-sm text-muted-foreground">Custo anual estimado</div>
+                    <div className="text-3xl font-bold text-red-500">R$ 600+/ano</div>
+                    <div className="text-xs text-muted-foreground">em mensalidades recorrentes</div>
                   </div>
                 </CardContent>
               </Card>
@@ -418,14 +419,14 @@ const Landing = () => {
               variants={fadeInUp}
               transition={{ delay: 0.1 }}
             >
-              <Card className="bg-primary/5 border-primary/30 h-full relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-bl-lg">
-                  RECOMENDADO
+              <Card className="bg-primary/5 border-primary/30 h-full relative overflow-hidden shadow-lg shadow-primary/10">
+                <div className="absolute top-0 right-0 bg-gradient-to-r from-primary to-green-600 text-primary-foreground text-xs font-bold px-4 py-1.5 rounded-bl-lg">
+                  ✨ MELHOR ESCOLHA
                 </div>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold text-foreground">CobraFácil</h3>
-                    <Badge className="bg-primary text-primary-foreground">Moderno</Badge>
+                    <Badge className="bg-primary text-primary-foreground font-bold">Pagamento Único</Badge>
                   </div>
                   <div className="space-y-3">
                     {cobraFacilBenefits.map((benefit, index) => (
@@ -437,8 +438,8 @@ const Landing = () => {
                   </div>
                   <div className="mt-6 pt-6 border-t border-primary/20">
                     <div className="text-sm text-muted-foreground">Investimento</div>
-                    <div className="text-3xl font-bold text-primary">Grátis</div>
-                    <div className="text-xs text-muted-foreground">para sempre no plano básico</div>
+                    <div className="text-3xl font-bold text-primary">1x e Pronto!</div>
+                    <div className="text-xs text-muted-foreground">acesso vitalício garantido</div>
                   </div>
                 </CardContent>
               </Card>
