@@ -50,6 +50,14 @@ export interface CreateContractData {
   notes?: string;
 }
 
+export interface UpdateContractData {
+  client_name?: string;
+  contract_type?: string;
+  total_amount?: number;
+  amount_to_receive?: number;
+  notes?: string;
+}
+
 function calculateNextPaymentDate(baseDate: Date, frequency: string, index: number): Date {
   switch (frequency) {
     case 'daily':
@@ -188,11 +196,33 @@ export function useContracts() {
     },
   });
 
+  const updateContract = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateContractData }) => {
+      const { data: updated, error } = await supabase
+        .from('contracts')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updated;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      toast.success('Contrato atualizado com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar contrato: ' + error.message);
+    },
+  });
+
   return {
     contracts,
     isLoading,
     error,
     createContract,
+    updateContract,
     deleteContract,
     getContractPayments,
     markPaymentAsPaid,
