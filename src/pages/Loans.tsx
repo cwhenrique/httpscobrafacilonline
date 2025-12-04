@@ -503,12 +503,12 @@ export default function Loans() {
                     </div>
                   </div>
                   {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
-                    <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1">
-                      <p className="text-xs sm:text-sm font-medium">Resumo ({installmentDates.length} parcelas):</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
+                    <div className="bg-sky-50 dark:bg-sky-900/30 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border border-sky-200 dark:border-sky-700">
+                      <p className="text-xs sm:text-sm font-medium text-sky-900 dark:text-sky-100">Resumo ({installmentDates.length} parcelas):</p>
+                      <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">
                         Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}
                       </p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">
                         Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))} 
                         ({(((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount)) / parseFloat(formData.principal_amount) * 100).toFixed(1)}%)
                       </p>
@@ -545,9 +545,9 @@ export default function Loans() {
                       />
                     </div>
                     {installmentDates.length > 0 && formData.daily_amount && (
-                      <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1">
-                        <p className="text-xs sm:text-sm font-medium">Resumo:</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
+                      <div className="bg-sky-50 dark:bg-sky-900/30 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border border-sky-200 dark:border-sky-700">
+                        <p className="text-xs sm:text-sm font-medium text-sky-900 dark:text-sky-100">Resumo:</p>
+                        <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
                       </div>
                     )}
                   </div>
