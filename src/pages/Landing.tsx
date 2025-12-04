@@ -1024,7 +1024,7 @@ const Landing = () => {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-24 px-4 relative bg-muted/30">
+      <section id="pricing" className="py-24 px-4 relative bg-muted/30">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -1330,20 +1330,19 @@ const Landing = () => {
         animate={{ y: showBottomBar ? 0 : 100 }}
         className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border py-3 px-4"
       >
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto flex items-center justify-center sm:justify-between">
+          <div className="hidden sm:flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             <span className="text-sm text-muted-foreground">
-              <span className="hidden sm:inline">Comece agora </span>
-              <span className="text-primary font-semibold">100% Grátis</span>
+              Pagamento único, <span className="text-primary font-semibold">acesso vitalício</span>
             </span>
           </div>
-          <Link to="/auth">
-            <Button>
+          <a href="#pricing" className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto">
               Começar Agora
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
-          </Link>
+          </a>
         </div>
       </motion.div>
     </div>
