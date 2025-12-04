@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
 import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock } from 'lucide-react';
@@ -38,6 +39,8 @@ export default function Loans() {
     promised_date: '',
     remaining_amount: '',
     notes: '',
+    interest_only_paid: false,
+    interest_amount_paid: '',
   });
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -383,6 +386,8 @@ export default function Loans() {
       promised_date: today.toISOString().split('T')[0],
       remaining_amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : '0',
       notes: loan.notes || '',
+      interest_only_paid: false,
+      interest_amount_paid: '',
     });
     setIsRenegotiateDialogOpen(true);
   };
@@ -394,21 +399,51 @@ export default function Loans() {
     const loan = loans.find(l => l.id === selectedLoanId);
     if (!loan) return;
     
-    let notesText = renegotiateData.notes;
-    if (renegotiateData.remaining_amount) {
+    // Se pagou só os juros, registrar o pagamento de juros
+    if (renegotiateData.interest_only_paid && renegotiateData.interest_amount_paid) {
+      const interestPaid = parseFloat(renegotiateData.interest_amount_paid);
+      
+      // Registrar pagamento apenas dos juros (não reduz o principal)
+      await registerPayment({
+        loan_id: selectedLoanId,
+        amount: interestPaid,
+        principal_paid: 0, // Não paga nada do principal
+        interest_paid: interestPaid,
+        payment_date: new Date().toISOString().split('T')[0],
+        notes: `Pagamento de juros apenas. Valor restante: R$ ${renegotiateData.remaining_amount}`,
+      });
+      
+      // Atualizar notas e nova data de vencimento
+      let notesText = loan.notes || '';
+      notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
+      notesText += `\nValor prometido: R$ ${renegotiateData.remaining_amount}`;
+      
+      await renegotiateLoan(selectedLoanId, {
+        interest_rate: loan.interest_rate,
+        installments: 1,
+        installment_dates: [renegotiateData.promised_date],
+        due_date: renegotiateData.promised_date,
+        notes: notesText,
+      });
+    } else {
+      // Renegociação normal
+      let notesText = renegotiateData.notes;
+      if (renegotiateData.remaining_amount) {
+        notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
+      }
+      if (renegotiateData.promised_amount) {
+        notesText += `\nValor prometido: R$ ${renegotiateData.promised_amount}`;
+      }
+      
+      await renegotiateLoan(selectedLoanId, {
+        interest_rate: loan.interest_rate,
+        installments: 1,
+        installment_dates: [renegotiateData.promised_date],
+        due_date: renegotiateData.promised_date,
+        notes: notesText,
+      });
     }
-    if (renegotiateData.promised_amount) {
-      notesText += `\nValor prometido: R$ ${renegotiateData.promised_amount}`;
-    }
-    
-    await renegotiateLoan(selectedLoanId, {
-      interest_rate: loan.interest_rate,
-      installments: 1,
-      installment_dates: [renegotiateData.promised_date],
-      due_date: renegotiateData.promised_date,
-      notes: notesText,
-    });
     
     setIsRenegotiateDialogOpen(false);
     setSelectedLoanId(null);
@@ -1194,39 +1229,98 @@ export default function Loans() {
                     </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>Valor que Falta (R$)</Label>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      value={renegotiateData.remaining_amount} 
-                      onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
-                      placeholder="Calculado automaticamente"
-                    />
-                    <p className="text-xs text-muted-foreground">Valor calculado automaticamente, mas você pode editar</p>
+                  <div className="space-y-4 border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="interest_only" 
+                        checked={renegotiateData.interest_only_paid}
+                        onCheckedChange={(checked) => setRenegotiateData({ 
+                          ...renegotiateData, 
+                          interest_only_paid: checked as boolean 
+                        })}
+                      />
+                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer">
+                        Cliente pagou só os juros da parcela
+                      </Label>
+                    </div>
+                    
+                    {renegotiateData.interest_only_paid && (
+                      <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-2">
+                          <Label>Valor Pago (Juros) (R$) *</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.interest_amount_paid} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
+                            placeholder="Ex: 100,00"
+                            required={renegotiateData.interest_only_paid}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor que Ainda Falta (R$)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.remaining_amount} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
+                            placeholder="Valor restante"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  {!renegotiateData.interest_only_paid && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Valor que Falta (R$)</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={renegotiateData.remaining_amount} 
+                          onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
+                          placeholder="Calculado automaticamente"
+                        />
+                        <p className="text-xs text-muted-foreground">Valor calculado automaticamente, mas você pode editar</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Valor Prometido (R$)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.promised_amount} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_amount: e.target.value })} 
+                            placeholder="Ex: 500,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Data do Pagamento *</Label>
+                          <Input 
+                            type="date" 
+                            value={renegotiateData.promised_date} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
+                            required 
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {renegotiateData.interest_only_paid && (
                     <div className="space-y-2">
-                      <Label>Valor Prometido (R$)</Label>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        value={renegotiateData.promised_amount} 
-                        onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_amount: e.target.value })} 
-                        placeholder="Ex: 500,00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Data do Pagamento *</Label>
+                      <Label>Nova Data de Vencimento *</Label>
                       <Input 
                         type="date" 
                         value={renegotiateData.promised_date} 
                         onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
                         required 
                       />
+                      <p className="text-xs text-muted-foreground">Próxima data de cobrança do valor restante</p>
                     </div>
-                  </div>
+                  )}
                   
                   <div className="space-y-2">
                     <Label>Observações</Label>
@@ -1240,7 +1334,7 @@ export default function Loans() {
                   
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => setIsRenegotiateDialogOpen(false)}>Cancelar</Button>
-                    <Button type="submit">Renegociar</Button>
+                    <Button type="submit">{renegotiateData.interest_only_paid ? 'Registrar Pagamento de Juros' : 'Renegociar'}</Button>
                   </div>
                 </form>
               );
