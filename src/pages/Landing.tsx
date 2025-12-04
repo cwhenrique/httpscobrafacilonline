@@ -449,23 +449,23 @@ const Landing = () => {
               viewport={{ once: true }}
               variants={fadeInUp}
             >
-              <Card className="bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-950/10 border-red-200 dark:border-red-500/30 h-full shadow-lg">
+              <Card className="bg-card border-2 h-full shadow-lg" style={{ borderColor: '#ef4444' }}>
                 <CardContent className="p-8">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-foreground">Outras Plataformas</h3>
-                    <span className="px-3 py-1.5 rounded-full text-sm font-semibold" style={{ backgroundColor: '#991b1b', color: '#ffffff' }}>💸 Mensalidade</span>
+                    <span className="px-3 py-1.5 rounded-full text-sm font-semibold" style={{ backgroundColor: '#16a34a', color: '#ffffff' }}>💸 Mensalidade</span>
                   </div>
                   <div className="space-y-4">
                     {competitorProblems.map((problem, index) => (
-                      <div key={index} className="flex items-center gap-3 text-muted-foreground bg-red-100/50 dark:bg-red-900/20 rounded-lg px-4 py-3">
-                        <X className="w-5 h-5 text-red-500 flex-shrink-0" />
+                      <div key={index} className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-3" style={{ color: '#f87171' }}>
+                        <X className="w-5 h-5 flex-shrink-0" style={{ color: '#ef4444' }} />
                         <span>{problem}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-8 pt-6 border-t border-red-200 dark:border-red-500/20">
+                  <div className="mt-8 pt-6" style={{ borderTop: '1px solid #ef4444' }}>
                     <div className="text-sm text-muted-foreground">Custo anual estimado</div>
-                    <div className="text-4xl font-bold text-red-500">R$ 600+/ano</div>
+                    <div className="text-4xl font-bold" style={{ color: '#ef4444' }}>R$ 600+/ano</div>
                     <div className="text-sm text-muted-foreground">em mensalidades recorrentes</div>
                   </div>
                 </CardContent>
