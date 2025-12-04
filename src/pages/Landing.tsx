@@ -40,6 +40,7 @@ import loansManagement from "@/assets/loans-management.png";
 import loansCards from "@/assets/loans-cards.png";
 import calendarPage from "@/assets/calendar-page.png";
 import reportsPage from "@/assets/reports-page.png";
+import simulatorPage from "@/assets/simulator-page.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -913,8 +914,12 @@ const Landing = () => {
               </ul>
             </div>
             <div className="order-1">
-              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">Screenshot do Simulador</span>
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={simulatorPage} 
+                  alt="Simulador de Empréstimos CobraFácil - Planeje antes de criar" 
+                  className="w-full h-auto rounded-xl"
+                />
               </div>
             </div>
           </motion.div>
