@@ -210,7 +210,7 @@ const Landing = () => {
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="hidden sm:flex border-primary/30 text-primary bg-primary/10">
               <Users className="w-3 h-3 mr-1" />
-              <span>500+ cobradores ativos</span>
+              <span>Mais de 1.350 clientes ativos</span>
             </Badge>
           </div>
         </div>
