@@ -57,7 +57,7 @@ const VideoCarousel = () => {
     `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   const getEmbedUrl = (videoId: string) =>
-    `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0`;
+    `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&loop=1&playlist=${videoId}&controls=1&modestbranding=1&rel=0&showinfo=0`;
 
   return (
     <div className="relative max-w-6xl mx-auto">
