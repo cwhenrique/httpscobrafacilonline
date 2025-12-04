@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,14 @@ import {
   Zap,
   BarChart3,
   MessageCircle,
+  X,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VideoCarousel from "@/components/VideoCarousel";
 import heroPerson from "@/assets/hero-person.png";
 
-// Animation variants
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
   visible: { opacity: 1, y: 0 },
@@ -61,6 +63,7 @@ const scaleIn = {
 const Landing = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [showBottomBar, setShowBottomBar] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -68,9 +71,17 @@ const Landing = () => {
     }
   }, [user, loading, navigate]);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBottomBar(window.scrollY > 500);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
@@ -97,56 +108,50 @@ const Landing = () => {
       title: "Calendário de Cobranças",
       description: "Visualize todas as datas de vencimento em um calendário intuitivo",
     },
-    {
-      icon: Users,
-      title: "Score de Clientes",
-      description: "Sistema de pontuação para saber quem paga em dia e quem atrasa",
-    },
-    {
-      icon: TrendingUp,
-      title: "Simulador de Empréstimos",
-      description: "Calcule juros e parcelas antes de emprestar",
-    },
   ];
 
   const problems = [
     {
-      icon: FileText,
       title: "Planilhas desorganizadas",
       description: "Controle confuso que causa erros e perda de informações",
+      isTraditional: true,
     },
     {
-      icon: DollarSign,
       title: "Esquece de cobrar",
       description: "Perde dinheiro por não lembrar das datas de vencimento",
+      isTraditional: true,
     },
     {
-      icon: Clock,
       title: "Cálculos manuais",
       description: "Gasta horas calculando juros e parcelas manualmente",
-    },
-    {
-      icon: BarChart3,
-      title: "Sem visão clara",
-      description: "Não sabe exatamente quanto tem a receber",
+      isTraditional: true,
     },
   ];
 
   const steps = [
     {
-      number: "01",
-      title: "Cadastre seus clientes",
-      description: "Adicione clientes com foto, telefone e informações importantes",
+      number: "1",
+      title: "Cadastre-se Gratuitamente",
+      description: "Crie sua conta em menos de 1 minuto, sem cartão de crédito",
+      emoji: "🎯",
     },
     {
-      number: "02",
-      title: "Registre empréstimos",
+      number: "2",
+      title: "Adicione Seus Clientes",
+      description: "Cadastre clientes com foto, telefone e informações importantes",
+      emoji: "👥",
+    },
+    {
+      number: "3",
+      title: "Registre Empréstimos",
       description: "Configure juros, parcelas e datas. O sistema calcula tudo automaticamente",
+      emoji: "💰",
     },
     {
-      number: "03",
-      title: "Receba alertas",
+      number: "4",
+      title: "Receba Alertas",
       description: "Seja notificado no WhatsApp sobre vencimentos e atrasos",
+      emoji: "🚀",
     },
   ];
 
@@ -164,10 +169,6 @@ const Landing = () => {
       answer: "Sim! Utilizamos criptografia de ponta e servidores seguros. Seus dados são isolados e só você tem acesso.",
     },
     {
-      question: "Funciona no celular?",
-      answer: "Perfeitamente! A interface é totalmente responsiva e otimizada para uso em dispositivos móveis.",
-    },
-    {
       question: "Como recebo os alertas no WhatsApp?",
       answer: "Basta cadastrar seu número de telefone no perfil. O sistema envia automaticamente resumos diários, alertas de vencimento e avisos de atraso.",
     },
@@ -182,79 +183,59 @@ const Landing = () => {
     "Score de clientes",
     "Simulador de empréstimos",
     "Contas a pagar e receber",
-    "Relatórios financeiros",
-    "Suporte por email",
+  ];
+
+  const traditionalProblems = [
+    "Conteúdo genérico para todos",
+    "Sem acompanhamento individual",
+    "Material desatualizado",
+    "Sem flexibilidade de horários",
+  ];
+
+  const cobraFacilBenefits = [
+    "Sistema 100% personalizado",
+    "Alertas automáticos no WhatsApp",
+    "Cálculos sempre atualizados",
+    "Acesse quando e onde quiser",
   ];
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Global Background Effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 gradient-hero" />
-        <div className="absolute inset-0 grid-pattern" />
-        <div className="absolute inset-0 noise-overlay" />
-      </div>
-
-      {/* Floating Orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <motion.div
-          animate={{ y: [-20, 20, -20], x: [-10, 10, -10] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[10%] left-[10%] w-72 h-72 bg-primary/20 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ y: [20, -20, 20], x: [10, -10, 10] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-          className="absolute top-[60%] right-[5%] w-96 h-96 bg-primary/15 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ y: [-15, 15, -15] }}
-          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute bottom-[20%] left-[20%] w-64 h-64 bg-accent/30 rounded-full blur-3xl"
-        />
-      </div>
-
+    <div className="min-h-screen bg-[#0a0a0f] overflow-x-hidden text-white">
       {/* Header */}
       <motion.header 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="fixed top-0 left-0 right-0 z-50 glass-premium"
+        className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <motion.div 
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-glow-sm"
-            >
-              <DollarSign className="w-5 h-5 text-primary-foreground" />
-            </motion.div>
-            <span className="font-bold text-xl text-foreground">CobraFácil</span>
-          </div>
           <div className="flex items-center gap-3">
-            <Link to="/auth">
-              <Button variant="ghost" size="sm">
-                Entrar
-              </Button>
-            </Link>
-            <Link to="/auth">
-              <Button size="sm" className="hidden sm:flex shadow-glow-sm">
-                Criar Conta Grátis
-              </Button>
-            </Link>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <span className="font-bold text-xl">CobraFácil</span>
+            <span className="hidden sm:inline text-sm text-gray-400">sistema de gestão de empréstimos</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="hidden sm:flex border-primary/30 text-primary bg-primary/10">
+              <Users className="w-3 h-3 mr-1" />
+              <span>500+ cobradores ativos</span>
+            </Badge>
           </div>
         </div>
       </motion.header>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden min-h-[90vh] flex items-center">
-        {/* Background Person Image */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <section className="pt-24 pb-12 px-4 relative min-h-screen flex items-center">
+        {/* Background Image */}
+        <div className="absolute inset-0 overflow-hidden">
           <img 
             src={heroPerson} 
             alt="" 
-            className="h-full w-auto object-cover opacity-10 max-w-none"
+            className="absolute right-0 top-0 h-full w-auto object-cover opacity-20 max-w-none"
           />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f] via-[#0a0a0f]/90 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-[#0a0a0f]/50" />
         </div>
         
         <div className="container mx-auto text-center relative">
@@ -264,9 +245,9 @@ const Landing = () => {
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
           >
-            <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15 backdrop-blur-sm">
-              <Zap className="w-3 h-3 mr-1" />
-              Sistema completo de gestão de empréstimos
+            <Badge className="mb-6 bg-primary/20 text-primary border-primary/30 px-4 py-2">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Sistema Completo de Gestão de Empréstimos
             </Badge>
           </motion.div>
           
@@ -275,22 +256,46 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground mb-6 leading-tight"
+            className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight"
           >
-            Gerencie seus empréstimos
+            Pare de Perder Dinheiro.
             <br />
-            <span className="text-primary bg-clip-text">com facilidade</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-600">
+              Cobre com Facilidade
+            </span>
           </motion.h1>
+
+          {/* Feature Badges */}
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="flex flex-wrap justify-center gap-3 mb-8"
+          >
+            <Badge variant="outline" className="border-gray-600 text-gray-300 px-4 py-2">
+              <Calculator className="w-4 h-4 mr-2 text-primary" />
+              Cálculo Automático
+            </Badge>
+            <Badge variant="outline" className="border-gray-600 text-gray-300 px-4 py-2">
+              <MessageCircle className="w-4 h-4 mr-2 text-primary" />
+              Alertas WhatsApp
+            </Badge>
+            <Badge variant="outline" className="border-gray-600 text-gray-300 px-4 py-2">
+              <TrendingUp className="w-4 h-4 mr-2 text-primary" />
+              Score de Clientes
+            </Badge>
+          </motion.div>
           
           <motion.p 
             initial="hidden"
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto"
+            className="text-lg sm:text-xl text-gray-400 mb-10 max-w-2xl mx-auto"
           >
-            Nunca mais perca uma cobrança. Sistema completo para cobradores e financeiras 
-            com cálculo automático de juros e alertas no WhatsApp.
+            O único sistema que calcula juros automaticamente, envia alertas no WhatsApp
+            e organiza todas as suas cobranças em um só lugar.
           </motion.p>
           
           <motion.div 
@@ -298,44 +303,165 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex justify-center"
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <Button variant="outline" size="lg" className="text-lg px-8 h-14 glass-premium hover:bg-card/80" asChild>
-              <a href="#features">Ver funcionalidades</a>
-            </Button>
+            <Link to="/auth">
+              <Button size="lg" className="text-lg px-8 h-14 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25">
+                <Sparkles className="w-5 h-5 mr-2" />
+                Descobrir Todas as Funcionalidades
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2 text-gray-400 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+              <Shield className="w-5 h-5 text-primary" />
+              <div className="text-left">
+                <div className="text-sm font-semibold text-white">100% Grátis</div>
+                <div className="text-xs">Teste sem compromisso</div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Trust Badges */}
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="flex flex-wrap justify-center gap-6 mt-8 text-sm text-gray-500"
+          >
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              Sem cartão de crédito
+            </span>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              Acesso imediato
+            </span>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              Cancele quando quiser
+            </span>
           </motion.div>
           
-          {/* Features Grid */}
+          {/* Stats */}
           <motion.div 
             initial="hidden"
             animate="visible"
             variants={staggerContainer}
             transition={{ delay: 0.5 }}
-            className="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto"
+            className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto"
           >
             {[
-              { icon: Calculator, label: "Cálculo Automático" },
-              { icon: MessageCircle, label: "Alertas WhatsApp" },
-              { icon: Calendar, label: "Calendário" },
-              { icon: Users, label: "Score de Clientes" },
-            ].map((item, index) => (
+              { value: "R$ 10M+", label: "Gerenciados" },
+              { value: "500+", label: "Cobradores Ativos" },
+              { value: "⭐ 4.9/5", label: "Avaliação" },
+              { value: "97%", label: "Satisfação" },
+            ].map((stat, index) => (
               <motion.div 
                 key={index} 
                 variants={scaleIn}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="text-center p-4 rounded-2xl glass-premium"
+                className="text-center p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm"
               >
-                <item.icon className="w-8 h-8 text-primary mx-auto mb-2" />
-                <div className="text-sm font-medium text-foreground">{item.label}</div>
+                <div className="text-2xl sm:text-3xl font-bold text-primary">{stat.value}</div>
+                <div className="text-sm text-gray-400">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
         </div>
       </section>
 
-      {/* Problems Section */}
+      {/* Comparison Section */}
       <section className="py-24 px-4 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-muted/50 via-muted/30 to-transparent" />
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <Badge className="mb-4 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+              💰 Compare e Economize
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Quanto Você Está Perdendo com Controle Manual?
+            </h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Veja a diferença absurda de organização e tempo
+            </p>
+          </motion.div>
+          
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Traditional Way */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <Card className="bg-red-950/20 border-red-500/30 h-full">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white">Controle Manual</h3>
+                    <Badge variant="destructive">Ultrapassado</Badge>
+                  </div>
+                  <div className="space-y-3">
+                    {traditionalProblems.map((problem, index) => (
+                      <div key={index} className="flex items-center gap-3 text-gray-400">
+                        <X className="w-5 h-5 text-red-500 flex-shrink-0" />
+                        <span>{problem}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-red-500/20">
+                    <div className="text-sm text-gray-500">Prejuízo estimado</div>
+                    <div className="text-3xl font-bold text-red-400">R$ 5.000+/ano</div>
+                    <div className="text-xs text-gray-500">em cobranças esquecidas</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* CobraFácil */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.1 }}
+            >
+              <Card className="bg-primary/10 border-primary/30 h-full relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-bl-lg">
+                  RECOMENDADO
+                </div>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white">CobraFácil</h3>
+                    <Badge className="bg-primary text-primary-foreground">Moderno</Badge>
+                  </div>
+                  <div className="space-y-3">
+                    {cobraFacilBenefits.map((benefit, index) => (
+                      <div key={index} className="flex items-center gap-3 text-gray-300">
+                        <Check className="w-5 h-5 text-primary flex-shrink-0" />
+                        <span>{benefit}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-primary/20">
+                    <div className="text-sm text-gray-500">Investimento</div>
+                    <div className="text-3xl font-bold text-primary">Grátis</div>
+                    <div className="text-xs text-gray-500">para sempre no plano básico</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
         <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
@@ -345,11 +471,14 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Você ainda enfrenta esses problemas?
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">
+              Benefícios
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Por Que Escolher o CobraFácil?
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Se você se identifica com alguma dessas situações, o CobraFácil foi feito para você
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Tecnologia de ponta para transformar suas cobranças em resultados reais
             </p>
           </motion.div>
           <motion.div 
@@ -359,68 +488,15 @@ const Landing = () => {
             variants={staggerContainer}
             className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            {problems.map((problem, index) => (
-              <motion.div key={index} variants={fadeInUp} whileHover={{ y: -5 }}>
-                <Card className="glass-premium bg-destructive/5 border-destructive/20 hover:border-destructive/40 hover:shadow-lg transition-all duration-300 h-full">
-                  <CardContent className="p-6 text-center">
-                    <motion.div 
-                      whileHover={{ scale: 1.1, rotate: -5 }}
-                      className="w-14 h-14 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                    >
-                      <problem.icon className="w-7 h-7 text-destructive" />
-                    </motion.div>
-                    <h3 className="font-semibold text-foreground mb-2">{problem.title}</h3>
-                    <p className="text-sm text-muted-foreground">{problem.description}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4">
-        <div className="container mx-auto">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
-              Funcionalidades
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Tudo que você precisa em um só lugar
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Ferramentas poderosas para organizar suas cobranças e nunca mais perder dinheiro
-            </p>
-          </motion.div>
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
             {features.map((feature, index) => (
-              <motion.div key={index} variants={fadeInUp} whileHover={{ y: -8 }}>
-                <Card className="group glass-premium hover:border-primary/50 hover:shadow-glow-sm transition-all duration-500 h-full overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <CardContent className="p-6 relative">
-                    <motion.div 
-                      whileHover={{ scale: 1.15, rotate: 5 }}
-                      transition={{ type: "spring", stiffness: 400 }}
-                      className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:shadow-glow-sm transition-all duration-300"
-                    >
-                      <feature.icon className="w-7 h-7 text-primary group-hover:text-primary-foreground transition-colors" />
-                    </motion.div>
-                    <h3 className="font-semibold text-lg text-foreground mb-2">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
+              <motion.div key={index} variants={fadeInUp}>
+                <Card className="bg-white/5 border-white/10 hover:border-primary/50 transition-all duration-300 h-full group">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:scale-110 transition-all">
+                      <feature.icon className="w-6 h-6 text-primary group-hover:text-primary-foreground" />
+                    </div>
+                    <h3 className="font-semibold text-lg text-white mb-2">{feature.title}</h3>
+                    <p className="text-gray-400 text-sm">{feature.description}</p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -430,10 +506,8 @@ const Landing = () => {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-24 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-3xl" />
-        <div className="container mx-auto relative">
+      <section className="py-24 px-4 relative">
+        <div className="container mx-auto">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -442,14 +516,14 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-16"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
-              Como funciona
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">
+              Simples e Eficiente
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Simples de usar
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Do Zero à Organização em 4 Etapas
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Em apenas 3 passos você organiza todas as suas cobranças
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Veja como é fácil transformar suas cobranças
             </p>
           </motion.div>
           <motion.div 
@@ -457,28 +531,24 @@ const Landing = () => {
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
             variants={staggerContainer}
-            className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto"
           >
             {steps.map((step, index) => (
               <motion.div 
                 key={index} 
                 variants={fadeInUp}
-                whileHover={{ y: -5 }}
-                className="relative text-center"
+                className="relative"
               >
-                <motion.div 
-                  whileHover={{ scale: 1.15, rotate: 10 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-glow relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-                  <span className="text-2xl font-bold text-primary-foreground relative">{step.number}</span>
-                </motion.div>
-                <h3 className="font-semibold text-lg text-foreground mb-2">{step.title}</h3>
-                <p className="text-muted-foreground">{step.description}</p>
-                {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-10 left-[60%] w-[80%] h-[2px] bg-gradient-to-r from-primary/50 to-transparent" />
-                )}
+                <Card className="bg-white/5 border-white/10 h-full">
+                  <CardContent className="p-6 text-center">
+                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 text-lg font-bold text-primary-foreground">
+                      {step.number}
+                    </div>
+                    <div className="text-3xl mb-3">{step.emoji}</div>
+                    <h3 className="font-semibold text-white mb-2">{step.title}</h3>
+                    <p className="text-gray-400 text-sm">{step.description}</p>
+                  </CardContent>
+                </Card>
               </motion.div>
             ))}
           </motion.div>
@@ -487,7 +557,7 @@ const Landing = () => {
 
       {/* Testimonials Section */}
       <section className="py-24 px-4 relative">
-        <div className="absolute inset-0 bg-gradient-to-t from-muted/40 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/20 to-transparent" />
         <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
@@ -497,12 +567,13 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">
               Depoimentos
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               O que nossos clientes dizem
             </h2>
+            <p className="text-gray-400">Conheça quem já usa o CobraFácil</p>
           </motion.div>
           
           <VideoCarousel />
@@ -510,10 +581,8 @@ const Landing = () => {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-24 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-muted/30 to-muted/50" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl" />
-        <div className="container mx-auto relative">
+      <section className="py-24 px-4 relative">
+        <div className="container mx-auto">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -522,15 +591,12 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
-              Preço
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">
+              Escolha Seu Plano
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Comece gratuitamente
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Comece a usar hoje mesmo
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Teste todas as funcionalidades sem compromisso
-            </p>
           </motion.div>
           <motion.div
             initial="hidden"
@@ -539,49 +605,27 @@ const Landing = () => {
             variants={scaleIn}
             transition={{ duration: 0.6 }}
           >
-            <Card className="max-w-lg mx-auto glass-premium border-primary/50 shadow-glow overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10" />
-              <CardContent className="p-8 relative">
+            <Card className="max-w-lg mx-auto bg-gradient-to-b from-primary/20 to-primary/5 border-primary/30 overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-violet-500 to-primary" />
+              <CardContent className="p-8">
                 <div className="text-center mb-6">
-                  <Badge className="mb-4 bg-primary text-primary-foreground shadow-glow-sm">Mais Popular</Badge>
-                  <motion.div 
-                    initial={{ scale: 0.5 }}
-                    whileInView={{ scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-                    className="text-6xl font-bold text-foreground mb-2"
-                  >
-                    Grátis
-                  </motion.div>
-                  <p className="text-muted-foreground">Para sempre no plano básico</p>
+                  <Badge className="mb-4 bg-primary text-primary-foreground">Mais Popular</Badge>
+                  <div className="text-5xl font-bold text-white mb-2">Grátis</div>
+                  <p className="text-gray-400">Para sempre no plano básico</p>
                 </div>
-                <motion.ul 
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
-                  variants={staggerContainer}
-                  className="space-y-3 mb-8"
-                >
+                <ul className="space-y-3 mb-8">
                   {includedFeatures.map((feature, index) => (
-                    <motion.li 
-                      key={index} 
-                      variants={fadeInUp}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-                      </div>
-                      <span className="text-foreground">{feature}</span>
-                    </motion.li>
+                    <li key={index} className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                      <span className="text-gray-300">{feature}</span>
+                    </li>
                   ))}
-                </motion.ul>
+                </ul>
                 <Link to="/auth" className="block">
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button size="lg" className="w-full text-lg h-14 shadow-glow">
-                      Criar Conta Grátis
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  </motion.div>
+                  <Button size="lg" className="w-full text-lg h-14 bg-primary hover:bg-primary/90">
+                    Criar Conta Grátis
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
                 </Link>
               </CardContent>
             </Card>
@@ -591,8 +635,7 @@ const Landing = () => {
 
       {/* FAQ Section */}
       <section className="py-24 px-4 relative">
-        <div className="absolute inset-0 bg-gradient-to-t from-muted/30 to-transparent" />
-        <div className="container mx-auto max-w-3xl relative">
+        <div className="container mx-auto max-w-3xl">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -601,129 +644,115 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
+            <Badge className="mb-4 bg-primary/20 text-primary border-primary/30">
               FAQ
             </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               Perguntas frequentes
             </h2>
           </motion.div>
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-          >
-            <Accordion type="single" collapsible className="space-y-4">
-              {faqs.map((faq, index) => (
-                <motion.div key={index} variants={fadeInUp}>
-                  <AccordionItem value={`item-${index}`} className="glass-premium border rounded-xl px-6 hover:border-primary/30 transition-colors">
-                    <AccordionTrigger className="text-left text-foreground hover:text-primary">
-                      {faq.question}
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground">
-                      {faq.answer}
-                    </AccordionContent>
-                  </AccordionItem>
-                </motion.div>
-              ))}
-            </Accordion>
-          </motion.div>
+          <Accordion type="single" collapsible className="space-y-4">
+            {faqs.map((faq, index) => (
+              <AccordionItem 
+                key={index} 
+                value={`item-${index}`} 
+                className="bg-white/5 border border-white/10 rounded-xl px-6 data-[state=open]:border-primary/30"
+              >
+                <AccordionTrigger className="text-left text-white hover:text-primary hover:no-underline">
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-400">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </section>
 
       {/* Final CTA Section */}
-      <motion.section 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-100px" }}
-        variants={fadeIn}
-        transition={{ duration: 0.8 }}
-        className="py-24 px-4 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/90" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
-        <motion.div 
-          animate={{ y: [-10, 10, -10] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"
-        />
-        <motion.div 
-          animate={{ y: [10, -10, 10] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-10 right-10 w-48 h-48 bg-white/10 rounded-full blur-2xl"
-        />
+      <section className="py-24 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-violet-950/30 to-[#0a0a0f]" />
         <div className="container mx-auto text-center relative">
           <motion.h2 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
             variants={fadeInUp}
-            className="text-3xl sm:text-5xl font-bold text-primary-foreground mb-6"
+            className="text-3xl sm:text-5xl font-bold mb-6"
           >
             Pronto para organizar suas cobranças?
           </motion.h2>
           <motion.p 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
             variants={fadeInUp}
-            className="text-primary-foreground/80 mb-10 max-w-xl mx-auto text-lg"
+            transition={{ delay: 0.1 }}
+            className="text-gray-400 mb-10 max-w-xl mx-auto text-lg"
           >
-            Junte-se a centenas de cobradores que já usam o CobraFácil para gerenciar seus empréstimos
+            Junte-se a centenas de cobradores que já usam o CobraFácil
           </motion.p>
           <Link to="/auth">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Button size="lg" variant="secondary" className="text-lg px-10 h-16 shadow-xl shadow-black/20">
-                Começar Agora - É Grátis
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </motion.div>
+            <Button size="lg" className="text-lg px-10 h-16 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25">
+              Começar Agora - É Grátis
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
           </Link>
         </div>
-      </motion.section>
+      </section>
 
       {/* Footer */}
-      <motion.footer 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        variants={fadeIn}
-        transition={{ duration: 0.6 }}
-        className="py-12 px-4 glass-premium border-t border-border relative"
-      >
+      <footer className="py-12 px-4 border-t border-white/5">
         <div className="container mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
-              <motion.div 
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-glow-sm"
-              >
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <DollarSign className="w-5 h-5 text-primary-foreground" />
-              </motion.div>
-              <span className="font-bold text-xl text-foreground">CobraFácil</span>
+              </div>
+              <span className="font-bold text-xl">CobraFácil</span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="flex items-center gap-6 text-sm text-gray-500">
+              <span className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">
-                Seus dados protegidos com criptografia
+                Dados protegidos
               </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">
-                Funciona em qualquer dispositivo
+                100% Responsivo
               </span>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-border/50 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="mt-8 pt-8 border-t border-white/5 text-center">
+            <p className="text-sm text-gray-500">
               © {new Date().getFullYear()} CobraFácil. Todos os direitos reservados.
             </p>
           </div>
         </div>
-      </motion.footer>
+      </footer>
+
+      {/* Fixed Bottom Bar */}
+      <motion.div 
+        initial={{ y: 100 }}
+        animate={{ y: showBottomBar ? 0 : 100 }}
+        className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-xl border-t border-white/10 py-3 px-4"
+      >
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <span className="text-sm text-gray-300">
+              <span className="hidden sm:inline">Comece agora </span>
+              <span className="text-primary font-semibold">100% Grátis</span>
+            </span>
+          </div>
+          <Link to="/auth">
+            <Button className="bg-primary hover:bg-primary/90">
+              Começar Agora
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </Link>
+        </div>
+      </motion.div>
     </div>
   );
 };
