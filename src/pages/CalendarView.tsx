@@ -159,74 +159,76 @@ export default function CalendarView() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-display font-bold">Calendário de Vencimentos</h1>
-          <p className="text-muted-foreground">Visualize todos os vencimentos dos seus empréstimos</p>
+          <h1 className="text-xl sm:text-2xl font-display font-bold">Calendário de Vencimentos</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Visualize todos os vencimentos dos seus empréstimos</p>
         </div>
 
         {/* Month Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="shadow-soft">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-warning/10">
-                  <Clock className="w-5 h-5 text-warning" />
+            <CardContent className="p-2.5 sm:pt-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-warning/10">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">A Vencer</p>
-                  <p className="text-xl font-bold">{monthStats.pendingCount}</p>
+                <div className="text-center sm:text-left">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">A Vencer</p>
+                  <p className="text-lg sm:text-xl font-bold">{monthStats.pendingCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="shadow-soft">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-destructive/10">
-                  <AlertTriangle className="w-5 h-5 text-destructive" />
+            <CardContent className="p-2.5 sm:pt-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-destructive/10">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Vencidos</p>
-                  <p className="text-xl font-bold">{monthStats.overdueCount}</p>
+                <div className="text-center sm:text-left">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Vencidos</p>
+                  <p className="text-lg sm:text-xl font-bold">{monthStats.overdueCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="shadow-soft">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <CalendarIcon className="w-5 h-5 text-primary" />
+            <CardContent className="p-2.5 sm:pt-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                  <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Total no Mês</p>
-                  <p className="text-lg font-bold">{formatCurrency(monthStats.totalDue)}</p>
+                <div className="text-center sm:text-left min-w-0">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Total no Mês</p>
+                  <p className="text-sm sm:text-lg font-bold truncate">{formatCurrency(monthStats.totalDue)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Calendar */}
           <Card className="lg:col-span-2 shadow-soft">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5" />
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg capitalize">
+                <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 hidden sm:block" />
                 {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
               </CardTitle>
               <div className="flex gap-1">
                 <Button 
                   variant="outline" 
                   size="icon" 
+                  className="h-7 w-7 sm:h-9 sm:w-9"
                   onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
+                  className="h-7 text-xs sm:h-9 sm:text-sm px-2 sm:px-3"
                   onClick={() => setCurrentMonth(new Date())}
                 >
                   Hoje
@@ -234,28 +236,29 @@ export default function CalendarView() {
                 <Button 
                   variant="outline" 
                   size="icon" 
+                  className="h-7 w-7 sm:h-9 sm:w-9"
                   onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
               {loading ? (
-                <Skeleton className="h-[400px] w-full" />
+                <Skeleton className="h-[280px] sm:h-[400px] w-full" />
               ) : (
                 <>
                   {/* Weekday headers */}
-                  <div className="grid grid-cols-7 mb-2">
+                  <div className="grid grid-cols-7 mb-1 sm:mb-2">
                     {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                      <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+                      <div key={day} className="text-center text-[10px] sm:text-sm font-medium text-muted-foreground py-1 sm:py-2">
                         {day}
                       </div>
                     ))}
                   </div>
                   
                   {/* Calendar grid */}
-                  <div className="grid grid-cols-7 gap-1">
+                  <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                     {calendarDays.map(({ date, isOutside }, index) => {
                       const status = getDayStatus(date);
                       const dateKey = format(date, 'yyyy-MM-dd');
@@ -267,14 +270,14 @@ export default function CalendarView() {
                           key={index}
                           onClick={() => setSelectedDate(date)}
                           className={cn(
-                            'relative aspect-square p-1 rounded-lg transition-all hover:bg-muted/50',
+                            'relative aspect-square p-0.5 sm:p-1 rounded-md sm:rounded-lg transition-all hover:bg-muted/50',
                             isOutside && 'opacity-30',
-                            isToday(date) && 'ring-2 ring-primary ring-offset-2',
-                            isSelected && 'bg-primary/10 ring-2 ring-primary',
+                            isToday(date) && 'ring-1 sm:ring-2 ring-primary ring-offset-1 sm:ring-offset-2',
+                            isSelected && 'bg-primary/10 ring-1 sm:ring-2 ring-primary',
                           )}
                         >
                           <span className={cn(
-                            'text-sm',
+                            'text-xs sm:text-sm',
                             isToday(date) && 'font-bold text-primary'
                           )}>
                             {format(date, 'd')}
@@ -282,7 +285,7 @@ export default function CalendarView() {
                           
                           {eventCount > 0 && (
                             <div className={cn(
-                              'absolute bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold',
+                              'absolute bottom-0.5 sm:bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[8px] sm:text-[10px] font-bold',
                               getStatusColor(status)
                             )}>
                               {eventCount}
@@ -294,17 +297,17 @@ export default function CalendarView() {
                   </div>
 
                   {/* Legend */}
-                  <div className="flex justify-center gap-6 mt-4 pt-4 border-t">
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-3 h-3 rounded-full bg-warning" />
+                  <div className="flex justify-center gap-3 sm:gap-6 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-warning" />
                       <span>A vencer</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-3 h-3 rounded-full bg-destructive" />
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-destructive" />
                       <span>Vencido</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-3 h-3 rounded-full bg-success" />
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-success" />
                       <span>Pago</span>
                     </div>
                   </div>
@@ -315,54 +318,54 @@ export default function CalendarView() {
 
           {/* Selected Date Details */}
           <Card className="shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-lg">
+            <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">
                 {selectedDate 
                   ? format(selectedDate, "d 'de' MMMM", { locale: ptBR })
                   : 'Selecione uma data'}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6 pt-0">
               {selectedDate ? (
                 selectedDateEvents.length > 0 ? (
-                  <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-3">
+                  <ScrollArea className="h-[250px] sm:h-[400px] pr-2 sm:pr-4">
+                    <div className="space-y-2 sm:space-y-3">
                       {selectedDateEvents.map((event, index) => (
                         <div 
                           key={index}
                           className={cn(
-                            'p-3 rounded-lg border',
+                            'p-2.5 sm:p-3 rounded-lg border',
                             event.isOverdue 
                               ? 'bg-destructive/5 border-destructive/20' 
                               : 'bg-warning/5 border-warning/20'
                           )}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-2 sm:gap-3">
                             <div className={cn(
-                              'p-2 rounded-full',
+                              'p-1.5 sm:p-2 rounded-full flex-shrink-0',
                               event.isOverdue ? 'bg-destructive/10' : 'bg-warning/10'
                             )}>
                               {event.isOverdue 
-                                ? <AlertTriangle className="w-4 h-4 text-destructive" />
-                                : <Clock className="w-4 h-4 text-warning" />
+                                ? <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive" />
+                                : <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
                               }
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <User className="w-3 h-3 text-muted-foreground" />
-                                <span className="font-medium truncate">
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                <span className="font-medium truncate text-sm sm:text-base">
                                   {event.loan.client?.full_name}
                                 </span>
                               </div>
-                              <p className="text-lg font-bold mt-1">
+                              <p className="text-base sm:text-lg font-bold mt-0.5 sm:mt-1">
                                 {formatCurrency(event.loan.remaining_balance / (event.loan.installments || 1))}
                               </p>
                               {event.installmentNumber && (
-                                <Badge variant="secondary" className="mt-1">
+                                <Badge variant="secondary" className="mt-1 text-[10px] sm:text-xs">
                                   Parcela {event.installmentNumber}/{event.loan.installments}
                                 </Badge>
                               )}
-                              <p className="text-xs text-muted-foreground mt-2">
+                              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 sm:mt-2">
                                 Total: {formatCurrency(event.loan.principal_amount)} | 
                                 Saldo: {formatCurrency(event.loan.remaining_balance)}
                               </p>
@@ -373,15 +376,15 @@ export default function CalendarView() {
                     </div>
                   </ScrollArea>
                 ) : (
-                  <div className="text-center py-12">
-                    <CheckCircle className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                    <p className="text-muted-foreground">Nenhum vencimento nesta data</p>
+                  <div className="text-center py-8 sm:py-12">
+                    <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
+                    <p className="text-sm sm:text-base text-muted-foreground">Nenhum vencimento nesta data</p>
                   </div>
                 )
               ) : (
-                <div className="text-center py-12">
-                  <CalendarIcon className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-muted-foreground">Clique em uma data para ver os vencimentos</p>
+                <div className="text-center py-8 sm:py-12">
+                  <CalendarIcon className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
+                  <p className="text-sm sm:text-base text-muted-foreground">Clique em uma data para ver os vencimentos</p>
                 </div>
               )}
             </CardContent>
