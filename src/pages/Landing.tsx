@@ -35,6 +35,7 @@ import { motion } from "framer-motion";
 import VideoCarousel from "@/components/VideoCarousel";
 import heroPerson from "@/assets/hero-person.png";
 import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
+import dashboardOverview from "@/assets/dashboard-overview.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -706,8 +707,12 @@ const Landing = () => {
               </ul>
             </div>
             <div className="order-1 md:order-2">
-              <div className="bg-muted/50 border border-border rounded-2xl p-4 aspect-video flex items-center justify-center">
-                <span className="text-muted-foreground text-sm">Screenshot do Dashboard</span>
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={dashboardOverview} 
+                  alt="Dashboard CobraFácil - Visão geral completa do sistema financeiro" 
+                  className="w-full h-auto rounded-xl"
+                />
               </div>
             </div>
           </motion.div>
