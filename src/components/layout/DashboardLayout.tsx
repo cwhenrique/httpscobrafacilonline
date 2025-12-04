@@ -29,6 +29,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -84,6 +85,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <ChevronRight className="w-4 h-4 opacity-60" />
         </Link>
       </div>
+
+      {/* PWA Install Banner */}
+      <PWAInstallBanner variant="sidebar" />
 
       <ScrollArea className="flex-1 px-3">
         <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
