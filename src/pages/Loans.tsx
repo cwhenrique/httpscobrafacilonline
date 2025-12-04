@@ -246,20 +246,22 @@ export default function Loans() {
     const dailyAmount = parseFloat(formData.daily_amount);
     const numDays = installmentDates.length;
     const totalToReceive = dailyAmount * numDays;
+    const profit = totalToReceive - principalAmount;
     
     await createLoan({
       client_id: formData.client_id,
       principal_amount: principalAmount,
-      interest_rate: 0,
+      interest_rate: profit, // Store profit in interest_rate for daily loans
       interest_type: 'simple',
       interest_mode: 'per_installment',
       payment_type: 'daily',
       installments: numDays,
       start_date: formData.start_date,
       due_date: installmentDates[installmentDates.length - 1],
+      remaining_balance: totalToReceive, // Store total to receive
       notes: formData.notes 
-        ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}` 
-        : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}`,
+        ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
+        : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`,
       installment_dates: installmentDates,
     });
     setIsDailyDialogOpen(false);
@@ -872,11 +874,19 @@ export default function Loans() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredLoans.map((loan) => {
+                const isDaily = loan.payment_type === 'daily';
                 const numInstallments = loan.installments || 1;
+                
+                // For daily loans, remaining_balance stores total to receive, interest_rate stores profit
+                const dailyTotalToReceive = isDaily ? (loan.remaining_balance || loan.principal_amount) : 0;
+                const dailyProfit = isDaily ? loan.interest_rate : 0;
+                const dailyInstallmentAmount = isDaily && numInstallments > 0 ? dailyTotalToReceive / numInstallments : 0;
+                
+                // For regular loans
                 const principalPerInstallment = loan.principal_amount / numInstallments;
-                const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-                const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-                const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+                const interestPerInstallment = isDaily ? 0 : loan.principal_amount * (loan.interest_rate / 100);
+                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + interestPerInstallment;
+                const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + (interestPerInstallment * numInstallments);
                 const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
@@ -908,7 +918,6 @@ export default function Loans() {
                   }
                 }
                 
-                const isDaily = loan.payment_type === 'daily';
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
                 
                 const getCardStyle = () => {
@@ -991,7 +1000,11 @@ export default function Loans() {
                       <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <Percent className="w-4 h-4" />
-                          <span>Juros: {formatPercentage(loan.interest_rate)}</span>
+                          {isDaily ? (
+                            <span>Lucro: {formatCurrency(dailyProfit)}</span>
+                          ) : (
+                            <span>Juros: {formatPercentage(loan.interest_rate)}</span>
+                          )}
                         </div>
                         <div className={`flex items-center gap-2 ${mutedTextColor}`}>
                           <CreditCard className="w-4 h-4" />
