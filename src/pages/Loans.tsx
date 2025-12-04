@@ -975,7 +975,7 @@ export default function Loans() {
                     return 'bg-destructive border-destructive';
                   }
                   if (isDaily) {
-                    return 'bg-sky-100 border-sky-300 dark:bg-sky-900/30 dark:border-sky-700';
+                    return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
                   }
                   return 'bg-card';
                 };
