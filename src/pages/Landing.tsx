@@ -1226,7 +1226,8 @@ const Landing = () => {
                     <div className="text-4xl font-bold text-foreground mb-1">
                       R$ 147<span className="text-2xl">,90</span>
                     </div>
-                    <p className="text-sm text-muted-foreground">por ano</p>
+                    <p className="text-sm text-muted-foreground">à vista</p>
+                    <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 17,20</p>
                     <div className="mt-2 text-xs text-primary font-semibold bg-primary/10 rounded-full px-3 py-1 inline-block">
                       Economia de R$ 330/ano
                     </div>
