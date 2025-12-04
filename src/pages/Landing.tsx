@@ -284,16 +284,26 @@ const Landing = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-8 h-14 shadow-lg shadow-primary/25 font-bold">
-                <Zap className="w-5 h-5 mr-2" />
-                COMEÇAR AGORA - É GRÁTIS
+              <Button size="lg" className="text-lg px-10 h-16 shadow-2xl shadow-primary/40 font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300">
+                <Zap className="w-6 h-6 mr-2" />
+                QUERO ORGANIZAR MINHAS COBRANÇAS
               </Button>
             </Link>
-            <div className="flex items-center gap-2 text-muted-foreground bg-green-500/10 rounded-xl px-4 py-3 border border-green-500/30">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
+          </motion.div>
+
+          {/* Premium Badge */}
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="mt-8 inline-flex items-center gap-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 border border-amber-500/40 rounded-2xl px-6 py-4"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">👑</span>
               <div className="text-left">
-                <div className="text-sm font-bold text-green-600">SEM MENSALIDADE</div>
-                <div className="text-xs">Use 100% grátis, para sempre</div>
+                <div className="text-sm font-bold text-amber-600 dark:text-amber-400">PAGAMENTO ÚNICO</div>
+                <div className="text-xs text-muted-foreground">Pague uma vez, use para sempre. Sem mensalidades!</div>
               </div>
             </div>
           </motion.div>
@@ -303,20 +313,20 @@ const Landing = () => {
             initial="hidden"
             animate="visible"
             variants={fadeInUp}
-            transition={{ duration: 0.6, delay: 0.35 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
             className="flex flex-wrap justify-center gap-6 mt-8 text-sm text-muted-foreground"
           >
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              Sem cartão de crédito
+            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
+              <Shield className="w-4 h-4 text-primary" />
+              Acesso vitalício
             </span>
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
               <CheckCircle2 className="w-4 h-4 text-primary" />
-              Acesso imediato
+              Atualizações inclusas
             </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-              Sem pegadinha
+            <span className="flex items-center gap-2 bg-card/80 px-4 py-2 rounded-full border border-border">
+              <Zap className="w-4 h-4 text-primary" />
+              Suporte prioritário
             </span>
           </motion.div>
           
@@ -329,17 +339,18 @@ const Landing = () => {
             className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto"
           >
             {[
-              { value: "1.350+", label: "Clientes Ativos" },
-              { value: "R$ 0", label: "Sem Mensalidade" },
-              { value: "⭐ 4.9/5", label: "Avaliação" },
-              { value: "98.9%", label: "Satisfação" },
+              { value: "1.350+", label: "Clientes Ativos", icon: "👥" },
+              { value: "1x", label: "Pagamento Único", icon: "💎" },
+              { value: "⭐ 4.9/5", label: "Avaliação", icon: "" },
+              { value: "98.9%", label: "Satisfação", icon: "🏆" },
             ].map((stat, index) => (
               <motion.div 
                 key={index} 
                 variants={scaleIn}
-                className="text-center p-5 rounded-2xl bg-card border border-border shadow-sm"
+                className="text-center p-6 rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border shadow-lg hover:shadow-xl transition-shadow"
               >
-                <div className="text-2xl sm:text-3xl font-bold text-primary">{stat.value}</div>
+                {stat.icon && <span className="text-2xl">{stat.icon}</span>}
+                <div className="text-2xl sm:text-3xl font-bold text-primary mt-1">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
               </motion.div>
             ))}
