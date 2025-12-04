@@ -105,15 +105,19 @@ serve(async (req) => {
     console.log('Received Cakto webhook payload:', JSON.stringify(payload));
 
     // Extract customer data from Cakto payload
-    // Cakto typically sends: customer.email, customer.name, customer.phone
-    const customerEmail = payload.customer?.email || payload.email;
-    const customerName = payload.customer?.name || payload.name || payload.customer?.full_name;
-    const customerPhone = payload.customer?.phone || payload.phone || payload.customer?.cellphone;
-    const transactionStatus = payload.status || payload.transaction?.status;
+    // Cakto sends data in: data.customer.email, data.customer.name, data.customer.phone
+    const customerData = payload.data?.customer || payload.customer;
+    const customerEmail = customerData?.email || payload.email;
+    const customerName = customerData?.name || payload.name || customerData?.full_name;
+    const customerPhone = customerData?.phone || payload.phone || customerData?.cellphone;
+    const transactionStatus = payload.data?.status || payload.status || payload.event;
+
+    console.log('Extracted customer data:', { email: customerEmail, name: customerName, phone: customerPhone, status: transactionStatus });
 
     // Only process approved/paid transactions
-    const validStatuses = ['approved', 'paid', 'completed', 'active'];
-    if (transactionStatus && !validStatuses.includes(transactionStatus.toLowerCase())) {
+    const validStatuses = ['approved', 'paid', 'completed', 'active', 'subscription_created'];
+    const statusToCheck = transactionStatus?.toLowerCase?.() || '';
+    if (transactionStatus && !validStatuses.includes(statusToCheck)) {
       console.log(`Transaction status "${transactionStatus}" is not approved, skipping user creation`);
       return new Response(
         JSON.stringify({ message: 'Transaction not approved, skipping' }),
