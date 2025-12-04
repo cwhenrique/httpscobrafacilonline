@@ -107,7 +107,7 @@ const VideoCarousel = () => {
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex items-center justify-center group-hover:from-black/70 transition-colors">
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/30 transition-colors">
                       <motion.div
                         whileHover={{ scale: 1.15 }}
                         whileTap={{ scale: 0.95 }}
@@ -115,13 +115,6 @@ const VideoCarousel = () => {
                       >
                         <Play className="w-7 h-7 text-primary-foreground ml-1" />
                       </motion.div>
-                    </div>
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <div className="glass-premium rounded-lg px-3 py-2">
-                        <div className="text-sm font-medium text-white">
-                          Depoimento #{index + 1}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </Card>
