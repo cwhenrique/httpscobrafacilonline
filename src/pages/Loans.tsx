@@ -258,7 +258,8 @@ export default function Loans() {
       installments: numDays,
       start_date: formData.start_date,
       due_date: installmentDates[installmentDates.length - 1],
-      remaining_balance: totalToReceive, // Store total to receive
+      remaining_balance: totalToReceive, // Store total to receive initially
+      total_interest: dailyAmount, // Store daily installment amount
       notes: formData.notes 
         ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
         : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`,
@@ -877,17 +878,21 @@ export default function Loans() {
                 const isDaily = loan.payment_type === 'daily';
                 const numInstallments = loan.installments || 1;
                 
-                // For daily loans, remaining_balance stores total to receive, interest_rate stores profit
-                const dailyTotalToReceive = isDaily ? (loan.remaining_balance || loan.principal_amount) : 0;
+                // For daily loans: 
+                // - principal_amount = valor emprestado
+                // - total_interest = valor da parcela diária
+                // - interest_rate = lucro total
+                // - remaining_balance = total a receber (decreases with payments)
+                const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
                 const dailyProfit = isDaily ? loan.interest_rate : 0;
-                const dailyInstallmentAmount = isDaily && numInstallments > 0 ? dailyTotalToReceive / numInstallments : 0;
+                const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
                 
                 // For regular loans
                 const principalPerInstallment = loan.principal_amount / numInstallments;
                 const interestPerInstallment = isDaily ? 0 : loan.principal_amount * (loan.interest_rate / 100);
                 const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + interestPerInstallment;
                 const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + (interestPerInstallment * numInstallments);
-                const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+                const remainingToReceive = isDaily ? (loan.remaining_balance || 0) - (loan.total_paid || 0) : totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
