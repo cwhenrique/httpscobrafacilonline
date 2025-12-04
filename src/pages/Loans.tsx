@@ -969,10 +969,10 @@ export default function Loans() {
                     return 'bg-primary border-primary';
                   }
                   if (isRenegotiated && !isOverdue) {
-                    return 'bg-yellow-500 border-yellow-500';
+                    return 'bg-yellow-500/20 border-yellow-400 dark:bg-yellow-500/30 dark:border-yellow-400';
                   }
                   if (isOverdue) {
-                    return 'bg-destructive border-destructive';
+                    return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
                   }
                   if (isDaily) {
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
@@ -980,8 +980,8 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = hasSpecialStyle ? 'text-white' : '';
-                const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+                const textColor = isPaid ? 'text-white' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
+                const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
                   <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
