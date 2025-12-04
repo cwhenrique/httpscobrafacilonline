@@ -114,8 +114,8 @@ const Landing = () => {
   const steps = [
     {
       number: "1",
-      title: "Cadastre-se Gratuitamente",
-      description: "Crie sua conta em menos de 1 minuto, sem cartão de crédito",
+      title: "Cadastre-se com Pagamento Único",
+      description: "Crie sua conta em menos de 1 minuto e tenha acesso vitalício",
       emoji: "🎯",
     },
     {
