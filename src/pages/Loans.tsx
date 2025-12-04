@@ -25,7 +25,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -212,6 +212,8 @@ export default function Loans() {
         return isRenegotiated && !isPaid && !isOverdue;
       case 'pending':
         return !isPaid && !isOverdue && !isRenegotiated;
+      case 'daily':
+        return loan.payment_type === 'daily';
       default:
         return true;
     }
@@ -850,6 +852,15 @@ export default function Loans() {
               className={statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}
             >
               Renegociados
+            </Button>
+            <Button
+              variant={statusFilter === 'daily' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('daily')}
+              className={statusFilter === 'daily' ? 'bg-sky-500' : 'border-sky-500 text-sky-600 hover:bg-sky-500/10'}
+            >
+              <Clock className="w-3 h-3 mr-1" />
+              Diário
             </Button>
           </div>
           
