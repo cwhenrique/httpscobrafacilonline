@@ -102,6 +102,7 @@ export function useLoans() {
     notes?: string;
     installment_dates?: string[];
     remaining_balance?: number;
+    total_interest?: number;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -111,7 +112,7 @@ export function useLoans() {
         ...loan,
         user_id: user.id,
         remaining_balance: loan.remaining_balance ?? loan.principal_amount,
-        total_interest: 0,
+        total_interest: loan.total_interest ?? 0,
         total_paid: 0,
         installment_dates: loan.installment_dates || [],
       })
