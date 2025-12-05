@@ -360,7 +360,7 @@ const Landing = () => {
             {[
               { value: "1.350+", label: "Clientes Ativos", icon: "👥" },
               { value: "1x", label: "Pagamento Único", icon: "💎" },
-              { value: "⭐ 4.9/5", label: "Avaliação", icon: "" },
+              { value: "4.9/5", label: "Avaliação", icon: "⭐" },
               { value: "98.9%", label: "Satisfação", icon: "🏆" },
             ].map((stat, index) => (
               <motion.div 
