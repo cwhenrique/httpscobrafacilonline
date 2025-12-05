@@ -206,7 +206,7 @@ Sua conta foi criada com sucesso!
 📧 *Email:* ${customerEmail}
 🔑 *Senha:* ${generatedPassword}
 
-🔗 *Acesse:* https://concursoai.online/auth
+🔗 *Acesse:* https://cobrafacil.online/auth
 
 Recomendamos que você altere sua senha após o primeiro acesso.
 
