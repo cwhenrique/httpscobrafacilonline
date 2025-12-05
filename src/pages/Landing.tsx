@@ -1194,6 +1194,9 @@ const Landing = () => {
                       <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
                     </div>
                     <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
+                    <div className="text-lg text-muted-foreground line-through mb-1">
+                      De R$ 549,90
+                    </div>
                     <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
                       R$ 199<span className="text-xl sm:text-2xl">,90</span>
                     </div>
