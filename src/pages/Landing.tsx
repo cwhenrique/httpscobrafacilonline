@@ -1158,7 +1158,22 @@ const Landing = () => {
                     <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                       <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
                     </div>
-                    <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
+                    <Badge className="mb-2 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
+                    
+                    {/* Contador de vagas */}
+                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <div className="flex items-center justify-center gap-2 text-red-500">
+                        <Clock className="w-4 h-4 animate-pulse" />
+                        <span className="text-xs sm:text-sm font-bold">PROMOÇÃO LIMITADA</span>
+                      </div>
+                      <div className="text-lg sm:text-xl font-bold text-foreground mt-1">
+                        Apenas <span className="text-red-500">47</span> de 50 vagas restantes
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 mt-2">
+                        <div className="bg-red-500 h-2 rounded-full transition-all duration-500" style={{ width: '94%' }} />
+                      </div>
+                    </div>
+                    
                     <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
                       R$ 199<span className="text-xl sm:text-2xl">,90</span>
                     </div>
