@@ -229,30 +229,8 @@ const Landing = () => {
         </div>
       </motion.div>
 
-      {/* Header */}
-      <motion.header 
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="fixed top-10 left-0 right-0 z-50 bg-background/70 backdrop-blur-md border-b border-border/50"
-      >
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src={cobraFacilLogo} alt="CobraFácil" className="h-14 w-auto" />
-            <span className="font-bold text-xl text-foreground">CobraFácil</span>
-            <span className="hidden sm:inline text-sm text-muted-foreground">sistema de gestão de empréstimos</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="hidden sm:flex border-primary/30 text-primary bg-primary/10">
-              <Users className="w-3 h-3 mr-1" />
-              <span>Mais de 1.350 clientes ativos</span>
-            </Badge>
-          </div>
-        </div>
-      </motion.header>
-
       {/* Hero Section */}
-      <section className="pt-32 pb-8 px-4 relative min-h-[90vh] flex items-center">
+      <section className="pt-20 pb-8 px-4 relative min-h-[90vh] flex items-center">
         {/* Background Image */}
         <div className="absolute inset-0 overflow-hidden">
           <img 
