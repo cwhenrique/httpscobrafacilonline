@@ -1166,6 +1166,9 @@ const Landing = () => {
                 <div className="absolute -right-12 top-20 sm:top-24 rotate-45 bg-red-500 text-white text-xs font-bold py-1 px-12">
                   ECONOMIZE
                 </div>
+                <div className="absolute -left-14 top-20 sm:top-24 -rotate-45 bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-12">
+                  TEMPO LIMITADO
+                </div>
                 <CardContent className="p-6 sm:p-8 pt-14 sm:pt-16">
                   <div className="text-center mb-6 sm:mb-8">
                     <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
