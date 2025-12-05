@@ -86,9 +86,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </Link>
       </div>
 
-      {/* PWA Install Banner */}
-      <PWAInstallBanner variant="sidebar" />
-
       <ScrollArea className="flex-1 px-3">
         <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
         <nav className="space-y-1">
@@ -114,6 +111,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           })}
         </nav>
       </ScrollArea>
+
+      {/* PWA Install Banner - Fixed at bottom */}
+      <div className="px-3 py-2">
+        <PWAInstallBanner variant="sidebar" />
+      </div>
 
       <div className="p-4 border-t border-sidebar-border">
         <p className="text-xs text-sidebar-foreground/60 text-center">
