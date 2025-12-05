@@ -194,12 +194,27 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Floating Banner - Contador de Vagas */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-red-600 via-red-500 to-red-600 text-white py-2 px-4">
+        <div className="container mx-auto flex items-center justify-center gap-3">
+          <Clock className="w-4 h-4 animate-pulse" />
+          <span className="text-xs sm:text-sm font-bold">
+            🔥 PROMOÇÃO LIMITADA: Apenas <span className="text-yellow-300">47</span> de 50 vagas vitalícias restantes!
+          </span>
+          <div className="hidden sm:flex items-center gap-1 ml-2">
+            <div className="w-20 bg-white/30 rounded-full h-2">
+              <div className="bg-yellow-300 h-2 rounded-full" style={{ width: '94%' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <motion.header 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border"
+        className="fixed top-10 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -217,7 +232,7 @@ const Landing = () => {
       </motion.header>
 
       {/* Hero Section */}
-      <section className="pt-24 pb-8 px-4 relative min-h-[90vh] flex items-center">
+      <section className="pt-32 pb-8 px-4 relative min-h-[90vh] flex items-center">
         {/* Background Image */}
         <div className="absolute inset-0 overflow-hidden">
           <img 
@@ -1091,20 +1106,6 @@ const Landing = () => {
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Escolha o plano ideal para você. Quanto maior o período, maior a economia!
             </p>
-            
-            {/* Contador de vagas */}
-            <div className="mt-6 mx-auto max-w-md p-4 bg-red-500/10 border border-red-500/30 rounded-2xl">
-              <div className="flex items-center justify-center gap-2 text-red-500">
-                <Clock className="w-5 h-5 animate-pulse" />
-                <span className="text-sm font-bold">PROMOÇÃO LIMITADA</span>
-              </div>
-              <div className="text-xl sm:text-2xl font-bold text-foreground mt-2">
-                Apenas <span className="text-red-500">47</span> de 50 vagas restantes
-              </div>
-              <div className="w-full bg-muted rounded-full h-2.5 mt-3">
-                <div className="bg-red-500 h-2.5 rounded-full transition-all duration-500" style={{ width: '94%' }} />
-              </div>
-            </div>
           </motion.div>
           
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
