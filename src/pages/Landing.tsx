@@ -1163,13 +1163,15 @@ const Landing = () => {
                   <span className="hidden sm:inline">🔥 MAIS VENDIDO - MELHOR ESCOLHA</span>
                   <span className="sm:hidden">🔥 MAIS VENDIDO</span>
                 </div>
-                <div className="absolute -right-12 top-20 sm:top-24 rotate-45 bg-red-500 text-white text-xs font-bold py-1 px-12">
-                  ECONOMIZE
+                <div className="absolute top-10 sm:top-12 left-0 right-0 flex justify-center gap-2 px-4">
+                  <span className="bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
+                    ⏰ TEMPO LIMITADO
+                  </span>
+                  <span className="bg-red-500 text-white text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
+                    💰 ECONOMIZE
+                  </span>
                 </div>
-                <div className="absolute -left-14 top-20 sm:top-24 -rotate-45 bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-12">
-                  TEMPO LIMITADO
-                </div>
-                <CardContent className="p-6 sm:p-8 pt-14 sm:pt-16">
+                <CardContent className="p-6 sm:p-8 pt-20 sm:pt-24">
                   <div className="text-center mb-6 sm:mb-8">
                     <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
                       <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
