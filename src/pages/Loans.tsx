@@ -1232,7 +1232,7 @@ export default function Loans() {
                     </div>
                   </div>
                   
-                  <div className="space-y-4 border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20">
+                  <div className="space-y-4 border border-yellow-600 rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/30">
                     <div className="flex items-center space-x-2">
                       <Checkbox 
                         id="interest_only" 
@@ -1242,7 +1242,7 @@ export default function Loans() {
                           interest_only_paid: checked as boolean 
                         })}
                       />
-                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer">
+                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer text-yellow-900 dark:text-yellow-100">
                         Cliente pagou só os juros da parcela
                       </Label>
                     </div>
@@ -1250,7 +1250,7 @@ export default function Loans() {
                     {renegotiateData.interest_only_paid && (
                       <div className="grid grid-cols-2 gap-4 pt-2">
                         <div className="space-y-2">
-                          <Label>Valor Pago (Juros) (R$) *</Label>
+                          <Label className="text-yellow-900 dark:text-yellow-100">Valor Pago (Juros) (R$) *</Label>
                           <Input 
                             type="number" 
                             step="0.01" 
@@ -1258,16 +1258,18 @@ export default function Loans() {
                             onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
                             placeholder="Ex: 100,00"
                             required={renegotiateData.interest_only_paid}
+                            className="bg-white dark:bg-background text-foreground"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Valor que Ainda Falta (R$)</Label>
+                          <Label className="text-yellow-900 dark:text-yellow-100">Valor que Ainda Falta (R$)</Label>
                           <Input 
                             type="number" 
                             step="0.01" 
                             value={renegotiateData.remaining_amount} 
                             onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
                             placeholder="Valor restante"
+                            className="bg-white dark:bg-background text-foreground"
                           />
                         </div>
                       </div>
