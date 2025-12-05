@@ -199,7 +199,7 @@ const Landing = () => {
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-primary/95 via-green-500/95 to-primary/95 backdrop-blur-sm text-primary-foreground py-2.5 px-4 border-b border-primary/30 shadow-lg shadow-primary/20"
+        className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-primary/80 via-green-500/80 to-primary/80 backdrop-blur-md text-primary-foreground py-2.5 px-4 border-b border-primary/20 shadow-lg shadow-primary/10"
       >
         <div className="container mx-auto flex items-center justify-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
