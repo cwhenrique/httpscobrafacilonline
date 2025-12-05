@@ -663,6 +663,30 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Testimonials Section */}
+      <section className="py-24 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
+              Depoimentos
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              O que nossos clientes dizem
+            </h2>
+            <p className="text-muted-foreground">Conheça quem já usa o CobraFácil</p>
+          </motion.div>
+          
+          <VideoCarousel />
+        </div>
+      </section>
+
       {/* Detailed Features Section */}
       <section className="py-16 px-4 relative">
         <div className="container mx-auto">
@@ -1044,30 +1068,6 @@ const Landing = () => {
               </motion.div>
             ))}
           </motion.div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="py-24 px-4 relative">
-        <div className="container mx-auto">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Depoimentos
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              O que nossos clientes dizem
-            </h2>
-            <p className="text-muted-foreground">Conheça quem já usa o CobraFácil</p>
-          </motion.div>
-          
-          <VideoCarousel />
         </div>
       </section>
 
