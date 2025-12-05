@@ -195,19 +195,39 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Floating Banner - Contador de Vagas */}
-      <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-red-600 via-red-500 to-red-600 text-white py-2 px-4">
-        <div className="container mx-auto flex items-center justify-center gap-3">
-          <Clock className="w-4 h-4 animate-pulse" />
-          <span className="text-xs sm:text-sm font-bold">
-            🔥 PROMOÇÃO LIMITADA: Apenas <span className="text-yellow-300">47</span> de 50 vagas vitalícias restantes!
+      <motion.div 
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-primary/95 via-green-500/95 to-primary/95 backdrop-blur-sm text-primary-foreground py-2.5 px-4 border-b border-primary/30 shadow-lg shadow-primary/20"
+      >
+        <div className="container mx-auto flex items-center justify-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-400"></span>
+            </span>
+            <span className="text-xs sm:text-sm font-bold uppercase tracking-wide">
+              Oferta Limitada
+            </span>
+          </div>
+          <div className="h-4 w-px bg-primary-foreground/30 hidden sm:block" />
+          <span className="text-xs sm:text-sm font-medium">
+            Apenas <span className="font-bold text-yellow-300 text-sm sm:text-base">47</span> de 50 vagas vitalícias
           </span>
-          <div className="hidden sm:flex items-center gap-1 ml-2">
-            <div className="w-20 bg-white/30 rounded-full h-2">
-              <div className="bg-yellow-300 h-2 rounded-full" style={{ width: '94%' }} />
+          <div className="hidden sm:flex items-center gap-2 ml-1">
+            <div className="w-24 bg-primary-foreground/20 rounded-full h-2 overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: '94%' }}
+                transition={{ duration: 1, delay: 0.5 }}
+                className="bg-yellow-400 h-2 rounded-full"
+              />
             </div>
+            <span className="text-xs font-medium text-yellow-300">94%</span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Header */}
       <motion.header 
