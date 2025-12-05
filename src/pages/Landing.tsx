@@ -203,7 +203,7 @@ const Landing = () => {
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={cobraFacilLogo} alt="CobraFácil" className="h-10 w-auto" />
+            <img src={cobraFacilLogo} alt="CobraFácil" className="h-14 w-auto" />
             <span className="font-bold text-xl text-foreground">CobraFácil</span>
             <span className="hidden sm:inline text-sm text-muted-foreground">sistema de gestão de empréstimos</span>
           </div>
@@ -626,8 +626,8 @@ const Landing = () => {
               
               <div className="relative flex flex-col md:flex-row items-center gap-8">
                 <div className="flex-shrink-0">
-                  <div className="w-24 h-24 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6 border-2 border-primary/30">
-                    <img src={cobraFacilLogo} alt="CobraFácil" className="w-16 h-16 object-contain" />
+                  <div className="w-28 h-28 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6 border-2 border-primary/30">
+                    <img src={cobraFacilLogo} alt="CobraFácil" className="w-20 h-20 object-contain" />
                   </div>
                 </div>
                 <div className="text-center md:text-left flex-1">
