@@ -1258,7 +1258,7 @@ export default function Loans() {
                             onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
                             placeholder="Ex: 100,00"
                             required={renegotiateData.interest_only_paid}
-                            className="bg-white dark:bg-background text-foreground"
+                            className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
                           />
                         </div>
                         <div className="space-y-2">
@@ -1269,7 +1269,7 @@ export default function Loans() {
                             value={renegotiateData.remaining_amount} 
                             onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
                             placeholder="Valor restante"
-                            className="bg-white dark:bg-background text-foreground"
+                            className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
                           />
                         </div>
                       </div>
