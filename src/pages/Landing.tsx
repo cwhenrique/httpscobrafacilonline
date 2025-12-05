@@ -1140,11 +1140,11 @@ const Landing = () => {
                       <span className="text-muted-foreground text-sm">Ideal para testar</span>
                     </li>
                   </ul>
-                  <Link to="/auth" className="block">
+                  <a href="https://pay.cakto.com.br/32tjeaa" target="_blank" rel="noopener noreferrer" className="block">
                     <Button variant="outline" size="lg" className="w-full h-12">
-                      Começar Teste
+                      Assinar Mensal
                     </Button>
-                  </Link>
+                  </a>
                 </CardContent>
               </Card>
             </motion.div>
