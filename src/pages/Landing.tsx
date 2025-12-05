@@ -234,7 +234,7 @@ const Landing = () => {
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="fixed top-10 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border"
+        className="fixed top-10 left-0 right-0 z-50 bg-background/70 backdrop-blur-md border-b border-border/50"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
