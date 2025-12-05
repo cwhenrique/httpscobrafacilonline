@@ -71,8 +71,8 @@ export function PWAInstallBanner({ variant = "card" }: PWAInstallBannerProps) {
     localStorage.setItem("pwa-banner-dismissed", "true");
   };
 
-  // Don't show if installed or dismissed
-  if (isInstalled || isDismissed) {
+  // Don't show if installed or dismissed (except for sidebar which always shows)
+  if (isInstalled || (isDismissed && variant !== "sidebar")) {
     return null;
   }
 
