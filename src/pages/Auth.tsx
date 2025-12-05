@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -45,8 +46,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-background p-4">
       <Card className="w-full max-w-md shadow-soft animate-fade-in">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center shadow-lg">
-            <DollarSign className="w-8 h-8 text-primary-foreground" />
+          <div className="mx-auto">
+            <img src={cobraFacilLogo} alt="CobraFácil" className="h-24 w-auto" />
           </div>
           <div>
             <CardTitle className="text-2xl font-display">CobraFácil</CardTitle>
