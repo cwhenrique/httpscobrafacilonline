@@ -26,7 +26,10 @@ import {
   Loader2,
   Lock,
   MessageCircle,
-  Send
+  Send,
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -41,6 +44,13 @@ export default function Profile() {
     phone: '',
     company_name: '',
   });
+  const [passwordData, setPasswordData] = useState({
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [stats, setStats] = useState({
     totalClients: 0,
     totalLoans: 0,
@@ -176,6 +186,39 @@ export default function Profile() {
       toast.error(`Erro ao enviar teste: ${error.message}`);
     }
     setSendingTest(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.newPassword) {
+      toast.error('Digite a nova senha');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword,
+      });
+
+      if (error) throw error;
+
+      toast.success('Senha alterada com sucesso!');
+      setPasswordData({ newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast.error(`Erro ao alterar senha: ${error.message}`);
+    }
+    setChangingPassword(false);
   };
 
   if (loading) {
@@ -422,6 +465,81 @@ export default function Profile() {
                 Cadastre um número de telefone para testar
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Change Password Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-amber-500" />
+              Alterar Senha
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Digite uma nova senha para sua conta. A senha deve ter pelo menos 6 caracteres.
+            </p>
+            
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Nova Senha</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  placeholder="Digite a nova senha"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  placeholder="Confirme a nova senha"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleChangePassword} 
+              disabled={changingPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+              className="gap-2"
+            >
+              {changingPassword ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Alterando...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" />
+                  Alterar Senha
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>
