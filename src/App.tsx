@@ -10,6 +10,7 @@ import Affiliate from "./pages/Affiliate";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
+import ClientScores from "./pages/ClientScores";
 import Loans from "./pages/Loans";
 import Bills from "./pages/Bills";
 import CalendarView from "./pages/CalendarView";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+            <Route path="/scores" element={<ProtectedRoute><ClientScores /></ProtectedRoute>} />
             <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
             <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />

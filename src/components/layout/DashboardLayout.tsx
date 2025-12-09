@@ -27,6 +27,7 @@ import {
   Calendar,
   Receipt,
   Calculator,
+  Award,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -38,6 +39,7 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clientes', href: '/clients', icon: Users },
+  { name: 'Score de Clientes', href: '/scores', icon: Award },
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
   { name: 'Contas a Pagar', href: '/bills', icon: Receipt },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
