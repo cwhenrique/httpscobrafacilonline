@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Affiliate from "./pages/Affiliate";
+import AffiliateId from "./pages/AffiliateId";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
@@ -33,6 +34,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/aff" element={<Affiliate />} />
+            <Route path="/affid" element={<AffiliateId />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
