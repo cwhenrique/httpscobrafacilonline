@@ -55,9 +55,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex flex-col h-full">
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-sidebar-primary rounded-xl flex items-center justify-center">
-            <DollarSign className="w-5 h-5 text-sidebar-primary-foreground" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="CobraFácil" 
+            className="w-10 h-10 rounded-xl"
+          />
           <div>
             <h1 className="font-display font-bold text-lg text-sidebar-foreground">CobraFácil</h1>
             <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
@@ -167,7 +169,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </Sheet>
 
           <div className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-primary" />
+            <img src="/logo.png" alt="CobraFácil" className="w-6 h-6 rounded" />
             <span className="font-display font-bold">CobraFácil</span>
           </div>
 
