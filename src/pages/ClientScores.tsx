@@ -264,62 +264,66 @@ export default function ClientScores() {
                       return (
                         <div
                           key={client.id}
-                          className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
+                          className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
                         >
-                          {/* Rank */}
-                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold">
-                            {index + 1}
-                          </div>
+                          {/* Mobile: Top row with rank, avatar, name and score */}
+                          <div className="flex items-center gap-3 w-full sm:w-auto sm:flex-1">
+                            {/* Rank */}
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold shrink-0">
+                              {index + 1}
+                            </div>
 
-                          {/* Avatar */}
-                          <Avatar className="h-12 w-12 border-2 border-background">
-                            <AvatarImage src={client.avatar_url || undefined} alt={client.full_name} />
-                            <AvatarFallback className="text-lg">
-                              {client.full_name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
+                            {/* Avatar */}
+                            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-background shrink-0">
+                              <AvatarImage src={client.avatar_url || undefined} alt={client.full_name} />
+                              <AvatarFallback className="text-base sm:text-lg">
+                                {client.full_name.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{client.full_name}</p>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="text-green-600">{client.on_time_payments || 0} em dia</span>
-                              <span className="text-red-600">{client.late_payments || 0} atrasados</span>
-                              <span>{client.total_loans || 0} empréstimos</span>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate text-sm sm:text-base">{client.full_name}</p>
+                              <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                                <span className="text-green-600">{client.on_time_payments || 0} em dia</span>
+                                <span className="text-red-600">{client.late_payments || 0} atrasados</span>
+                                <span>{client.total_loans || 0} empréstimos</span>
+                              </div>
+                            </div>
+
+                            {/* Score Circle - visible on mobile */}
+                            <div className="relative w-12 h-12 sm:w-16 sm:h-16 shrink-0">
+                              <svg className="w-12 h-12 sm:w-16 sm:h-16 -rotate-90">
+                                <circle
+                                  cx="50%"
+                                  cy="50%"
+                                  r="40%"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  className="text-muted"
+                                />
+                                <circle
+                                  cx="50%"
+                                  cy="50%"
+                                  r="40%"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  strokeDasharray={`${(score / 150) * 100} 100`}
+                                  strokeLinecap="round"
+                                  className={getScoreRingColor(score)}
+                                  pathLength="100"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-sm sm:text-lg font-bold">{score}</span>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Score Circle */}
-                          <div className="relative w-16 h-16">
-                            <svg className="w-16 h-16 -rotate-90">
-                              <circle
-                                cx="32"
-                                cy="32"
-                                r="28"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                fill="none"
-                                className="text-muted"
-                              />
-                              <circle
-                                cx="32"
-                                cy="32"
-                                r="28"
-                                strokeWidth="4"
-                                fill="none"
-                                strokeDasharray={`${(score / 150) * 176} 176`}
-                                strokeLinecap="round"
-                                className={getScoreRingColor(score)}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <span className="text-lg font-bold">{score}</span>
-                            </div>
-                          </div>
-
-                          {/* Badge */}
-                          <div className="hidden sm:flex flex-col items-end gap-1">
-                            <Badge className={`${color} gap-1`}>
+                          {/* Badge - visible on all screens, inline on mobile */}
+                          <div className="flex items-center justify-between sm:flex-col sm:items-end gap-1 pl-10 sm:pl-0">
+                            <Badge className={`${color} gap-1 text-[10px] sm:text-xs`}>
                               {getScoreIcon(score)} {label}
                             </Badge>
                             {getTrendIcon(score)}
