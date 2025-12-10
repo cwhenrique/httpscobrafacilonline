@@ -340,6 +340,27 @@ const Landing = () => {
             </div>
           </motion.div>
 
+          {/* Video Section */}
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.38 }}
+            className="mt-8 max-w-3xl mx-auto px-4"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 border border-primary/20">
+              <div className="aspect-video">
+                <iframe
+                  src="https://www.youtube.com/embed/Z9v0isZxqUE?rel=0"
+                  title="CobraFácil - Veja como funciona"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              </div>
+            </div>
+          </motion.div>
+
           {/* Trust Badges */}
           <motion.div 
             initial="hidden"
