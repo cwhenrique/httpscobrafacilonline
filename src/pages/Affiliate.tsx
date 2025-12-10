@@ -1103,31 +1103,18 @@ const Affiliate = () => {
         animate={{ y: showBottomBar ? 0 : 100 }}
         className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-t border-border py-3 px-4"
       >
-        <div className="container mx-auto flex items-center justify-center sm:justify-between gap-3">
-          <div className="hidden sm:flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <span className="text-sm text-muted-foreground">
-              Pagamento único, <span className="text-primary font-semibold">acesso vitalício</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <a 
-              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e gostaria de mais informações." 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex-shrink-0"
-            >
-              <Button variant="outline" size="icon" className="border-green-500/50 text-green-500 hover:bg-green-500/10 hover:text-green-400">
-                <MessageCircle className="w-5 h-5" />
-              </Button>
-            </a>
-            <a href="#pricing" className="flex-1 sm:flex-none">
-              <Button className="w-full sm:w-auto">
-                Começar Agora
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </a>
-          </div>
+        <div className="container mx-auto flex items-center justify-center gap-3">
+          <a 
+            href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e gostaria de tirar uma dúvida." 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto"
+          >
+            <Button className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white px-6 h-12">
+              <MessageCircle className="w-5 h-5 mr-2" />
+              <span>Tirar Dúvidas no WhatsApp</span>
+            </Button>
+          </a>
         </div>
       </motion.div>
     </div>
