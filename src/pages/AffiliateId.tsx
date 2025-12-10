@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import VideoCarousel from "@/components/VideoCarousel";
+import PricingSection from "@/components/PricingSection";
 import heroPerson from "@/assets/hero-person.png";
 import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
 import dashboardOverview from "@/assets/dashboard-overview.png";
@@ -433,6 +434,13 @@ const AffiliateId = () => {
         </div>
       </section>
 
+      {/* Pricing Section 1 - After Garantia */}
+      <PricingSection 
+        monthlyLink={AFFILIATE_LINKS.monthly}
+        annualLink={AFFILIATE_LINKS.annual}
+        lifetimeLink={AFFILIATE_LINKS.lifetime}
+      />
+
       {/* Comparison Section */}
       <section className="py-24 px-4 relative">
         <div className="container mx-auto">
@@ -589,6 +597,14 @@ const AffiliateId = () => {
           <VideoCarousel />
         </div>
       </section>
+
+      {/* Pricing Section 2 - After Testimonials */}
+      <PricingSection 
+        monthlyLink={AFFILIATE_LINKS.monthly}
+        annualLink={AFFILIATE_LINKS.annual}
+        lifetimeLink={AFFILIATE_LINKS.lifetime}
+        showTitle={false}
+      />
 
       {/* Detailed Features */}
       <section className="py-24 px-4 relative bg-muted/30">
