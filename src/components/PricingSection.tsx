@@ -22,21 +22,32 @@ const scaleIn = {
   visible: { opacity: 1, scale: 1 },
 };
 
+interface AffiliateLinks {
+  monthly: string;
+  annual: string;
+  lifetime: string;
+}
+
 interface PricingSectionProps {
-  monthlyLink?: string;
-  annualLink?: string;
-  lifetimeLink?: string;
+  affiliateLinks?: AffiliateLinks;
   showTitle?: boolean;
   className?: string;
 }
 
+const defaultLinks: AffiliateLinks = {
+  monthly: "https://pay.cakto.com.br/32tjeaa",
+  annual: "https://pay.cakto.com.br/37et5v3",
+  lifetime: "https://pay.cakto.com.br/fhwfptb",
+};
+
 const PricingSection = ({
-  monthlyLink = "https://pay.cakto.com.br/32tjeaa",
-  annualLink = "https://pay.cakto.com.br/37et5v3",
-  lifetimeLink = "https://pay.cakto.com.br/fhwfptb",
+  affiliateLinks = defaultLinks,
   showTitle = true,
   className = "",
 }: PricingSectionProps) => {
+  const monthlyLink = affiliateLinks.monthly;
+  const annualLink = affiliateLinks.annual;
+  const lifetimeLink = affiliateLinks.lifetime;
   return (
     <section id="pricing" className={`py-16 px-4 relative ${className}`}>
       <div className="container mx-auto">

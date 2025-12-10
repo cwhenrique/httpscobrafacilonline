@@ -421,17 +421,17 @@ const Affiliate = () => {
                   devolvemos <strong className="text-primary">100% do seu dinheiro</strong>. Sem perguntas.
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center md:justify-start gap-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary" />
-                    <span>Sem burocracia</span>
+                    <span className="text-sm font-medium text-foreground">Reembolso garantido</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary" />
-                    <span>Dinheiro de volta</span>
+                    <span className="text-sm font-medium text-foreground">Sem burocracia</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary" />
-                    <span>Satisfação garantida</span>
+                    <span className="text-sm font-medium text-foreground">Processo simples</span>
                   </div>
                 </div>
               </div>
@@ -440,16 +440,12 @@ const Affiliate = () => {
         </div>
       </section>
 
-      {/* Pricing Section 1 - After Garantia */}
-      <PricingSection 
-        monthlyLink={AFFILIATE_LINKS.monthly}
-        annualLink={AFFILIATE_LINKS.annual}
-        lifetimeLink={AFFILIATE_LINKS.lifetime}
-      />
+      <PricingSection affiliateLinks={AFFILIATE_LINKS} />
 
-      {/* Features Preview Section */}
-      <section className="py-16 px-4 relative overflow-hidden">
-        <div className="container mx-auto">
+      {/* Comparison Section */}
+      <section className="py-16 px-4 relative bg-muted/30">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="container mx-auto relative">
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -458,44 +454,90 @@ const Affiliate = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Funcionalidades
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Tudo que você precisa em um só lugar
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <TrendingUp className="w-4 h-4" />
+              <span>Compare e Economize</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Chega de Pagar <span className="gradient-text">Mensalidade</span> Todo Mês
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Conheça as principais funcionalidades que vão transformar sua forma de cobrar
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Veja a diferença entre plataformas com mensalidade e o CobraFácil
             </p>
           </motion.div>
+          
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Competitors */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <Card className="bg-card border-2 h-full shadow-lg" style={{ borderColor: '#ef4444' }}>
+                <CardContent className="p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-foreground">Outras Plataformas</h3>
+                    <span className="px-3 py-1.5 rounded-full text-sm font-semibold" style={{ backgroundColor: '#16a34a', color: '#ffffff' }}>💸 Mensalidade</span>
+                  </div>
+                  <div className="space-y-4">
+                    {competitorProblems.map((problem, index) => (
+                      <div key={index} className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-3" style={{ color: '#f87171' }}>
+                        <X className="w-5 h-5 flex-shrink-0" style={{ color: '#ef4444' }} />
+                        <span>{problem}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-8 pt-6" style={{ borderTop: '1px solid #ef4444' }}>
+                    <div className="text-sm text-muted-foreground">Custo anual estimado</div>
+                    <div className="text-4xl font-bold" style={{ color: '#ef4444' }}>R$ 600+/ano</div>
+                    <div className="text-sm text-muted-foreground">em mensalidades recorrentes</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
 
-          {/* Feature Cards Grid */}
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={staggerContainer}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto"
-          >
-            {features.map((feature, index) => (
-              <motion.div key={index} variants={fadeInUp}>
-                <Card className="bg-card border-border h-full hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <feature.icon className="w-7 h-7 text-primary" />
+            {/* CobraFácil */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.1 }}
+            >
+              <Card className="card-premium bg-gradient-to-b from-primary/5 to-primary/10 border-2 border-primary/30 h-full relative overflow-hidden shadow-xl shadow-primary/15">
+                <div className="absolute top-0 right-0 bg-gradient-to-r from-primary to-green-600 text-primary-foreground text-xs font-bold px-4 py-2 rounded-bl-xl">
+                  ✨ MELHOR ESCOLHA
+                </div>
+                <CardContent className="p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-foreground">CobraFácil</h3>
+                    <div className="badge-premium badge-glow rounded-full px-4 py-1.5">
+                      <span className="text-primary font-bold text-sm">Pagamento Único</span>
                     </div>
-                    <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
-                    <p className="text-muted-foreground text-sm">{feature.description}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
+                  </div>
+                  <div className="space-y-4">
+                    {cobraFacilBenefits.map((benefit, index) => (
+                      <div key={index} className="flex items-center gap-3 text-foreground stat-card rounded-lg px-4 py-3">
+                        <Check className="w-5 h-5 text-primary flex-shrink-0" />
+                        <span className="font-medium">{benefit}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-primary/20">
+                    <div className="text-sm text-muted-foreground">Investimento</div>
+                    <div className="text-4xl font-bold gradient-text">1x e Pronto!</div>
+                    <div className="text-sm text-muted-foreground">acesso vitalício garantido</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* App Screenshots Carousel */}
-      <section className="py-16 px-4 bg-muted/30">
+      {/* Multi-Device Section */}
+      <section className="py-16 px-4 relative">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -505,97 +547,137 @@ const Affiliate = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Veja o App
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Interface Simples e Intuitiva
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Navegue pelas principais telas do CobraFácil
-            </p>
-          </motion.div>
-
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="max-w-5xl mx-auto"
-          >
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={dashboardOverview} alt="Dashboard" className="w-full h-auto" />
-                <div className="p-4 bg-card">
-                  <h4 className="font-semibold text-foreground">Dashboard</h4>
-                  <p className="text-sm text-muted-foreground">Visão geral de todas as suas cobranças</p>
-                </div>
-              </div>
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={loansCards} alt="Empréstimos" className="w-full h-auto" />
-                <div className="p-4 bg-card">
-                  <h4 className="font-semibold text-foreground">Empréstimos</h4>
-                  <p className="text-sm text-muted-foreground">Gerencie todos os seus empréstimos</p>
-                </div>
-              </div>
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={calendarPage} alt="Calendário" className="w-full h-auto" />
-                <div className="p-4 bg-card">
-                  <h4 className="font-semibold text-foreground">Calendário</h4>
-                  <p className="text-sm text-muted-foreground">Visualize todos os vencimentos</p>
-                </div>
-              </div>
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <Smartphone className="w-4 h-4" />
+              <span>Acesse de Qualquer Lugar</span>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* WhatsApp Alerts Section */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <Badge className="mb-4 bg-green-500/10 text-green-500 border-green-500/30">
-              WhatsApp
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Alertas Automáticos no WhatsApp
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Funciona em <span className="gradient-text">Todos os Dispositivos</span>
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Receba lembretes de vencimento, atrasos e resumos diários direto no seu celular
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Use no computador, tablet ou celular. E ainda pode instalar como um aplicativo no seu smartphone!
             </p>
           </motion.div>
 
-          <motion.div 
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
+            {/* Desktop */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <rect width="20" height="14" x="2" y="3" rx="2"/>
+                    <line x1="8" x2="16" y1="21" y2="21"/>
+                    <line x1="12" x2="12" y1="17" y2="21"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Computador</h3>
+                <p className="text-muted-foreground">
+                  Acesse pelo navegador no seu PC ou notebook. Tela grande para melhor visualização.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Tablet */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.1 }}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
+                    <line x1="12" x2="12.01" y1="18" y2="18"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Tablet</h3>
+                <p className="text-muted-foreground">
+                  Perfeito para usar enquanto visita clientes. Praticidade na palma da mão.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Mobile */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={fadeInUp}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="stat-card rounded-2xl p-8 text-center hover:scale-105 transition-all duration-300">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+                  <Smartphone className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-2">Celular</h3>
+                <p className="text-muted-foreground">
+                  Leve o CobraFácil no bolso. Consulte e registre pagamentos a qualquer momento.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Install as App Banner */}
+          <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={fadeInUp}
             className="max-w-4xl mx-auto"
           >
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={whatsappAlert01} alt="Alerta WhatsApp 1" className="w-full h-auto" />
-              </div>
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={whatsappAlert02} alt="Alerta WhatsApp 2" className="w-full h-auto" />
-              </div>
-              <div className="rounded-xl overflow-hidden border border-border shadow-lg">
-                <img src={whatsappAlert03} alt="Alerta WhatsApp 3" className="w-full h-auto" />
+            <div className="relative badge-premium rounded-3xl p-8 md:p-10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/10" />
+              <div className="absolute -left-20 -top-20 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
+              <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
+              
+              <div className="relative flex flex-col md:flex-row items-center gap-8">
+                <div className="flex-shrink-0">
+                  <div className="w-28 h-28 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center shadow-glow-sm rotate-6 border-2 border-primary/30">
+                    <img src={cobraFacilLogo} alt="CobraFácil" className="w-20 h-20 object-contain" />
+                  </div>
+                </div>
+                <div className="text-center md:text-left flex-1">
+                  <div className="inline-flex items-center gap-2 bg-primary/20 rounded-full px-4 py-1.5 text-xs font-bold text-primary mb-3">
+                    <Zap className="w-3 h-3" />
+                    <span>INSTALE COMO APLICATIVO</span>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+                    Crie um Atalho no Seu Celular
+                  </h3>
+                  <p className="text-muted-foreground text-lg mb-4">
+                    Adicione o CobraFácil à tela inicial do seu celular como se fosse um aplicativo da loja. 
+                    <strong className="text-foreground"> Sem precisar baixar nada!</strong> Acesse com um toque, sem abrir o navegador.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Funciona offline</span>
+                    </div>
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Carregamento rápido</span>
+                    </div>
+                    <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Sem ocupar espaço</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Testimonials Video Carousel */}
-      <section className="py-16 px-4 bg-muted/30">
+      {/* Testimonials Section */}
+      <section className="py-24 px-4 relative">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -611,25 +693,307 @@ const Affiliate = () => {
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
               O que nossos clientes dizem
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Veja depoimentos reais de quem já usa o CobraFácil
-            </p>
+            <p className="text-muted-foreground">Conheça quem já usa o CobraFácil</p>
           </motion.div>
-
+          
           <VideoCarousel />
         </div>
       </section>
 
       {/* Pricing Section 2 - After Testimonials */}
-      <PricingSection 
-        monthlyLink={AFFILIATE_LINKS.monthly}
-        annualLink={AFFILIATE_LINKS.annual}
-        lifetimeLink={AFFILIATE_LINKS.lifetime}
-        showTitle={false}
-      />
+      <PricingSection showTitle={false} affiliateLinks={AFFILIATE_LINKS} />
 
-      {/* Comparison Section */}
-      <section className="py-16 px-4">
+      {/* Detailed Features Section */}
+      <section className="py-16 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30 px-4 py-2 font-semibold">
+              <Smartphone className="w-4 h-4 mr-2" />
+              Conheça o Sistema
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Tudo Que Você Precisa em Um Só Lugar
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Veja em detalhes cada funcionalidade que vai transformar sua gestão de cobranças
+            </p>
+          </motion.div>
+
+          {/* Feature 1 - Dashboard */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Dashboard</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Visão Geral Completa
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Acompanhe em tempo real todos os seus empréstimos, valores a receber, pagamentos atrasados e muito mais. Tudo em uma única tela intuitiva.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Total emprestado e recebido</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Alertas de atrasos em destaque</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Gráficos de evolução financeira</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={dashboardOverview} 
+                  alt="Dashboard CobraFácil - Visão geral completa do sistema financeiro" 
+                  className="w-full h-auto rounded-xl"
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 2 - Empréstimos */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Empréstimos</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Gestão Completa de Empréstimos
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Cadastre empréstimos com juros simples ou por parcela. O sistema calcula tudo automaticamente e exibe em cards visuais e organizados.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Cálculo automático de juros</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Cards visuais por status</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Renegociação de dívidas</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={loansCards} 
+                  alt="Gestão de Empréstimos CobraFácil - Cards visuais organizados" 
+                  className="w-full h-auto rounded-xl"
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 3 - Calendário */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Calendário</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Calendário de Cobranças
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Visualize todas as datas de vencimento em um calendário intuitivo. Nunca mais esqueça de cobrar ninguém.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Indicadores visuais por status</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Detalhes ao clicar na data</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Estatísticas mensais</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={calendarPage} 
+                  alt="Calendário de Cobranças CobraFácil - Visualize datas de vencimento" 
+                  className="w-full h-auto rounded-xl"
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 4 - Alertas WhatsApp */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">WhatsApp</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Alertas Automáticos no WhatsApp
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Receba resumos diários, alertas de vencimento e avisos de atraso direto no seu WhatsApp. Você sempre informado.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Resumo diário às 8h</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Alertas de vencimento no dia</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Avisos progressivos de atraso</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-4 overflow-hidden">
+                <div className="grid grid-cols-3 gap-2">
+                  <img 
+                    src={whatsappAlert01} 
+                    alt="Alerta WhatsApp - Novo empréstimo parcelado" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <img 
+                    src={whatsappAlert02} 
+                    alt="Alerta WhatsApp - Novo empréstimo único" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <img 
+                    src={whatsappAlert03} 
+                    alt="Alerta WhatsApp - Pagamento diário" 
+                    className="w-full h-auto rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 5 - Score de Clientes */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center mb-16"
+          >
+            <div className="order-2 md:order-1">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Score</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Score de Clientes
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Sistema inteligente que avalia a confiabilidade de cada cliente baseado no histórico de pagamentos. Saiba quem é bom pagador.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Score de 0 a 150 pontos</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Atualização automática</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Indicador visual por cores</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1 md:order-2">
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={scoreDeClientes} 
+                  alt="Score de Clientes CobraFácil - Avalie a confiabilidade dos clientes" 
+                  className="w-full h-auto rounded-xl"
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Feature 6 - Simulador */}
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="grid md:grid-cols-2 gap-8 items-center"
+          >
+            <div className="order-2">
+              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">Simulador</Badge>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Simulador de Empréstimos
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Planeje empréstimos antes de criar. Simule valores, juros e parcelas para apresentar propostas aos seus clientes.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Cálculo instantâneo</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Tabela de parcelas detalhada</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Total de juros e valor final</span>
+                </li>
+              </ul>
+            </div>
+            <div className="order-1">
+              <div className="bg-muted/50 border border-border rounded-2xl p-2 overflow-hidden">
+                <img 
+                  src={simulatorPage} 
+                  alt="Simulador de Empréstimos CobraFácil - Planeje antes de criar" 
+                  className="w-full h-auto rounded-xl"
+                />
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 px-4 relative">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -640,67 +1004,41 @@ const Affiliate = () => {
             className="text-center mb-12"
           >
             <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Comparação
+              Benefícios
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Por que escolher o CobraFácil?
+              Por Que Escolher o CobraFácil?
             </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Tecnologia de ponta para transformar suas cobranças em resultados reais
+            </p>
           </motion.div>
-
           <motion.div 
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: "-100px" }}
             variants={staggerContainer}
-            className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            <motion.div variants={fadeInUp}>
-              <Card className="bg-red-500/5 border-red-500/20 h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
-                      <X className="w-5 h-5 text-red-500" />
+            {features.map((feature, index) => (
+              <motion.div key={index} variants={fadeInUp}>
+                <Card className="bg-card border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full group">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:scale-110 transition-all">
+                      <feature.icon className="w-6 h-6 text-primary group-hover:text-primary-foreground" />
                     </div>
-                    <h3 className="font-bold text-foreground text-lg">Outros Apps</h3>
-                  </div>
-                  <ul className="space-y-4">
-                    {competitorProblems.map((problem, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <X className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                        <span className="text-muted-foreground">{problem}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div variants={fadeInUp}>
-              <Card className="bg-primary/5 border-primary/20 h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                      <Check className="w-5 h-5 text-primary" />
-                    </div>
-                    <h3 className="font-bold text-foreground text-lg">CobraFácil</h3>
-                  </div>
-                  <ul className="space-y-4">
-                    {cobraFacilBenefits.map((benefit, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                        <span className="text-foreground">{benefit}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </motion.div>
+                    <h3 className="font-semibold text-lg text-foreground mb-2">{feature.title}</h3>
+                    <p className="text-muted-foreground text-sm">{feature.description}</p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
           </motion.div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="py-16 px-4 bg-muted/30">
+      <section className="py-24 px-4 relative bg-muted/30">
         <div className="container mx-auto">
           <motion.div 
             initial="hidden"
@@ -708,10 +1046,10 @@ const Affiliate = () => {
             viewport={{ once: true, margin: "-100px" }}
             variants={fadeInUp}
             transition={{ duration: 0.6 }}
-            className="text-center mb-12"
+            className="text-center mb-16"
           >
             <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Como Funciona
+              Simples e Eficiente
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
               Do Zero à Organização em 4 Etapas
@@ -749,219 +1087,8 @@ const Affiliate = () => {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-24 px-4 relative bg-muted/30">
-        <div className="container mx-auto">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Escolha Seu Plano
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              Comece a Usar Hoje Mesmo
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Escolha o plano ideal para você. Quanto maior o período, maior a economia!
-            </p>
-          </motion.div>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
-            {/* Plano Mensal */}
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-            >
-              <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
-                <CardContent className="p-8">
-                  <div className="text-center mb-8">
-                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Clock className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <Badge variant="outline" className="mb-4 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
-                    <div className="text-4xl font-bold text-foreground mb-1">
-                      R$ 39<span className="text-2xl">,90</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">por mês</p>
-                  </div>
-                  <ul className="space-y-4 mb-8">
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Todas as funcionalidades</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Suporte por email</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Ideal para testar</span>
-                    </li>
-                  </ul>
-                  <a href={AFFILIATE_LINKS.monthly} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button variant="outline" size="lg" className="w-full h-12">
-                      Assinar Mensal
-                    </Button>
-                  </a>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Plano Vitalício - DESTAQUE */}
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={scaleIn}
-              transition={{ delay: 0.1 }}
-              className="md:-my-4"
-            >
-              <Card className="bg-gradient-to-b from-primary/5 via-card to-primary/5 border-2 border-primary h-full relative overflow-hidden shadow-2xl shadow-primary/30">
-                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-2 sm:py-3 text-xs sm:text-sm font-bold tracking-wide px-2">
-                  <span className="hidden sm:inline">🔥 MAIS VENDIDO - MELHOR ESCOLHA</span>
-                  <span className="sm:hidden">🔥 MAIS VENDIDO</span>
-                </div>
-                <div className="absolute top-10 sm:top-12 left-0 right-0 flex justify-center gap-2 px-4">
-                  <span className="bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
-                    ⏰ TEMPO LIMITADO
-                  </span>
-                  <span className="bg-red-500 text-white text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
-                    💰 ECONOMIZE
-                  </span>
-                </div>
-                <CardContent className="p-6 sm:p-8 pt-20 sm:pt-24">
-                  <div className="text-center mb-6 sm:mb-8">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-                      <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
-                    </div>
-                    <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
-                    <div className="text-lg text-muted-foreground line-through mb-1">
-                      De R$ 549,90
-                    </div>
-                    <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
-                      R$ 199<span className="text-xl sm:text-2xl">,90</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">à vista</p>
-                    <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 23,24</p>
-                    <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 sm:px-4 py-2">
-                      <Star className="w-4 h-4 text-primary fill-primary" />
-                      <span className="text-xs sm:text-sm font-semibold text-primary">Acesso para sempre!</span>
-                    </div>
-                  </div>
-                  <ul className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Acesso vitalício garantido</span>
-                    </li>
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Todas as funcionalidades</span>
-                    </li>
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Alertas de cobranças no WhatsApp</span>
-                    </li>
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Suporte via WhatsApp</span>
-                    </li>
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Atualizações gratuitas</span>
-                    </li>
-                    <li className="flex items-center gap-2 sm:gap-3">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <span className="text-foreground text-xs sm:text-sm font-medium">Sem mensalidades nunca mais</span>
-                    </li>
-                  </ul>
-                  <a href={AFFILIATE_LINKS.lifetime} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button size="lg" className="w-full text-sm sm:text-lg h-12 sm:h-14 bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
-                      <Zap className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                      <span className="hidden sm:inline">QUERO ACESSO VITALÍCIO</span>
-                      <span className="sm:hidden">ACESSO VITALÍCIO</span>
-                    </Button>
-                  </a>
-                  <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-2">
-                    <Shield className="w-4 h-4 flex-shrink-0" />
-                    <span>Pague em até 12x • Garantia de 7 dias</span>
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Plano Anual */}
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
-                <CardContent className="p-8">
-                  <div className="text-center mb-8">
-                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Calendar className="w-6 h-6 text-primary" />
-                    </div>
-                    <Badge variant="outline" className="mb-4 border-primary/50 text-primary">Anual</Badge>
-                    <div className="text-4xl font-bold text-foreground mb-1">
-                      R$ 147<span className="text-2xl">,90</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">à vista</p>
-                    <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 17,20</p>
-                    <div className="mt-2 text-xs text-primary font-semibold bg-primary/10 rounded-full px-3 py-1 inline-block">
-                      Economia de R$ 330/ano
-                    </div>
-                  </div>
-                  <ul className="space-y-4 mb-8">
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Acesso por 12 meses</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Todas as funcionalidades</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                      <span className="text-muted-foreground text-sm">Suporte prioritário</span>
-                    </li>
-                  </ul>
-                  <a href={AFFILIATE_LINKS.annual} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button variant="outline" size="lg" className="w-full h-12 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                      Assinar Anual
-                    </Button>
-                  </a>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Garantia */}
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="mt-12 text-center"
-          >
-            <div className="inline-flex items-center gap-3 bg-card border border-border rounded-2xl px-6 py-4">
-              <Shield className="w-8 h-8 text-primary" />
-              <div className="text-left">
-                <div className="font-bold text-foreground">Garantia de 7 Dias</div>
-                <div className="text-sm text-muted-foreground">Se não gostar, devolvemos 100% do seu dinheiro</div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+      {/* Pricing Section 3 - After How It Works */}
+      <PricingSection showTitle={false} affiliateLinks={AFFILIATE_LINKS} />
 
       {/* Contact / WhatsApp Section */}
       <section className="py-20 px-4 bg-gradient-to-b from-background to-card">
