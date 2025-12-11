@@ -626,13 +626,10 @@ export default function Loans() {
     const totalPaid = loan.total_paid || 0;
     const remainingAmount = totalToReceive - totalPaid;
     
-    // Calculate remaining amount after paying just interest (principal + interest for next period)
-    // If client pays only interest now, they still owe principal + same interest for next period
-    const remainingAfterInterestOnly = loan.principal_amount + interestPerInstallment;
-    
     setSelectedLoanId(loanId);
     const today = new Date();
-    today.setDate(today.getDate() + 30); // Default to 30 days for next payment
+    // Default to 7 days for weekly, 30 days for others
+    today.setDate(today.getDate() + (loan.payment_type === 'weekly' ? 7 : 30));
     setRenegotiateData({
       promised_amount: '',
       promised_date: today.toISOString().split('T')[0],
@@ -1814,7 +1811,7 @@ export default function Loans() {
                         checked={renegotiateData.interest_only_paid}
                         onCheckedChange={(checked) => {
                           const isChecked = checked as boolean;
-                          // Calculate the new remaining amount when checking interest only
+                          // Calculate the total remaining amount (total to receive - total paid)
                           const numInstallments = selectedLoan.installments || 1;
                           let totalInterest = 0;
                           if (selectedLoan.interest_mode === 'on_total') {
@@ -1822,15 +1819,15 @@ export default function Loans() {
                           } else {
                             totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
                           }
-                          const interestPerInstallment = totalInterest / numInstallments;
                           
-                          // If paying only interest, remaining is: principal + interest for next period
-                          const remainingAfterInterestOnly = selectedLoan.principal_amount + interestPerInstallment;
+                          const totalToReceive = selectedLoan.principal_amount + totalInterest;
+                          const totalPaid = selectedLoan.total_paid || 0;
+                          const remainingTotal = totalToReceive - totalPaid;
                           
                           setRenegotiateData({ 
                             ...renegotiateData, 
                             interest_only_paid: isChecked,
-                            remaining_amount: isChecked ? remainingAfterInterestOnly.toFixed(2) : renegotiateData.remaining_amount
+                            remaining_amount: isChecked ? remainingTotal.toFixed(2) : renegotiateData.remaining_amount
                           });
                         }}
                       />
@@ -1846,7 +1843,10 @@ export default function Loans() {
                             <strong>Resumo:</strong> Cliente paga <strong>{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
                           </p>
                           <p className="text-yellow-800 dark:text-yellow-200 mt-1">
-                            Para o próximo mês, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong>
+                            {selectedLoan.payment_type === 'weekly' 
+                              ? <>Na próxima <strong>semana</strong>, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                              : <>No próximo <strong>mês</strong>, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                            }
                           </p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -1864,7 +1864,7 @@ export default function Loans() {
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Valor calculado automaticamente, editável</p>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-yellow-900 dark:text-yellow-100">Valor que Falta (R$)</Label>
+                            <Label className="text-yellow-900 dark:text-yellow-100">Valor Total que Falta (R$)</Label>
                             <Input 
                               type="number" 
                               step="0.01" 
@@ -1873,7 +1873,7 @@ export default function Loans() {
                               placeholder="Valor restante"
                               className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
                             />
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Principal + juros próximo mês</p>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Valor total restante a receber</p>
                           </div>
                         </div>
                       </>
