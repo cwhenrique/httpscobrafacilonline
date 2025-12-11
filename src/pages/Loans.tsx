@@ -179,7 +179,7 @@ export default function Loans() {
       const total = principal + totalInterest;
       setInstallmentValue((total / numInstallments).toFixed(2));
     }
-  }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type]);
+  }, [formData.principal_amount, formData.interest_rate, formData.installments, formData.interest_mode, formData.payment_type]);
   
   // Handler para quando o usuário edita o valor da parcela
   const handleInstallmentValueChange = (value: string) => {
