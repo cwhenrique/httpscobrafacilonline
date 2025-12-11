@@ -25,12 +25,58 @@ interface DueDateInfo {
   loan: Loan;
   installmentNumber?: number;
   isOverdue: boolean;
+  installmentValue: number;
+  interestOnlyValue: number;
+  principalAmount: number;
+  totalToReceive: number;
 }
 
 export default function CalendarView() {
   const { loans, loading } = useLoans();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Calculate installment and interest values for a loan
+  const calculateLoanValues = (loan: Loan) => {
+    const principal = loan.principal_amount;
+    const rate = loan.interest_rate;
+    const installments = loan.installments || 1;
+    const interestMode = loan.interest_mode || 'on_total';
+    
+    let totalInterest = 0;
+    let installmentValue = 0;
+    let interestOnlyValue = 0;
+    
+    if (loan.payment_type === 'daily') {
+      // For daily loans: total_interest stores daily amount, interest_rate stores profit
+      const dailyAmount = loan.total_interest || 0;
+      const dailyDates = Array.isArray(loan.installment_dates) ? loan.installment_dates.length : 1;
+      installmentValue = dailyAmount;
+      totalInterest = (dailyAmount * dailyDates) - principal;
+      interestOnlyValue = dailyAmount - (principal / dailyDates);
+    } else if (interestMode === 'per_installment') {
+      // Per installment: interest applied to each installment
+      totalInterest = principal * (rate / 100) * installments;
+      const total = principal + totalInterest;
+      installmentValue = total / installments;
+      interestOnlyValue = (principal * (rate / 100));
+    } else {
+      // On total: interest on total amount
+      totalInterest = principal * (rate / 100);
+      const total = principal + totalInterest;
+      installmentValue = total / installments;
+      interestOnlyValue = totalInterest / installments;
+    }
+    
+    const totalToReceive = principal + totalInterest;
+    
+    return {
+      installmentValue,
+      interestOnlyValue,
+      principalAmount: principal,
+      totalToReceive
+    };
+  };
 
   // Get all due dates from loans
   const dueDates = useMemo(() => {
@@ -41,8 +87,10 @@ export default function CalendarView() {
     loans.forEach(loan => {
       if (loan.status === 'paid') return;
 
+      const values = calculateLoanValues(loan);
+
       // For installment loans, check each installment date
-      if (loan.payment_type === 'installment' && loan.installment_dates) {
+      if ((loan.payment_type === 'installment' || loan.payment_type === 'daily') && loan.installment_dates) {
         const installmentDates = Array.isArray(loan.installment_dates) 
           ? loan.installment_dates 
           : [];
@@ -59,6 +107,7 @@ export default function CalendarView() {
             loan,
             installmentNumber: index + 1,
             isOverdue,
+            ...values
           });
         });
       } else {
@@ -73,6 +122,7 @@ export default function CalendarView() {
         dates.get(dateKey)!.push({
           loan,
           isOverdue,
+          ...values
         });
       }
     });
@@ -144,7 +194,7 @@ export default function CalendarView() {
 
       events.forEach(event => {
         if (event.loan.status !== 'paid') {
-          totalDue += event.loan.remaining_balance / (event.loan.installments || 1);
+          totalDue += event.installmentValue;
           if (event.isOverdue) {
             overdueCount++;
           } else {
@@ -351,24 +401,36 @@ export default function CalendarView() {
                               }
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 sm:gap-2">
+                              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
                                 <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                                 <span className="font-medium truncate text-sm sm:text-base">
                                   {event.loan.client?.full_name}
                                 </span>
+                                {event.installmentNumber && (
+                                  <Badge variant="secondary" className="text-[10px] sm:text-xs ml-auto">
+                                    {event.installmentNumber}/{event.loan.installments || 1}
+                                  </Badge>
+                                )}
                               </div>
-                              <p className="text-base sm:text-lg font-bold mt-0.5 sm:mt-1">
-                                {formatCurrency(event.loan.remaining_balance / (event.loan.installments || 1))}
-                              </p>
-                              {event.installmentNumber && (
-                                <Badge variant="secondary" className="mt-1 text-[10px] sm:text-xs">
-                                  Parcela {event.installmentNumber}/{event.loan.installments}
-                                </Badge>
-                              )}
-                              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 sm:mt-2">
-                                Total: {formatCurrency(event.loan.principal_amount)} | 
-                                Saldo: {formatCurrency(event.loan.remaining_balance)}
-                              </p>
+                              
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Parcela:</span>
+                                  <span className="font-bold text-base sm:text-lg">{formatCurrency(event.installmentValue)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Só Juros:</span>
+                                  <span className="font-medium text-purple-400">{formatCurrency(event.interestOnlyValue)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Emprestado:</span>
+                                  <span className="font-medium">{formatCurrency(event.principalAmount)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                                  <span className="text-muted-foreground">Total a Receber:</span>
+                                  <span className="font-bold text-primary">{formatCurrency(event.totalToReceive)}</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
