@@ -51,6 +51,9 @@ export interface Vehicle {
   buyer_name: string | null;
   buyer_phone: string | null;
   buyer_email: string | null;
+  buyer_cpf: string | null;
+  buyer_rg: string | null;
+  buyer_address: string | null;
   purchase_date: string;
   purchase_value: number;
   down_payment: number;
@@ -97,6 +100,9 @@ export interface CreateVehicleData {
   buyer_name?: string;
   buyer_phone?: string;
   buyer_email?: string;
+  buyer_cpf?: string;
+  buyer_rg?: string;
+  buyer_address?: string;
   purchase_date: string;
   purchase_value: number;
   down_payment?: number;
@@ -118,6 +124,9 @@ export interface UpdateVehicleData {
   buyer_name?: string;
   buyer_phone?: string;
   buyer_email?: string;
+  buyer_cpf?: string;
+  buyer_rg?: string;
+  buyer_address?: string;
   purchase_date?: string;
   purchase_value?: number;
   down_payment?: number;

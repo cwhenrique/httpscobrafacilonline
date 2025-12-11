@@ -110,6 +110,9 @@ export default function ProductSales() {
     client_name: '',
     client_phone: '',
     client_email: '',
+    client_cpf: '',
+    client_rg: '',
+    client_address: '',
     sale_date: format(new Date(), 'yyyy-MM-dd'),
     total_amount: 0,
     down_payment: 0,
@@ -121,6 +124,11 @@ export default function ProductSales() {
 
   const [contractForm, setContractForm] = useState<CreateContractData>({
     client_name: '',
+    client_phone: '',
+    client_cpf: '',
+    client_rg: '',
+    client_email: '',
+    client_address: '',
     contract_type: 'aluguel_casa',
     bill_type: 'receivable',
     total_amount: 0,
@@ -143,6 +151,9 @@ export default function ProductSales() {
     buyer_name: '',
     buyer_phone: '',
     buyer_email: '',
+    buyer_cpf: '',
+    buyer_rg: '',
+    buyer_address: '',
     purchase_date: '',
     purchase_value: 0,
     down_payment: 0,
@@ -168,6 +179,9 @@ export default function ProductSales() {
       client_name: '',
       client_phone: '',
       client_email: '',
+      client_cpf: '',
+      client_rg: '',
+      client_address: '',
       sale_date: format(new Date(), 'yyyy-MM-dd'),
       total_amount: 0,
       down_payment: 0,
@@ -182,6 +196,11 @@ export default function ProductSales() {
   const resetContractForm = () => {
     setContractForm({
       client_name: '',
+      client_phone: '',
+      client_cpf: '',
+      client_rg: '',
+      client_email: '',
+      client_address: '',
       contract_type: 'aluguel_casa',
       bill_type: 'receivable',
       total_amount: 0,
@@ -206,6 +225,9 @@ export default function ProductSales() {
       buyer_name: '',
       buyer_phone: '',
       buyer_email: '',
+      buyer_cpf: '',
+      buyer_rg: '',
+      buyer_address: '',
       purchase_date: '',
       purchase_value: 0,
       down_payment: 0,
@@ -766,6 +788,43 @@ export default function ProductSales() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
+                        <Label>CPF</Label>
+                        <Input
+                          value={formData.client_cpf}
+                          onChange={(e) => setFormData({ ...formData, client_cpf: e.target.value })}
+                          placeholder="000.000.000-00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>RG</Label>
+                        <Input
+                          value={formData.client_rg}
+                          onChange={(e) => setFormData({ ...formData, client_rg: e.target.value })}
+                          placeholder="00.000.000-0"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input
+                          type="email"
+                          value={formData.client_email}
+                          onChange={(e) => setFormData({ ...formData, client_email: e.target.value })}
+                          placeholder="email@exemplo.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Endereço</Label>
+                        <Input
+                          value={formData.client_address}
+                          onChange={(e) => setFormData({ ...formData, client_address: e.target.value })}
+                          placeholder="Rua, número, bairro..."
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <Label>Data da Venda *</Label>
                         <Input
                           type="date"
@@ -1017,6 +1076,30 @@ export default function ProductSales() {
                     <div className="space-y-2">
                       <Label>Cliente / Inquilino *</Label>
                       <Input placeholder="Nome do cliente" value={contractForm.client_name} onChange={(e) => setContractForm({ ...contractForm, client_name: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Telefone</Label>
+                        <Input placeholder="(00) 00000-0000" value={contractForm.client_phone} onChange={(e) => setContractForm({ ...contractForm, client_phone: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input type="email" placeholder="email@exemplo.com" value={contractForm.client_email} onChange={(e) => setContractForm({ ...contractForm, client_email: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>CPF</Label>
+                        <Input placeholder="000.000.000-00" value={contractForm.client_cpf} onChange={(e) => setContractForm({ ...contractForm, client_cpf: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>RG</Label>
+                        <Input placeholder="00.000.000-0" value={contractForm.client_rg} onChange={(e) => setContractForm({ ...contractForm, client_rg: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Endereço</Label>
+                      <Input placeholder="Rua, número, bairro, cidade..." value={contractForm.client_address} onChange={(e) => setContractForm({ ...contractForm, client_address: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>Tipo de contrato</Label>
