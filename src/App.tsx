@@ -14,6 +14,7 @@ import Clients from "./pages/Clients";
 import ClientScores from "./pages/ClientScores";
 import Loans from "./pages/Loans";
 import Bills from "./pages/Bills";
+import ProductSales from "./pages/ProductSales";
 import CalendarView from "./pages/CalendarView";
 import Reports from "./pages/Reports";
 import Simulator from "./pages/Simulator";
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/scores" element={<ProtectedRoute><ClientScores /></ProtectedRoute>} />
             <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
             <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
+            <Route path="/product-sales" element={<ProtectedRoute><ProductSales /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
