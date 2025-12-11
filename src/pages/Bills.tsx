@@ -641,38 +641,299 @@ export default function Bills() {
               </Card>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center sm:justify-between">
-              <div className="relative flex-1 w-full sm:max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+            <Tabs defaultValue="contracts" className="w-full">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center sm:justify-between">
+                <TabsList className="w-full sm:w-auto">
+                  <TabsTrigger value="contracts" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><FileSignature className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Contratos</TabsTrigger>
+                  <TabsTrigger value="vehicles" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><Car className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Veículos</TabsTrigger>
+                </TabsList>
               </div>
-              <Dialog open={isContractOpen && mainTab === 'receivable'} onOpenChange={(open) => {
-                setIsContractOpen(open);
-                if (open) setContractForm(prev => ({ ...prev, bill_type: 'receivable' }));
-              }}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2 w-full sm:w-auto"><Plus className="w-4 h-4" />Novo Contrato</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Novo Contrato - A Receber</DialogTitle></DialogHeader>
-                  <ContractForm billType="receivable" />
-                </DialogContent>
-              </Dialog>
-            </div>
 
-            {contractsLoading ? (
-              <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando contratos...</p></div>
-            ) : filteredContracts.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 sm:py-12 text-center">
-                  <FileSignature className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum contrato encontrado</h3>
-                  <p className="text-muted-foreground text-xs sm:text-sm">Crie contratos de aluguel ou mensalidades para gerenciar cobranças</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <ContractsList contractsList={filteredContracts} billType="receivable" />
-            )}
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mt-4 sm:items-center sm:justify-between">
+                <div className="relative flex-1 w-full sm:max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                </div>
+                <div className="flex gap-2">
+                  <Dialog open={isContractOpen && mainTab === 'receivable'} onOpenChange={(open) => {
+                    setIsContractOpen(open);
+                    if (open) setContractForm(prev => ({ ...prev, bill_type: 'receivable' }));
+                  }}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" />Novo Contrato</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                      <DialogHeader><DialogTitle>Novo Contrato - A Receber</DialogTitle></DialogHeader>
+                      <ContractForm billType="receivable" />
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={isVehicleOpen && mainTab === 'receivable'} onOpenChange={(open) => {
+                    setIsVehicleOpen(open);
+                  }}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2 flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4" />Novo Veículo</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader><DialogTitle>Cadastrar Veículo - A Receber</DialogTitle></DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Marca *</Label>
+                            <Input placeholder="Ex: Honda, Toyota..." value={vehicleForm.brand} onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Modelo *</Label>
+                            <Input placeholder="Ex: Civic, Corolla..." value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Ano *</Label>
+                            <Input type="number" min="1900" max="2030" value={vehicleForm.year} onChange={(e) => setVehicleForm({ ...vehicleForm, year: parseInt(e.target.value) || new Date().getFullYear() })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Cor</Label>
+                            <Input placeholder="Ex: Preto, Branco..." value={vehicleForm.color} onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Placa</Label>
+                            <Input placeholder="ABC-1234" value={vehicleForm.plate} onChange={(e) => setVehicleForm({ ...vehicleForm, plate: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Chassis</Label>
+                          <Input placeholder="Número do chassis" value={vehicleForm.chassis} onChange={(e) => setVehicleForm({ ...vehicleForm, chassis: e.target.value })} />
+                        </div>
+                        
+                        <div className="border-t pt-4">
+                          <h4 className="font-semibold mb-3 text-primary">Dados da Venda</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Vendido para (Comprador) *</Label>
+                              <Input placeholder="Nome do comprador" value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Origem (Comprado de)</Label>
+                              <Input placeholder="Nome do vendedor original" value={vehicleForm.seller_name} onChange={(e) => setVehicleForm({ ...vehicleForm, seller_name: e.target.value })} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div className="space-y-2">
+                              <Label>Data da venda</Label>
+                              <Input type="date" value={vehicleForm.purchase_date} onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_date: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Valor total (R$) *</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.purchase_value || ''} onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                const downPayment = vehicleForm.down_payment || 0;
+                                const remaining = value - downPayment;
+                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
+                                setVehicleForm({ ...vehicleForm, purchase_value: value, installment_value: installmentValue });
+                              }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <h4 className="font-semibold mb-3 text-primary">Parcelamento</h4>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label>Entrada (R$)</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.down_payment || ''} onChange={(e) => {
+                                const downPayment = parseFloat(e.target.value) || 0;
+                                const remaining = vehicleForm.purchase_value - downPayment;
+                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
+                                setVehicleForm({ ...vehicleForm, down_payment: downPayment, installment_value: installmentValue });
+                              }} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Nº de parcelas *</Label>
+                              <Input type="number" min="1" value={vehicleForm.installments} onChange={(e) => {
+                                const installments = parseInt(e.target.value) || 1;
+                                const remaining = vehicleForm.purchase_value - (vehicleForm.down_payment || 0);
+                                const installmentValue = installments > 0 ? remaining / installments : 0;
+                                setVehicleForm({ ...vehicleForm, installments, installment_value: installmentValue });
+                              }} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Valor da parcela *</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.installment_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, installment_value: parseFloat(e.target.value) || 0 })} />
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <Label>Primeiro vencimento *</Label>
+                            <Input type="date" value={vehicleForm.first_due_date} onChange={(e) => setVehicleForm({ ...vehicleForm, first_due_date: e.target.value })} />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Observações</Label>
+                          <Textarea placeholder="Notas adicionais sobre o veículo..." value={vehicleForm.notes} onChange={(e) => setVehicleForm({ ...vehicleForm, notes: e.target.value })} />
+                        </div>
+
+                        {vehicleForm.purchase_value > 0 && (
+                          <div className="bg-primary/10 p-3 rounded-lg">
+                            <p className="text-sm text-muted-foreground">Resumo:</p>
+                            <div className="flex justify-between mt-1">
+                              <span>Valor total:</span>
+                              <span className="font-bold">R$ {vehicleForm.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Entrada:</span>
+                              <span className="font-semibold">R$ {(vehicleForm.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>A receber:</span>
+                              <span className="font-semibold">R$ {(vehicleForm.purchase_value - (vehicleForm.down_payment || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-primary font-bold">
+                              <span>{vehicleForm.installments}x de:</span>
+                              <span>R$ {vehicleForm.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <Button onClick={handleCreateVehicle} disabled={!vehicleForm.brand || !vehicleForm.model || !vehicleForm.buyer_name || !vehicleForm.purchase_value || !vehicleForm.first_due_date || createVehicle.isPending} className="w-full">
+                          {createVehicle.isPending ? 'Salvando...' : 'Cadastrar Veículo'}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              <TabsContent value="contracts" className="mt-4">
+                {contractsLoading ? (
+                  <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando contratos...</p></div>
+                ) : filteredContracts.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 sm:py-12 text-center">
+                      <FileSignature className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum contrato encontrado</h3>
+                      <p className="text-muted-foreground text-xs sm:text-sm">Crie contratos de aluguel ou mensalidades para gerenciar cobranças</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <ContractsList contractsList={filteredContracts} billType="receivable" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="vehicles" className="mt-4">
+                {vehiclesLoading ? (
+                  <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando veículos...</p></div>
+                ) : vehicles.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 sm:py-12 text-center">
+                      <Car className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum veículo cadastrado</h3>
+                      <p className="text-muted-foreground text-xs sm:text-sm">Cadastre veículos vendidos para controlar os recebimentos</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {vehicles.filter(v => v.brand.toLowerCase().includes(searchTerm.toLowerCase()) || v.model.toLowerCase().includes(searchTerm.toLowerCase()) || (v.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((vehicle) => (
+                      <Card key={vehicle.id} className={cn("overflow-hidden transition-all border-primary/30", vehicle.status === 'paid' ? 'bg-primary/10 border-primary' : '')}>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-start justify-between mb-3 gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                <Car className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm sm:text-base truncate">{vehicle.brand} {vehicle.model}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
+                              </div>
+                            </div>
+                            <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'} className={cn(vehicle.status === 'paid' ? 'bg-primary' : 'bg-primary/20 text-primary')}>
+                              {vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}
+                            </Badge>
+                          </div>
+
+                          {vehicle.plate && (
+                            <div className="mb-2 p-2 bg-muted rounded text-center font-mono font-bold text-sm">
+                              {vehicle.plate}
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5 sm:space-y-2 mb-3">
+                            {vehicle.buyer_name && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">Comprador</span>
+                                <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Valor total</span>
+                              <span className="font-bold text-sm sm:text-base">R$ {vehicle.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            {vehicle.down_payment > 0 && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">Entrada</span>
+                                <span className="font-medium text-primary">R$ {vehicle.down_payment.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs sm:text-sm">
+                              <span className="text-muted-foreground">Parcela</span>
+                              <span className="font-medium">{vehicle.installments}x de R$ {vehicle.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 rounded-lg bg-primary/10">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Recebido</span>
+                              <span className="font-bold text-sm sm:text-base text-primary">R$ {vehicle.total_paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 rounded-lg bg-orange-500/10">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Falta receber</span>
+                              <span className="font-bold text-sm sm:text-base text-orange-600">R$ {vehicle.remaining_balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+
+                          {vehicle.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mb-3 italic line-clamp-2">"{vehicle.notes}"</p>}
+
+                          <div className="flex gap-1.5 sm:gap-2">
+                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleVehicleExpand(vehicle.id)}>
+                              {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                              Parcelas
+                            </Button>
+                            <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditVehicleDialog(vehicle)}>
+                              <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </Button>
+                            <Button size="icon" variant="outline" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => setDeleteVehicleId(vehicle.id)}>
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </Button>
+                          </div>
+
+                          {expandedVehicle === vehicle.id && (
+                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-1.5 sm:space-y-2">
+                              {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
+                                <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", 
+                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' : 
+                                  isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
+                                )}>
+                                  <div className="min-w-0">
+                                    <span className="font-medium">{payment.installment_number}ª</span>
+                                    <span className="ml-1 sm:ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 sm:gap-2">
+                                    <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
+                                        <Check className="w-3 h-3" />
+                                      </Button>
+                                    ) : (
+                                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* CONTAS A PAGAR */}
