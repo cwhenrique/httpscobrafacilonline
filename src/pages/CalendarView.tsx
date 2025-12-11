@@ -33,6 +33,7 @@ interface DueDateInfo {
     status: string;
     vehicleName?: string;
     buyerName?: string;
+    totalInstallments?: number;
   };
   type: 'loan' | 'vehicle';
   installmentNumber?: number;
@@ -162,13 +163,16 @@ export default function CalendarView() {
           due_date: payment.due_date,
           installment_number: payment.installment_number,
           status: payment.status,
+          vehicleName: payment.vehicle ? `${payment.vehicle.brand} ${payment.vehicle.model} ${payment.vehicle.year}` : undefined,
+          buyerName: payment.vehicle?.buyer_name || payment.vehicle?.seller_name,
+          totalInstallments: payment.vehicle?.installments,
         },
         installmentNumber: payment.installment_number,
         isOverdue,
         installmentValue: payment.amount,
         interestOnlyValue: 0,
-        principalAmount: payment.amount,
-        totalToReceive: payment.amount,
+        principalAmount: payment.vehicle?.purchase_value || payment.amount,
+        totalToReceive: payment.vehicle?.remaining_balance || payment.amount,
       });
     });
 
@@ -465,10 +469,10 @@ export default function CalendarView() {
                                   <>
                                     <Car className="w-3 h-3 text-blue-500 flex-shrink-0" />
                                     <span className="font-medium truncate text-sm sm:text-base">
-                                      Veículo - Parcela {event.installmentNumber}
+                                      {event.vehiclePayment?.buyerName || 'Veículo'}
                                     </span>
                                     <Badge variant="secondary" className="text-[10px] sm:text-xs ml-auto bg-blue-500/10 text-blue-500">
-                                      Veículo
+                                      {event.installmentNumber}/{event.vehiclePayment?.totalInstallments || 1}
                                     </Badge>
                                   </>
                                 ) : (
@@ -485,6 +489,12 @@ export default function CalendarView() {
                                   </>
                                 )}
                               </div>
+                              
+                              {event.type === 'vehicle' && event.vehiclePayment?.vehicleName && (
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  🚗 {event.vehiclePayment.vehicleName}
+                                </p>
+                              )}
                               
                               <div className="space-y-1.5 text-xs sm:text-sm">
                                 <div className="flex justify-between items-center">
@@ -506,6 +516,12 @@ export default function CalendarView() {
                                       <span className="font-bold text-primary">{formatCurrency(event.totalToReceive)}</span>
                                     </div>
                                   </>
+                                )}
+                                {event.type === 'vehicle' && (
+                                  <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                                    <span className="text-muted-foreground">Restante:</span>
+                                    <span className="font-bold text-blue-500">{formatCurrency(event.totalToReceive)}</span>
+                                  </div>
                                 )}
                               </div>
                             </div>
