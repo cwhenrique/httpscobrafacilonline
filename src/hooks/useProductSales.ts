@@ -149,14 +149,22 @@ export function useProductSales() {
 
       if (paymentsError) throw paymentsError;
 
-      // Send WhatsApp notification
+      // Send WhatsApp notification - fetch user phone first
       try {
-        await supabase.functions.invoke('send-whatsapp', {
-          body: {
-            userId: user.id,
-            message: `🛒 *Nova Venda Cadastrada!*\n\n📦 Produto: ${saleData.product_name}\n👤 Cliente: ${saleData.client_name}\n💰 Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📅 Parcelas: ${saleData.installments}x de R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📆 Primeiro Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}`,
-          },
-        });
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.phone) {
+          await supabase.functions.invoke('send-whatsapp', {
+            body: {
+              phone: profile.phone,
+              message: `🛒 *Nova Venda Cadastrada!*\n\n📦 Produto: ${saleData.product_name}\n👤 Cliente: ${saleData.client_name}\n💰 Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📅 Parcelas: ${saleData.installments}x de R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📆 Primeiro Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}`,
+            },
+          });
+        }
       } catch (err) {
         console.error('Erro ao enviar WhatsApp:', err);
       }
@@ -311,14 +319,22 @@ export function useProductSalePayments(saleId?: string) {
 
       if (saleError) throw saleError;
 
-      // Send WhatsApp notification
+      // Send WhatsApp notification - fetch user phone first
       try {
-        await supabase.functions.invoke('send-whatsapp', {
-          body: {
-            userId: user.id,
-            message: `✅ *Pagamento de Venda Recebido!*\n\n📦 Produto: ${payment.productSale?.product_name}\n👤 Cliente: ${payment.productSale?.client_name}\n💵 Valor: R$ ${payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📋 Parcela: ${payment.installment_number}/${payment.productSale?.installments}\n💰 Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-          },
-        });
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.phone) {
+          await supabase.functions.invoke('send-whatsapp', {
+            body: {
+              phone: profile.phone,
+              message: `✅ *Pagamento de Venda Recebido!*\n\n📦 Produto: ${payment.productSale?.product_name}\n👤 Cliente: ${payment.productSale?.client_name}\n💵 Valor: R$ ${payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📋 Parcela: ${payment.installment_number}/${payment.productSale?.installments}\n💰 Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            },
+          });
+        }
       } catch (err) {
         console.error('Erro ao enviar WhatsApp:', err);
       }
