@@ -214,7 +214,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           </div>
           <div className="space-y-2">
             <Label>Nº de parcelas *</Label>
-            <Input type="number" min="1" value={form.installments} onChange={(e) => handleInstallmentsChange(parseInt(e.target.value) || 1)} />
+            <Input type="number" min="1" value={form.installments || ''} onChange={(e) => handleInstallmentsChange(parseInt(e.target.value) || 0)} />
           </div>
           <div className="space-y-2">
             <Label>Valor da parcela *</Label>
