@@ -653,21 +653,21 @@ export default function ProductSales() {
 
         <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
           <TabsList className="grid w-full grid-cols-4 h-auto">
-            <TabsTrigger value="products" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
-              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Produtos</span>
+            <TabsTrigger value="products" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
+              <ShoppingBag className="w-4 h-4" />
+              <span>Produtos</span>
             </TabsTrigger>
-            <TabsTrigger value="contracts" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
-              <FileSignature className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Contratos</span>
+            <TabsTrigger value="contracts" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
+              <FileSignature className="w-4 h-4" />
+              <span>Contratos</span>
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
-              <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Veículos</span>
+            <TabsTrigger value="vehicles" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
+              <Car className="w-4 h-4" />
+              <span>Veículos</span>
             </TabsTrigger>
-            <TabsTrigger value="bills" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
-              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Contas</span>
+            <TabsTrigger value="bills" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
+              <FileText className="w-4 h-4" />
+              <span>Contas</span>
             </TabsTrigger>
           </TabsList>
 
