@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.cakto-webhook]
 verify_jwt = false
+
+[functions.check-vehicle-reminders]
+verify_jwt = false
+
+[functions.check-overdue-vehicles]
+verify_jwt = false
