@@ -196,6 +196,12 @@ export function useLoans() {
             message += `• Dia ${index + 1}: ${formatDate(date)}\n`;
           });
         }
+      } else if (loan.payment_type === 'weekly' && numInstallments > 1) {
+        message += `📊 Juros: *${loan.interest_rate}% por semana*\n`;
+        message += `📅 Semanas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
+        if (loan.installment_dates && loan.installment_dates.length > 0) {
+          message += `⏰ 1ª Semana: *${formatDate(loan.installment_dates[0])}*\n`;
+        }
       } else if (loan.payment_type === 'installment' && numInstallments > 1) {
         message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
         message += `📅 Parcelas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
