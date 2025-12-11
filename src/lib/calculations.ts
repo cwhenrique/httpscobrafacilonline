@@ -92,6 +92,28 @@ export function getPaymentStatusLabel(status: string): string {
   }
 }
 
+export function calculateOverduePenalty(
+  remainingBalance: number,
+  monthlyRate: number,
+  dueDate: string
+): { daysOverdue: number; penaltyAmount: number } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  
+  if (today <= due) {
+    return { daysOverdue: 0, penaltyAmount: 0 };
+  }
+  
+  const daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+  // Daily rate = monthly rate / 30
+  const dailyRate = monthlyRate / 30 / 100;
+  const penaltyAmount = remainingBalance * dailyRate * daysOverdue;
+  
+  return { daysOverdue, penaltyAmount };
+}
+
 export function getClientTypeLabel(type: string): string {
   switch (type) {
     case 'loan':
