@@ -215,12 +215,22 @@ export default function Loans() {
   useEffect(() => {
     if (formData.payment_type === 'installment' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
-      const startDate = new Date(formData.start_date);
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      const startDay = startDate.getDate(); // Get the day of month from start date
       const newDates: string[] = [];
       
       for (let i = 0; i < numInstallments; i++) {
         const date = new Date(startDate);
-        date.setDate(date.getDate() + (15 * (i + 1))); // Default 15 days interval
+        // Add months instead of days - keep the same day of month
+        date.setMonth(date.getMonth() + i);
+        
+        // Handle edge cases where the day doesn't exist in the target month
+        // (e.g., day 31 in a month with 30 days)
+        if (date.getDate() !== startDay) {
+          // Go to the last day of the previous month
+          date.setDate(0);
+        }
+        
         newDates.push(date.toISOString().split('T')[0]);
       }
       
