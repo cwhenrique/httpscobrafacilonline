@@ -160,7 +160,16 @@ export function useLoans() {
     if (phone && data) {
       const clientName = (data.client as any)?.full_name || 'Cliente';
       const numInstallments = loan.installments || 1;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      
+      // Calculate total interest based on interest_mode
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      
+      const interestPerInstallment = totalInterest / numInstallments;
       const principalPerInstallment = loan.principal_amount / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallment;
       
@@ -237,7 +246,7 @@ export function useLoans() {
     // Get the loan to find client_id and update their score
     const { data: loan } = await supabase
       .from('loans')
-      .select('client_id, remaining_balance, principal_amount, interest_rate, installments, total_paid, clients(full_name)')
+      .select('client_id, remaining_balance, principal_amount, interest_rate, interest_mode, installments, total_paid, clients(full_name)')
       .eq('id', payment.loan_id)
       .single();
     
@@ -248,8 +257,16 @@ export function useLoans() {
       
       // Calcular igual ao card: total a receber = principal + juros totais
       const numInstallments = loan.installments || 1;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-      const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+      
+      // Calculate total interest based on interest_mode
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      
+      const totalToReceive = loan.principal_amount + totalInterest;
       const newTotalPaid = loan.total_paid || 0;
       const remainingToReceive = totalToReceive - newTotalPaid;
       const isPaidOff = remainingToReceive <= 0;
@@ -340,7 +357,7 @@ export function useLoans() {
     // Get loan info before update for notification
     const { data: loanData } = await supabase
       .from('loans')
-      .select('principal_amount, total_paid, clients(full_name)')
+      .select('principal_amount, interest_mode, total_paid, clients(full_name)')
       .eq('id', id)
       .single();
 
@@ -367,8 +384,16 @@ export function useLoans() {
     if (loanData) {
       const clientName = (loanData.clients as any)?.full_name || 'Cliente';
       const numInstallments = data.installments || 1;
-      const interestPerInstallment = loanData.principal_amount * (data.interest_rate / 100);
-      const totalToReceive = loanData.principal_amount + (interestPerInstallment * numInstallments);
+      
+      // Calculate total interest based on interest_mode
+      let totalInterest = 0;
+      if (loanData.interest_mode === 'on_total') {
+        totalInterest = loanData.principal_amount * (data.interest_rate / 100);
+      } else {
+        totalInterest = loanData.principal_amount * (data.interest_rate / 100) * numInstallments;
+      }
+      
+      const totalToReceive = loanData.principal_amount + totalInterest;
       const totalPaid = loanData.total_paid || 0;
       const remainingToReceive = totalToReceive - totalPaid;
       
@@ -459,8 +484,16 @@ export function useLoans() {
     if (newLoanData) {
       const clientName = (newLoanData.clients as any)?.full_name || 'Cliente';
       const numInstallments = data.installments || 1;
-      const interestPerInstallment = data.principal_amount * (data.interest_rate / 100);
-      const totalToReceive = data.principal_amount + (interestPerInstallment * numInstallments);
+      
+      // Calculate total interest based on interest_mode
+      let totalInterest = 0;
+      if (data.interest_mode === 'on_total') {
+        totalInterest = data.principal_amount * (data.interest_rate / 100);
+      } else {
+        totalInterest = data.principal_amount * (data.interest_rate / 100) * numInstallments;
+      }
+      
+      const totalToReceive = data.principal_amount + totalInterest;
       const totalPaid = newLoanData.total_paid || 0;
       const remainingToReceive = totalToReceive - totalPaid;
       
