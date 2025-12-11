@@ -602,14 +602,17 @@ export default function Loans() {
         principal_paid: 0, // Não paga nada do principal
         interest_paid: interestPaid,
         payment_date: new Date().toISOString().split('T')[0],
-        notes: `Pagamento de juros apenas. Valor restante: R$ ${renegotiateData.remaining_amount}`,
+        notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${renegotiateData.remaining_amount}`,
       });
       
       // Atualizar notas e nova data de vencimento
       let notesText = loan.notes || '';
+      // Adicionar marcador se ainda não existir
+      if (!notesText.includes('[INTEREST_ONLY_PAYMENT]')) {
+        notesText = `[INTEREST_ONLY_PAYMENT]\n${notesText}`;
+      }
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
-      notesText += `\nValor prometido: R$ ${renegotiateData.remaining_amount}`;
       
       await renegotiateLoan(selectedLoanId, {
         interest_rate: loan.interest_rate,
@@ -1324,7 +1327,8 @@ export default function Loans() {
                 const hasAppliedOverduePenalty = !isDaily && storedTotalInterest > calculatedTotalInterest;
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-                const isRenegotiated = loan.notes?.includes('Valor prometido');
+                const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+                const isRenegotiated = loan.notes?.includes('Valor prometido') && !isInterestOnlyPayment;
                 const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
                 
                 // Check if overdue based on installment dates
@@ -1389,11 +1393,14 @@ export default function Loans() {
                   dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
                 }
                 
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
                     return 'bg-primary border-primary';
+                  }
+                  if (isInterestOnlyPayment && !isOverdue) {
+                    return 'bg-emerald-500/20 border-emerald-400 dark:bg-emerald-500/30 dark:border-emerald-400';
                   }
                   if (isRenegotiated && !isOverdue) {
                     return 'bg-yellow-500/20 border-yellow-400 dark:bg-yellow-500/30 dark:border-yellow-400';
@@ -1407,7 +1414,7 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-emerald-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
@@ -1449,7 +1456,7 @@ export default function Loans() {
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
                             <Badge className={`text-[10px] sm:text-xs flex-shrink-0 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
-                              {isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
+                              {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                             </Badge>
                           </div>
                           <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
