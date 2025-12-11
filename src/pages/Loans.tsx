@@ -1144,11 +1144,21 @@ export default function Loans() {
                 
                 // For regular loans
                 const principalPerInstallment = loan.principal_amount / numInstallments;
-                const interestPerInstallment = isDaily ? 0 : loan.principal_amount * (loan.interest_rate / 100);
-                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + interestPerInstallment;
-                const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + (interestPerInstallment * numInstallments);
+                const calculatedInterestPerInstallment = isDaily ? 0 : loan.principal_amount * (loan.interest_rate / 100);
+                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                
+                // Use the stored total_interest if it includes overdue penalty (when it's higher than calculated)
+                const calculatedTotalInterest = calculatedInterestPerInstallment * numInstallments;
+                const storedTotalInterest = loan.total_interest || 0;
+                // If stored total_interest is higher, it means overdue penalty was applied
+                const effectiveTotalInterest = isDaily ? 0 : Math.max(calculatedTotalInterest, storedTotalInterest);
+                
+                const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
                 const remainingToReceive = isDaily ? (loan.remaining_balance || 0) - (loan.total_paid || 0) : totalToReceive - (loan.total_paid || 0);
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+                
+                // Check if overdue penalty was applied (stored interest is higher than calculated)
+                const hasAppliedOverduePenalty = !isDaily && storedTotalInterest > calculatedTotalInterest;
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
                 const isRenegotiated = loan.notes?.includes('Valor prometido');
