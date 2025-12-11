@@ -59,7 +59,9 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('pt-BR');
+  // Add T12:00:00 to avoid timezone issues when parsing date-only strings
+  const dateObj = date.includes('T') ? new Date(date) : new Date(date + 'T12:00:00');
+  return dateObj.toLocaleDateString('pt-BR');
 }
 
 export function formatPercentage(value: number): string {
