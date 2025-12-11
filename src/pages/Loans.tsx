@@ -338,7 +338,7 @@ export default function Loans() {
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment;
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily';
       case 'daily':
         return loan.payment_type === 'daily';
       case 'interest_only':
@@ -1276,7 +1276,7 @@ export default function Loans() {
               onClick={() => setStatusFilter('pending')}
               className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
             >
-              <span className="hidden xs:inline">Em </span>Dia
+              Em Dia
             </Button>
             <Button
               variant={statusFilter === 'paid' ? 'default' : 'outline'}
