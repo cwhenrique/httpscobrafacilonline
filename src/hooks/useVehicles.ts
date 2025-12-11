@@ -170,7 +170,7 @@ export function useVehicles() {
           buyer_name: data.buyer_name || null,
           buyer_phone: data.buyer_phone || null,
           buyer_email: data.buyer_email || null,
-          purchase_date: data.purchase_date,
+          purchase_date: data.purchase_date || new Date().toISOString().split('T')[0],
           purchase_value: data.purchase_value,
           down_payment: downPayment,
           installments: data.installments,
