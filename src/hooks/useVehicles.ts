@@ -77,6 +77,7 @@ export interface VehiclePayment {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  vehicle?: Vehicle;
 }
 
 export interface InstallmentDate {
@@ -316,7 +317,7 @@ export function useVehiclePayments(vehicleId?: string) {
       
       let query = supabase
         .from('vehicle_payments')
-        .select('*')
+        .select('*, vehicle:vehicles(*)')
         .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
