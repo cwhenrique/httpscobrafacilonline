@@ -592,14 +592,7 @@ export default function ProductSales() {
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setExpandedSale(isExpanded ? null : sale.id)}
-                        >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </Button>
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -617,6 +610,17 @@ export default function ProductSales() {
                         </Button>
                       </div>
                     </div>
+
+                    {/* Toggle Parcelas Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setExpandedSale(isExpanded ? null : sale.id)}
+                    >
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      {isExpanded ? 'Ocultar Parcelas' : `Ver Parcelas (${salePayments.length})`}
+                    </Button>
 
                     {/* Expandable Payments */}
                     {isExpanded && (
