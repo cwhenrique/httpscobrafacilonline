@@ -242,7 +242,11 @@ export default function CalendarView() {
       if (!events) return;
 
       events.forEach(event => {
-        if (event.loan.status !== 'paid') {
+        const isPaid = event.type === 'loan' 
+          ? event.loan?.status === 'paid' 
+          : event.vehiclePayment?.status === 'paid';
+        
+        if (!isPaid) {
           totalDue += event.installmentValue;
           if (event.isOverdue) {
             overdueCount++;
