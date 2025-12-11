@@ -1591,6 +1591,18 @@ export default function Loans() {
                         </div>
                       </div>
                       
+                      {/* Interest only payment option */}
+                      {!isDaily && !isPaid && (
+                        <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-purple-500/10 border border-purple-400/30'}`}>
+                          <div className="flex items-center justify-between">
+                            <span className={hasSpecialStyle ? 'text-white/80' : 'text-purple-300'}>Só Juros (por parcela):</span>
+                            <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-purple-400'}`}>
+                              {formatCurrency(calculatedInterestPerInstallment)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Overdue penalty section */}
                       {isOverdue && dynamicPenaltyAmount > 0 && (
                         <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
