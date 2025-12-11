@@ -26,7 +26,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'interest_only'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -328,6 +328,7 @@ export default function Loans() {
     if (statusFilter === 'all') return true;
     
     const { isPaid, isRenegotiated, isOverdue } = getLoanStatus(loan);
+    const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]') && !isPaid;
     
     switch (statusFilter) {
       case 'paid':
@@ -335,11 +336,13 @@ export default function Loans() {
       case 'overdue':
         return isOverdue && !isPaid;
       case 'renegotiated':
-        return isRenegotiated && !isPaid && !isOverdue;
+        return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated;
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment;
       case 'daily':
         return loan.payment_type === 'daily';
+      case 'interest_only':
+        return isInterestOnlyPayment && !isOverdue;
       default:
         return true;
     }
@@ -1298,6 +1301,14 @@ export default function Loans() {
               className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}`}
             >
               <span className="hidden xs:inline">Reneg.</span><span className="xs:hidden">Ren.</span>
+            </Button>
+            <Button
+              variant={statusFilter === 'interest_only' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('interest_only')}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'interest_only' ? 'bg-purple-500' : 'border-purple-500 text-purple-600 hover:bg-purple-500/10'}`}
+            >
+              <span className="hidden xs:inline">Só Juros</span><span className="xs:hidden">Juros</span>
             </Button>
             <Button
               variant={statusFilter === 'daily' ? 'default' : 'outline'}
