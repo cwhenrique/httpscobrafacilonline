@@ -592,16 +592,11 @@ export default function Loans() {
     const interestRate = parseFloat(editFormData.interest_rate);
     const numInstallments = parseInt(editFormData.installments) || 1;
     
-    // Build overdue config to store in notes if applying penalty
+    // Build overdue config to store in notes if applying penalty (only fixed amount)
     let overdueConfigNote = '';
     if (editFormData.apply_overdue_penalty && editLoanIsOverdue) {
-      if (editFormData.overdue_penalty_type === 'fixed') {
-        const fixedAmount = parseFloat(editFormData.overdue_fixed_amount) || 0;
-        overdueConfigNote = `[OVERDUE_CONFIG:fixed:${fixedAmount}]`;
-      } else {
-        const dailyRate = parseFloat(editFormData.overdue_daily_rate) || 0;
-        overdueConfigNote = `[OVERDUE_CONFIG:percentage:${dailyRate}]`;
-      }
+      const fixedAmount = parseFloat(editFormData.overdue_fixed_amount) || 0;
+      overdueConfigNote = `[OVERDUE_CONFIG:fixed:${fixedAmount}]`;
     }
     
     // Remove any existing overdue config from notes
@@ -1197,33 +1192,21 @@ export default function Loans() {
                   return dates[paidInstallments] || loan.due_date;
                 })();
                 
-                // Parse overdue config from notes
-                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                // Parse overdue config from notes (only fixed value)
+                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:fixed:([0-9.]+)\]/);
                 const hasOverdueConfig = !!overdueConfigMatch;
-                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
-                const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+                const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[1]) : 0;
                 
                 // Calculate days overdue
                 const overdueDateObj = new Date(overdueDate);
                 overdueDateObj.setHours(0, 0, 0, 0);
                 const daysOverdue = today > overdueDateObj ? Math.ceil((today.getTime() - overdueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
                 
-                // Calculate dynamic penalty based on config
+                // Calculate dynamic penalty based on config (fixed amount per day)
                 let dynamicPenaltyAmount = 0;
                 if (isOverdue && daysOverdue > 0 && hasOverdueConfig) {
-                  if (overdueConfigType === 'fixed') {
-                    // Fixed amount per day (e.g., R$ 50/day × 4 days = R$ 200)
-                    dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
-                  } else {
-                    // Percentage per day based on TOTAL TO RECEIVE (not remaining)
-                    // e.g., 1% of R$ 1300 = R$ 13/day × 4 days = R$ 52
-                    const baseAmount = loan.principal_amount + calculatedTotalInterest;
-                    dynamicPenaltyAmount = baseAmount * (overdueConfigValue / 100) * daysOverdue;
-                  }
-                } else if (isOverdue && daysOverdue > 0) {
-                  // Fallback: use default calculation if no config
-                  const dailyRate = loan.interest_rate / 30 / 100;
-                  dynamicPenaltyAmount = remainingToReceive * dailyRate * daysOverdue;
+                  // Fixed amount per day (e.g., R$ 50/day × 4 days = R$ 200)
+                  dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
                 }
                 
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
@@ -1346,10 +1329,7 @@ export default function Loans() {
                           </div>
                           {hasOverdueConfig && (
                             <div className="text-xs text-red-300/70 mt-1">
-                              {overdueConfigType === 'fixed' 
-                                ? `R$ ${overdueConfigValue.toFixed(2)}/dia` 
-                                : `${overdueConfigValue.toFixed(2)}%/dia sobre ${formatCurrency(loan.principal_amount + calculatedTotalInterest)}`
-                              }
+                              {formatCurrency(overdueConfigValue)}/dia
                             </div>
                           )}
                           <div className="flex items-center justify-between mt-1 text-xs sm:text-sm">
@@ -1852,64 +1832,20 @@ export default function Loans() {
                   
                   {editFormData.apply_overdue_penalty && (
                     <>
-                      {/* Penalty type selector */}
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm text-red-300">Tipo de cálculo</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            type="button"
-                            variant={editFormData.overdue_penalty_type === 'percentage' ? 'default' : 'outline'}
-                            size="sm"
-                            className={`h-9 text-xs sm:text-sm ${editFormData.overdue_penalty_type === 'percentage' ? 'bg-red-500 hover:bg-red-600' : 'border-red-500/30 text-red-300'}`}
-                            onClick={() => setEditFormData({ ...editFormData, overdue_penalty_type: 'percentage' })}
-                          >
-                            <Percent className="w-3 h-3 mr-1" />
-                            Porcentagem
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={editFormData.overdue_penalty_type === 'fixed' ? 'default' : 'outline'}
-                            size="sm"
-                            className={`h-9 text-xs sm:text-sm ${editFormData.overdue_penalty_type === 'fixed' ? 'bg-red-500 hover:bg-red-600' : 'border-red-500/30 text-red-300'}`}
-                            onClick={() => setEditFormData({ ...editFormData, overdue_penalty_type: 'fixed' })}
-                          >
-                            <DollarSign className="w-3 h-3 mr-1" />
-                            Valor Fixo
-                          </Button>
-                        </div>
+                        <Label className="text-xs sm:text-sm text-red-300">Valor de juros por dia de atraso (R$)</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={editFormData.overdue_fixed_amount} 
+                          onChange={(e) => setEditFormData({ ...editFormData, overdue_fixed_amount: e.target.value })} 
+                          className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
+                          placeholder="Ex: 50.00"
+                        />
+                        <p className="text-[10px] sm:text-xs text-red-300/60">
+                          Este valor será multiplicado pelos dias em atraso
+                        </p>
                       </div>
-                      
-                      {editFormData.overdue_penalty_type === 'percentage' ? (
-                        <div className="space-y-1 sm:space-y-2">
-                          <Label className="text-xs sm:text-sm text-red-300">Taxa diária de atraso (%)</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={editFormData.overdue_daily_rate} 
-                            onChange={(e) => setEditFormData({ ...editFormData, overdue_daily_rate: e.target.value })} 
-                            className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
-                            placeholder="Ex: 3.0 (3% ao dia)"
-                          />
-                          <p className="text-[10px] sm:text-xs text-red-300/60">
-                            Juros mensal ({editFormData.interest_rate}%) ÷ 30 = {(parseFloat(editFormData.interest_rate) / 30).toFixed(2)}% ao dia
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1 sm:space-y-2">
-                          <Label className="text-xs sm:text-sm text-red-300">Valor fixo do juros de atraso (R$)</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={editFormData.overdue_fixed_amount} 
-                            onChange={(e) => setEditFormData({ ...editFormData, overdue_fixed_amount: e.target.value })} 
-                            className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
-                            placeholder="Ex: 150.00"
-                          />
-                          <p className="text-[10px] sm:text-xs text-red-300/60">
-                            Valor total do juros de atraso a ser adicionado
-                          </p>
-                        </div>
-                      )}
                       
                       {(() => {
                         const principal = parseFloat(editFormData.principal_amount) || 0;
@@ -1921,13 +1857,8 @@ export default function Loans() {
                         const totalPaid = loan?.total_paid || 0;
                         const remainingToReceive = totalToReceive - totalPaid;
                         
-                        let penaltyAmount = 0;
-                        if (editFormData.overdue_penalty_type === 'fixed') {
-                          penaltyAmount = parseFloat(editFormData.overdue_fixed_amount) || 0;
-                        } else {
-                          const dailyRate = parseFloat(editFormData.overdue_daily_rate) || 0;
-                          penaltyAmount = remainingToReceive * (dailyRate / 100) * editOverdueDays;
-                        }
+                        const dailyValue = parseFloat(editFormData.overdue_fixed_amount) || 0;
+                        const penaltyAmount = dailyValue * editOverdueDays;
                         
                         return (
                           <div className="bg-red-500/20 rounded-lg p-2 sm:p-3 space-y-1">
@@ -1937,9 +1868,7 @@ export default function Loans() {
                             </div>
                             <div className="flex justify-between text-xs sm:text-sm">
                               <span className="text-red-300">
-                                {editFormData.overdue_penalty_type === 'fixed' 
-                                  ? 'Juros de atraso (valor fixo):' 
-                                  : `Juros de atraso (${editOverdueDays} dias x ${editFormData.overdue_daily_rate || 0}%):`}
+                                Juros de atraso ({editOverdueDays} dias x {formatCurrency(dailyValue)}):
                               </span>
                               <span className="font-bold text-red-200">+ {formatCurrency(penaltyAmount)}</span>
                             </div>
