@@ -31,6 +31,9 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     buyer_name: '',
     buyer_phone: '',
     buyer_email: '',
+    buyer_cpf: '',
+    buyer_rg: '',
+    buyer_address: '',
     purchase_date: '',
     purchase_value: 0,
     down_payment: 0,
@@ -191,6 +194,32 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
               onChange={(e) => setForm({ ...form, buyer_email: e.target.value })} 
             />
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="space-y-2">
+            <Label>CPF</Label>
+            <Input 
+              placeholder="000.000.000-00" 
+              value={form.buyer_cpf} 
+              onChange={(e) => setForm({ ...form, buyer_cpf: e.target.value })} 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>RG</Label>
+            <Input 
+              placeholder="00.000.000-0" 
+              value={form.buyer_rg} 
+              onChange={(e) => setForm({ ...form, buyer_rg: e.target.value })} 
+            />
+          </div>
+        </div>
+        <div className="space-y-2 mt-4">
+          <Label>Endereço</Label>
+          <Input 
+            placeholder="Rua, número, bairro, cidade..." 
+            value={form.buyer_address} 
+            onChange={(e) => setForm({ ...form, buyer_address: e.target.value })} 
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4 mt-4">

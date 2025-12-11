@@ -12,6 +12,9 @@ export interface ProductSale {
   client_name: string;
   client_phone: string | null;
   client_email: string | null;
+  client_cpf: string | null;
+  client_rg: string | null;
+  client_address: string | null;
   sale_date: string;
   total_amount: number;
   down_payment: number | null;
@@ -52,6 +55,9 @@ export interface CreateProductSaleData {
   client_name: string;
   client_phone?: string;
   client_email?: string;
+  client_cpf?: string;
+  client_rg?: string;
+  client_address?: string;
   sale_date: string;
   total_amount: number;
   down_payment?: number;
@@ -68,6 +74,9 @@ export interface UpdateProductSaleData {
   client_name?: string;
   client_phone?: string;
   client_email?: string;
+  client_cpf?: string;
+  client_rg?: string;
+  client_address?: string;
   notes?: string;
 }
 

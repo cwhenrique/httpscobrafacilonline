@@ -9,6 +9,11 @@ export interface Contract {
   id: string;
   user_id: string;
   client_name: string;
+  client_phone: string | null;
+  client_cpf: string | null;
+  client_rg: string | null;
+  client_email: string | null;
+  client_address: string | null;
   contract_type: string;
   bill_type: 'payable' | 'receivable';
   total_amount: number;
@@ -39,6 +44,11 @@ export interface ContractPayment {
 
 export interface CreateContractData {
   client_name: string;
+  client_phone?: string;
+  client_cpf?: string;
+  client_rg?: string;
+  client_email?: string;
+  client_address?: string;
   contract_type: string;
   bill_type: 'payable' | 'receivable';
   total_amount: number;
@@ -52,6 +62,11 @@ export interface CreateContractData {
 
 export interface UpdateContractData {
   client_name?: string;
+  client_phone?: string;
+  client_cpf?: string;
+  client_rg?: string;
+  client_email?: string;
+  client_address?: string;
   contract_type?: string;
   total_amount?: number;
   amount_to_receive?: number;

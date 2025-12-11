@@ -211,7 +211,12 @@ export type Database = {
         Row: {
           amount_to_receive: number
           bill_type: string
+          client_address: string | null
+          client_cpf: string | null
+          client_email: string | null
           client_name: string
+          client_phone: string | null
+          client_rg: string | null
           contract_type: string
           created_at: string
           first_payment_date: string
@@ -228,7 +233,12 @@ export type Database = {
         Insert: {
           amount_to_receive: number
           bill_type?: string
+          client_address?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
           client_name: string
+          client_phone?: string | null
+          client_rg?: string | null
           contract_type?: string
           created_at?: string
           first_payment_date: string
@@ -245,7 +255,12 @@ export type Database = {
         Update: {
           amount_to_receive?: number
           bill_type?: string
+          client_address?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
           client_name?: string
+          client_phone?: string | null
+          client_rg?: string | null
           contract_type?: string
           created_at?: string
           first_payment_date?: string
@@ -579,9 +594,12 @@ export type Database = {
       }
       product_sales: {
         Row: {
+          client_address: string | null
+          client_cpf: string | null
           client_email: string | null
           client_name: string
           client_phone: string | null
+          client_rg: string | null
           created_at: string
           down_payment: number | null
           first_due_date: string
@@ -600,9 +618,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          client_address?: string | null
+          client_cpf?: string | null
           client_email?: string | null
           client_name: string
           client_phone?: string | null
+          client_rg?: string | null
           created_at?: string
           down_payment?: number | null
           first_due_date: string
@@ -621,9 +642,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          client_address?: string | null
+          client_cpf?: string | null
           client_email?: string | null
           client_name?: string
           client_phone?: string | null
+          client_rg?: string | null
           created_at?: string
           down_payment?: number | null
           first_due_date?: string
@@ -729,9 +753,12 @@ export type Database = {
       vehicles: {
         Row: {
           brand: string
+          buyer_address: string | null
+          buyer_cpf: string | null
           buyer_email: string | null
           buyer_name: string | null
           buyer_phone: string | null
+          buyer_rg: string | null
           chassis: string | null
           color: string | null
           created_at: string
@@ -755,9 +782,12 @@ export type Database = {
         }
         Insert: {
           brand: string
+          buyer_address?: string | null
+          buyer_cpf?: string | null
           buyer_email?: string | null
           buyer_name?: string | null
           buyer_phone?: string | null
+          buyer_rg?: string | null
           chassis?: string | null
           color?: string | null
           created_at?: string
@@ -781,9 +811,12 @@ export type Database = {
         }
         Update: {
           brand?: string
+          buyer_address?: string | null
+          buyer_cpf?: string | null
           buyer_email?: string | null
           buyer_name?: string | null
           buyer_phone?: string | null
+          buyer_rg?: string | null
           chassis?: string | null
           color?: string | null
           created_at?: string
