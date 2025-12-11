@@ -203,6 +203,35 @@ export default function ProductSales() {
     return allPayments?.filter(p => p.product_sale_id === saleId) || [];
   };
 
+  const getSaleStatus = (sale: ProductSale) => {
+    if (sale.status === 'paid' || sale.remaining_balance <= 0) {
+      return 'paid';
+    }
+    const payments = getSalePayments(sale.id);
+    const hasOverdue = payments.some(p => 
+      p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date))
+    );
+    if (hasOverdue) return 'overdue';
+    const hasDueToday = payments.some(p => 
+      p.status !== 'paid' && isToday(parseISO(p.due_date))
+    );
+    if (hasDueToday) return 'due_today';
+    return 'pending';
+  };
+
+  const getCardStyles = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-primary/10 border-primary/40 text-primary-foreground';
+      case 'overdue':
+        return 'bg-destructive/10 border-destructive/40';
+      case 'due_today':
+        return 'bg-yellow-500/10 border-yellow-500/40';
+      default:
+        return '';
+    }
+  };
+
   const getStatusBadge = (status: string, dueDate?: string) => {
     if (status === 'paid') {
       return <Badge className="bg-primary/20 text-primary border-primary/30">Pago</Badge>;
@@ -505,11 +534,13 @@ export default function ProductSales() {
             filteredSales.map((sale) => {
               const salePayments = getSalePayments(sale.id);
               const isExpanded = expandedSale === sale.id;
+              const saleStatus = getSaleStatus(sale);
+              const nextDuePayment = salePayments.find(p => p.status !== 'paid');
 
               return (
                 <Card key={sale.id} className={cn(
                   "transition-all",
-                  sale.status === 'paid' && "bg-primary/5 border-primary/20"
+                  getCardStyles(saleStatus)
                 )}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
@@ -517,7 +548,7 @@ export default function ProductSales() {
                         <div className="flex items-center gap-2 mb-2">
                           <Package className="w-4 h-4 text-primary flex-shrink-0" />
                           <h3 className="font-semibold truncate">{sale.product_name}</h3>
-                          {getStatusBadge(sale.status)}
+                          {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                           <User className="w-3.5 h-3.5" />
@@ -526,14 +557,14 @@ export default function ProductSales() {
                             <span className="text-xs">• {sale.client_phone}</span>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
                           <div>
                             <span className="text-muted-foreground">Total:</span>
                             <p className="font-medium">{formatCurrency(sale.total_amount)}</p>
                           </div>
-                          <div>
+                          <div className="bg-primary/10 rounded px-2 py-1">
                             <span className="text-muted-foreground">Pago:</span>
-                            <p className="font-medium text-primary">{formatCurrency(sale.total_paid || 0)}</p>
+                            <p className="font-bold text-primary">{formatCurrency(sale.total_paid || 0)}</p>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Restante:</span>
@@ -543,6 +574,22 @@ export default function ProductSales() {
                             <span className="text-muted-foreground">Parcelas:</span>
                             <p className="font-medium">{sale.installments}x de {formatCurrency(sale.installment_value)}</p>
                           </div>
+                          {nextDuePayment && (
+                            <div className={cn(
+                              "rounded px-2 py-1",
+                              saleStatus === 'overdue' && "bg-destructive/10",
+                              saleStatus === 'due_today' && "bg-yellow-500/10"
+                            )}>
+                              <span className="text-muted-foreground">Próximo Venc:</span>
+                              <p className={cn(
+                                "font-medium",
+                                saleStatus === 'overdue' && "text-destructive",
+                                saleStatus === 'due_today' && "text-yellow-600"
+                              )}>
+                                {format(parseISO(nextDuePayment.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
