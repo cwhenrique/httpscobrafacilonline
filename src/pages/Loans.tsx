@@ -579,23 +579,20 @@ export default function Loans() {
     const interestRate = parseFloat(editFormData.interest_rate);
     const numInstallments = parseInt(editFormData.installments) || 1;
     
-    // If applying overdue penalty, add it to the remaining balance
-    let overduePenaltyApplied = 0;
-    if (editFormData.apply_overdue_penalty && editLoanIsOverdue && editOverdueDays > 0) {
-      const numInstallmentsCalc = loan.installments || 1;
-      const interestPerInstallmentCalc = loan.principal_amount * (loan.interest_rate / 100);
-      const totalToReceiveCalc = loan.principal_amount + (interestPerInstallmentCalc * numInstallmentsCalc);
-      const remainingToReceiveCalc = totalToReceiveCalc - (loan.total_paid || 0);
-      
+    // Build overdue config to store in notes if applying penalty
+    let overdueConfigNote = '';
+    if (editFormData.apply_overdue_penalty && editLoanIsOverdue) {
       if (editFormData.overdue_penalty_type === 'fixed') {
-        // Fixed amount
-        overduePenaltyApplied = parseFloat(editFormData.overdue_fixed_amount) || 0;
+        const fixedAmount = parseFloat(editFormData.overdue_fixed_amount) || 0;
+        overdueConfigNote = `[OVERDUE_CONFIG:fixed:${fixedAmount}]`;
       } else {
-        // Percentage-based daily rate
         const dailyRate = parseFloat(editFormData.overdue_daily_rate) || 0;
-        overduePenaltyApplied = remainingToReceiveCalc * (dailyRate / 100) * editOverdueDays;
+        overdueConfigNote = `[OVERDUE_CONFIG:percentage:${dailyRate}]`;
       }
     }
+    
+    // Remove any existing overdue config from notes
+    let cleanNotes = (editFormData.notes || '').replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '').trim();
     
     let updateData: any = {
       client_id: editFormData.client_id,
@@ -607,7 +604,7 @@ export default function Loans() {
       installments: numInstallments,
       start_date: editFormData.start_date,
       due_date: editFormData.due_date,
-      notes: editFormData.notes,
+      notes: overdueConfigNote ? `${overdueConfigNote}\n${cleanNotes}`.trim() : cleanNotes,
       installment_dates: editInstallmentDates,
     };
     
@@ -616,24 +613,16 @@ export default function Loans() {
       const dailyAmount = parseFloat(editFormData.daily_amount) || 0;
       const totalToReceive = dailyAmount * numInstallments;
       const profit = totalToReceive - principalAmount;
-      updateData.remaining_balance = totalToReceive + overduePenaltyApplied;
+      updateData.remaining_balance = totalToReceive;
       updateData.total_interest = dailyAmount;
       updateData.interest_rate = profit;
     } else {
       const totalInterest = editFormData.interest_mode === 'per_installment'
         ? principalAmount * (interestRate / 100) * numInstallments
         : principalAmount * (interestRate / 100);
-      const totalToReceive = principalAmount + totalInterest;
       const totalPaid = loan.total_paid || 0;
-      // Add overdue penalty to the remaining balance calculation
       updateData.remaining_balance = principalAmount - totalPaid;
-      updateData.total_interest = totalInterest + overduePenaltyApplied;
-      
-      // If applying penalty, add a note about it
-      if (overduePenaltyApplied > 0) {
-        const penaltyNote = `\nJuros de atraso aplicado: R$ ${overduePenaltyApplied.toFixed(2)} (${editOverdueDays} dias x ${editFormData.overdue_daily_rate}% ao dia)`;
-        updateData.notes = (editFormData.notes || '') + penaltyNote;
-      }
+      updateData.total_interest = totalInterest;
     }
     
     await updateLoan(editingLoanId, updateData);
@@ -1194,11 +1183,35 @@ export default function Loans() {
                   const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
                   return dates[paidInstallments] || loan.due_date;
                 })();
-                const { daysOverdue, penaltyAmount } = calculateOverduePenalty(
-                  remainingToReceive,
-                  loan.interest_rate,
-                  overdueDate
-                );
+                
+                // Parse overdue config from notes
+                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                const hasOverdueConfig = !!overdueConfigMatch;
+                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+                
+                // Calculate days overdue
+                const overdueDateObj = new Date(overdueDate);
+                overdueDateObj.setHours(0, 0, 0, 0);
+                const daysOverdue = today > overdueDateObj ? Math.ceil((today.getTime() - overdueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                
+                // Calculate dynamic penalty based on config
+                let dynamicPenaltyAmount = 0;
+                if (isOverdue && daysOverdue > 0 && hasOverdueConfig) {
+                  if (overdueConfigType === 'fixed') {
+                    // Fixed amount per day (e.g., R$ 50/day × 4 days = R$ 200)
+                    dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
+                  } else {
+                    // Percentage per day based on TOTAL TO RECEIVE (not remaining)
+                    // e.g., 1% of R$ 1300 = R$ 13/day × 4 days = R$ 52
+                    const baseAmount = loan.principal_amount + calculatedTotalInterest;
+                    dynamicPenaltyAmount = baseAmount * (overdueConfigValue / 100) * daysOverdue;
+                  }
+                } else if (isOverdue && daysOverdue > 0) {
+                  // Fallback: use default calculation if no config
+                  const dailyRate = loan.interest_rate / 30 / 100;
+                  dynamicPenaltyAmount = remainingToReceive * dailyRate * daysOverdue;
+                }
                 
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
                 
@@ -1307,21 +1320,29 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                {/* Overdue penalty section */}
-                      {isOverdue && (penaltyAmount > 0 || hasAppliedOverduePenalty) && (
+                      {/* Overdue penalty section */}
+                      {isOverdue && dynamicPenaltyAmount > 0 && (
                         <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                           <div className="flex items-center justify-between text-xs sm:text-sm">
                             <span className="text-red-300 font-medium">
-                              {hasAppliedOverduePenalty ? 'Juros de Atraso (aplicado)' : `Juros de Atraso (${daysOverdue} dias)`}
+                              Juros de Atraso ({daysOverdue} dias)
                             </span>
                             <span className="font-bold text-red-200">
-                              + {formatCurrency(hasAppliedOverduePenalty ? (storedTotalInterest - calculatedTotalInterest) : penaltyAmount)}
+                              {daysOverdue} dias = {formatCurrency(dynamicPenaltyAmount)}
                             </span>
                           </div>
+                          {hasOverdueConfig && (
+                            <div className="text-xs text-red-300/70 mt-1">
+                              {overdueConfigType === 'fixed' 
+                                ? `R$ ${overdueConfigValue.toFixed(2)}/dia` 
+                                : `${overdueConfigValue.toFixed(2)}%/dia sobre ${formatCurrency(loan.principal_amount + calculatedTotalInterest)}`
+                              }
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mt-1 text-xs sm:text-sm">
                             <span className="text-red-300/80">Total com Atraso:</span>
                             <span className="font-bold text-white">
-                              {formatCurrency(remainingToReceive + penaltyAmount)}
+                              {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
                             </span>
                           </div>
                         </div>
