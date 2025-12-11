@@ -28,6 +28,7 @@ import {
   Receipt,
   Calculator,
   Award,
+  ShoppingBag,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -41,7 +42,8 @@ const navigation = [
   { name: 'Clientes', href: '/clients', icon: Users },
   { name: 'Score de Clientes', href: '/scores', icon: Award },
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
-  { name: 'Contas a Pagar', href: '/bills', icon: Receipt },
+  { name: 'Gestão Financeira', href: '/bills', icon: Receipt },
+  { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
   { name: 'Simulador', href: '/simulator', icon: Calculator },

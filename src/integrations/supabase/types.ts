@@ -527,6 +527,122 @@ export type Database = {
           },
         ]
       }
+      product_sale_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          paid_date: string | null
+          product_sale_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          notes?: string | null
+          paid_date?: string | null
+          product_sale_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          paid_date?: string | null
+          product_sale_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_sale_payments_product_sale_id_fkey"
+            columns: ["product_sale_id"]
+            isOneToOne: false
+            referencedRelation: "product_sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_sales: {
+        Row: {
+          client_email: string | null
+          client_name: string
+          client_phone: string | null
+          created_at: string
+          down_payment: number | null
+          first_due_date: string
+          id: string
+          installment_value: number
+          installments: number
+          notes: string | null
+          product_description: string | null
+          product_name: string
+          remaining_balance: number
+          sale_date: string
+          status: string
+          total_amount: number
+          total_paid: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_email?: string | null
+          client_name: string
+          client_phone?: string | null
+          created_at?: string
+          down_payment?: number | null
+          first_due_date: string
+          id?: string
+          installment_value: number
+          installments?: number
+          notes?: string | null
+          product_description?: string | null
+          product_name: string
+          remaining_balance: number
+          sale_date?: string
+          status?: string
+          total_amount: number
+          total_paid?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_email?: string | null
+          client_name?: string
+          client_phone?: string | null
+          created_at?: string
+          down_payment?: number | null
+          first_due_date?: string
+          id?: string
+          installment_value?: number
+          installments?: number
+          notes?: string | null
+          product_description?: string | null
+          product_name?: string
+          remaining_balance?: number
+          sale_date?: string
+          status?: string
+          total_amount?: number
+          total_paid?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null

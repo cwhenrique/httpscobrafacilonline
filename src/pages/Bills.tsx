@@ -616,7 +616,7 @@ export default function Bills() {
             </TabsTrigger>
             <TabsTrigger value="payable" className="gap-1.5 px-2 py-2 sm:px-4 text-xs sm:text-sm">
               <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              Outros Negócios
+              <span className="hidden xs:inline">Contas a</span> Pagar
             </TabsTrigger>
           </TabsList>
 
