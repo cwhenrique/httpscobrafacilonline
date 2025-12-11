@@ -1400,7 +1400,7 @@ export default function Loans() {
                     return 'bg-primary border-primary';
                   }
                   if (isInterestOnlyPayment && !isOverdue) {
-                    return 'bg-emerald-500/20 border-emerald-400 dark:bg-emerald-500/30 dark:border-emerald-400';
+                    return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
                     return 'bg-yellow-500/20 border-yellow-400 dark:bg-yellow-500/30 dark:border-yellow-400';
@@ -1414,7 +1414,7 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-emerald-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
