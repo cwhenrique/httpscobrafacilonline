@@ -105,6 +105,8 @@ export default function Bills() {
     chassis: '',
     seller_name: '',
     buyer_name: '',
+    buyer_phone: '',
+    buyer_email: '',
     purchase_date: '',
     purchase_value: 0,
     down_payment: 0,
@@ -124,6 +126,8 @@ export default function Bills() {
       chassis: '',
       seller_name: '',
       buyer_name: '',
+      buyer_phone: '',
+      buyer_email: '',
       purchase_date: '',
       purchase_value: 0,
       down_payment: 0,
@@ -158,6 +162,8 @@ export default function Bills() {
       chassis: vehicle.chassis || '',
       seller_name: vehicle.seller_name,
       buyer_name: vehicle.buyer_name || '',
+      buyer_phone: vehicle.buyer_phone || '',
+      buyer_email: vehicle.buyer_email || '',
       purchase_date: vehicle.purchase_date,
       purchase_value: vehicle.purchase_value,
       down_payment: vehicle.down_payment,
@@ -182,6 +188,11 @@ export default function Bills() {
         chassis: vehicleForm.chassis || undefined,
         seller_name: vehicleForm.seller_name,
         buyer_name: vehicleForm.buyer_name || undefined,
+        buyer_phone: vehicleForm.buyer_phone || undefined,
+        buyer_email: vehicleForm.buyer_email || undefined,
+        purchase_value: vehicleForm.purchase_value,
+        down_payment: vehicleForm.down_payment,
+        installment_value: vehicleForm.installment_value,
         notes: vehicleForm.notes || undefined,
       },
     });
@@ -1093,6 +1104,18 @@ export default function Bills() {
                                 <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
                               </div>
                             )}
+                            {vehicle.buyer_phone && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">Telefone</span>
+                                <span className="font-medium">{vehicle.buyer_phone}</span>
+                              </div>
+                            )}
+                            {vehicle.buyer_email && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">E-mail</span>
+                                <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_email}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between items-center">
                               <span className="text-xs sm:text-sm text-muted-foreground">Valor total</span>
                               <span className="font-bold text-sm sm:text-base">R$ {vehicle.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -1108,11 +1131,11 @@ export default function Bills() {
                               <span className="font-medium">{vehicle.installments}x de R$ {vehicle.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between items-center p-2 rounded-lg bg-blue-500/10">
-                              <span className="text-xs sm:text-sm text-muted-foreground">Pago</span>
+                              <span className="text-xs sm:text-sm text-muted-foreground">Recebido</span>
                               <span className="font-bold text-sm sm:text-base text-blue-600">R$ {vehicle.total_paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between items-center p-2 rounded-lg bg-orange-500/10">
-                              <span className="text-xs sm:text-sm text-muted-foreground">Falta pagar</span>
+                              <span className="text-xs sm:text-sm text-muted-foreground">Falta receber</span>
                               <span className="font-bold text-sm sm:text-base text-orange-600">R$ {vehicle.remaining_balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                           </div>
@@ -1363,6 +1386,33 @@ export default function Bills() {
                 <div className="space-y-2">
                   <Label>Comprador</Label>
                   <Input value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Telefone do cliente</Label>
+                  <Input placeholder="(00) 00000-0000" value={vehicleForm.buyer_phone} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_phone: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail do cliente</Label>
+                  <Input type="email" placeholder="email@exemplo.com" value={vehicleForm.buyer_email} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_email: e.target.value })} />
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3 text-primary">Valores da Negociação</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Valor total (R$)</Label>
+                    <Input type="number" step="0.01" min="0" value={vehicleForm.purchase_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_value: parseFloat(e.target.value) || 0 })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Entrada (R$)</Label>
+                    <Input type="number" step="0.01" min="0" value={vehicleForm.down_payment || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, down_payment: parseFloat(e.target.value) || 0 })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valor parcela (R$)</Label>
+                    <Input type="number" step="0.01" min="0" value={vehicleForm.installment_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, installment_value: parseFloat(e.target.value) || 0 })} />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">

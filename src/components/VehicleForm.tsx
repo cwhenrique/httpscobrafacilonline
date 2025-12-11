@@ -29,6 +29,8 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     chassis: '',
     seller_name: '',
     buyer_name: '',
+    buyer_phone: '',
+    buyer_email: '',
     purchase_date: '',
     purchase_value: 0,
     down_payment: 0,
@@ -169,6 +171,28 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
             />
           </div>
         </div>
+        
+        {/* Contact fields */}
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="space-y-2">
+            <Label>Telefone do {isReceivable ? 'comprador' : 'vendedor'}</Label>
+            <Input 
+              placeholder="(00) 00000-0000" 
+              value={form.buyer_phone} 
+              onChange={(e) => setForm({ ...form, buyer_phone: e.target.value })} 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>E-mail do {isReceivable ? 'comprador' : 'vendedor'}</Label>
+            <Input 
+              type="email"
+              placeholder="email@exemplo.com" 
+              value={form.buyer_email} 
+              onChange={(e) => setForm({ ...form, buyer_email: e.target.value })} 
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4 mt-4">
           <div className="space-y-2">
             <Label>Data da {isReceivable ? 'venda' : 'compra'}</Label>
