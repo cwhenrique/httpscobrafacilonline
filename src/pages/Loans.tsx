@@ -56,6 +56,8 @@ export default function Loans() {
   // Edit loan state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
+  const [editLoanIsOverdue, setEditLoanIsOverdue] = useState(false);
+  const [editOverdueDays, setEditOverdueDays] = useState(0);
   const [editFormData, setEditFormData] = useState({
     client_id: '',
     principal_amount: '',
@@ -68,6 +70,8 @@ export default function Loans() {
     due_date: '',
     notes: '',
     daily_amount: '',
+    overdue_daily_rate: '', // Custom daily rate for overdue penalty
+    apply_overdue_penalty: false,
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
 
@@ -512,7 +516,30 @@ export default function Loans() {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
+    // Check if loan is overdue
+    const { isOverdue } = getLoanStatus(loan);
+    
+    // Calculate days overdue
+    let daysOverdue = 0;
+    if (isOverdue) {
+      const numInstallments = loan.installments || 1;
+      const principalPerInstallment = loan.principal_amount / numInstallments;
+      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      const dates = (loan.installment_dates as string[]) || [];
+      const overdueDate = dates[paidInstallments] || loan.due_date;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = new Date(overdueDate);
+      due.setHours(0, 0, 0, 0);
+      daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    
     setEditingLoanId(loanId);
+    setEditLoanIsOverdue(isOverdue);
+    setEditOverdueDays(daysOverdue);
     setEditFormData({
       client_id: loan.client_id,
       principal_amount: loan.principal_amount.toString(),
@@ -525,6 +552,8 @@ export default function Loans() {
       due_date: loan.due_date,
       notes: loan.notes || '',
       daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
+      overdue_daily_rate: (loan.interest_rate / 30).toFixed(2), // Default: monthly rate / 30
+      apply_overdue_penalty: false,
     });
     setEditInstallmentDates((loan.installment_dates as string[]) || []);
     setIsEditDialogOpen(true);
@@ -542,9 +571,21 @@ export default function Loans() {
       return;
     }
     
-    const principalAmount = parseFloat(editFormData.principal_amount);
+    let principalAmount = parseFloat(editFormData.principal_amount);
     const interestRate = parseFloat(editFormData.interest_rate);
     const numInstallments = parseInt(editFormData.installments) || 1;
+    
+    // If applying overdue penalty, add it to the remaining balance
+    let overduePenaltyApplied = 0;
+    if (editFormData.apply_overdue_penalty && editLoanIsOverdue && editOverdueDays > 0) {
+      const dailyRate = parseFloat(editFormData.overdue_daily_rate) || 0;
+      const numInstallmentsCalc = loan.installments || 1;
+      const interestPerInstallmentCalc = loan.principal_amount * (loan.interest_rate / 100);
+      const totalToReceiveCalc = loan.principal_amount + (interestPerInstallmentCalc * numInstallmentsCalc);
+      const remainingToReceiveCalc = totalToReceiveCalc - (loan.total_paid || 0);
+      
+      overduePenaltyApplied = remainingToReceiveCalc * (dailyRate / 100) * editOverdueDays;
+    }
     
     let updateData: any = {
       client_id: editFormData.client_id,
@@ -565,7 +606,7 @@ export default function Loans() {
       const dailyAmount = parseFloat(editFormData.daily_amount) || 0;
       const totalToReceive = dailyAmount * numInstallments;
       const profit = totalToReceive - principalAmount;
-      updateData.remaining_balance = totalToReceive;
+      updateData.remaining_balance = totalToReceive + overduePenaltyApplied;
       updateData.total_interest = dailyAmount;
       updateData.interest_rate = profit;
     } else {
@@ -574,8 +615,15 @@ export default function Loans() {
         : principalAmount * (interestRate / 100);
       const totalToReceive = principalAmount + totalInterest;
       const totalPaid = loan.total_paid || 0;
+      // Add overdue penalty to the remaining balance calculation
       updateData.remaining_balance = principalAmount - totalPaid;
-      updateData.total_interest = totalInterest;
+      updateData.total_interest = totalInterest + overduePenaltyApplied;
+      
+      // If applying penalty, add a note about it
+      if (overduePenaltyApplied > 0) {
+        const penaltyNote = `\nJuros de atraso aplicado: R$ ${overduePenaltyApplied.toFixed(2)} (${editOverdueDays} dias x ${editFormData.overdue_daily_rate}% ao dia)`;
+        updateData.notes = (editFormData.notes || '') + penaltyNote;
+      }
     }
     
     await updateLoan(editingLoanId, updateData);
@@ -1726,6 +1774,77 @@ export default function Loans() {
                     </div>
                   )}
                 </>
+              )}
+              
+              {/* Overdue penalty section - only shown when loan is overdue */}
+              {editLoanIsOverdue && editOverdueDays > 0 && (
+                <div className="p-3 sm:p-4 rounded-lg bg-red-500/10 border border-red-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-red-400">Juros de Atraso</p>
+                      <p className="text-xs text-red-300/70">{editOverdueDays} dias em atraso</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        id="apply_overdue"
+                        checked={editFormData.apply_overdue_penalty}
+                        onCheckedChange={(checked) => setEditFormData({ ...editFormData, apply_overdue_penalty: !!checked })}
+                      />
+                      <Label htmlFor="apply_overdue" className="text-xs sm:text-sm text-red-300 cursor-pointer">
+                        Aplicar juros de atraso
+                      </Label>
+                    </div>
+                  </div>
+                  
+                  {editFormData.apply_overdue_penalty && (
+                    <>
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm text-red-300">Taxa diária de atraso (%)</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={editFormData.overdue_daily_rate} 
+                          onChange={(e) => setEditFormData({ ...editFormData, overdue_daily_rate: e.target.value })} 
+                          className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
+                          placeholder="Ex: 1.0 (1% ao dia)"
+                        />
+                        <p className="text-[10px] sm:text-xs text-red-300/60">
+                          Padrão: juros mensal ÷ 30 = {(parseFloat(editFormData.interest_rate) / 30).toFixed(2)}% ao dia
+                        </p>
+                      </div>
+                      
+                      {(() => {
+                        const dailyRate = parseFloat(editFormData.overdue_daily_rate) || 0;
+                        const principal = parseFloat(editFormData.principal_amount) || 0;
+                        const rate = parseFloat(editFormData.interest_rate) || 0;
+                        const numInst = parseInt(editFormData.installments) || 1;
+                        const interestPerInst = principal * (rate / 100);
+                        const totalToReceive = principal + (interestPerInst * numInst);
+                        const loan = loans.find(l => l.id === editingLoanId);
+                        const totalPaid = loan?.total_paid || 0;
+                        const remainingToReceive = totalToReceive - totalPaid;
+                        const penaltyAmount = remainingToReceive * (dailyRate / 100) * editOverdueDays;
+                        
+                        return (
+                          <div className="bg-red-500/20 rounded-lg p-2 sm:p-3 space-y-1">
+                            <div className="flex justify-between text-xs sm:text-sm">
+                              <span className="text-red-300">Saldo devedor:</span>
+                              <span className="font-medium text-red-200">{formatCurrency(remainingToReceive)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs sm:text-sm">
+                              <span className="text-red-300">Juros de atraso ({editOverdueDays} dias):</span>
+                              <span className="font-bold text-red-200">+ {formatCurrency(penaltyAmount)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs sm:text-sm border-t border-red-500/30 pt-1 mt-1">
+                              <span className="text-red-300 font-medium">Novo total:</span>
+                              <span className="font-bold text-white">{formatCurrency(remainingToReceive + penaltyAmount)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+                </div>
               )}
               
               <div className="space-y-1 sm:space-y-2">
