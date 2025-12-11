@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
 import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -1027,6 +1027,18 @@ export default function Loans() {
                   }
                 }
                 
+                // Calculate overdue penalty interest
+                const overdueDate = (() => {
+                  const dates = (loan.installment_dates as string[]) || [];
+                  const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                  return dates[paidInstallments] || loan.due_date;
+                })();
+                const { daysOverdue, penaltyAmount } = calculateOverduePenalty(
+                  remainingToReceive,
+                  loan.interest_rate,
+                  overdueDate
+                );
+                
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated;
                 
                 const getCardStyle = () => {
@@ -1133,6 +1145,26 @@ export default function Loans() {
                           <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
                       </div>
+                      
+                      {/* Overdue penalty section */}
+                      {isOverdue && penaltyAmount > 0 && (
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
+                          <div className="flex items-center justify-between text-xs sm:text-sm">
+                            <span className="text-red-300 font-medium">
+                              Juros de Atraso ({daysOverdue} dias)
+                            </span>
+                            <span className="font-bold text-red-200">
+                              + {formatCurrency(penaltyAmount)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between mt-1 text-xs sm:text-sm">
+                            <span className="text-red-300/80">Total com Atraso:</span>
+                            <span className="font-bold text-white">
+                              {formatCurrency(remainingToReceive + penaltyAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       
                       <div className={`flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <Button 
