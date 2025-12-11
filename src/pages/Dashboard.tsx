@@ -69,6 +69,13 @@ export default function Dashboard() {
       bg: 'bg-primary/10',
     },
     {
+      title: 'Total a Receber',
+      value: formatCurrency(stats.totalToReceive),
+      icon: TrendingUp,
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
+    },
+    {
       title: 'Total Recebido',
       value: formatCurrency(stats.totalReceived),
       icon: TrendingUp,
@@ -76,7 +83,7 @@ export default function Dashboard() {
       bg: 'bg-success/10',
     },
     {
-      title: 'Total Pendente',
+      title: 'Pendente',
       value: formatCurrency(stats.totalPending),
       icon: Clock,
       color: 'text-warning',
@@ -88,13 +95,6 @@ export default function Dashboard() {
       icon: AlertTriangle,
       color: 'text-destructive',
       bg: 'bg-destructive/10',
-    },
-    {
-      title: 'Vencendo em 7 dias',
-      value: stats.upcomingDue.toString(),
-      icon: Clock,
-      color: 'text-warning',
-      bg: 'bg-warning/10',
     },
     {
       title: 'Clientes Ativos',
