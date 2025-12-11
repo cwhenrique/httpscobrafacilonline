@@ -721,6 +721,70 @@ export default function Loans() {
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">Valor da Parcela (R$)</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          value={(() => {
+                            if (!formData.principal_amount || !formData.interest_rate || !formData.installments) return '';
+                            const principal = parseFloat(formData.principal_amount);
+                            const rate = parseFloat(formData.interest_rate);
+                            const numInstallments = parseInt(formData.installments) || 1;
+                            const totalInterest = formData.interest_mode === 'per_installment'
+                              ? principal * (rate / 100) * numInstallments
+                              : principal * (rate / 100);
+                            const total = principal + totalInterest;
+                            return (total / numInstallments).toFixed(2);
+                          })()}
+                          onChange={(e) => {
+                            const newInstallmentValue = parseFloat(e.target.value);
+                            if (!newInstallmentValue || !formData.principal_amount || !formData.installments) return;
+                            
+                            const principal = parseFloat(formData.principal_amount);
+                            const numInstallments = parseInt(formData.installments) || 1;
+                            const totalToReceive = newInstallmentValue * numInstallments;
+                            const totalInterest = totalToReceive - principal;
+                            
+                            // Recalcular a taxa de juros baseada no novo valor de parcela
+                            let newRate: number;
+                            if (formData.interest_mode === 'per_installment') {
+                              // juros_total = principal * (rate/100) * parcelas
+                              // rate = (juros_total / principal / parcelas) * 100
+                              newRate = (totalInterest / principal / numInstallments) * 100;
+                            } else {
+                              // juros_total = principal * (rate/100)
+                              // rate = (juros_total / principal) * 100
+                              newRate = (totalInterest / principal) * 100;
+                            }
+                            
+                            setFormData({ ...formData, interest_rate: newRate.toFixed(2) });
+                          }}
+                          className="h-9 sm:h-10 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">Total a Receber</Label>
+                        <Input 
+                          type="text" 
+                          readOnly 
+                          value={formData.principal_amount && formData.interest_rate && formData.installments
+                            ? (() => {
+                                const principal = parseFloat(formData.principal_amount);
+                                const rate = parseFloat(formData.interest_rate);
+                                const numInstallments = parseInt(formData.installments) || 1;
+                                const totalInterest = formData.interest_mode === 'per_installment'
+                                  ? principal * (rate / 100) * numInstallments
+                                  : principal * (rate / 100);
+                                return formatCurrency(principal + totalInterest);
+                              })()
+                            : 'R$ 0,00'
+                          } 
+                          className="bg-muted h-9 sm:h-10 text-sm"
+                        />
+                      </div>
+                    </div>
                   </>
                 )}
                 {formData.payment_type === 'daily' && (
