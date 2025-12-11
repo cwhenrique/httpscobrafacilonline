@@ -4,6 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useVehiclePayments } from '@/hooks/useVehicles';
+import { useProductSalePayments } from '@/hooks/useProductSales';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +19,8 @@ import {
   CheckCircle,
   Clock,
   User,
-  Car
+  Car,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Loan } from '@/types/database';
@@ -35,7 +37,19 @@ interface DueDateInfo {
     buyerName?: string;
     totalInstallments?: number;
   };
-  type: 'loan' | 'vehicle';
+  productSalePayment?: {
+    id: string;
+    amount: number;
+    due_date: string;
+    installment_number: number;
+    status: string;
+    productName?: string;
+    clientName?: string;
+    totalInstallments?: number;
+    totalAmount?: number;
+    remainingBalance?: number;
+  };
+  type: 'loan' | 'vehicle' | 'product';
   installmentNumber?: number;
   isOverdue: boolean;
   installmentValue: number;
@@ -47,6 +61,7 @@ interface DueDateInfo {
 export default function CalendarView() {
   const { loans, loading } = useLoans();
   const { payments: vehiclePayments, isLoading: vehicleLoading } = useVehiclePayments();
+  const { payments: productSalePayments, isLoading: productLoading } = useProductSalePayments();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -176,8 +191,42 @@ export default function CalendarView() {
       });
     });
 
+    // Add product sale payment due dates
+    productSalePayments?.forEach(payment => {
+      if (payment.status === 'paid') return;
+      
+      const dateKey = payment.due_date;
+      const dueDate = parseISO(dateKey);
+      const isOverdue = isBefore(dueDate, today);
+      
+      if (!dates.has(dateKey)) {
+        dates.set(dateKey, []);
+      }
+      dates.get(dateKey)!.push({
+        type: 'product',
+        productSalePayment: {
+          id: payment.id,
+          amount: payment.amount,
+          due_date: payment.due_date,
+          installment_number: payment.installment_number,
+          status: payment.status,
+          productName: payment.productSale?.product_name,
+          clientName: payment.productSale?.client_name,
+          totalInstallments: payment.productSale?.installments,
+          totalAmount: payment.productSale?.total_amount,
+          remainingBalance: payment.productSale?.remaining_balance,
+        },
+        installmentNumber: payment.installment_number,
+        isOverdue,
+        installmentValue: payment.amount,
+        interestOnlyValue: 0,
+        principalAmount: payment.productSale?.total_amount || payment.amount,
+        totalToReceive: payment.productSale?.remaining_balance || payment.amount,
+      });
+    });
+
     return dates;
-  }, [loans, vehiclePayments]);
+  }, [loans, vehiclePayments, productSalePayments]);
 
   // Get events for selected date
   const selectedDateEvents = useMemo(() => {
@@ -216,6 +265,7 @@ export default function CalendarView() {
     const allPaid = events.every(e => {
       if (e.type === 'loan' && e.loan) return e.loan.status === 'paid';
       if (e.type === 'vehicle' && e.vehiclePayment) return e.vehiclePayment.status === 'paid';
+      if (e.type === 'product' && e.productSalePayment) return e.productSalePayment.status === 'paid';
       return false;
     });
     
@@ -246,9 +296,10 @@ export default function CalendarView() {
       if (!events) return;
 
       events.forEach(event => {
-        const isPaid = event.type === 'loan' 
-          ? event.loan?.status === 'paid' 
-          : event.vehiclePayment?.status === 'paid';
+        let isPaid = false;
+        if (event.type === 'loan') isPaid = event.loan?.status === 'paid';
+        else if (event.type === 'vehicle') isPaid = event.vehiclePayment?.status === 'paid';
+        else if (event.type === 'product') isPaid = event.productSalePayment?.status === 'paid';
         
         if (!isPaid) {
           totalDue += event.installmentValue;
@@ -404,18 +455,22 @@ export default function CalendarView() {
                   </div>
 
                   {/* Legend */}
-                  <div className="flex justify-center gap-3 sm:gap-6 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
+                  <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-sm">
                       <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-warning" />
-                      <span>A vencer</span>
+                      <span>Empréstimo</span>
                     </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-sm">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500" />
+                      <span>Veículo</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-sm">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500" />
+                      <span>Produto</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-sm">
                       <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-destructive" />
                       <span>Vencido</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-sm">
-                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-success" />
-                      <span>Pago</span>
                     </div>
                   </div>
                 </>
@@ -444,9 +499,11 @@ export default function CalendarView() {
                             'p-2.5 sm:p-3 rounded-lg border',
                             event.type === 'vehicle' 
                               ? 'bg-blue-500/5 border-blue-500/20'
-                              : event.isOverdue 
-                                ? 'bg-destructive/5 border-destructive/20' 
-                                : 'bg-warning/5 border-warning/20'
+                              : event.type === 'product'
+                                ? 'bg-emerald-500/5 border-emerald-500/20'
+                                : event.isOverdue 
+                                  ? 'bg-destructive/5 border-destructive/20' 
+                                  : 'bg-warning/5 border-warning/20'
                           )}
                         >
                           <div className="flex items-start gap-2 sm:gap-3">
@@ -454,13 +511,17 @@ export default function CalendarView() {
                               'p-1.5 sm:p-2 rounded-full flex-shrink-0',
                               event.type === 'vehicle' 
                                 ? 'bg-blue-500/10'
-                                : event.isOverdue ? 'bg-destructive/10' : 'bg-warning/10'
+                                : event.type === 'product'
+                                  ? 'bg-emerald-500/10'
+                                  : event.isOverdue ? 'bg-destructive/10' : 'bg-warning/10'
                             )}>
                               {event.type === 'vehicle' 
                                 ? <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
-                                : event.isOverdue 
-                                  ? <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive" />
-                                  : <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
+                                : event.type === 'product'
+                                  ? <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
+                                  : event.isOverdue 
+                                    ? <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive" />
+                                    : <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning" />
                               }
                             </div>
                             <div className="flex-1 min-w-0">
@@ -473,6 +534,16 @@ export default function CalendarView() {
                                     </span>
                                     <Badge variant="secondary" className="text-[10px] sm:text-xs ml-auto bg-blue-500/10 text-blue-500">
                                       {event.installmentNumber}/{event.vehiclePayment?.totalInstallments || 1}
+                                    </Badge>
+                                  </>
+                                ) : event.type === 'product' ? (
+                                  <>
+                                    <Package className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                                    <span className="font-medium truncate text-sm sm:text-base">
+                                      {event.productSalePayment?.clientName || 'Produto'}
+                                    </span>
+                                    <Badge variant="secondary" className="text-[10px] sm:text-xs ml-auto bg-emerald-500/10 text-emerald-500">
+                                      {event.installmentNumber}/{event.productSalePayment?.totalInstallments || 1}
                                     </Badge>
                                   </>
                                 ) : (
@@ -493,6 +564,12 @@ export default function CalendarView() {
                               {event.type === 'vehicle' && event.vehiclePayment?.vehicleName && (
                                 <p className="text-xs text-muted-foreground mb-2">
                                   🚗 {event.vehiclePayment.vehicleName}
+                                </p>
+                              )}
+
+                              {event.type === 'product' && event.productSalePayment?.productName && (
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  📦 {event.productSalePayment.productName}
                                 </p>
                               )}
                               
@@ -522,6 +599,18 @@ export default function CalendarView() {
                                     <span className="text-muted-foreground">Restante:</span>
                                     <span className="font-bold text-blue-500">{formatCurrency(event.totalToReceive)}</span>
                                   </div>
+                                )}
+                                {event.type === 'product' && (
+                                  <>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-muted-foreground">Valor Total:</span>
+                                      <span className="font-medium">{formatCurrency(event.productSalePayment?.totalAmount || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                                      <span className="text-muted-foreground">Restante:</span>
+                                      <span className="font-bold text-emerald-500">{formatCurrency(event.productSalePayment?.remainingBalance || 0)}</span>
+                                    </div>
+                                  </>
                                 )}
                               </div>
                             </div>
