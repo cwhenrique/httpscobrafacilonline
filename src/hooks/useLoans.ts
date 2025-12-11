@@ -396,6 +396,97 @@ export function useLoans() {
     return { success: true };
   };
 
+  const updateLoan = async (id: string, data: {
+    client_id: string;
+    principal_amount: number;
+    interest_rate: number;
+    interest_type: InterestType;
+    interest_mode?: 'per_installment' | 'on_total';
+    payment_type: LoanPaymentType;
+    installments?: number;
+    start_date: string;
+    due_date: string;
+    notes?: string;
+    installment_dates?: string[];
+    remaining_balance?: number;
+    total_interest?: number;
+  }) => {
+    if (!user) return { error: new Error('Usuário não autenticado') };
+
+    // Get loan info before update for notification
+    const { data: oldLoanData } = await supabase
+      .from('loans')
+      .select('*, clients(full_name)')
+      .eq('id', id)
+      .single();
+
+    const updateData = {
+      client_id: data.client_id,
+      principal_amount: data.principal_amount,
+      interest_rate: data.interest_rate,
+      interest_type: data.interest_type,
+      interest_mode: data.interest_mode || 'on_total',
+      payment_type: data.payment_type,
+      installments: data.installments || 1,
+      start_date: data.start_date,
+      due_date: data.due_date,
+      notes: data.notes || null,
+      installment_dates: data.installment_dates || [],
+      remaining_balance: data.remaining_balance !== undefined ? data.remaining_balance : data.principal_amount,
+      total_interest: data.total_interest !== undefined ? data.total_interest : 0,
+    };
+
+    const { error } = await supabase
+      .from('loans')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao atualizar empréstimo');
+      return { error };
+    }
+
+    toast.success('Empréstimo atualizado com sucesso!');
+    
+    // Get updated loan data for notification
+    const { data: newLoanData } = await supabase
+      .from('loans')
+      .select('*, clients(full_name)')
+      .eq('id', id)
+      .single();
+
+    // Send WhatsApp notification for loan update
+    if (newLoanData) {
+      const clientName = (newLoanData.clients as any)?.full_name || 'Cliente';
+      const numInstallments = data.installments || 1;
+      const interestPerInstallment = data.principal_amount * (data.interest_rate / 100);
+      const totalToReceive = data.principal_amount + (interestPerInstallment * numInstallments);
+      const totalPaid = newLoanData.total_paid || 0;
+      const remainingToReceive = totalToReceive - totalPaid;
+      
+      const phone = await getUserPhone(user.id);
+      if (phone) {
+        let message = `✏️ *Empréstimo Editado*\n\n`;
+        message += `👤 Cliente: *${clientName}*\n`;
+        message += `💰 Valor: *${formatCurrency(data.principal_amount)}*\n`;
+        message += `📊 Juros: *${data.interest_rate}%*\n`;
+        message += `📅 Parcelas: *${numInstallments}x*\n`;
+        message += `📅 Vencimento: *${formatDate(data.due_date)}*\n`;
+        message += `💵 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
+        message += `💵 Restante: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
+        if (data.notes) {
+          message += `📝 Obs: ${data.notes}\n`;
+        }
+        message += `\n_CobraFácil - Edição registrada_`;
+        
+        await sendWhatsAppNotification(phone, message);
+      }
+    }
+    
+    await fetchLoans();
+    return { success: true };
+  };
+
   useEffect(() => {
     fetchLoans();
   }, [user]);
@@ -409,5 +500,6 @@ export function useLoans() {
     getLoanPayments,
     deleteLoan,
     renegotiateLoan,
+    updateLoan,
   };
 }

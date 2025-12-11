@@ -17,13 +17,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, fetchLoans } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily'>('all');
@@ -52,6 +52,24 @@ export default function Loans() {
     notes: '',
   });
   const [creatingClient, setCreatingClient] = useState(false);
+  
+  // Edit loan state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    client_id: '',
+    principal_amount: '',
+    interest_rate: '',
+    interest_type: 'simple' as InterestType,
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total',
+    payment_type: 'single' as LoanPaymentType | 'daily',
+    installments: '1',
+    start_date: '',
+    due_date: '',
+    notes: '',
+    daily_amount: '',
+  });
+  const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
 
   const handleCreateClientInline = async () => {
     if (!newClientData.full_name.trim()) {
@@ -488,6 +506,81 @@ export default function Loans() {
     
     setIsRenegotiateDialogOpen(false);
     setSelectedLoanId(null);
+  };
+
+  const openEditDialog = (loanId: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+    
+    setEditingLoanId(loanId);
+    setEditFormData({
+      client_id: loan.client_id,
+      principal_amount: loan.principal_amount.toString(),
+      interest_rate: loan.interest_rate.toString(),
+      interest_type: loan.interest_type,
+      interest_mode: loan.interest_mode || 'per_installment',
+      payment_type: loan.payment_type,
+      installments: (loan.installments || 1).toString(),
+      start_date: loan.start_date,
+      due_date: loan.due_date,
+      notes: loan.notes || '',
+      daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
+    });
+    setEditInstallmentDates((loan.installment_dates as string[]) || []);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLoanId) return;
+    
+    const loan = loans.find(l => l.id === editingLoanId);
+    if (!loan) return;
+    
+    if (!editFormData.client_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+    
+    const principalAmount = parseFloat(editFormData.principal_amount);
+    const interestRate = parseFloat(editFormData.interest_rate);
+    const numInstallments = parseInt(editFormData.installments) || 1;
+    
+    let updateData: any = {
+      client_id: editFormData.client_id,
+      principal_amount: principalAmount,
+      interest_rate: interestRate,
+      interest_type: editFormData.interest_type,
+      interest_mode: editFormData.interest_mode,
+      payment_type: editFormData.payment_type,
+      installments: numInstallments,
+      start_date: editFormData.start_date,
+      due_date: editFormData.due_date,
+      notes: editFormData.notes,
+      installment_dates: editInstallmentDates,
+    };
+    
+    // Calculate remaining balance and total interest based on payment type
+    if (editFormData.payment_type === 'daily') {
+      const dailyAmount = parseFloat(editFormData.daily_amount) || 0;
+      const totalToReceive = dailyAmount * numInstallments;
+      const profit = totalToReceive - principalAmount;
+      updateData.remaining_balance = totalToReceive;
+      updateData.total_interest = dailyAmount;
+      updateData.interest_rate = profit;
+    } else {
+      const totalInterest = editFormData.interest_mode === 'per_installment'
+        ? principalAmount * (interestRate / 100) * numInstallments
+        : principalAmount * (interestRate / 100);
+      const totalToReceive = principalAmount + totalInterest;
+      const totalPaid = loan.total_paid || 0;
+      updateData.remaining_balance = principalAmount - totalPaid;
+      updateData.total_interest = totalInterest;
+    }
+    
+    await updateLoan(editingLoanId, updateData);
+    setIsEditDialogOpen(false);
+    setEditingLoanId(null);
   };
 
   return (
@@ -1180,6 +1273,15 @@ export default function Loans() {
                           variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="icon" 
                           className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                          onClick={() => openEditDialog(loan.id)}
+                          title="Editar Empréstimo"
+                        >
+                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </Button>
+                        <Button 
+                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                          size="icon" 
+                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                           onClick={() => openRenegotiateDialog(loan.id)}
                           title="Renegociar"
                         >
@@ -1441,6 +1543,210 @@ export default function Loans() {
                 </form>
               );
             })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Loan Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
+            <DialogHeader><DialogTitle className="text-base sm:text-xl">Editar Empréstimo</DialogTitle></DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-3 sm:space-y-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Cliente *</Label>
+                <Select value={editFormData.client_id} onValueChange={(v) => setEditFormData({ ...editFormData, client_id: v })}>
+                  <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {editFormData.payment_type === 'daily' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Valor Emprestado (R$) *</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={editFormData.principal_amount} 
+                        onChange={(e) => setEditFormData({ ...editFormData, principal_amount: e.target.value })} 
+                        required 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Parcela Diária (R$) *</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={editFormData.daily_amount} 
+                        onChange={(e) => setEditFormData({ ...editFormData, daily_amount: e.target.value })} 
+                        required 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Datas de Cobrança ({editInstallmentDates.length} dias)</Label>
+                    <div className="border rounded-md p-2 sm:p-3 bg-background text-foreground">
+                      <Calendar
+                        mode="multiple"
+                        selected={editInstallmentDates.map(d => new Date(d + 'T12:00:00'))}
+                        onSelect={(dates) => {
+                          if (dates) {
+                            const sortedDates = dates.map(d => d.toISOString().split('T')[0]).sort();
+                            setEditInstallmentDates(sortedDates);
+                            if (sortedDates.length > 0) {
+                              setEditFormData(prev => ({
+                                ...prev,
+                                due_date: sortedDates[sortedDates.length - 1],
+                                installments: sortedDates.length.toString(),
+                              }));
+                            }
+                          } else {
+                            setEditInstallmentDates([]);
+                          }
+                        }}
+                        className="pointer-events-auto text-xs sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Valor (R$) *</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={editFormData.principal_amount} 
+                        onChange={(e) => setEditFormData({ ...editFormData, principal_amount: e.target.value })} 
+                        required 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Juros (%)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={editFormData.interest_rate} 
+                        onChange={(e) => setEditFormData({ ...editFormData, interest_rate: e.target.value })} 
+                        required 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Tipo de Pagamento</Label>
+                      <Select 
+                        value={editFormData.payment_type} 
+                        onValueChange={(v) => setEditFormData({ ...editFormData, payment_type: v as LoanPaymentType })}
+                      >
+                        <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Pagamento Único</SelectItem>
+                          <SelectItem value="installment">Parcelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {editFormData.payment_type === 'installment' && (
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">Parcelas</Label>
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          value={editFormData.installments} 
+                          onChange={(e) => setEditFormData({ ...editFormData, installments: e.target.value })} 
+                          className="h-9 sm:h-10 text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
+                    <Select 
+                      value={editFormData.interest_mode} 
+                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' })}
+                    >
+                      <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="per_installment">Por Parcela</SelectItem>
+                        <SelectItem value="on_total">Sobre o Total</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Data de Início</Label>
+                      <Input 
+                        type="date" 
+                        value={editFormData.start_date} 
+                        onChange={(e) => setEditFormData({ ...editFormData, start_date: e.target.value })} 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Vencimento *</Label>
+                      <Input 
+                        type="date" 
+                        value={editFormData.due_date} 
+                        onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })} 
+                        required 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                  {editFormData.payment_type === 'installment' && (
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Datas das Parcelas</Label>
+                      <ScrollArea className="h-32 border rounded-md p-2">
+                        {Array.from({ length: parseInt(editFormData.installments) || 1 }).map((_, index) => (
+                          <div key={index} className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-muted-foreground w-16">Parcela {index + 1}:</span>
+                            <Input 
+                              type="date" 
+                              value={editInstallmentDates[index] || ''} 
+                              onChange={(e) => {
+                                const newDates = [...editInstallmentDates];
+                                newDates[index] = e.target.value;
+                                setEditInstallmentDates(newDates);
+                                if (index === newDates.length - 1 || index === parseInt(editFormData.installments) - 1) {
+                                  setEditFormData(prev => ({ ...prev, due_date: e.target.value }));
+                                }
+                              }} 
+                              className="h-8 text-sm flex-1"
+                            />
+                          </div>
+                        ))}
+                      </ScrollArea>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Observações</Label>
+                <Textarea 
+                  value={editFormData.notes} 
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} 
+                  rows={2} 
+                  className="text-sm"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">
+                  Cancelar
+                </Button>
+                <Button type="submit" className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">
+                  Salvar Alterações
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
