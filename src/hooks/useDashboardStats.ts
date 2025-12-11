@@ -1,13 +1,23 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { DashboardStats } from '@/types/database';
+
+export interface DashboardStats {
+  totalLoaned: number;
+  totalReceived: number;
+  totalPending: number;
+  totalToReceive: number;
+  overdueCount: number;
+  upcomingDue: number;
+  activeClients: number;
+}
 
 export function useDashboardStats() {
   const [stats, setStats] = useState<DashboardStats>({
     totalLoaned: 0,
     totalReceived: 0,
     totalPending: 0,
+    totalToReceive: 0,
     overdueCount: 0,
     upcomingDue: 0,
     activeClients: 0,
@@ -20,10 +30,10 @@ export function useDashboardStats() {
 
     setLoading(true);
 
-    // Fetch loans
+    // Fetch loans with all necessary fields for calculation
     const { data: loans } = await supabase
       .from('loans')
-      .select('principal_amount, total_paid, remaining_balance, status, due_date');
+      .select('principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest');
 
     // Fetch monthly fee payments
     const { data: monthlyPayments } = await supabase
@@ -40,15 +50,43 @@ export function useDashboardStats() {
 
     let totalLoaned = 0;
     let totalReceived = 0;
-    let totalPending = 0;
+    let totalToReceive = 0;
     let overdueCount = 0;
     let upcomingDue = 0;
 
     if (loans) {
       loans.forEach(loan => {
+        // Total emprestado = soma dos principais
         totalLoaned += Number(loan.principal_amount);
-        totalReceived += Number(loan.total_paid);
-        totalPending += Number(loan.remaining_balance);
+        
+        // Total recebido = soma dos pagamentos
+        totalReceived += Number(loan.total_paid || 0);
+        
+        // Calcular total a receber (principal + juros) para cada empréstimo
+        let loanTotalToReceive = 0;
+        
+        if (loan.payment_type === 'daily') {
+          // Para empréstimos diários, remaining_balance armazena o total a receber inicial
+          // e total_interest armazena o valor da parcela diária
+          loanTotalToReceive = Number(loan.remaining_balance) + Number(loan.total_paid || 0);
+        } else {
+          // Para empréstimos regulares, calcular baseado em juros
+          const principal = Number(loan.principal_amount);
+          const rate = Number(loan.interest_rate);
+          const numInstallments = Number(loan.installments) || 1;
+          const interestMode = loan.interest_mode || 'per_installment';
+          
+          let totalInterest = 0;
+          if (interestMode === 'per_installment') {
+            totalInterest = principal * (rate / 100) * numInstallments;
+          } else {
+            totalInterest = principal * (rate / 100);
+          }
+          
+          loanTotalToReceive = principal + totalInterest;
+        }
+        
+        totalToReceive += loanTotalToReceive;
         
         if (loan.status === 'overdue') {
           overdueCount++;
@@ -61,12 +99,15 @@ export function useDashboardStats() {
       });
     }
 
+    // Calcular total pendente = total a receber - total recebido
+    const totalPending = totalToReceive - totalReceived;
+
     if (monthlyPayments) {
       monthlyPayments.forEach(payment => {
         if (payment.status === 'paid') {
           totalReceived += Number(payment.amount);
         } else {
-          totalPending += Number(payment.amount);
+          // Adicionar ao pendente os pagamentos mensais não pagos
           if (payment.status === 'overdue') {
             overdueCount++;
           }
@@ -82,7 +123,8 @@ export function useDashboardStats() {
     setStats({
       totalLoaned,
       totalReceived,
-      totalPending,
+      totalPending: Math.max(0, totalPending),
+      totalToReceive,
       overdueCount,
       upcomingDue,
       activeClients: clientsCount || 0,

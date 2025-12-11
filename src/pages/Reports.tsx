@@ -16,6 +16,7 @@ export default function Reports() {
 
   const chartData = [
     { name: 'Emprestado', value: stats.totalLoaned, fill: 'hsl(var(--chart-1))' },
+    { name: 'A Receber', value: stats.totalToReceive, fill: 'hsl(var(--chart-4))' },
     { name: 'Recebido', value: stats.totalReceived, fill: 'hsl(var(--chart-2))' },
     { name: 'Pendente', value: stats.totalPending, fill: 'hsl(var(--chart-3))' },
   ];
@@ -35,7 +36,7 @@ export default function Reports() {
           <p className="text-muted-foreground">Análise financeira do seu sistema</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <Card className="shadow-soft">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -45,6 +46,19 @@ export default function Reports() {
                 <div>
                   <p className="text-sm text-muted-foreground">Total Emprestado</p>
                   <p className="text-2xl font-bold">{formatCurrency(stats.totalLoaned)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-soft">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-blue-500/10">
+                  <TrendingUp className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total a Receber</p>
+                  <p className="text-2xl font-bold">{formatCurrency(stats.totalToReceive)}</p>
                 </div>
               </div>
             </CardContent>
@@ -69,7 +83,7 @@ export default function Reports() {
                   <AlertTriangle className="w-6 h-6 text-warning" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Total a Receber</p>
+                  <p className="text-sm text-muted-foreground">Pendente</p>
                   <p className="text-2xl font-bold">{formatCurrency(stats.totalPending)}</p>
                 </div>
               </div>
