@@ -560,6 +560,131 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          notes: string | null
+          paid_date: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          vehicle_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          paid_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_payments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          brand: string
+          buyer_name: string | null
+          chassis: string | null
+          color: string | null
+          created_at: string
+          down_payment: number | null
+          first_due_date: string
+          id: string
+          installment_value: number
+          installments: number
+          model: string
+          notes: string | null
+          plate: string | null
+          purchase_date: string
+          purchase_value: number
+          remaining_balance: number
+          seller_name: string
+          status: string
+          total_paid: number | null
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          brand: string
+          buyer_name?: string | null
+          chassis?: string | null
+          color?: string | null
+          created_at?: string
+          down_payment?: number | null
+          first_due_date: string
+          id?: string
+          installment_value: number
+          installments?: number
+          model: string
+          notes?: string | null
+          plate?: string | null
+          purchase_date?: string
+          purchase_value: number
+          remaining_balance: number
+          seller_name: string
+          status?: string
+          total_paid?: number | null
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          brand?: string
+          buyer_name?: string | null
+          chassis?: string | null
+          color?: string | null
+          created_at?: string
+          down_payment?: number | null
+          first_due_date?: string
+          id?: string
+          installment_value?: number
+          installments?: number
+          model?: string
+          notes?: string | null
+          plate?: string | null
+          purchase_date?: string
+          purchase_value?: number
+          remaining_balance?: number
+          seller_name?: string
+          status?: string
+          total_paid?: number | null
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

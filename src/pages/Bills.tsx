@@ -33,29 +33,38 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
+import { useVehicles, useVehiclePayments, Vehicle, CreateVehicleData, VehiclePayment } from '@/hooks/useVehicles';
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, Calendar, User, DollarSign, FileText, FileSignature, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, Calendar, User, DollarSign, FileText, FileSignature, ChevronDown, ChevronUp, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Bills() {
   const { bills, isLoading: billsLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills();
   const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
+  const { vehicles, isLoading: vehiclesLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
+  const { payments: vehiclePaymentsList, markAsPaid: markVehiclePaymentAsPaid } = useVehiclePayments();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isContractOpen, setIsContractOpen] = useState(false);
   const [isEditContractOpen, setIsEditContractOpen] = useState(false);
+  const [isVehicleOpen, setIsVehicleOpen] = useState(false);
+  const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteContractId, setDeleteContractId] = useState<string | null>(null);
+  const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
   const [mainTab, setMainTab] = useState<'payable' | 'receivable'>('receivable');
   const [activeTab, setActiveTab] = useState('contracts');
   const [expandedContract, setExpandedContract] = useState<string | null>(null);
+  const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
   const [contractPayments, setContractPayments] = useState<Record<string, ContractPayment[]>>({});
+  const [vehiclePayments, setVehiclePayments] = useState<Record<string, VehiclePayment[]>>({});
   
   const [editContractForm, setEditContractForm] = useState<UpdateContractData>({
     client_name: '',
@@ -85,6 +94,111 @@ export default function Bills() {
     payment_method: 'all_days',
     notes: '',
   });
+
+  const [vehicleForm, setVehicleForm] = useState<CreateVehicleData>({
+    brand: '',
+    model: '',
+    year: new Date().getFullYear(),
+    color: '',
+    plate: '',
+    chassis: '',
+    seller_name: '',
+    buyer_name: '',
+    purchase_date: '',
+    purchase_value: 0,
+    down_payment: 0,
+    installments: 12,
+    installment_value: 0,
+    first_due_date: '',
+    notes: '',
+  });
+
+  const resetVehicleForm = () => {
+    setVehicleForm({
+      brand: '',
+      model: '',
+      year: new Date().getFullYear(),
+      color: '',
+      plate: '',
+      chassis: '',
+      seller_name: '',
+      buyer_name: '',
+      purchase_date: '',
+      purchase_value: 0,
+      down_payment: 0,
+      installments: 12,
+      installment_value: 0,
+      first_due_date: '',
+      notes: '',
+    });
+  };
+
+  const handleCreateVehicle = async () => {
+    if (!vehicleForm.brand || !vehicleForm.model || !vehicleForm.seller_name || !vehicleForm.purchase_value || !vehicleForm.first_due_date) return;
+    await createVehicle.mutateAsync(vehicleForm);
+    setIsVehicleOpen(false);
+    resetVehicleForm();
+  };
+
+  const handleDeleteVehicle = async () => {
+    if (!deleteVehicleId) return;
+    await deleteVehicle.mutateAsync(deleteVehicleId);
+    setDeleteVehicleId(null);
+  };
+
+  const openEditVehicleDialog = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setVehicleForm({
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color || '',
+      plate: vehicle.plate || '',
+      chassis: vehicle.chassis || '',
+      seller_name: vehicle.seller_name,
+      buyer_name: vehicle.buyer_name || '',
+      purchase_date: vehicle.purchase_date,
+      purchase_value: vehicle.purchase_value,
+      down_payment: vehicle.down_payment,
+      installments: vehicle.installments,
+      installment_value: vehicle.installment_value,
+      first_due_date: vehicle.first_due_date,
+      notes: vehicle.notes || '',
+    });
+    setIsEditVehicleOpen(true);
+  };
+
+  const handleEditVehicle = async () => {
+    if (!editingVehicle) return;
+    await updateVehicle.mutateAsync({
+      id: editingVehicle.id,
+      data: {
+        brand: vehicleForm.brand,
+        model: vehicleForm.model,
+        year: vehicleForm.year,
+        color: vehicleForm.color || undefined,
+        plate: vehicleForm.plate || undefined,
+        chassis: vehicleForm.chassis || undefined,
+        seller_name: vehicleForm.seller_name,
+        buyer_name: vehicleForm.buyer_name || undefined,
+        notes: vehicleForm.notes || undefined,
+      },
+    });
+    setIsEditVehicleOpen(false);
+    setEditingVehicle(null);
+    resetVehicleForm();
+  };
+
+  const toggleVehicleExpand = async (vehicleId: string) => {
+    if (expandedVehicle === vehicleId) {
+      setExpandedVehicle(null);
+    } else {
+      setExpandedVehicle(vehicleId);
+      // Load payments for this vehicle
+      const payments = vehiclePaymentsList.filter(p => p.vehicle_id === vehicleId);
+      setVehiclePayments(prev => ({ ...prev, [vehicleId]: payments }));
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -620,6 +734,7 @@ export default function Bills() {
                 <TabsList className="w-full sm:w-auto">
                   <TabsTrigger value="bills" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Contas</TabsTrigger>
                   <TabsTrigger value="contracts" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><FileSignature className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Contratos</TabsTrigger>
+                  <TabsTrigger value="vehicles" className="gap-1.5 flex-1 sm:flex-none text-xs sm:text-sm"><Car className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Veículos</TabsTrigger>
                 </TabsList>
 
                 {activeTab === 'bills' ? (
@@ -658,7 +773,7 @@ export default function Bills() {
                       </div>
                     </DialogContent>
                   </Dialog>
-                ) : (
+                ) : activeTab === 'contracts' ? (
                   <Dialog open={isContractOpen && mainTab === 'payable'} onOpenChange={(open) => {
                     setIsContractOpen(open);
                     if (open) setContractForm(prev => ({ ...prev, bill_type: 'payable' }));
@@ -669,6 +784,138 @@ export default function Bills() {
                     <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Novo Contrato - A Pagar</DialogTitle></DialogHeader>
                       <ContractForm billType="payable" />
+                    </DialogContent>
+                  </Dialog>
+                ) : (
+                  <Dialog open={isVehicleOpen} onOpenChange={setIsVehicleOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4" />Novo Veículo</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader><DialogTitle>Cadastrar Veículo</DialogTitle></DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Marca *</Label>
+                            <Input placeholder="Ex: Honda, Toyota..." value={vehicleForm.brand} onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Modelo *</Label>
+                            <Input placeholder="Ex: Civic, Corolla..." value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Ano *</Label>
+                            <Input type="number" min="1900" max="2030" value={vehicleForm.year} onChange={(e) => setVehicleForm({ ...vehicleForm, year: parseInt(e.target.value) || new Date().getFullYear() })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Cor</Label>
+                            <Input placeholder="Ex: Preto, Branco..." value={vehicleForm.color} onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Placa</Label>
+                            <Input placeholder="ABC-1234" value={vehicleForm.plate} onChange={(e) => setVehicleForm({ ...vehicleForm, plate: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Chassis</Label>
+                          <Input placeholder="Número do chassis" value={vehicleForm.chassis} onChange={(e) => setVehicleForm({ ...vehicleForm, chassis: e.target.value })} />
+                        </div>
+                        
+                        <div className="border-t pt-4">
+                          <h4 className="font-semibold mb-3 text-blue-600">Dados da Compra</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Vendedor (Comprado de) *</Label>
+                              <Input placeholder="Nome do vendedor" value={vehicleForm.seller_name} onChange={(e) => setVehicleForm({ ...vehicleForm, seller_name: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Comprador (Vendido para)</Label>
+                              <Input placeholder="Nome do comprador (se vendeu)" value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div className="space-y-2">
+                              <Label>Data da compra</Label>
+                              <Input type="date" value={vehicleForm.purchase_date} onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_date: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Valor total (R$) *</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.purchase_value || ''} onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                const downPayment = vehicleForm.down_payment || 0;
+                                const remaining = value - downPayment;
+                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
+                                setVehicleForm({ ...vehicleForm, purchase_value: value, installment_value: installmentValue });
+                              }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <h4 className="font-semibold mb-3 text-blue-600">Parcelamento</h4>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label>Entrada (R$)</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.down_payment || ''} onChange={(e) => {
+                                const downPayment = parseFloat(e.target.value) || 0;
+                                const remaining = vehicleForm.purchase_value - downPayment;
+                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
+                                setVehicleForm({ ...vehicleForm, down_payment: downPayment, installment_value: installmentValue });
+                              }} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Nº de parcelas *</Label>
+                              <Input type="number" min="1" value={vehicleForm.installments} onChange={(e) => {
+                                const installments = parseInt(e.target.value) || 1;
+                                const remaining = vehicleForm.purchase_value - (vehicleForm.down_payment || 0);
+                                const installmentValue = installments > 0 ? remaining / installments : 0;
+                                setVehicleForm({ ...vehicleForm, installments, installment_value: installmentValue });
+                              }} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Valor da parcela *</Label>
+                              <Input type="number" step="0.01" min="0" value={vehicleForm.installment_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, installment_value: parseFloat(e.target.value) || 0 })} />
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <Label>Primeiro vencimento *</Label>
+                            <Input type="date" value={vehicleForm.first_due_date} onChange={(e) => setVehicleForm({ ...vehicleForm, first_due_date: e.target.value })} />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Observações</Label>
+                          <Textarea placeholder="Notas adicionais sobre o veículo..." value={vehicleForm.notes} onChange={(e) => setVehicleForm({ ...vehicleForm, notes: e.target.value })} />
+                        </div>
+
+                        {vehicleForm.purchase_value > 0 && (
+                          <div className="bg-blue-500/10 p-3 rounded-lg">
+                            <p className="text-sm text-muted-foreground">Resumo:</p>
+                            <div className="flex justify-between mt-1">
+                              <span>Valor total:</span>
+                              <span className="font-bold">R$ {vehicleForm.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Entrada:</span>
+                              <span className="font-semibold">R$ {(vehicleForm.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>A parcelar:</span>
+                              <span className="font-semibold">R$ {(vehicleForm.purchase_value - (vehicleForm.down_payment || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-blue-600 font-bold">
+                              <span>{vehicleForm.installments}x de:</span>
+                              <span>R$ {vehicleForm.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <Button onClick={handleCreateVehicle} disabled={!vehicleForm.brand || !vehicleForm.model || !vehicleForm.seller_name || !vehicleForm.purchase_value || !vehicleForm.first_due_date || createVehicle.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
+                          {createVehicle.isPending ? 'Salvando...' : 'Cadastrar Veículo'}
+                        </Button>
+                      </div>
                     </DialogContent>
                   </Dialog>
                 )}
@@ -763,6 +1010,125 @@ export default function Bills() {
                   </Card>
                 ) : (
                   <ContractsList contractsList={filteredContracts} billType="payable" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="vehicles" className="mt-4">
+                {vehiclesLoading ? (
+                  <div className="text-center py-8 sm:py-12"><p className="text-muted-foreground text-sm">Carregando veículos...</p></div>
+                ) : vehicles.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 sm:py-12 text-center">
+                      <Car className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum veículo cadastrado</h3>
+                      <p className="text-muted-foreground text-xs sm:text-sm">Cadastre veículos financiados para controlar as parcelas</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {vehicles.filter(v => v.brand.toLowerCase().includes(searchTerm.toLowerCase()) || v.model.toLowerCase().includes(searchTerm.toLowerCase()) || v.seller_name.toLowerCase().includes(searchTerm.toLowerCase())).map((vehicle) => (
+                      <Card key={vehicle.id} className={cn("overflow-hidden transition-all border-blue-500/30", vehicle.status === 'paid' ? 'bg-primary/10 border-primary' : '')}>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-start justify-between mb-3 gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                                <Car className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm sm:text-base truncate">{vehicle.brand} {vehicle.model}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
+                              </div>
+                            </div>
+                            <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'} className={cn(vehicle.status === 'paid' ? 'bg-primary' : 'bg-blue-500/20 text-blue-600')}>
+                              {vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}
+                            </Badge>
+                          </div>
+
+                          {vehicle.plate && (
+                            <div className="mb-2 p-2 bg-muted rounded text-center font-mono font-bold text-sm">
+                              {vehicle.plate}
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5 sm:space-y-2 mb-3">
+                            <div className="flex justify-between items-center text-xs sm:text-sm">
+                              <span className="text-muted-foreground">Vendedor</span>
+                              <span className="font-medium truncate max-w-[50%]">{vehicle.seller_name}</span>
+                            </div>
+                            {vehicle.buyer_name && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">Comprador</span>
+                                <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Valor total</span>
+                              <span className="font-bold text-sm sm:text-base">R$ {vehicle.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            {vehicle.down_payment > 0 && (
+                              <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-muted-foreground">Entrada</span>
+                                <span className="font-medium text-primary">R$ {vehicle.down_payment.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs sm:text-sm">
+                              <span className="text-muted-foreground">Parcela</span>
+                              <span className="font-medium">{vehicle.installments}x de R$ {vehicle.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 rounded-lg bg-blue-500/10">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Pago</span>
+                              <span className="font-bold text-sm sm:text-base text-blue-600">R$ {vehicle.total_paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 rounded-lg bg-orange-500/10">
+                              <span className="text-xs sm:text-sm text-muted-foreground">Falta pagar</span>
+                              <span className="font-bold text-sm sm:text-base text-orange-600">R$ {vehicle.remaining_balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+
+                          {vehicle.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mb-3 italic line-clamp-2">"{vehicle.notes}"</p>}
+
+                          <div className="flex gap-1.5 sm:gap-2">
+                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleVehicleExpand(vehicle.id)}>
+                              {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                              Parcelas
+                            </Button>
+                            <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditVehicleDialog(vehicle)}>
+                              <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </Button>
+                            <Button size="icon" variant="outline" className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9" onClick={() => setDeleteVehicleId(vehicle.id)}>
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </Button>
+                          </div>
+
+                          {expandedVehicle === vehicle.id && (
+                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-1.5 sm:space-y-2">
+                              {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
+                                <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", 
+                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' : 
+                                  isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
+                                )}>
+                                  <div className="min-w-0">
+                                    <span className="font-medium">{payment.installment_number}ª</span>
+                                    <span className="ml-1 sm:ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 sm:gap-2">
+                                    <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
+                                        <Check className="w-3 h-3" />
+                                      </Button>
+                                    ) : (
+                                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 )}
               </TabsContent>
             </Tabs>
@@ -909,6 +1275,70 @@ export default function Bills() {
                 className="w-full"
               >
                 {updateContract.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Vehicle Dialog */}
+        <AlertDialog open={!!deleteVehicleId} onOpenChange={() => setDeleteVehicleId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir veículo?</AlertDialogTitle>
+              <AlertDialogDescription>Todas as parcelas serão excluídas. Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteVehicle} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Edit Vehicle Dialog */}
+        <Dialog open={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Editar Veículo</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input value={vehicleForm.brand} onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Modelo</Label>
+                  <Input value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Ano</Label>
+                  <Input type="number" value={vehicleForm.year} onChange={(e) => setVehicleForm({ ...vehicleForm, year: parseInt(e.target.value) || new Date().getFullYear() })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cor</Label>
+                  <Input value={vehicleForm.color} onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Placa</Label>
+                  <Input value={vehicleForm.plate} onChange={(e) => setVehicleForm({ ...vehicleForm, plate: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Vendedor</Label>
+                  <Input value={vehicleForm.seller_name} onChange={(e) => setVehicleForm({ ...vehicleForm, seller_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Comprador</Label>
+                  <Input value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea value={vehicleForm.notes} onChange={(e) => setVehicleForm({ ...vehicleForm, notes: e.target.value })} />
+              </div>
+              <Button onClick={handleEditVehicle} disabled={updateVehicle.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
+                {updateVehicle.isPending ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
             </div>
           </DialogContent>
