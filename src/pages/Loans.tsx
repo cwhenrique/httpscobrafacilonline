@@ -400,6 +400,58 @@ export default function Loans() {
     resetForm();
   };
 
+  // Calculate past installments and their value for historical contracts
+  const pastInstallmentsData = (() => {
+    if (!formData.is_historical_contract || !hasPastDates) return { count: 0, totalValue: 0 };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const principal = parseFloat(formData.principal_amount) || 0;
+    const rate = parseFloat(formData.interest_rate) || 0;
+    const numInstallments = parseInt(formData.installments) || 1;
+    
+    if (formData.payment_type === 'installment' && installmentDates.length > 0) {
+      const pastDates = installmentDates.filter(d => {
+        const date = new Date(d + 'T12:00:00');
+        return date < today;
+      });
+      
+      const interestPerInstallment = formData.interest_mode === 'per_installment'
+        ? principal * (rate / 100)
+        : (principal * (rate / 100)) / numInstallments;
+      const principalPerInstallment = principal / numInstallments;
+      const valuePerInstallment = principalPerInstallment + interestPerInstallment;
+      
+      return {
+        count: pastDates.length,
+        totalValue: valuePerInstallment * pastDates.length,
+        dates: pastDates,
+        valuePerInstallment,
+        principalPerInstallment,
+        interestPerInstallment,
+      };
+    }
+    
+    // For single payment with past due date, count as 1
+    if (formData.due_date) {
+      const dueDate = new Date(formData.due_date + 'T12:00:00');
+      if (dueDate < today) {
+        const interestAmount = principal * (rate / 100);
+        return {
+          count: 1,
+          totalValue: principal + interestAmount,
+          dates: [formData.due_date],
+          valuePerInstallment: principal + interestAmount,
+          principalPerInstallment: principal,
+          interestPerInstallment: interestAmount,
+        };
+      }
+    }
+    
+    return { count: 0, totalValue: 0 };
+  })();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -434,7 +486,7 @@ export default function Loans() {
       notes = `[HISTORICAL_CONTRACT]\n${notes}`.trim();
     }
     
-    await createLoan({
+    const result = await createLoan({
       ...formData,
       principal_amount: parseFloat(formData.principal_amount),
       interest_rate: parseFloat(formData.interest_rate),
@@ -442,6 +494,24 @@ export default function Loans() {
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
       notes: notes || undefined,
     });
+    
+    // If historical contract with past installments, register them as paid automatically
+    if (result?.data && formData.is_historical_contract && pastInstallmentsData.count > 0) {
+      const loanId = result.data.id;
+      
+      // Register a single payment for all past installments
+      await registerPayment({
+        loan_id: loanId,
+        amount: pastInstallmentsData.totalValue,
+        principal_paid: (pastInstallmentsData.principalPerInstallment || 0) * pastInstallmentsData.count,
+        interest_paid: (pastInstallmentsData.interestPerInstallment || 0) * pastInstallmentsData.count,
+        payment_date: new Date().toISOString().split('T')[0],
+        notes: `[CONTRATO_ANTIGO] Pagamento automático de ${pastInstallmentsData.count} parcela(s) anterior(es) já recebida(s)`,
+      });
+      
+      toast.success(`${pastInstallmentsData.count} parcela(s) passada(s) registrada(s) como já recebida(s)`);
+    }
+    
     setIsDialogOpen(false);
     resetForm();
   };
@@ -1131,6 +1201,14 @@ export default function Loans() {
                       <p className="text-xs text-red-300 mt-1">
                         Se não marcar, o contrato será considerado em atraso imediatamente
                       </p>
+                    )}
+                    {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
+                      <div className="p-2 rounded bg-green-500/20 border border-green-400/30 mt-2">
+                        <p className="text-xs text-green-300">
+                          ✓ <strong>{pastInstallmentsData.count}</strong> parcela(s) passada(s) serão automaticamente registradas como já recebidas 
+                          ({formatCurrency(pastInstallmentsData.totalValue)})
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
