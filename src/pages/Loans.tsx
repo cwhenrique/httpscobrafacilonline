@@ -262,10 +262,19 @@ export default function Loans() {
 
   const getLoanStatus = (loan: typeof loans[0]) => {
     const numInstallments = loan.installments || 1;
-    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    
+    // Calculate total interest based on interest_mode
+    let totalInterest = 0;
+    if (loan.interest_mode === 'on_total') {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+    } else {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+    }
+    
+    const totalToReceive = loan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (loan.total_paid || 0);
     const principalPerInstallment = loan.principal_amount / numInstallments;
+    const interestPerInstallment = totalInterest / numInstallments;
     const totalPerInstallment = principalPerInstallment + interestPerInstallment;
     
     const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
@@ -524,8 +533,17 @@ export default function Loans() {
     if (!selectedLoan) return;
     
     const numInstallments = selectedLoan.installments || 1;
-    const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
-    const totalToReceive = selectedLoan.principal_amount + (interestPerInstallment * numInstallments);
+    
+    // Calculate total interest based on interest_mode
+    let totalInterest = 0;
+    if (selectedLoan.interest_mode === 'on_total') {
+      totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+    } else {
+      totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+    }
+    
+    const interestPerInstallment = totalInterest / numInstallments;
+    const totalToReceive = selectedLoan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
     
     const amount = paymentData.payment_type === 'total' 
@@ -565,8 +583,16 @@ export default function Loans() {
     
     // Calculate remaining amount (total to receive - total paid)
     const numInstallments = loan.installments || 1;
-    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    
+    // Calculate total interest based on interest_mode
+    let totalInterest = 0;
+    if (loan.interest_mode === 'on_total') {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+    } else {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+    }
+    
+    const totalToReceive = loan.principal_amount + totalInterest;
     const totalPaid = loan.total_paid || 0;
     const remainingAmount = totalToReceive - totalPaid;
     
@@ -1308,13 +1334,25 @@ export default function Loans() {
                 const dailyProfit = isDaily ? loan.interest_rate : 0;
                 const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
                 
-                // For regular loans
+                // For regular loans - calculate based on interest_mode
                 const principalPerInstallment = loan.principal_amount / numInstallments;
-                const calculatedInterestPerInstallment = isDaily ? 0 : loan.principal_amount * (loan.interest_rate / 100);
+                
+                // Calculate total interest based on interest_mode
+                let calculatedTotalInterest = 0;
+                if (!isDaily) {
+                  if (loan.interest_mode === 'on_total') {
+                    // Interest on total: rate applies once to the principal
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+                  } else {
+                    // Per installment: rate applies per installment
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+                  }
+                }
+                
+                const calculatedInterestPerInstallment = isDaily ? 0 : calculatedTotalInterest / numInstallments;
                 const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
                 
                 // Use the stored total_interest if it includes overdue penalty (when it's higher than calculated)
-                const calculatedTotalInterest = calculatedInterestPerInstallment * numInstallments;
                 const storedTotalInterest = loan.total_interest || 0;
                 // If stored total_interest is higher, it means overdue penalty was applied
                 const effectiveTotalInterest = isDaily ? 0 : Math.max(calculatedTotalInterest, storedTotalInterest);
