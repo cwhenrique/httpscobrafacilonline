@@ -41,6 +41,11 @@ export interface ProductSalePayment {
   productSale?: ProductSale;
 }
 
+export interface InstallmentDate {
+  number: number;
+  date: string;
+}
+
 export interface CreateProductSaleData {
   product_name: string;
   product_description?: string;
@@ -54,6 +59,7 @@ export interface CreateProductSaleData {
   installment_value: number;
   first_due_date: string;
   notes?: string;
+  installmentDates?: InstallmentDate[];
 }
 
 export interface UpdateProductSaleData {
@@ -122,13 +128,17 @@ export function useProductSales() {
       // Create payment installments
       const payments = [];
       for (let i = 0; i < saleData.installments; i++) {
-        const dueDate = addMonths(new Date(saleData.first_due_date), i);
+        // Use custom dates if provided, otherwise calculate
+        const dueDate = saleData.installmentDates?.[i]?.date 
+          ? saleData.installmentDates[i].date
+          : format(addMonths(new Date(saleData.first_due_date), i), 'yyyy-MM-dd');
+        
         payments.push({
           product_sale_id: sale.id,
           user_id: user.id,
           amount: saleData.installment_value,
           installment_number: i + 1,
-          due_date: format(dueDate, 'yyyy-MM-dd'),
+          due_date: dueDate,
           status: 'pending',
         });
       }

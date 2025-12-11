@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,11 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData } from '@/hooks/useProductSales';
-import { format, parseISO, isPast, isToday } from 'date-fns';
+import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
+import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function ProductSales() {
   const { sales, isLoading, createSale, updateSale, deleteSale } = useProductSales();
@@ -39,6 +40,7 @@ export default function ProductSales() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<ProductSale | null>(null);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
+  const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
 
   const [formData, setFormData] = useState<CreateProductSaleData>({
     product_name: '',
@@ -70,10 +72,42 @@ export default function ProductSales() {
       first_due_date: '',
       notes: '',
     });
+    setInstallmentDates([]);
+  };
+
+  // Generate installment dates when first_due_date or installments change
+  useEffect(() => {
+    if (formData.first_due_date && formData.installments > 0) {
+      const firstDate = new Date(formData.first_due_date);
+      const dayOfMonth = getDate(firstDate);
+      
+      const dates: InstallmentDate[] = [];
+      for (let i = 0; i < formData.installments; i++) {
+        let dueDate = addMonths(firstDate, i);
+        // Try to keep the same day of month
+        try {
+          dueDate = setDate(dueDate, dayOfMonth);
+        } catch {
+          // If day doesn't exist in month (e.g., 31 in Feb), use last day of month
+        }
+        dates.push({
+          number: i + 1,
+          date: format(dueDate, 'yyyy-MM-dd'),
+        });
+      }
+      setInstallmentDates(dates);
+    }
+  }, [formData.first_due_date, formData.installments]);
+
+  const updateInstallmentDate = (index: number, newDate: string) => {
+    setInstallmentDates(prev => 
+      prev.map((item, i) => i === index ? { ...item, date: newDate } : item)
+    );
   };
 
   const handleCreate = async () => {
-    await createSale.mutateAsync(formData);
+    // Pass installment dates to the hook
+    await createSale.mutateAsync({ ...formData, installmentDates });
     setIsCreateOpen(false);
     resetForm();
   };
@@ -365,8 +399,11 @@ export default function ProductSales() {
                     <Input
                       type="number"
                       min="1"
-                      value={formData.installments || ''}
-                      onChange={(e) => handleInstallmentsChange(parseInt(e.target.value) || 1)}
+                      value={formData.installments === 0 ? '' : formData.installments}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                        handleInstallmentsChange(val || 0);
+                      }}
                     />
                   </div>
                 </div>
@@ -389,6 +426,34 @@ export default function ProductSales() {
                     />
                   </div>
                 </div>
+
+                {/* Installment Dates */}
+                {installmentDates.length > 1 && (
+                  <div className="space-y-2">
+                    <Label>Datas das Parcelas</Label>
+                    <ScrollArea className="h-[200px] rounded-md border p-3">
+                      <div className="space-y-2">
+                        {installmentDates.map((inst, index) => (
+                          <div key={inst.number} className="flex items-center gap-3">
+                            <Badge variant="outline" className="w-16 justify-center text-xs">
+                              {inst.number}ª
+                            </Badge>
+                            <Input
+                              type="date"
+                              value={inst.date}
+                              onChange={(e) => updateInstallmentDate(index, e.target.value)}
+                              className="flex-1"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {format(parseISO(inst.date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>Observações</Label>
                   <Textarea
