@@ -619,20 +619,27 @@ export default function Loans() {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
     }
     
+    // Interest per installment for auto-fill
+    const interestPerInstallment = totalInterest / numInstallments;
+    
     const totalToReceive = loan.principal_amount + totalInterest;
     const totalPaid = loan.total_paid || 0;
     const remainingAmount = totalToReceive - totalPaid;
     
+    // Calculate remaining amount after paying just interest (principal + interest for next period)
+    // If client pays only interest now, they still owe principal + same interest for next period
+    const remainingAfterInterestOnly = loan.principal_amount + interestPerInstallment;
+    
     setSelectedLoanId(loanId);
     const today = new Date();
-    today.setDate(today.getDate() + 15);
+    today.setDate(today.getDate() + 30); // Default to 30 days for next payment
     setRenegotiateData({
       promised_amount: '',
       promised_date: today.toISOString().split('T')[0],
       remaining_amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : '0',
       notes: loan.notes || '',
       interest_only_paid: false,
-      interest_amount_paid: '',
+      interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
     });
     setIsRenegotiateDialogOpen(true);
   };
@@ -1805,10 +1812,27 @@ export default function Loans() {
                       <Checkbox 
                         id="interest_only" 
                         checked={renegotiateData.interest_only_paid}
-                        onCheckedChange={(checked) => setRenegotiateData({ 
-                          ...renegotiateData, 
-                          interest_only_paid: checked as boolean 
-                        })}
+                        onCheckedChange={(checked) => {
+                          const isChecked = checked as boolean;
+                          // Calculate the new remaining amount when checking interest only
+                          const numInstallments = selectedLoan.installments || 1;
+                          let totalInterest = 0;
+                          if (selectedLoan.interest_mode === 'on_total') {
+                            totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+                          } else {
+                            totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+                          }
+                          const interestPerInstallment = totalInterest / numInstallments;
+                          
+                          // If paying only interest, remaining is: principal + interest for next period
+                          const remainingAfterInterestOnly = selectedLoan.principal_amount + interestPerInstallment;
+                          
+                          setRenegotiateData({ 
+                            ...renegotiateData, 
+                            interest_only_paid: isChecked,
+                            remaining_amount: isChecked ? remainingAfterInterestOnly.toFixed(2) : renegotiateData.remaining_amount
+                          });
+                        }}
                       />
                       <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer text-yellow-900 dark:text-yellow-100">
                         Cliente pagou só os juros da parcela
@@ -1816,31 +1840,43 @@ export default function Loans() {
                     </div>
                     
                     {renegotiateData.interest_only_paid && (
-                      <div className="grid grid-cols-2 gap-4 pt-2">
-                        <div className="space-y-2">
-                          <Label className="text-yellow-900 dark:text-yellow-100">Valor Pago (Juros) (R$) *</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={renegotiateData.interest_amount_paid} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
-                            placeholder="Ex: 100,00"
-                            required={renegotiateData.interest_only_paid}
-                            className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
-                          />
+                      <>
+                        <div className="bg-yellow-100 dark:bg-yellow-900/50 rounded-lg p-3 text-sm">
+                          <p className="text-yellow-900 dark:text-yellow-100">
+                            <strong>Resumo:</strong> Cliente paga <strong>{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
+                          </p>
+                          <p className="text-yellow-800 dark:text-yellow-200 mt-1">
+                            Para o próximo mês, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong>
+                          </p>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-yellow-900 dark:text-yellow-100">Valor que Ainda Falta (R$)</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={renegotiateData.remaining_amount} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
-                            placeholder="Valor restante"
-                            className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
-                          />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-yellow-900 dark:text-yellow-100">Valor Pago (Juros) (R$) *</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={renegotiateData.interest_amount_paid} 
+                              onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
+                              placeholder="Ex: 100,00"
+                              required={renegotiateData.interest_only_paid}
+                              className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
+                            />
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Valor calculado automaticamente, editável</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-yellow-900 dark:text-yellow-100">Valor que Falta (R$)</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={renegotiateData.remaining_amount} 
+                              onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
+                              placeholder="Valor restante"
+                              className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
+                            />
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Principal + juros próximo mês</p>
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                   
