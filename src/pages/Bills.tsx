@@ -33,7 +33,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
-import { useVehicles, useVehiclePayments, Vehicle, CreateVehicleData, VehiclePayment } from '@/hooks/useVehicles';
+import { useVehicles, useVehiclePayments, Vehicle, VehiclePayment, CreateVehicleData } from '@/hooks/useVehicles';
+import { VehicleForm } from '@/components/VehicleForm';
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, Calendar, User, DollarSign, FileText, FileSignature, ChevronDown, ChevronUp, Car } from 'lucide-react';
@@ -671,133 +672,18 @@ export default function Bills() {
                     setIsVehicleOpen(open);
                   }}>
                     <DialogTrigger asChild>
-                      <Button className="gap-2 flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4" />Novo Veículo</Button>
+                      <Button className="gap-2 flex-1 sm:flex-none"><Plus className="w-4 h-4" />Novo Veículo</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader><DialogTitle>Cadastrar Veículo - A Receber</DialogTitle></DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Marca *</Label>
-                            <Input placeholder="Ex: Honda, Toyota..." value={vehicleForm.brand} onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Modelo *</Label>
-                            <Input placeholder="Ex: Civic, Corolla..." value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="space-y-2">
-                            <Label>Ano *</Label>
-                            <Input type="number" min="1900" max="2030" value={vehicleForm.year} onChange={(e) => setVehicleForm({ ...vehicleForm, year: parseInt(e.target.value) || new Date().getFullYear() })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Cor</Label>
-                            <Input placeholder="Ex: Preto, Branco..." value={vehicleForm.color} onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Placa</Label>
-                            <Input placeholder="ABC-1234" value={vehicleForm.plate} onChange={(e) => setVehicleForm({ ...vehicleForm, plate: e.target.value })} />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Chassis</Label>
-                          <Input placeholder="Número do chassis" value={vehicleForm.chassis} onChange={(e) => setVehicleForm({ ...vehicleForm, chassis: e.target.value })} />
-                        </div>
-                        
-                        <div className="border-t pt-4">
-                          <h4 className="font-semibold mb-3 text-primary">Dados da Venda</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Vendido para (Comprador) *</Label>
-                              <Input placeholder="Nome do comprador" value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Origem (Comprado de)</Label>
-                              <Input placeholder="Nome do vendedor original" value={vehicleForm.seller_name} onChange={(e) => setVehicleForm({ ...vehicleForm, seller_name: e.target.value })} />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 mt-4">
-                            <div className="space-y-2">
-                              <Label>Data da venda</Label>
-                              <Input type="date" value={vehicleForm.purchase_date} onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_date: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Valor total (R$) *</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.purchase_value || ''} onChange={(e) => {
-                                const value = parseFloat(e.target.value) || 0;
-                                const downPayment = vehicleForm.down_payment || 0;
-                                const remaining = value - downPayment;
-                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
-                                setVehicleForm({ ...vehicleForm, purchase_value: value, installment_value: installmentValue });
-                              }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="border-t pt-4">
-                          <h4 className="font-semibold mb-3 text-primary">Parcelamento</h4>
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                              <Label>Entrada (R$)</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.down_payment || ''} onChange={(e) => {
-                                const downPayment = parseFloat(e.target.value) || 0;
-                                const remaining = vehicleForm.purchase_value - downPayment;
-                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
-                                setVehicleForm({ ...vehicleForm, down_payment: downPayment, installment_value: installmentValue });
-                              }} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Nº de parcelas *</Label>
-                              <Input type="number" min="1" value={vehicleForm.installments} onChange={(e) => {
-                                const installments = parseInt(e.target.value) || 1;
-                                const remaining = vehicleForm.purchase_value - (vehicleForm.down_payment || 0);
-                                const installmentValue = installments > 0 ? remaining / installments : 0;
-                                setVehicleForm({ ...vehicleForm, installments, installment_value: installmentValue });
-                              }} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Valor da parcela *</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.installment_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, installment_value: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-2">
-                            <Label>Primeiro vencimento *</Label>
-                            <Input type="date" value={vehicleForm.first_due_date} onChange={(e) => setVehicleForm({ ...vehicleForm, first_due_date: e.target.value })} />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Observações</Label>
-                          <Textarea placeholder="Notas adicionais sobre o veículo..." value={vehicleForm.notes} onChange={(e) => setVehicleForm({ ...vehicleForm, notes: e.target.value })} />
-                        </div>
-
-                        {vehicleForm.purchase_value > 0 && (
-                          <div className="bg-primary/10 p-3 rounded-lg">
-                            <p className="text-sm text-muted-foreground">Resumo:</p>
-                            <div className="flex justify-between mt-1">
-                              <span>Valor total:</span>
-                              <span className="font-bold">R$ {vehicleForm.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Entrada:</span>
-                              <span className="font-semibold">R$ {(vehicleForm.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>A receber:</span>
-                              <span className="font-semibold">R$ {(vehicleForm.purchase_value - (vehicleForm.down_payment || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between text-primary font-bold">
-                              <span>{vehicleForm.installments}x de:</span>
-                              <span>R$ {vehicleForm.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        <Button onClick={handleCreateVehicle} disabled={!vehicleForm.brand || !vehicleForm.model || !vehicleForm.buyer_name || !vehicleForm.purchase_value || !vehicleForm.first_due_date || createVehicle.isPending} className="w-full">
-                          {createVehicle.isPending ? 'Salvando...' : 'Cadastrar Veículo'}
-                        </Button>
-                      </div>
+                      <VehicleForm 
+                        billType="receivable" 
+                        onSubmit={async (data) => {
+                          await createVehicle.mutateAsync(data);
+                          setIsVehicleOpen(false);
+                        }}
+                        isPending={createVehicle.isPending}
+                      />
                     </DialogContent>
                   </Dialog>
                 </div>
@@ -1048,135 +934,20 @@ export default function Bills() {
                     </DialogContent>
                   </Dialog>
                 ) : (
-                  <Dialog open={isVehicleOpen} onOpenChange={setIsVehicleOpen}>
+                  <Dialog open={isVehicleOpen && mainTab === 'payable'} onOpenChange={setIsVehicleOpen}>
                     <DialogTrigger asChild>
                       <Button className="gap-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4" />Novo Veículo</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader><DialogTitle>Cadastrar Veículo</DialogTitle></DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Marca *</Label>
-                            <Input placeholder="Ex: Honda, Toyota..." value={vehicleForm.brand} onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Modelo *</Label>
-                            <Input placeholder="Ex: Civic, Corolla..." value={vehicleForm.model} onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })} />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="space-y-2">
-                            <Label>Ano *</Label>
-                            <Input type="number" min="1900" max="2030" value={vehicleForm.year} onChange={(e) => setVehicleForm({ ...vehicleForm, year: parseInt(e.target.value) || new Date().getFullYear() })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Cor</Label>
-                            <Input placeholder="Ex: Preto, Branco..." value={vehicleForm.color} onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Placa</Label>
-                            <Input placeholder="ABC-1234" value={vehicleForm.plate} onChange={(e) => setVehicleForm({ ...vehicleForm, plate: e.target.value })} />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Chassis</Label>
-                          <Input placeholder="Número do chassis" value={vehicleForm.chassis} onChange={(e) => setVehicleForm({ ...vehicleForm, chassis: e.target.value })} />
-                        </div>
-                        
-                        <div className="border-t pt-4">
-                          <h4 className="font-semibold mb-3 text-blue-600">Dados da Compra</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Vendedor (Comprado de) *</Label>
-                              <Input placeholder="Nome do vendedor" value={vehicleForm.seller_name} onChange={(e) => setVehicleForm({ ...vehicleForm, seller_name: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Comprador (Vendido para)</Label>
-                              <Input placeholder="Nome do comprador (se vendeu)" value={vehicleForm.buyer_name} onChange={(e) => setVehicleForm({ ...vehicleForm, buyer_name: e.target.value })} />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 mt-4">
-                            <div className="space-y-2">
-                              <Label>Data da compra</Label>
-                              <Input type="date" value={vehicleForm.purchase_date} onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_date: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Valor total (R$) *</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.purchase_value || ''} onChange={(e) => {
-                                const value = parseFloat(e.target.value) || 0;
-                                const downPayment = vehicleForm.down_payment || 0;
-                                const remaining = value - downPayment;
-                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
-                                setVehicleForm({ ...vehicleForm, purchase_value: value, installment_value: installmentValue });
-                              }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="border-t pt-4">
-                          <h4 className="font-semibold mb-3 text-blue-600">Parcelamento</h4>
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                              <Label>Entrada (R$)</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.down_payment || ''} onChange={(e) => {
-                                const downPayment = parseFloat(e.target.value) || 0;
-                                const remaining = vehicleForm.purchase_value - downPayment;
-                                const installmentValue = vehicleForm.installments > 0 ? remaining / vehicleForm.installments : 0;
-                                setVehicleForm({ ...vehicleForm, down_payment: downPayment, installment_value: installmentValue });
-                              }} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Nº de parcelas *</Label>
-                              <Input type="number" min="1" value={vehicleForm.installments} onChange={(e) => {
-                                const installments = parseInt(e.target.value) || 1;
-                                const remaining = vehicleForm.purchase_value - (vehicleForm.down_payment || 0);
-                                const installmentValue = installments > 0 ? remaining / installments : 0;
-                                setVehicleForm({ ...vehicleForm, installments, installment_value: installmentValue });
-                              }} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Valor da parcela *</Label>
-                              <Input type="number" step="0.01" min="0" value={vehicleForm.installment_value || ''} onChange={(e) => setVehicleForm({ ...vehicleForm, installment_value: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-2">
-                            <Label>Primeiro vencimento *</Label>
-                            <Input type="date" value={vehicleForm.first_due_date} onChange={(e) => setVehicleForm({ ...vehicleForm, first_due_date: e.target.value })} />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Observações</Label>
-                          <Textarea placeholder="Notas adicionais sobre o veículo..." value={vehicleForm.notes} onChange={(e) => setVehicleForm({ ...vehicleForm, notes: e.target.value })} />
-                        </div>
-
-                        {vehicleForm.purchase_value > 0 && (
-                          <div className="bg-blue-500/10 p-3 rounded-lg">
-                            <p className="text-sm text-muted-foreground">Resumo:</p>
-                            <div className="flex justify-between mt-1">
-                              <span>Valor total:</span>
-                              <span className="font-bold">R$ {vehicleForm.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Entrada:</span>
-                              <span className="font-semibold">R$ {(vehicleForm.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>A parcelar:</span>
-                              <span className="font-semibold">R$ {(vehicleForm.purchase_value - (vehicleForm.down_payment || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between text-blue-600 font-bold">
-                              <span>{vehicleForm.installments}x de:</span>
-                              <span>R$ {vehicleForm.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        <Button onClick={handleCreateVehicle} disabled={!vehicleForm.brand || !vehicleForm.model || !vehicleForm.seller_name || !vehicleForm.purchase_value || !vehicleForm.first_due_date || createVehicle.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
-                          {createVehicle.isPending ? 'Salvando...' : 'Cadastrar Veículo'}
-                        </Button>
-                      </div>
+                      <DialogHeader><DialogTitle>Cadastrar Veículo - A Pagar</DialogTitle></DialogHeader>
+                      <VehicleForm 
+                        billType="payable" 
+                        onSubmit={async (data) => {
+                          await createVehicle.mutateAsync(data);
+                          setIsVehicleOpen(false);
+                        }}
+                        isPending={createVehicle.isPending}
+                      />
                     </DialogContent>
                   </Dialog>
                 )}

@@ -43,6 +43,12 @@ export interface VehiclePayment {
   updated_at: string;
 }
 
+export interface InstallmentDate {
+  installment_number: number;
+  due_date: string;
+  amount: number;
+}
+
 export interface CreateVehicleData {
   brand: string;
   model: string;
@@ -59,6 +65,7 @@ export interface CreateVehicleData {
   installment_value: number;
   first_due_date: string;
   notes?: string;
+  custom_installments?: InstallmentDate[];
 }
 
 export interface UpdateVehicleData {
@@ -137,18 +144,31 @@ export function useVehicles() {
 
       if (error) throw error;
 
-      // Generate installment payments
+      // Generate installment payments - use custom dates if provided
       const payments = [];
-      for (let i = 0; i < data.installments; i++) {
-        const dueDate = addMonths(new Date(data.first_due_date), i);
-        payments.push({
-          user_id: user.id,
-          vehicle_id: newVehicle.id,
-          installment_number: i + 1,
-          amount: data.installment_value,
-          due_date: format(dueDate, 'yyyy-MM-dd'),
-          status: 'pending',
-        });
+      if (data.custom_installments && data.custom_installments.length > 0) {
+        for (const inst of data.custom_installments) {
+          payments.push({
+            user_id: user.id,
+            vehicle_id: newVehicle.id,
+            installment_number: inst.installment_number,
+            amount: inst.amount,
+            due_date: inst.due_date,
+            status: 'pending',
+          });
+        }
+      } else {
+        for (let i = 0; i < data.installments; i++) {
+          const dueDate = addMonths(new Date(data.first_due_date), i);
+          payments.push({
+            user_id: user.id,
+            vehicle_id: newVehicle.id,
+            installment_number: i + 1,
+            amount: data.installment_value,
+            due_date: format(dueDate, 'yyyy-MM-dd'),
+            status: 'pending',
+          });
+        }
       }
 
       const { error: paymentsError } = await supabase
