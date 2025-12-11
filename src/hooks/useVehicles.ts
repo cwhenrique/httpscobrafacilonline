@@ -49,6 +49,8 @@ export interface Vehicle {
   chassis: string | null;
   seller_name: string;
   buyer_name: string | null;
+  buyer_phone: string | null;
+  buyer_email: string | null;
   purchase_date: string;
   purchase_value: number;
   down_payment: number;
@@ -92,6 +94,8 @@ export interface CreateVehicleData {
   chassis?: string;
   seller_name: string;
   buyer_name?: string;
+  buyer_phone?: string;
+  buyer_email?: string;
   purchase_date: string;
   purchase_value: number;
   down_payment?: number;
@@ -111,6 +115,8 @@ export interface UpdateVehicleData {
   chassis?: string;
   seller_name?: string;
   buyer_name?: string;
+  buyer_phone?: string;
+  buyer_email?: string;
   purchase_date?: string;
   purchase_value?: number;
   down_payment?: number;
@@ -162,6 +168,8 @@ export function useVehicles() {
           chassis: data.chassis || null,
           seller_name: data.seller_name,
           buyer_name: data.buyer_name || null,
+          buyer_phone: data.buyer_phone || null,
+          buyer_email: data.buyer_email || null,
           purchase_date: data.purchase_date,
           purchase_value: data.purchase_value,
           down_payment: downPayment,
@@ -361,6 +369,28 @@ export function useVehiclePayments(vehicleId?: string) {
         .eq('id', vehicleId);
 
       if (updateError) throw updateError;
+
+      // Send WhatsApp notification
+      const userPhone = await getUserPhone(vehicle.user_id);
+      if (userPhone) {
+        const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
+        const clientName = vehicle.buyer_name || vehicle.seller_name;
+        const today = new Date().toISOString().split('T')[0];
+        
+        const message = `💵 *Pagamento de Veículo Recebido*\n\n` +
+          `🚗 *Veículo:* ${vehicleName}\n` +
+          `${vehicle.plate ? `🔖 *Placa:* ${vehicle.plate}\n` : ''}` +
+          `👤 *Cliente:* ${clientName}\n` +
+          `💰 *Valor:* ${formatCurrency(payment.amount)}\n` +
+          `📅 *Parcela:* ${payment.installment_number}ª\n` +
+          `📅 *Data:* ${formatDate(today)}\n\n` +
+          `📊 *Situação atual:*\n` +
+          `• Recebido: ${formatCurrency(newTotalPaid)}\n` +
+          `• Falta: ${formatCurrency(newRemainingBalance)}\n\n` +
+          `_CobraFácil - Confirmação automática_`;
+
+        await sendWhatsAppNotification(userPhone, message);
+      }
 
       return payment;
     },
