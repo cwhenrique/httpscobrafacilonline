@@ -26,7 +26,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'interest_only'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'interest_only'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -169,7 +169,7 @@ export default function Loans() {
   
   // Recalcular valor da parcela quando principal, juros ou parcelas mudam
   useEffect(() => {
-    if (formData.payment_type === 'installment' && formData.principal_amount && formData.interest_rate && formData.installments) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && formData.principal_amount && formData.interest_rate && formData.installments) {
       const principal = parseFloat(formData.principal_amount);
       const rate = parseFloat(formData.interest_rate);
       const numInstallments = parseInt(formData.installments) || 1;
@@ -231,6 +231,28 @@ export default function Loans() {
           date.setDate(0);
         }
         
+        newDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      setInstallmentDates(newDates);
+      // Set the last installment date as the due_date
+      if (newDates.length > 0) {
+        setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
+      }
+    }
+  }, [formData.payment_type, formData.start_date, formData.installments]);
+
+  // Generate weekly dates when start_date or installments change
+  useEffect(() => {
+    if (formData.payment_type === 'weekly' && formData.start_date) {
+      const numInstallments = parseInt(formData.installments) || 1;
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      const newDates: string[] = [];
+      
+      for (let i = 0; i < numInstallments; i++) {
+        const date = new Date(startDate);
+        // Add weeks (7 days) for each installment
+        date.setDate(date.getDate() + (i * 7));
         newDates.push(date.toISOString().split('T')[0]);
       }
       
@@ -338,9 +360,11 @@ export default function Loans() {
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily';
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily' && loan.payment_type !== 'weekly';
       case 'daily':
         return loan.payment_type === 'daily';
+      case 'weekly':
+        return loan.payment_type === 'weekly';
       case 'interest_only':
         return isInterestOnlyPayment && !isOverdue;
       default:
@@ -1028,6 +1052,7 @@ export default function Loans() {
                         <SelectContent>
                           <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
                           <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
+                          <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>
                           <SelectItem value="daily" className="text-xs sm:text-sm">Diário</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1042,16 +1067,17 @@ export default function Loans() {
                       <SelectContent>
                         <SelectItem value="single">Pagamento Único</SelectItem>
                         <SelectItem value="installment">Parcelado</SelectItem>
+                        <SelectItem value="weekly">Semanal</SelectItem>
                         <SelectItem value="daily">Diário</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 )}
-                {formData.payment_type === 'installment' && (
+                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly') && (
                   <>
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Nº de Parcelas *</Label>
+                        <Label className="text-xs sm:text-sm">Nº de {formData.payment_type === 'weekly' ? 'Semanas' : 'Parcelas'} *</Label>
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                       </div>
                       <div className="space-y-1 sm:space-y-2">
@@ -1071,7 +1097,7 @@ export default function Loans() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Valor da Parcela (R$)</Label>
+                        <Label className="text-xs sm:text-sm">Valor da {formData.payment_type === 'weekly' ? 'Semana' : 'Parcela'} (R$)</Label>
                         <Input 
                           type="number" 
                           step="0.01"
@@ -1139,14 +1165,14 @@ export default function Loans() {
                     </div>
                   )}
                 </div>
-                {formData.payment_type === 'installment' && installmentDates.length > 0 && (
+                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0 && (
                   <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Vencimento das Parcelas</Label>
+                    <Label className="text-xs sm:text-sm">Vencimento das {formData.payment_type === 'weekly' ? 'Semanas' : 'Parcelas'}</Label>
                     <ScrollArea className="h-[120px] sm:h-[150px] rounded-md border p-2 sm:p-3">
                       <div className="space-y-1.5 sm:space-y-2">
                         {installmentDates.map((date, index) => (
                           <div key={index} className="flex items-center gap-2 sm:gap-3">
-                            <span className="text-xs sm:text-sm font-medium w-16 sm:w-20">Parcela {index + 1}</span>
+                            <span className="text-xs sm:text-sm font-medium w-16 sm:w-20">{formData.payment_type === 'weekly' ? 'Sem.' : 'Parc.'} {index + 1}</span>
                             <Input 
                               type="date" 
                               value={date} 
@@ -1311,6 +1337,15 @@ export default function Loans() {
               <span className="hidden xs:inline">Só Juros</span><span className="xs:hidden">Juros</span>
             </Button>
             <Button
+              variant={statusFilter === 'weekly' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('weekly')}
+              className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'weekly' ? 'bg-orange-500' : 'border-orange-500 text-orange-600 hover:bg-orange-500/10'}`}
+            >
+              <CalendarIcon className="w-3 h-3 mr-1" />
+              <span className="hidden xs:inline">Semanal</span><span className="xs:hidden">Sem.</span>
+            </Button>
+            <Button
               variant={statusFilter === 'daily' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setStatusFilter('daily')}
@@ -1334,6 +1369,7 @@ export default function Loans() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {filteredLoans.map((loan) => {
                 const isDaily = loan.payment_type === 'daily';
+                const isWeekly = loan.payment_type === 'weekly';
                 const numInstallments = loan.installments || 1;
                 
                 // For daily loans: 
@@ -1442,7 +1478,7 @@ export default function Loans() {
                   dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
                 }
                 
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment;
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
@@ -1456,6 +1492,9 @@ export default function Loans() {
                   }
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
+                  }
+                  if (isWeekly) {
+                    return 'bg-orange-500/20 border-orange-400 dark:bg-orange-500/30 dark:border-orange-400';
                   }
                   if (isDaily) {
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
