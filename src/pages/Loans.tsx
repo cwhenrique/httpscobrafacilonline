@@ -119,6 +119,46 @@ export default function Loans() {
     daily_amount: '',
     daily_period: '15',
   });
+  
+  const [installmentValue, setInstallmentValue] = useState('');
+  
+  // Recalcular valor da parcela quando principal, juros ou parcelas mudam
+  useEffect(() => {
+    if (formData.payment_type === 'installment' && formData.principal_amount && formData.interest_rate && formData.installments) {
+      const principal = parseFloat(formData.principal_amount);
+      const rate = parseFloat(formData.interest_rate);
+      const numInstallments = parseInt(formData.installments) || 1;
+      const totalInterest = formData.interest_mode === 'per_installment'
+        ? principal * (rate / 100) * numInstallments
+        : principal * (rate / 100);
+      const total = principal + totalInterest;
+      setInstallmentValue((total / numInstallments).toFixed(2));
+    }
+  }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type]);
+  
+  // Handler para quando o usuário edita o valor da parcela
+  const handleInstallmentValueChange = (value: string) => {
+    setInstallmentValue(value);
+    const newInstallmentValue = parseFloat(value);
+    if (!newInstallmentValue || !formData.principal_amount || !formData.installments) return;
+    
+    const principal = parseFloat(formData.principal_amount);
+    const numInstallments = parseInt(formData.installments) || 1;
+    const totalToReceive = newInstallmentValue * numInstallments;
+    const totalInterest = totalToReceive - principal;
+    
+    // Recalcular a taxa de juros baseada no novo valor de parcela
+    let newRate: number;
+    if (formData.interest_mode === 'per_installment') {
+      newRate = (totalInterest / principal / numInstallments) * 100;
+    } else {
+      newRate = (totalInterest / principal) * 100;
+    }
+    
+    if (newRate >= 0) {
+      setFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
+    }
+  };
 
   const [paymentData, setPaymentData] = useState({
     amount: '',
@@ -365,6 +405,7 @@ export default function Loans() {
       daily_amount: '', daily_period: '15',
     });
     setInstallmentDates([]);
+    setInstallmentValue('');
   };
 
   const openRenegotiateDialog = (loanId: string) => {
@@ -727,40 +768,8 @@ export default function Loans() {
                         <Input 
                           type="number" 
                           step="0.01"
-                          value={(() => {
-                            if (!formData.principal_amount || !formData.interest_rate || !formData.installments) return '';
-                            const principal = parseFloat(formData.principal_amount);
-                            const rate = parseFloat(formData.interest_rate);
-                            const numInstallments = parseInt(formData.installments) || 1;
-                            const totalInterest = formData.interest_mode === 'per_installment'
-                              ? principal * (rate / 100) * numInstallments
-                              : principal * (rate / 100);
-                            const total = principal + totalInterest;
-                            return (total / numInstallments).toFixed(2);
-                          })()}
-                          onChange={(e) => {
-                            const newInstallmentValue = parseFloat(e.target.value);
-                            if (!newInstallmentValue || !formData.principal_amount || !formData.installments) return;
-                            
-                            const principal = parseFloat(formData.principal_amount);
-                            const numInstallments = parseInt(formData.installments) || 1;
-                            const totalToReceive = newInstallmentValue * numInstallments;
-                            const totalInterest = totalToReceive - principal;
-                            
-                            // Recalcular a taxa de juros baseada no novo valor de parcela
-                            let newRate: number;
-                            if (formData.interest_mode === 'per_installment') {
-                              // juros_total = principal * (rate/100) * parcelas
-                              // rate = (juros_total / principal / parcelas) * 100
-                              newRate = (totalInterest / principal / numInstallments) * 100;
-                            } else {
-                              // juros_total = principal * (rate/100)
-                              // rate = (juros_total / principal) * 100
-                              newRate = (totalInterest / principal) * 100;
-                            }
-                            
-                            setFormData({ ...formData, interest_rate: newRate.toFixed(2) });
-                          }}
+                          value={installmentValue}
+                          onChange={(e) => handleInstallmentValueChange(e.target.value)}
                           className="h-9 sm:h-10 text-sm"
                         />
                       </div>
@@ -769,16 +778,8 @@ export default function Loans() {
                         <Input 
                           type="text" 
                           readOnly 
-                          value={formData.principal_amount && formData.interest_rate && formData.installments
-                            ? (() => {
-                                const principal = parseFloat(formData.principal_amount);
-                                const rate = parseFloat(formData.interest_rate);
-                                const numInstallments = parseInt(formData.installments) || 1;
-                                const totalInterest = formData.interest_mode === 'per_installment'
-                                  ? principal * (rate / 100) * numInstallments
-                                  : principal * (rate / 100);
-                                return formatCurrency(principal + totalInterest);
-                              })()
+                          value={installmentValue && formData.installments
+                            ? formatCurrency(parseFloat(installmentValue) * parseInt(formData.installments))
                             : 'R$ 0,00'
                           } 
                           className="bg-muted h-9 sm:h-10 text-sm"
