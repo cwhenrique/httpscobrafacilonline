@@ -539,6 +539,15 @@ export default function Loans() {
       daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
     }
     
+    // Parse existing overdue config from notes
+    const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const hasExistingOverdueConfig = !!overdueConfigMatch;
+    const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+    const existingOverdueValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+    
+    // Clean notes for display (remove the config tag)
+    const cleanNotes = (loan.notes || '').replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '').trim();
+    
     setEditingLoanId(loanId);
     setEditLoanIsOverdue(isOverdue);
     setEditOverdueDays(daysOverdue);
@@ -552,12 +561,16 @@ export default function Loans() {
       installments: (loan.installments || 1).toString(),
       start_date: loan.start_date,
       due_date: loan.due_date,
-      notes: loan.notes || '',
+      notes: cleanNotes,
       daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
-      overdue_daily_rate: (loan.interest_rate / 30).toFixed(2), // Default: monthly rate / 30 (e.g., 90% / 30 = 3%)
-      overdue_fixed_amount: '',
-      overdue_penalty_type: 'percentage',
-      apply_overdue_penalty: false,
+      overdue_daily_rate: hasExistingOverdueConfig && existingOverdueType === 'percentage' 
+        ? existingOverdueValue.toString() 
+        : (loan.interest_rate / 30).toFixed(2),
+      overdue_fixed_amount: hasExistingOverdueConfig && existingOverdueType === 'fixed' 
+        ? existingOverdueValue.toString() 
+        : '',
+      overdue_penalty_type: hasExistingOverdueConfig ? existingOverdueType! : 'percentage',
+      apply_overdue_penalty: hasExistingOverdueConfig,
     });
     setEditInstallmentDates((loan.installment_dates as string[]) || []);
     setIsEditDialogOpen(true);
