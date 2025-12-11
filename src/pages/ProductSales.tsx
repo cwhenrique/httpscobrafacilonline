@@ -26,7 +26,7 @@ import {
 import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -41,6 +41,9 @@ export default function ProductSales() {
   const [editingSale, setEditingSale] = useState<ProductSale | null>(null);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<{ id: string; amount: number; installmentNumber: number; saleId: string } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
 
   const [formData, setFormData] = useState<CreateProductSaleData>({
     product_name: '',
@@ -143,6 +146,20 @@ export default function ProductSales() {
       paymentId,
       paidDate: format(new Date(), 'yyyy-MM-dd'),
     });
+    setPaymentDialogOpen(false);
+    setSelectedPayment(null);
+    setPaymentAmount(0);
+  };
+
+  const openPaymentDialog = (payment: { id: string; amount: number; installment_number: number; product_sale_id: string }) => {
+    setSelectedPayment({
+      id: payment.id,
+      amount: payment.amount,
+      installmentNumber: payment.installment_number,
+      saleId: payment.product_sale_id,
+    });
+    setPaymentAmount(payment.amount);
+    setPaymentDialogOpen(true);
   };
 
   const calculateInstallmentValue = (total: number, down: number, installments: number) => {
@@ -590,14 +607,18 @@ export default function ProductSales() {
                                 {!isPaid && (
                                   <Button
                                     size="sm"
-                                    variant="outline"
                                     className="gap-1"
-                                    onClick={() => handleMarkAsPaid(payment.id)}
+                                    onClick={() => openPaymentDialog(payment)}
                                     disabled={markAsPaid.isPending}
                                   >
-                                    <Check className="w-3 h-3" />
-                                    Pagar
+                                    <Banknote className="w-3 h-3" />
+                                    Registrar
                                   </Button>
+                                )}
+                                {isPaid && payment.paid_date && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -689,6 +710,56 @@ export default function ProductSales() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Payment Registration Dialog */}
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Registrar Pagamento</DialogTitle>
+            </DialogHeader>
+            {selectedPayment && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Parcela</p>
+                  <p className="font-semibold">{selectedPayment.installmentNumber}ª parcela</p>
+                  <p className="text-sm text-muted-foreground mt-2">Valor da parcela</p>
+                  <p className="font-semibold text-primary">{formatCurrency(selectedPayment.amount)}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor Pago (R$)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentAmount || ''}
+                    onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0,00"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setPaymentDialogOpen(false);
+                      setSelectedPayment(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={() => handleMarkAsPaid(selectedPayment.id)}
+                    disabled={markAsPaid.isPending || paymentAmount <= 0}
+                  >
+                    <Check className="w-4 h-4" />
+                    {markAsPaid.isPending ? 'Salvando...' : 'Confirmar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
