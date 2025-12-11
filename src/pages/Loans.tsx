@@ -1307,15 +1307,15 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                      {/* Overdue penalty section */}
-                      {isOverdue && penaltyAmount > 0 && (
+                {/* Overdue penalty section */}
+                      {isOverdue && (penaltyAmount > 0 || hasAppliedOverduePenalty) && (
                         <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                           <div className="flex items-center justify-between text-xs sm:text-sm">
                             <span className="text-red-300 font-medium">
-                              Juros de Atraso ({daysOverdue} dias)
+                              {hasAppliedOverduePenalty ? 'Juros de Atraso (aplicado)' : `Juros de Atraso (${daysOverdue} dias)`}
                             </span>
                             <span className="font-bold text-red-200">
-                              + {formatCurrency(penaltyAmount)}
+                              + {formatCurrency(hasAppliedOverduePenalty ? (storedTotalInterest - calculatedTotalInterest) : penaltyAmount)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between mt-1 text-xs sm:text-sm">
