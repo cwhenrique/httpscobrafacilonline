@@ -4,6 +4,40 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { addMonths, format } from 'date-fns';
 
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+};
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr + 'T12:00:00');
+  return new Intl.DateTimeFormat('pt-BR').format(date);
+};
+
+const sendWhatsAppNotification = async (phone: string, message: string) => {
+  try {
+    const { error } = await supabase.functions.invoke('send-whatsapp', {
+      body: { phone, message },
+    });
+    if (error) {
+      console.error('WhatsApp notification error:', error);
+    }
+  } catch (err) {
+    console.error('Failed to send WhatsApp:', err);
+  }
+};
+
+const getUserPhone = async (userId: string): Promise<string | null> => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('id', userId)
+    .single();
+  return data?.phone || null;
+};
+
 export interface Vehicle {
   id: string;
   user_id: string;
@@ -146,6 +180,8 @@ export function useVehicles() {
 
       // Generate installment payments - use custom dates if provided
       const payments = [];
+      const installmentsList: string[] = [];
+      
       if (data.custom_installments && data.custom_installments.length > 0) {
         for (const inst of data.custom_installments) {
           payments.push({
@@ -156,18 +192,21 @@ export function useVehicles() {
             due_date: inst.due_date,
             status: 'pending',
           });
+          installmentsList.push(`${inst.installment_number}ª: ${formatDate(inst.due_date)} - ${formatCurrency(inst.amount)}`);
         }
       } else {
         for (let i = 0; i < data.installments; i++) {
           const dueDate = addMonths(new Date(data.first_due_date), i);
+          const dueDateStr = format(dueDate, 'yyyy-MM-dd');
           payments.push({
             user_id: user.id,
             vehicle_id: newVehicle.id,
             installment_number: i + 1,
             amount: data.installment_value,
-            due_date: format(dueDate, 'yyyy-MM-dd'),
+            due_date: dueDateStr,
             status: 'pending',
           });
+          installmentsList.push(`${i + 1}ª: ${formatDate(dueDateStr)} - ${formatCurrency(data.installment_value)}`);
         }
       }
 
@@ -176,6 +215,25 @@ export function useVehicles() {
         .insert(payments);
 
       if (paymentsError) throw paymentsError;
+
+      // Send WhatsApp notification
+      const userPhone = await getUserPhone(user.id);
+      if (userPhone) {
+        const vehicleName = `${data.brand} ${data.model} ${data.year}`;
+        const clientName = data.buyer_name || data.seller_name;
+        
+        const message = `🚗 *Novo Veículo Registrado*\n\n` +
+          `📋 *Veículo:* ${vehicleName}\n` +
+          `${data.plate ? `🔖 *Placa:* ${data.plate}\n` : ''}` +
+          `👤 *Cliente:* ${clientName}\n` +
+          `💰 *Valor Total:* ${formatCurrency(data.purchase_value)}\n` +
+          `${downPayment > 0 ? `💵 *Entrada:* ${formatCurrency(downPayment)}\n` : ''}` +
+          `📊 *Parcelas:* ${data.installments}x de ${formatCurrency(data.installment_value)}\n\n` +
+          `📅 *Datas das Parcelas:*\n${installmentsList.join('\n')}\n\n` +
+          `_CobraFácil - Registro automático_`;
+
+        await sendWhatsAppNotification(userPhone, message);
+      }
 
       return newVehicle;
     },
