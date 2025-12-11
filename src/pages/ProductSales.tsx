@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -23,18 +24,46 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
+import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
+import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
+import { useVehicles, useVehiclePayments, Vehicle, CreateVehicleData } from '@/hooks/useVehicles';
+import { VehicleForm } from '@/components/VehicleForm';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, Car, FileSignature, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function ProductSales() {
-  const { sales, isLoading, createSale, updateSale, deleteSale } = useProductSales();
-  const { payments: allPayments, markAsPaid } = useProductSalePayments();
+  // Product Sales hooks
+  const { sales, isLoading: salesLoading, createSale, updateSale, deleteSale } = useProductSales();
+  const { payments: allSalePayments, markAsPaid: markSalePaymentAsPaid } = useProductSalePayments();
+  
+  // Bills hooks
+  const { bills, isLoading: billsLoading, createBill, updateBill, deleteBill, markAsPaid: markBillAsPaid } = useBills();
+  
+  // Contracts hooks
+  const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
+  
+  // Vehicles hooks
+  const { vehicles, isLoading: vehiclesLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
+  const { payments: vehiclePaymentsList, markAsPaid: markVehiclePaymentAsPaid } = useVehiclePayments();
 
+  // Main tab state
+  const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'vehicles' | 'bills'>('products');
+  
+  // Search
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Product Sales states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -45,6 +74,36 @@ export default function ProductSales() {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; amount: number; installmentNumber: number; saleId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
 
+  // Contracts states
+  const [isContractOpen, setIsContractOpen] = useState(false);
+  const [isEditContractOpen, setIsEditContractOpen] = useState(false);
+  const [deleteContractId, setDeleteContractId] = useState<string | null>(null);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+  const [contractPayments, setContractPayments] = useState<Record<string, ContractPayment[]>>({});
+  const [editContractForm, setEditContractForm] = useState<UpdateContractData>({
+    client_name: '',
+    contract_type: '',
+    total_amount: 0,
+    amount_to_receive: 0,
+    notes: '',
+  });
+
+  // Vehicles states
+  const [isVehicleOpen, setIsVehicleOpen] = useState(false);
+  const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
+  const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
+
+  // Bills states
+  const [isBillOpen, setIsBillOpen] = useState(false);
+  const [isEditBillOpen, setIsEditBillOpen] = useState(false);
+  const [deleteBillId, setDeleteBillId] = useState<string | null>(null);
+  const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [billFilter, setBillFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
+
+  // Forms
   const [formData, setFormData] = useState<CreateProductSaleData>({
     product_name: '',
     product_description: '',
@@ -60,6 +119,48 @@ export default function ProductSales() {
     notes: '',
   });
 
+  const [contractForm, setContractForm] = useState<CreateContractData>({
+    client_name: '',
+    contract_type: 'aluguel_casa',
+    bill_type: 'receivable',
+    total_amount: 0,
+    amount_to_receive: 0,
+    frequency: 'monthly',
+    installments: 12,
+    first_payment_date: '',
+    payment_method: 'all_days',
+    notes: '',
+  });
+
+  const [vehicleForm, setVehicleForm] = useState<CreateVehicleData>({
+    brand: '',
+    model: '',
+    year: new Date().getFullYear(),
+    color: '',
+    plate: '',
+    chassis: '',
+    seller_name: '',
+    buyer_name: '',
+    buyer_phone: '',
+    buyer_email: '',
+    purchase_date: '',
+    purchase_value: 0,
+    down_payment: 0,
+    installments: 12,
+    installment_value: 0,
+    first_due_date: '',
+    notes: '',
+  });
+
+  const [billForm, setBillForm] = useState<CreateBillData>({
+    description: '',
+    payee_name: '',
+    amount: 0,
+    due_date: '',
+    notes: '',
+  });
+
+  // Reset functions
   const resetForm = () => {
     setFormData({
       product_name: '',
@@ -78,7 +179,54 @@ export default function ProductSales() {
     setInstallmentDates([]);
   };
 
-  // Generate installment dates when first_due_date or installments change
+  const resetContractForm = () => {
+    setContractForm({
+      client_name: '',
+      contract_type: 'aluguel_casa',
+      bill_type: 'receivable',
+      total_amount: 0,
+      amount_to_receive: 0,
+      frequency: 'monthly',
+      installments: 12,
+      first_payment_date: '',
+      payment_method: 'all_days',
+      notes: '',
+    });
+  };
+
+  const resetVehicleForm = () => {
+    setVehicleForm({
+      brand: '',
+      model: '',
+      year: new Date().getFullYear(),
+      color: '',
+      plate: '',
+      chassis: '',
+      seller_name: '',
+      buyer_name: '',
+      buyer_phone: '',
+      buyer_email: '',
+      purchase_date: '',
+      purchase_value: 0,
+      down_payment: 0,
+      installments: 12,
+      installment_value: 0,
+      first_due_date: '',
+      notes: '',
+    });
+  };
+
+  const resetBillForm = () => {
+    setBillForm({
+      description: '',
+      payee_name: '',
+      amount: 0,
+      due_date: '',
+      notes: '',
+    });
+  };
+
+  // Generate installment dates for product sales
   useEffect(() => {
     if (formData.first_due_date && formData.installments > 0) {
       const firstDate = new Date(formData.first_due_date);
@@ -87,11 +235,10 @@ export default function ProductSales() {
       const dates: InstallmentDate[] = [];
       for (let i = 0; i < formData.installments; i++) {
         let dueDate = addMonths(firstDate, i);
-        // Try to keep the same day of month
         try {
           dueDate = setDate(dueDate, dayOfMonth);
         } catch {
-          // If day doesn't exist in month (e.g., 31 in Feb), use last day of month
+          // Handle edge cases
         }
         dates.push({
           number: i + 1,
@@ -108,19 +255,19 @@ export default function ProductSales() {
     );
   };
 
-  const handleCreate = async () => {
-    // Pass installment dates to the hook
+  // Product Sales handlers
+  const handleCreateSale = async () => {
     await createSale.mutateAsync({ ...formData, installmentDates });
     setIsCreateOpen(false);
     resetForm();
   };
 
-  const openEditDialog = (sale: ProductSale) => {
+  const openEditSaleDialog = (sale: ProductSale) => {
     setEditingSale(sale);
     setIsEditOpen(true);
   };
 
-  const handleEdit = async () => {
+  const handleEditSale = async () => {
     if (!editingSale) return;
     await updateSale.mutateAsync({
       id: editingSale.id,
@@ -135,14 +282,14 @@ export default function ProductSales() {
     setEditingSale(null);
   };
 
-  const handleDelete = async () => {
+  const handleDeleteSale = async () => {
     if (!deleteId) return;
     await deleteSale.mutateAsync(deleteId);
     setDeleteId(null);
   };
 
-  const handleMarkAsPaid = async (paymentId: string) => {
-    await markAsPaid.mutateAsync({
+  const handleMarkSalePaymentAsPaid = async (paymentId: string) => {
+    await markSalePaymentAsPaid.mutateAsync({
       paymentId,
       paidDate: format(new Date(), 'yyyy-MM-dd'),
     });
@@ -162,6 +309,158 @@ export default function ProductSales() {
     setPaymentDialogOpen(true);
   };
 
+  // Contract handlers
+  const handleCreateContract = async () => {
+    if (!contractForm.client_name || !contractForm.total_amount || !contractForm.first_payment_date) return;
+    await createContract.mutateAsync(contractForm);
+    setIsContractOpen(false);
+    resetContractForm();
+  };
+
+  const openEditContractDialog = (contract: Contract) => {
+    setEditingContract(contract);
+    setEditContractForm({
+      client_name: contract.client_name,
+      contract_type: contract.contract_type,
+      total_amount: contract.total_amount,
+      amount_to_receive: contract.amount_to_receive,
+      notes: contract.notes || '',
+    });
+    setIsEditContractOpen(true);
+  };
+
+  const handleEditContract = async () => {
+    if (!editingContract) return;
+    await updateContract.mutateAsync({
+      id: editingContract.id,
+      data: editContractForm,
+    });
+    setIsEditContractOpen(false);
+    setEditingContract(null);
+  };
+
+  const handleDeleteContract = async () => {
+    if (!deleteContractId) return;
+    await deleteContract.mutateAsync(deleteContractId);
+    setDeleteContractId(null);
+  };
+
+  const toggleContractExpand = async (contractId: string) => {
+    if (expandedContract === contractId) {
+      setExpandedContract(null);
+    } else {
+      setExpandedContract(contractId);
+      if (!contractPayments[contractId]) {
+        const payments = await getContractPayments(contractId);
+        setContractPayments(prev => ({ ...prev, [contractId]: payments }));
+      }
+    }
+  };
+
+  // Vehicle handlers
+  const handleCreateVehicle = async (data: CreateVehicleData) => {
+    await createVehicle.mutateAsync(data);
+    setIsVehicleOpen(false);
+  };
+
+  const openEditVehicleDialog = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setVehicleForm({
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color || '',
+      plate: vehicle.plate || '',
+      chassis: vehicle.chassis || '',
+      seller_name: vehicle.seller_name,
+      buyer_name: vehicle.buyer_name || '',
+      buyer_phone: vehicle.buyer_phone || '',
+      buyer_email: vehicle.buyer_email || '',
+      purchase_date: vehicle.purchase_date,
+      purchase_value: vehicle.purchase_value,
+      down_payment: vehicle.down_payment,
+      installments: vehicle.installments,
+      installment_value: vehicle.installment_value,
+      first_due_date: vehicle.first_due_date,
+      notes: vehicle.notes || '',
+    });
+    setIsEditVehicleOpen(true);
+  };
+
+  const handleEditVehicle = async () => {
+    if (!editingVehicle) return;
+    await updateVehicle.mutateAsync({
+      id: editingVehicle.id,
+      data: {
+        brand: vehicleForm.brand,
+        model: vehicleForm.model,
+        year: vehicleForm.year,
+        color: vehicleForm.color || undefined,
+        plate: vehicleForm.plate || undefined,
+        chassis: vehicleForm.chassis || undefined,
+        seller_name: vehicleForm.seller_name,
+        buyer_name: vehicleForm.buyer_name || undefined,
+        buyer_phone: vehicleForm.buyer_phone || undefined,
+        buyer_email: vehicleForm.buyer_email || undefined,
+        purchase_value: vehicleForm.purchase_value,
+        down_payment: vehicleForm.down_payment,
+        installment_value: vehicleForm.installment_value,
+        notes: vehicleForm.notes || undefined,
+      },
+    });
+    setIsEditVehicleOpen(false);
+    setEditingVehicle(null);
+    resetVehicleForm();
+  };
+
+  const handleDeleteVehicle = async () => {
+    if (!deleteVehicleId) return;
+    await deleteVehicle.mutateAsync(deleteVehicleId);
+    setDeleteVehicleId(null);
+  };
+
+  const toggleVehicleExpand = (vehicleId: string) => {
+    setExpandedVehicle(expandedVehicle === vehicleId ? null : vehicleId);
+  };
+
+  // Bill handlers
+  const handleCreateBill = async () => {
+    if (!billForm.payee_name || !billForm.amount || !billForm.due_date) return;
+    await createBill.mutateAsync(billForm);
+    setIsBillOpen(false);
+    resetBillForm();
+  };
+
+  const openEditBillDialog = (bill: Bill) => {
+    setEditingBill(bill);
+    setBillForm({
+      description: bill.description,
+      payee_name: bill.payee_name,
+      amount: bill.amount,
+      due_date: bill.due_date,
+      notes: bill.notes || '',
+    });
+    setIsEditBillOpen(true);
+  };
+
+  const handleEditBill = async () => {
+    if (!editingBill) return;
+    await updateBill.mutateAsync({
+      id: editingBill.id,
+      data: billForm,
+    });
+    setIsEditBillOpen(false);
+    setEditingBill(null);
+    resetBillForm();
+  };
+
+  const handleDeleteBill = async () => {
+    if (!deleteBillId) return;
+    await deleteBill.mutateAsync(deleteBillId);
+    setDeleteBillId(null);
+  };
+
+  // Utility functions
   const calculateInstallmentValue = (total: number, down: number, installments: number) => {
     if (installments <= 0) return 0;
     return (total - down) / installments;
@@ -194,13 +493,42 @@ export default function ProductSales() {
     }));
   };
 
+  // Filtered data
   const filteredSales = sales?.filter(sale =>
     sale.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     sale.client_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  const filteredContracts = contracts.filter(contract =>
+    contract.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    contract.bill_type === 'receivable'
+  );
+
+  const filteredVehicles = vehicles.filter(vehicle =>
+    vehicle.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (vehicle.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getBillStatus = (bill: Bill) => {
+    if (bill.status === 'paid') return 'paid';
+    const dueDate = parseISO(bill.due_date);
+    if (isPast(dueDate) && !isToday(dueDate)) return 'overdue';
+    return 'pending';
+  };
+
+  const filteredBills = bills.filter((bill) => {
+    const matchesSearch = bill.payee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      bill.description.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    const status = getBillStatus(bill);
+    if (billFilter === 'all') return true;
+    if (billFilter === 'overdue') return status === 'overdue';
+    return status === billFilter;
+  });
+
   const getSalePayments = (saleId: string) => {
-    return allPayments?.filter(p => p.product_sale_id === saleId) || [];
+    return allSalePayments?.filter(p => p.product_sale_id === saleId) || [];
   };
 
   const getSaleStatus = (sale: ProductSale) => {
@@ -222,7 +550,7 @@ export default function ProductSales() {
   const getCardStyles = (status: string) => {
     switch (status) {
       case 'paid':
-        return 'bg-primary/10 border-primary/40 text-primary-foreground';
+        return 'bg-primary/10 border-primary/40';
       case 'overdue':
         return 'bg-destructive/10 border-destructive/40';
       case 'due_today':
@@ -252,12 +580,36 @@ export default function ProductSales() {
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   };
 
-  const stats = {
+  const getContractTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      aluguel_casa: 'Aluguel de Casa',
+      aluguel_kitnet: 'Aluguel de Kitnet',
+      aluguel_apartamento: 'Aluguel de Apartamento',
+      aluguel_sala: 'Aluguel de Sala Comercial',
+      mensalidade: 'Mensalidade',
+      servico_mensal: 'Serviço Mensal',
+      parcelado: 'Parcelado',
+      avista: 'À Vista',
+    };
+    return labels[type] || type;
+  };
+
+  // Stats
+  const salesStats = {
     totalSales: filteredSales.length,
     totalValue: filteredSales.reduce((acc, s) => acc + s.total_amount, 0),
     totalReceived: filteredSales.reduce((acc, s) => acc + (s.total_paid || 0), 0),
     pending: filteredSales.reduce((acc, s) => acc + s.remaining_balance, 0),
   };
+
+  const billsStats = {
+    total: bills.length,
+    pending: bills.filter((b) => getBillStatus(b) === 'pending').length,
+    overdue: bills.filter((b) => getBillStatus(b) === 'overdue').length,
+    totalAmount: bills.filter((b) => getBillStatus(b) !== 'paid').reduce((acc, b) => acc + b.amount, 0),
+  };
+
+  const isLoading = salesLoading || billsLoading || contractsLoading || vehiclesLoading;
 
   if (isLoading) {
     return (
@@ -272,502 +624,895 @@ export default function ProductSales() {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-display font-bold">Vendas de Produtos</h1>
-            <p className="text-sm text-muted-foreground">Gerencie suas vendas de produtos</p>
-          </div>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-display font-bold">Vendas e Gestão Financeira</h1>
+          <p className="text-sm text-muted-foreground">Gerencie vendas, contratos, veículos e contas</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-lg sm:text-2xl font-bold">{stats.totalSales}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Vendas</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm sm:text-xl font-bold text-blue-500 truncate">
-                    {formatCurrency(stats.totalValue)}
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Total Vendido</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm sm:text-xl font-bold text-primary truncate">
-                    {formatCurrency(stats.totalReceived)}
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Recebido</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm sm:text-xl font-bold text-yellow-500 truncate">
-                    {formatCurrency(stats.pending)}
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">A Receber</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 h-auto">
+            <TabsTrigger value="products" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Produtos</span>
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <FileSignature className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Contratos</span>
+            </TabsTrigger>
+            <TabsTrigger value="vehicles" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Veículos</span>
+            </TabsTrigger>
+            <TabsTrigger value="bills" className="gap-1.5 px-2 py-2 text-xs sm:text-sm">
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Contas</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Search and Create */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-center sm:justify-between">
-          <div className="relative flex-1 w-full sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por produto ou cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Nova Venda
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Nova Venda de Produto</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome do Produto *</Label>
-                  <Input
-                    value={formData.product_name}
-                    onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                    placeholder="Ex: iPhone 15, Geladeira, etc."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrição do Produto</Label>
-                  <Textarea
-                    value={formData.product_description}
-                    onChange={(e) => setFormData({ ...formData, product_description: e.target.value })}
-                    placeholder="Detalhes do produto..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nome do Cliente *</Label>
-                    <Input
-                      value={formData.client_name}
-                      onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-                      placeholder="Nome completo"
-                    />
+          {/* PRODUTOS TAB */}
+          <TabsContent value="products" className="mt-4 space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <ShoppingBag className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{salesStats.totalSales}</p>
+                      <p className="text-xs text-muted-foreground">Vendas</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input
-                      value={formData.client_phone}
-                      onChange={(e) => setFormData({ ...formData, client_phone: e.target.value })}
-                      placeholder="(00) 00000-0000"
-                    />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <DollarSign className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-500 truncate">{formatCurrency(salesStats.totalValue)}</p>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>E-mail do Cliente</Label>
-                  <Input
-                    type="email"
-                    value={formData.client_email}
-                    onChange={(e) => setFormData({ ...formData, client_email: e.target.value })}
-                    placeholder="email@exemplo.com"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Data da Venda *</Label>
-                    <Input
-                      type="date"
-                      value={formData.sale_date}
-                      onChange={(e) => setFormData({ ...formData, sale_date: e.target.value })}
-                    />
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-primary truncate">{formatCurrency(salesStats.totalReceived)}</p>
+                      <p className="text-xs text-muted-foreground">Recebido</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Valor Total (R$) *</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.total_amount || ''}
-                      onChange={(e) => handleTotalChange(parseFloat(e.target.value) || 0)}
-                      placeholder="0,00"
-                    />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-yellow-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-yellow-500 truncate">{formatCurrency(salesStats.pending)}</p>
+                      <p className="text-xs text-muted-foreground">A Receber</p>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Entrada (R$)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.down_payment || ''}
-                      onChange={(e) => handleDownPaymentChange(parseFloat(e.target.value) || 0)}
-                      placeholder="0,00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Nº de Parcelas *</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={formData.installments === 0 ? '' : formData.installments}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                        handleInstallmentsChange(val || 0);
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Valor da Parcela (R$)</Label>
-                    <Input
-                      type="number"
-                      value={formData.installment_value.toFixed(2)}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Primeiro Vencimento *</Label>
-                    <Input
-                      type="date"
-                      value={formData.first_due_date}
-                      onChange={(e) => setFormData({ ...formData, first_due_date: e.target.value })}
-                    />
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                {/* Installment Dates */}
-                {installmentDates.length > 1 && (
-                  <div className="space-y-2">
-                    <Label>Datas das Parcelas</Label>
-                    <ScrollArea className="h-[200px] rounded-md border p-3">
+            {/* Search and Create */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por produto ou cliente..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Nova Venda
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Nova Venda de Produto</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome do Produto *</Label>
+                      <Input
+                        value={formData.product_name}
+                        onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                        placeholder="Ex: iPhone 15, Geladeira, etc."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição do Produto</Label>
+                      <Textarea
+                        value={formData.product_description}
+                        onChange={(e) => setFormData({ ...formData, product_description: e.target.value })}
+                        placeholder="Detalhes do produto..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        {installmentDates.map((inst, index) => (
-                          <div key={inst.number} className="flex items-center gap-3">
-                            <Badge variant="outline" className="w-16 justify-center text-xs">
-                              {inst.number}ª
-                            </Badge>
-                            <Input
-                              type="date"
-                              value={inst.date}
-                              onChange={(e) => updateInstallmentDate(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {format(parseISO(inst.date), 'dd/MM/yyyy', { locale: ptBR })}
-                            </span>
-                          </div>
-                        ))}
+                        <Label>Nome do Cliente *</Label>
+                        <Input
+                          value={formData.client_name}
+                          onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                          placeholder="Nome completo"
+                        />
                       </div>
-                    </ScrollArea>
+                      <div className="space-y-2">
+                        <Label>Telefone</Label>
+                        <Input
+                          value={formData.client_phone}
+                          onChange={(e) => setFormData({ ...formData, client_phone: e.target.value })}
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Data da Venda *</Label>
+                        <Input
+                          type="date"
+                          value={formData.sale_date}
+                          onChange={(e) => setFormData({ ...formData, sale_date: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Valor Total (R$) *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.total_amount || ''}
+                          onChange={(e) => handleTotalChange(parseFloat(e.target.value) || 0)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Entrada (R$)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.down_payment || ''}
+                          onChange={(e) => handleDownPaymentChange(parseFloat(e.target.value) || 0)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nº de Parcelas *</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={formData.installments === 0 ? '' : formData.installments}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                            handleInstallmentsChange(val || 0);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor da Parcela (R$)</Label>
+                        <Input
+                          type="number"
+                          value={formData.installment_value.toFixed(2)}
+                          disabled
+                          className="bg-muted"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Primeiro Vencimento *</Label>
+                        <Input
+                          type="date"
+                          value={formData.first_due_date}
+                          onChange={(e) => setFormData({ ...formData, first_due_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    {installmentDates.length > 1 && (
+                      <div className="space-y-2">
+                        <Label>Datas das Parcelas</Label>
+                        <ScrollArea className="h-[200px] rounded-md border p-3">
+                          <div className="space-y-2">
+                            {installmentDates.map((inst, index) => (
+                              <div key={inst.number} className="flex items-center gap-3">
+                                <Badge variant="outline" className="w-16 justify-center text-xs">
+                                  {inst.number}ª
+                                </Badge>
+                                <Input
+                                  type="date"
+                                  value={inst.date}
+                                  onChange={(e) => updateInstallmentDate(index, e.target.value)}
+                                  className="flex-1"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label>Observações</Label>
+                      <Textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="Notas adicionais..."
+                      />
+                    </div>
+                    <Button
+                      onClick={handleCreateSale}
+                      disabled={!formData.product_name || !formData.client_name || !formData.total_amount || !formData.first_due_date || createSale.isPending}
+                      className="w-full"
+                    >
+                      {createSale.isPending ? 'Salvando...' : 'Cadastrar Venda'}
+                    </Button>
                   </div>
-                )}
+                </DialogContent>
+              </Dialog>
+            </div>
 
-                <div className="space-y-2">
-                  <Label>Observações</Label>
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Notas adicionais..."
-                  />
-                </div>
-                <Button
-                  onClick={handleCreate}
-                  disabled={!formData.product_name || !formData.client_name || !formData.total_amount || !formData.first_due_date || createSale.isPending}
-                  className="w-full"
-                >
-                  {createSale.isPending ? 'Salvando...' : 'Cadastrar Venda'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+            {/* Sales List */}
+            <div className="space-y-3">
+              {filteredSales.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Nenhuma venda encontrada</h3>
+                    <p className="text-muted-foreground">Cadastre sua primeira venda de produto.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredSales.map((sale) => {
+                  const salePayments = getSalePayments(sale.id);
+                  const isExpanded = expandedSale === sale.id;
+                  const saleStatus = getSaleStatus(sale);
+                  const nextDuePayment = salePayments.find(p => p.status !== 'paid');
 
-        {/* Sales List */}
-        <div className="space-y-3">
-          {filteredSales.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Nenhuma venda encontrada</h3>
-                <p className="text-muted-foreground">Cadastre sua primeira venda de produto.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredSales.map((sale) => {
-              const salePayments = getSalePayments(sale.id);
-              const isExpanded = expandedSale === sale.id;
-              const saleStatus = getSaleStatus(sale);
-              const nextDuePayment = salePayments.find(p => p.status !== 'paid');
-
-              return (
-                <Card key={sale.id} className={cn(
-                  "transition-all",
-                  getCardStyles(saleStatus)
-                )}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Package className="w-4 h-4 text-primary flex-shrink-0" />
-                          <h3 className="font-semibold truncate">{sale.product_name}</h3>
-                          {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                          <User className="w-3.5 h-3.5" />
-                          <span>{sale.client_name}</span>
-                          {sale.client_phone && (
-                            <span className="text-xs">• {sale.client_phone}</span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Total:</span>
-                            <p className="font-medium">{formatCurrency(sale.total_amount)}</p>
-                          </div>
-                          <div className="bg-primary/10 rounded px-2 py-1">
-                            <span className="text-muted-foreground">Pago:</span>
-                            <p className="font-bold text-primary">{formatCurrency(sale.total_paid || 0)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Restante:</span>
-                            <p className="font-medium">{formatCurrency(sale.remaining_balance)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Parcelas:</span>
-                            <p className="font-medium">{sale.installments}x de {formatCurrency(sale.installment_value)}</p>
-                          </div>
-                          {nextDuePayment && (
-                            <div className={cn(
-                              "rounded px-2 py-1",
-                              saleStatus === 'overdue' && "bg-destructive/10",
-                              saleStatus === 'due_today' && "bg-yellow-500/10"
-                            )}>
-                              <span className="text-muted-foreground">Próximo Venc:</span>
-                              <p className={cn(
-                                "font-medium",
-                                saleStatus === 'overdue' && "text-destructive",
-                                saleStatus === 'due_today' && "text-yellow-600"
-                              )}>
-                                {format(parseISO(nextDuePayment.due_date), 'dd/MM/yyyy', { locale: ptBR })}
-                              </p>
+                  return (
+                    <Card key={sale.id} className={cn("transition-all", getCardStyles(saleStatus))}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Package className="w-4 h-4 text-primary flex-shrink-0" />
+                              <h3 className="font-semibold truncate">{sale.product_name}</h3>
+                              {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
                             </div>
-                          )}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                              <User className="w-3.5 h-3.5" />
+                              <span>{sale.client_name}</span>
+                              {sale.client_phone && <span className="text-xs">• {sale.client_phone}</span>}
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Total:</span>
+                                <p className="font-medium">{formatCurrency(sale.total_amount)}</p>
+                              </div>
+                              <div className="bg-primary/10 rounded px-2 py-1">
+                                <span className="text-muted-foreground">Pago:</span>
+                                <p className="font-bold text-primary">{formatCurrency(sale.total_paid || 0)}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Restante:</span>
+                                <p className="font-medium">{formatCurrency(sale.remaining_balance)}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Parcelas:</span>
+                                <p className="font-medium">{sale.installments}x de {formatCurrency(sale.installment_value)}</p>
+                              </div>
+                              {nextDuePayment && (
+                                <div className={cn("rounded px-2 py-1", saleStatus === 'overdue' && "bg-destructive/10", saleStatus === 'due_today' && "bg-yellow-500/10")}>
+                                  <span className="text-muted-foreground">Próximo:</span>
+                                  <p className={cn("font-medium", saleStatus === 'overdue' && "text-destructive", saleStatus === 'due_today' && "text-yellow-600")}>
+                                    {format(parseISO(nextDuePayment.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => openEditSaleDialog(sale)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(sale.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setExpandedSale(isExpanded ? null : sale.id)}
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {isExpanded ? 'Ocultar Parcelas' : `Ver Parcelas (${salePayments.length})`}
+                        </Button>
+
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 border-t space-y-2">
+                            {salePayments.map((payment) => {
+                              const isPaid = payment.status === 'paid';
+                              const isOverdue = !isPaid && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date));
+                              const isDueToday = !isPaid && isToday(parseISO(payment.due_date));
+
+                              return (
+                                <div
+                                  key={payment.id}
+                                  className={cn(
+                                    "flex items-center justify-between p-3 rounded-lg",
+                                    isPaid && "bg-primary/10",
+                                    isOverdue && "bg-destructive/10",
+                                    isDueToday && "bg-yellow-500/10",
+                                    !isPaid && !isOverdue && !isDueToday && "bg-muted/50"
+                                  )}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <Badge variant="outline" className="text-xs">{payment.installment_number}/{sale.installments}</Badge>
+                                    <div>
+                                      <p className="font-medium text-sm">{formatCurrency(payment.amount)}</p>
+                                      <p className="text-xs text-muted-foreground">Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {getStatusBadge(payment.status, payment.due_date)}
+                                    {!isPaid && (
+                                      <Button size="sm" className="gap-1" onClick={() => openPaymentDialog(payment)} disabled={markSalePaymentAsPaid.isPending}>
+                                        <Banknote className="w-3 h-3" />
+                                        Registrar
+                                      </Button>
+                                    )}
+                                    {isPaid && payment.paid_date && (
+                                      <span className="text-xs text-muted-foreground">Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </TabsContent>
+
+          {/* CONTRATOS TAB */}
+          <TabsContent value="contracts" className="mt-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+              </div>
+              <Dialog open={isContractOpen} onOpenChange={setIsContractOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Novo Contrato</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Cliente / Inquilino *</Label>
+                      <Input placeholder="Nome do cliente" value={contractForm.client_name} onChange={(e) => setContractForm({ ...contractForm, client_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tipo de contrato</Label>
+                      <Select value={contractForm.contract_type} onValueChange={(value) => setContractForm({ ...contractForm, contract_type: value })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="aluguel_casa">Aluguel de Casa</SelectItem>
+                          <SelectItem value="aluguel_kitnet">Aluguel de Kitnet</SelectItem>
+                          <SelectItem value="aluguel_apartamento">Aluguel de Apartamento</SelectItem>
+                          <SelectItem value="aluguel_sala">Aluguel de Sala Comercial</SelectItem>
+                          <SelectItem value="mensalidade">Mensalidade</SelectItem>
+                          <SelectItem value="servico_mensal">Serviço Mensal</SelectItem>
+                          <SelectItem value="parcelado">Parcelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor mensal (R$) *</Label>
+                        <Input type="number" step="0.01" min="0" value={contractForm.total_amount || ''} onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          setContractForm({ ...contractForm, total_amount: value, amount_to_receive: value * contractForm.installments });
+                        }} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nº de parcelas</Label>
+                        <Input type="number" min="1" value={contractForm.installments || ''} onChange={(e) => {
+                          const value = parseInt(e.target.value) || 1;
+                          setContractForm({ ...contractForm, installments: value, amount_to_receive: contractForm.total_amount * value });
+                        }} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Primeiro vencimento *</Label>
+                      <Input type="date" value={contractForm.first_payment_date} onChange={(e) => setContractForm({ ...contractForm, first_payment_date: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Observações</Label>
+                      <Textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} />
+                    </div>
+                    <Button onClick={handleCreateContract} disabled={!contractForm.client_name || !contractForm.total_amount || !contractForm.first_payment_date || createContract.isPending} className="w-full">
+                      {createContract.isPending ? 'Salvando...' : 'Cadastrar Contrato'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {filteredContracts.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FileSignature className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-semibold mb-2">Nenhum contrato encontrado</h3>
+                  <p className="text-muted-foreground text-sm">Crie contratos de aluguel ou mensalidades</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredContracts.map((contract) => (
+                  <Card key={contract.id} className={cn("transition-all", contract.status === 'paid' && 'bg-primary/10 border-primary/40')}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <FileSignature className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{contract.client_name}</p>
+                            <p className="text-xs text-muted-foreground">{getContractTypeLabel(contract.contract_type)}</p>
+                          </div>
+                        </div>
+                        <Badge variant={contract.status === 'paid' ? 'default' : 'secondary'}>{contract.status === 'paid' ? 'Quitado' : `${contract.installments}x`}</Badge>
+                      </div>
+                      <div className="space-y-2 mb-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Valor mensal</span>
+                          <span className="font-bold">{formatCurrency(contract.total_amount)}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-2 rounded-lg bg-primary/10">
+                          <span className="text-sm text-muted-foreground">Total a receber</span>
+                          <span className="font-bold text-primary">{formatCurrency(contract.amount_to_receive)}</span>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(sale)}
-                        >
-                          <Edit className="w-4 h-4" />
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
+                          {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                          Parcelas
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteId(sale.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}><Edit className="w-4 h-4" /></Button>
+                        <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteContractId(contract.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
-                    </div>
-
-                    {/* Toggle Parcelas Button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setExpandedSale(isExpanded ? null : sale.id)}
-                    >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      {isExpanded ? 'Ocultar Parcelas' : `Ver Parcelas (${salePayments.length})`}
-                    </Button>
-
-                    {/* Expandable Payments */}
-                    {isExpanded && (
-                      <div className="mt-4 pt-4 border-t space-y-2">
-                        <h4 className="font-medium text-sm mb-3">Parcelas</h4>
-                        {salePayments.map((payment) => {
-                          const isPaid = payment.status === 'paid';
-                          const isOverdue = !isPaid && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date));
-                          const isDueToday = !isPaid && isToday(parseISO(payment.due_date));
-
-                          return (
-                            <div
-                              key={payment.id}
-                              className={cn(
-                                "flex items-center justify-between p-3 rounded-lg",
-                                isPaid && "bg-primary/10",
-                                isOverdue && "bg-destructive/10",
-                                isDueToday && "bg-yellow-500/10",
-                                !isPaid && !isOverdue && !isDueToday && "bg-muted/50"
-                              )}
-                            >
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">
-                                  {payment.installment_number}/{sale.installments}
-                                </Badge>
-                                <div>
-                                  <p className="font-medium text-sm">{formatCurrency(payment.amount)}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}
-                                  </p>
-                                </div>
+                      {expandedContract === contract.id && contractPayments[contract.id] && (
+                        <div className="mt-4 pt-4 border-t space-y-2">
+                          {contractPayments[contract.id].map((payment) => (
+                            <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
+                              payment.status === 'paid' ? 'bg-primary/10 text-primary' :
+                              isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
+                            )}>
+                              <div>
+                                <span className="font-medium">{payment.installment_number}ª</span>
+                                <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {getStatusBadge(payment.status, payment.due_date)}
-                                {!isPaid && (
-                                  <Button
-                                    size="sm"
-                                    className="gap-1"
-                                    onClick={() => openPaymentDialog(payment)}
-                                    disabled={markAsPaid.isPending}
-                                  >
-                                    <Banknote className="w-3 h-3" />
-                                    Registrar
+                                <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                                {payment.status !== 'paid' ? (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
+                                    <Check className="w-3 h-3" />
                                   </Button>
-                                )}
-                                {isPaid && payment.paid_date && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}
-                                  </span>
+                                ) : (
+                                  <Check className="w-4 h-4 text-primary" />
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-        {/* Edit Dialog */}
+          {/* VEÍCULOS TAB */}
+          <TabsContent value="vehicles" className="mt-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar por marca, modelo ou comprador..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+              </div>
+              <Dialog open={isVehicleOpen} onOpenChange={setIsVehicleOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Veículo</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Cadastrar Veículo</DialogTitle></DialogHeader>
+                  <VehicleForm billType="receivable" onSubmit={handleCreateVehicle} isPending={createVehicle.isPending} />
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {filteredVehicles.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Car className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-semibold mb-2">Nenhum veículo cadastrado</h3>
+                  <p className="text-muted-foreground text-sm">Cadastre veículos vendidos para controlar os recebimentos</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredVehicles.map((vehicle) => {
+                  const vehiclePaymentsForCard = vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id);
+                  const hasOverdue = vehiclePaymentsForCard.some(p => p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date)));
+                  
+                  return (
+                    <Card key={vehicle.id} className={cn(
+                      "transition-all",
+                      vehicle.status === 'paid' && 'bg-primary/10 border-primary/40',
+                      hasOverdue && vehicle.status !== 'paid' && 'bg-destructive/10 border-destructive/40'
+                    )}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Car className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-semibold">{vehicle.brand} {vehicle.model}</p>
+                              <p className="text-xs text-muted-foreground">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
+                            </div>
+                          </div>
+                          <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'}>{vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}</Badge>
+                        </div>
+                        {vehicle.plate && <div className="mb-2 p-2 bg-muted rounded text-center font-mono font-bold text-sm">{vehicle.plate}</div>}
+                        <div className="space-y-2 mb-3">
+                          {vehicle.buyer_name && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-muted-foreground">Comprador</span>
+                              <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Valor total</span>
+                            <span className="font-bold">{formatCurrency(vehicle.purchase_value)}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 rounded-lg bg-primary/10">
+                            <span className="text-sm text-muted-foreground">Recebido</span>
+                            <span className="font-bold text-primary">{formatCurrency(vehicle.total_paid)}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 rounded-lg bg-orange-500/10">
+                            <span className="text-sm text-muted-foreground">Falta</span>
+                            <span className="font-bold text-orange-600">{formatCurrency(vehicle.remaining_balance)}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleVehicleExpand(vehicle.id)}>
+                            {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                            Parcelas
+                          </Button>
+                          <Button size="icon" variant="outline" onClick={() => openEditVehicleDialog(vehicle)}><Edit className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteVehicleId(vehicle.id)}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                        {expandedVehicle === vehicle.id && (
+                          <div className="mt-4 pt-4 border-t space-y-2">
+                            {vehiclePaymentsForCard.map((payment) => (
+                              <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
+                                payment.status === 'paid' ? 'bg-primary/10 text-primary' :
+                                isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
+                              )}>
+                                <div>
+                                  <span className="font-medium">{payment.installment_number}ª</span>
+                                  <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                                  {payment.status !== 'paid' ? (
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
+                                      <Check className="w-3 h-3" />
+                                    </Button>
+                                  ) : (
+                                    <Check className="w-4 h-4 text-primary" />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* CONTAS A PAGAR TAB */}
+          <TabsContent value="bills" className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{billsStats.total}</p>
+                      <p className="text-xs text-muted-foreground">Contas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{billsStats.pending}</p>
+                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
+                      <DollarSign className="w-4 h-4 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{billsStats.overdue}</p>
+                      <p className="text-xs text-muted-foreground">Atrasadas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Total a Pagar</p>
+                  <p className="text-sm font-bold text-orange-600 truncate">{formatCurrency(billsStats.totalAmount)}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant={billFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('all')}>Todas</Button>
+                <Button variant={billFilter === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('pending')}>Pendentes</Button>
+                <Button variant={billFilter === 'overdue' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('overdue')}>Atrasadas</Button>
+                <Button variant={billFilter === 'paid' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('paid')}>Pagas</Button>
+              </div>
+              <Dialog open={isBillOpen} onOpenChange={setIsBillOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2"><Plus className="w-4 h-4" />Nova Conta</Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Pagar para *</Label>
+                      <Input placeholder="Nome da pessoa ou empresa" value={billForm.payee_name} onChange={(e) => setBillForm({ ...billForm, payee_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição *</Label>
+                      <Input placeholder="Ex: Aluguel, Conta de luz..." value={billForm.description} onChange={(e) => setBillForm({ ...billForm, description: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor (R$) *</Label>
+                        <Input type="number" step="0.01" min="0" value={billForm.amount || ''} onChange={(e) => setBillForm({ ...billForm, amount: parseFloat(e.target.value) || 0 })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vencimento *</Label>
+                        <Input type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Observações</Label>
+                      <Textarea placeholder="Notas adicionais..." value={billForm.notes} onChange={(e) => setBillForm({ ...billForm, notes: e.target.value })} />
+                    </div>
+                    <Button onClick={handleCreateBill} disabled={!billForm.payee_name || !billForm.description || !billForm.amount || !billForm.due_date || createBill.isPending} className="w-full">
+                      {createBill.isPending ? 'Salvando...' : 'Cadastrar Conta'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {filteredBills.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-semibold mb-2">Nenhuma conta encontrada</h3>
+                  <p className="text-muted-foreground text-sm">Clique em "Nova Conta" para cadastrar</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredBills.map((bill) => {
+                  const status = getBillStatus(bill);
+                  return (
+                    <Card key={bill.id} className={cn("transition-all",
+                      status === 'paid' && 'bg-primary/10 border-primary/40',
+                      status === 'overdue' && 'bg-destructive/10 border-destructive/40'
+                    )}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                              <FileText className="w-5 h-5 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="font-semibold">{bill.payee_name}</p>
+                              <p className="text-xs text-muted-foreground">{bill.description}</p>
+                            </div>
+                          </div>
+                          {getStatusBadge(status)}
+                        </div>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Valor</span>
+                            <span className="font-bold">{formatCurrency(bill.amount)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Vencimento</span>
+                            <span className={cn("font-medium", status === 'overdue' && 'text-destructive')}>
+                              {format(parseISO(bill.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {status !== 'paid' && (
+                            <Button size="sm" className="flex-1" onClick={() => markBillAsPaid.mutateAsync(bill.id)} disabled={markBillAsPaid.isPending}>
+                              <Check className="w-3 h-3 mr-1" />
+                              Pagar
+                            </Button>
+                          )}
+                          <Button size="icon" variant="outline" onClick={() => openEditBillDialog(bill)}><Edit className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteBillId(bill.id)}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* Edit Sale Dialog */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Editar Venda</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Editar Venda</DialogTitle></DialogHeader>
             {editingSale && (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Nome do Produto</Label>
-                  <Input
-                    value={editingSale.product_name}
-                    onChange={(e) => setEditingSale({ ...editingSale, product_name: e.target.value })}
-                  />
+                  <Input value={editingSale.product_name} onChange={(e) => setEditingSale({ ...editingSale, product_name: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Descrição</Label>
-                  <Textarea
-                    value={editingSale.product_description || ''}
-                    onChange={(e) => setEditingSale({ ...editingSale, product_description: e.target.value })}
-                  />
+                  <Textarea value={editingSale.product_description || ''} onChange={(e) => setEditingSale({ ...editingSale, product_description: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nome do Cliente</Label>
-                    <Input
-                      value={editingSale.client_name}
-                      onChange={(e) => setEditingSale({ ...editingSale, client_name: e.target.value })}
-                    />
+                    <Input value={editingSale.client_name} onChange={(e) => setEditingSale({ ...editingSale, client_name: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <Label>Telefone</Label>
-                    <Input
-                      value={editingSale.client_phone || ''}
-                      onChange={(e) => setEditingSale({ ...editingSale, client_phone: e.target.value })}
-                    />
+                    <Input value={editingSale.client_phone || ''} onChange={(e) => setEditingSale({ ...editingSale, client_phone: e.target.value })} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>E-mail</Label>
-                  <Input
-                    value={editingSale.client_email || ''}
-                    onChange={(e) => setEditingSale({ ...editingSale, client_email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label>Observações</Label>
-                  <Textarea
-                    value={editingSale.notes || ''}
-                    onChange={(e) => setEditingSale({ ...editingSale, notes: e.target.value })}
-                  />
+                  <Textarea value={editingSale.notes || ''} onChange={(e) => setEditingSale({ ...editingSale, notes: e.target.value })} />
                 </div>
-                <Button onClick={handleEdit} disabled={updateSale.isPending} className="w-full">
-                  {updateSale.isPending ? 'Salvando...' : 'Salvar Alterações'}
-                </Button>
+                <Button onClick={handleEditSale} disabled={updateSale.isPending} className="w-full">{updateSale.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation */}
-        <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Venda</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Edit Contract Dialog */}
+        <Dialog open={isEditContractOpen} onOpenChange={setIsEditContractOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Editar Contrato</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Input value={editContractForm.client_name} onChange={(e) => setEditContractForm({ ...editContractForm, client_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea value={editContractForm.notes || ''} onChange={(e) => setEditContractForm({ ...editContractForm, notes: e.target.value })} />
+              </div>
+              <Button onClick={handleEditContract} disabled={updateContract.isPending} className="w-full">{updateContract.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Vehicle Dialog */}
+        <Dialog open={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Editar Veículo</DialogTitle></DialogHeader>
+            <VehicleForm
+              billType="receivable"
+              onSubmit={async (data) => {
+                if (!editingVehicle) return;
+                await updateVehicle.mutateAsync({ id: editingVehicle.id, data });
+                setIsEditVehicleOpen(false);
+                setEditingVehicle(null);
+              }}
+              isPending={updateVehicle.isPending}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Bill Dialog */}
+        <Dialog open={isEditBillOpen} onOpenChange={setIsEditBillOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Editar Conta</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Pagar para</Label>
+                <Input value={billForm.payee_name} onChange={(e) => setBillForm({ ...billForm, payee_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input value={billForm.description} onChange={(e) => setBillForm({ ...billForm, description: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input type="number" step="0.01" value={billForm.amount || ''} onChange={(e) => setBillForm({ ...billForm, amount: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Vencimento</Label>
+                  <Input type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} />
+                </div>
+              </div>
+              <Button onClick={handleEditBill} disabled={updateBill.isPending} className="w-full">{updateBill.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Payment Registration Dialog */}
         <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
           <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Registrar Pagamento</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
             {selectedPayment && (
               <div className="space-y-4">
                 <div className="p-4 rounded-lg bg-muted/50">
@@ -778,39 +1523,72 @@ export default function ProductSales() {
                 </div>
                 <div className="space-y-2">
                   <Label>Valor Pago (R$)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={paymentAmount || ''}
-                    onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                    placeholder="0,00"
-                  />
+                  <Input type="number" min="0" step="0.01" value={paymentAmount || ''} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} placeholder="0,00" />
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setPaymentDialogOpen(false);
-                      setSelectedPayment(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="flex-1 gap-2"
-                    onClick={() => handleMarkAsPaid(selectedPayment.id)}
-                    disabled={markAsPaid.isPending || paymentAmount <= 0}
-                  >
+                  <Button variant="outline" className="flex-1" onClick={() => { setPaymentDialogOpen(false); setSelectedPayment(null); }}>Cancelar</Button>
+                  <Button className="flex-1 gap-2" onClick={() => handleMarkSalePaymentAsPaid(selectedPayment.id)} disabled={markSalePaymentAsPaid.isPending || paymentAmount <= 0}>
                     <Check className="w-4 h-4" />
-                    {markAsPaid.isPending ? 'Salvando...' : 'Confirmar'}
+                    {markSalePaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar'}
                   </Button>
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmations */}
+        <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Venda</AlertDialogTitle>
+              <AlertDialogDescription>Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteSale} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteContractId} onOpenChange={() => setDeleteContractId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Contrato</AlertDialogTitle>
+              <AlertDialogDescription>Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteContract} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteVehicleId} onOpenChange={() => setDeleteVehicleId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Veículo</AlertDialogTitle>
+              <AlertDialogDescription>Tem certeza que deseja excluir este veículo? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteVehicle} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteBillId} onOpenChange={() => setDeleteBillId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Conta</AlertDialogTitle>
+              <AlertDialogDescription>Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteBill} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
