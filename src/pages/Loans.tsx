@@ -142,7 +142,28 @@ export default function Loans() {
     notes: '',
     daily_amount: '',
     daily_period: '15',
+    is_historical_contract: false, // Contract being registered retroactively
   });
+  
+  // Check if any dates are in the past
+  const hasPastDates = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (formData.payment_type === 'installment' && installmentDates.length > 0) {
+      return installmentDates.some(d => {
+        const date = new Date(d + 'T12:00:00');
+        return date < today;
+      });
+    }
+    
+    if (formData.due_date) {
+      const dueDate = new Date(formData.due_date + 'T12:00:00');
+      return dueDate < today;
+    }
+    
+    return false;
+  })();
   
   const [installmentValue, setInstallmentValue] = useState('');
   
@@ -239,6 +260,7 @@ export default function Loans() {
     
     const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
     const isRenegotiated = loan.notes?.includes('Valor prometido');
+    const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -248,14 +270,32 @@ export default function Loans() {
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
       const dates = (loan.installment_dates as string[]) || [];
       
-      if (dates.length > 0 && paidInstallments < dates.length) {
-        const nextDueDate = new Date(dates[paidInstallments]);
-        nextDueDate.setHours(0, 0, 0, 0);
-        isOverdue = today > nextDueDate;
+      if (isHistoricalContract) {
+        // For historical contracts, only check future dates
+        const futureDates = dates.filter(d => {
+          const date = new Date(d + 'T12:00:00');
+          return date >= today;
+        });
+        
+        if (futureDates.length > 0) {
+          // Find the first future date that should have been paid
+          const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
+          isOverdue = today > nextFutureDate;
+        } else if (dates.length === 0) {
+          // Single payment loan - check due_date
+          const dueDate = new Date(loan.due_date + 'T12:00:00');
+          isOverdue = dueDate >= today ? false : today > dueDate;
+        }
+        // If all dates are past and it's historical, check if latest date has passed
       } else {
-        const dueDate = new Date(loan.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        isOverdue = today > dueDate;
+        // Normal logic for non-historical contracts
+        if (dates.length > 0 && paidInstallments < dates.length) {
+          const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
+          isOverdue = today > nextDueDate;
+        } else {
+          const dueDate = new Date(loan.due_date + 'T12:00:00');
+          isOverdue = today > dueDate;
+        }
       }
     }
     
@@ -378,12 +418,19 @@ export default function Loans() {
       return;
     }
     
+    // Build notes with historical contract marker if selected
+    let notes = formData.notes || '';
+    if (formData.is_historical_contract && hasPastDates) {
+      notes = `[HISTORICAL_CONTRACT]\n${notes}`.trim();
+    }
+    
     await createLoan({
       ...formData,
       principal_amount: parseFloat(formData.principal_amount),
       interest_rate: parseFloat(formData.interest_rate),
       installments: parseInt(formData.installments),
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
+      notes: notes || undefined,
     });
     setIsDialogOpen(false);
     resetForm();
@@ -426,7 +473,7 @@ export default function Loans() {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       interest_mode: 'per_installment', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
-      daily_amount: '', daily_period: '15',
+      daily_amount: '', daily_period: '15', is_historical_contract: false,
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -1047,6 +1094,37 @@ export default function Loans() {
                   <Label className="text-xs sm:text-sm">Observações</Label>
                   <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                 </div>
+                
+                {/* Historical contract option when dates are in the past */}
+                {hasPastDates && (
+                  <div className="p-3 rounded-lg bg-yellow-500/20 border border-yellow-400/30 space-y-2">
+                    <p className="text-sm text-yellow-300 font-medium">
+                      ⚠️ Este contrato possui datas anteriores à data atual
+                    </p>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="is_historical_contract"
+                        checked={formData.is_historical_contract}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_historical_contract: !!checked })}
+                        className="mt-0.5 border-yellow-400 data-[state=checked]:bg-yellow-500"
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="is_historical_contract" className="text-sm text-yellow-200 cursor-pointer">
+                          Este é um contrato antigo que estou registrando
+                        </Label>
+                        <p className="text-xs text-yellow-300/70">
+                          Se marcado, o contrato só ficará em atraso após a próxima data futura vencer
+                        </p>
+                      </div>
+                    </div>
+                    {!formData.is_historical_contract && (
+                      <p className="text-xs text-red-300 mt-1">
+                        Se não marcar, o contrato será considerado em atraso imediatamente
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
                   <Button type="submit" className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar</Button>
@@ -1159,6 +1237,7 @@ export default function Loans() {
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
                 const isRenegotiated = loan.notes?.includes('Valor prometido');
+                const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
                 
                 // Check if overdue based on installment dates
                 const today = new Date();
@@ -1172,16 +1251,29 @@ export default function Loans() {
                   // Get installment dates array
                   const dates = (loan.installment_dates as string[]) || [];
                   
-                  if (dates.length > 0 && paidInstallments < dates.length) {
-                    // Check if the next due installment date has passed
-                    const nextDueDate = new Date(dates[paidInstallments]);
-                    nextDueDate.setHours(0, 0, 0, 0);
-                    isOverdue = today > nextDueDate;
+                  if (isHistoricalContract) {
+                    // For historical contracts, only check future dates
+                    const futureDates = dates.filter(d => {
+                      const date = new Date(d + 'T12:00:00');
+                      return date >= today;
+                    });
+                    
+                    if (futureDates.length > 0) {
+                      const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
+                      isOverdue = today > nextFutureDate;
+                    } else if (dates.length === 0) {
+                      const dueDate = new Date(loan.due_date + 'T12:00:00');
+                      isOverdue = dueDate < today;
+                    }
                   } else {
-                    // Fallback to general due_date for single payment loans
-                    const dueDate = new Date(loan.due_date);
-                    dueDate.setHours(0, 0, 0, 0);
-                    isOverdue = today > dueDate;
+                    // Normal logic for non-historical contracts
+                    if (dates.length > 0 && paidInstallments < dates.length) {
+                      const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
+                      isOverdue = today > nextDueDate;
+                    } else {
+                      const dueDate = new Date(loan.due_date + 'T12:00:00');
+                      isOverdue = today > dueDate;
+                    }
                   }
                 }
                 
