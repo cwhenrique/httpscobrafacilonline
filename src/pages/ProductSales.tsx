@@ -44,6 +44,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
 import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
+import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 
 export default function ProductSales() {
   // Product Sales hooks
@@ -106,6 +107,10 @@ export default function ProductSales() {
   const [deleteBillId, setDeleteBillId] = useState<string | null>(null);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [billFilter, setBillFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
+
+  // Receipt preview states
+  const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
+  const [receiptPreviewData, setReceiptPreviewData] = useState<ContractReceiptData | null>(null);
 
   // Forms
   const [formData, setFormData] = useState<CreateProductSaleData>({
@@ -491,111 +496,96 @@ export default function ProductSales() {
   };
 
   // Receipt generation functions
-  const handleGenerateProductReceipt = async (sale: ProductSale) => {
-    try {
-      const receiptData: ContractReceiptData = {
-        type: 'product',
-        contractId: sale.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        client: {
-          name: sale.client_name,
-          phone: sale.client_phone || undefined,
-          cpf: sale.client_cpf || undefined,
-          rg: sale.client_rg || undefined,
-          email: sale.client_email || undefined,
-          address: sale.client_address || undefined,
-        },
-        negotiation: {
-          principal: sale.total_amount,
-          installments: sale.installments,
-          installmentValue: sale.installment_value,
-          totalToReceive: sale.total_amount,
-          startDate: sale.sale_date,
-          downPayment: sale.down_payment || 0,
-          costValue: sale.cost_value || 0,
-        },
-        dueDates: getSalePayments(sale.id).map(p => p.due_date),
-        productInfo: { name: sale.product_name, description: sale.product_description || undefined },
-      };
-      await generateContractReceipt(receiptData);
-      toast.success('Comprovante gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      toast.error('Erro ao gerar comprovante');
-    }
+  const handleGenerateProductReceipt = (sale: ProductSale) => {
+    const receiptData: ContractReceiptData = {
+      type: 'product',
+      contractId: sale.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      client: {
+        name: sale.client_name,
+        phone: sale.client_phone || undefined,
+        cpf: sale.client_cpf || undefined,
+        rg: sale.client_rg || undefined,
+        email: sale.client_email || undefined,
+        address: sale.client_address || undefined,
+      },
+      negotiation: {
+        principal: sale.total_amount,
+        installments: sale.installments,
+        installmentValue: sale.installment_value,
+        totalToReceive: sale.total_amount,
+        startDate: sale.sale_date,
+        downPayment: sale.down_payment || 0,
+        costValue: sale.cost_value || 0,
+      },
+      dueDates: getSalePayments(sale.id).map(p => p.due_date),
+      productInfo: { name: sale.product_name, description: sale.product_description || undefined },
+    };
+    setReceiptPreviewData(receiptData);
+    setIsReceiptPreviewOpen(true);
   };
 
-  const handleGenerateVehicleReceipt = async (vehicle: Vehicle) => {
-    try {
-      const receiptData: ContractReceiptData = {
-        type: 'vehicle',
-        contractId: vehicle.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        client: {
-          name: vehicle.buyer_name || vehicle.seller_name,
-          phone: vehicle.buyer_phone || undefined,
-          cpf: vehicle.buyer_cpf || undefined,
-          rg: vehicle.buyer_rg || undefined,
-          email: vehicle.buyer_email || undefined,
-          address: vehicle.buyer_address || undefined,
-        },
-        negotiation: {
-          principal: vehicle.purchase_value,
-          installments: vehicle.installments,
-          installmentValue: vehicle.installment_value,
-          totalToReceive: vehicle.purchase_value,
-          startDate: vehicle.purchase_date,
-          downPayment: vehicle.down_payment || 0,
-          costValue: vehicle.cost_value || 0,
-        },
-        dueDates: vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map(p => p.due_date),
-        vehicleInfo: {
-          brand: vehicle.brand,
-          model: vehicle.model,
-          year: vehicle.year,
-          color: vehicle.color || undefined,
-          plate: vehicle.plate || undefined,
-          chassis: vehicle.chassis || undefined,
-        },
-      };
-      await generateContractReceipt(receiptData);
-      toast.success('Comprovante gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      toast.error('Erro ao gerar comprovante');
-    }
+  const handleGenerateVehicleReceipt = (vehicle: Vehicle) => {
+    const receiptData: ContractReceiptData = {
+      type: 'vehicle',
+      contractId: vehicle.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      client: {
+        name: vehicle.buyer_name || vehicle.seller_name,
+        phone: vehicle.buyer_phone || undefined,
+        cpf: vehicle.buyer_cpf || undefined,
+        rg: vehicle.buyer_rg || undefined,
+        email: vehicle.buyer_email || undefined,
+        address: vehicle.buyer_address || undefined,
+      },
+      negotiation: {
+        principal: vehicle.purchase_value,
+        installments: vehicle.installments,
+        installmentValue: vehicle.installment_value,
+        totalToReceive: vehicle.purchase_value,
+        startDate: vehicle.purchase_date,
+        downPayment: vehicle.down_payment || 0,
+        costValue: vehicle.cost_value || 0,
+      },
+      dueDates: vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map(p => p.due_date),
+      vehicleInfo: {
+        brand: vehicle.brand,
+        model: vehicle.model,
+        year: vehicle.year,
+        color: vehicle.color || undefined,
+        plate: vehicle.plate || undefined,
+        chassis: vehicle.chassis || undefined,
+      },
+    };
+    setReceiptPreviewData(receiptData);
+    setIsReceiptPreviewOpen(true);
   };
 
-  const handleGenerateContractReceipt = async (contract: Contract) => {
-    try {
-      const payments = contractPayments[contract.id] || [];
-      const receiptData: ContractReceiptData = {
-        type: 'contract',
-        contractId: contract.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        client: {
-          name: contract.client_name,
-          phone: contract.client_phone || undefined,
-          cpf: contract.client_cpf || undefined,
-          rg: contract.client_rg || undefined,
-          email: contract.client_email || undefined,
-          address: contract.client_address || undefined,
-        },
-        negotiation: {
-          principal: contract.total_amount,
-          installments: contract.installments,
-          installmentValue: contract.total_amount,
-          totalToReceive: contract.amount_to_receive,
-          startDate: contract.first_payment_date,
-        },
-        dueDates: payments.map(p => p.due_date),
-      };
-      await generateContractReceipt(receiptData);
-      toast.success('Comprovante gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      toast.error('Erro ao gerar comprovante');
-    }
+  const handleGenerateContractReceipt = (contract: Contract) => {
+    const payments = contractPayments[contract.id] || [];
+    const receiptData: ContractReceiptData = {
+      type: 'contract',
+      contractId: contract.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      client: {
+        name: contract.client_name,
+        phone: contract.client_phone || undefined,
+        cpf: contract.client_cpf || undefined,
+        rg: contract.client_rg || undefined,
+        email: contract.client_email || undefined,
+        address: contract.client_address || undefined,
+      },
+      negotiation: {
+        principal: contract.total_amount,
+        installments: contract.installments,
+        installmentValue: contract.total_amount,
+        totalToReceive: contract.amount_to_receive,
+        startDate: contract.first_payment_date,
+      },
+      dueDates: payments.map(p => p.due_date),
+    };
+    setReceiptPreviewData(receiptData);
+    setIsReceiptPreviewOpen(true);
   };
   const calculateInstallmentValue = (total: number, down: number, installments: number) => {
     if (installments <= 0) return 0;
@@ -1112,10 +1102,23 @@ export default function ProductSales() {
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Package className="w-4 h-4 text-primary flex-shrink-0" />
-                              <h3 className="font-semibold truncate">{sale.product_name}</h3>
-                              {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Package className="w-4 h-4 text-primary flex-shrink-0" />
+                                <h3 className="font-semibold truncate">{sale.product_name}</h3>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-6 text-[10px] px-2"
+                                  onClick={() => handleGenerateProductReceipt(sale)}
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Comprovante
+                                </Button>
+                                {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
+                              </div>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                               <User className="w-3.5 h-3.5" />
@@ -1164,9 +1167,6 @@ export default function ProductSales() {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleGenerateProductReceipt(sale)} title="Gerar Comprovante">
-                              <FileText className="w-4 h-4" />
-                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => openEditSaleDialog(sale)}>
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -1348,7 +1348,18 @@ export default function ProductSales() {
                             <p className="text-xs text-muted-foreground">{getContractTypeLabel(contract.contract_type)}</p>
                           </div>
                         </div>
-                        <Badge variant={contract.status === 'paid' ? 'default' : 'secondary'}>{contract.status === 'paid' ? 'Quitado' : `${contract.installments}x`}</Badge>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => handleGenerateContractReceipt(contract)}
+                          >
+                            <FileText className="w-3 h-3 mr-1" />
+                            Comprovante
+                          </Button>
+                          <Badge variant={contract.status === 'paid' ? 'default' : 'secondary'}>{contract.status === 'paid' ? 'Quitado' : `${contract.installments}x`}</Badge>
+                        </div>
                       </div>
                       <div className="space-y-2 mb-3">
                         <div className="flex justify-between items-center">
@@ -1364,9 +1375,6 @@ export default function ProductSales() {
                         <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
                           {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                           Parcelas
-                        </Button>
-                        <Button size="icon" variant="outline" onClick={() => handleGenerateContractReceipt(contract)} title="Gerar Comprovante">
-                          <FileText className="w-4 h-4" />
                         </Button>
                         <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}><Edit className="w-4 h-4" /></Button>
                         <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteContractId(contract.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -1452,7 +1460,18 @@ export default function ProductSales() {
                               <p className="text-xs text-muted-foreground">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
                             </div>
                           </div>
-                          <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'}>{vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}</Badge>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-6 text-[10px] px-2"
+                              onClick={() => handleGenerateVehicleReceipt(vehicle)}
+                            >
+                              <FileText className="w-3 h-3 mr-1" />
+                              Comprovante
+                            </Button>
+                            <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'}>{vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}</Badge>
+                          </div>
                         </div>
                         {vehicle.plate && <div className="mb-2 p-2 bg-muted rounded text-center font-mono font-bold text-sm">{vehicle.plate}</div>}
                         <div className="space-y-2 mb-3">
@@ -1500,9 +1519,6 @@ export default function ProductSales() {
                           <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleVehicleExpand(vehicle.id)}>
                             {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                             Parcelas
-                          </Button>
-                          <Button size="icon" variant="outline" onClick={() => handleGenerateVehicleReceipt(vehicle)} title="Gerar Comprovante">
-                            <FileText className="w-4 h-4" />
                           </Button>
                           <Button size="icon" variant="outline" onClick={() => openEditVehicleDialog(vehicle)}><Edit className="w-4 h-4" /></Button>
                           <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteVehicleId(vehicle.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -1876,6 +1892,13 @@ export default function ProductSales() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Receipt Preview Dialog */}
+        <ReceiptPreviewDialog 
+          open={isReceiptPreviewOpen} 
+          onOpenChange={setIsReceiptPreviewOpen} 
+          data={receiptPreviewData} 
+        />
       </div>
     </DashboardLayout>
   );

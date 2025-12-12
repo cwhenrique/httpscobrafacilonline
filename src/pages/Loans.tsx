@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
+import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
@@ -57,6 +58,10 @@ export default function Loans() {
   });
   const [creatingClient, setCreatingClient] = useState(false);
   
+  // Receipt preview state
+  const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
+  const [receiptPreviewData, setReceiptPreviewData] = useState<ContractReceiptData | null>(null);
+
   // Edit loan state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
@@ -807,44 +812,39 @@ export default function Loans() {
     setIsRenegotiateDialogOpen(true);
   };
 
-  const handleGenerateLoanReceipt = async (loan: typeof loans[0]) => {
-    try {
-      const numInstallments = loan.installments || 1;
-      let totalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-      } else {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-      }
-      const totalToReceive = loan.principal_amount + totalInterest;
-      const installmentValue = totalToReceive / numInstallments;
-      
-      const receiptData: ContractReceiptData = {
-        type: 'loan',
-        contractId: loan.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        client: {
-          name: loan.client?.full_name || 'Cliente',
-          phone: loan.client?.phone || undefined,
-          address: loan.client?.address || undefined,
-        },
-        negotiation: {
-          principal: loan.principal_amount,
-          interestRate: loan.interest_rate,
-          installments: numInstallments,
-          installmentValue: installmentValue,
-          totalToReceive: totalToReceive,
-          startDate: loan.start_date,
-        },
-        dueDates: (loan.installment_dates as string[]) || [loan.due_date],
-      };
-      
-      await generateContractReceipt(receiptData);
-      toast.success('Comprovante gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      toast.error('Erro ao gerar comprovante');
+  const handleGenerateLoanReceipt = (loan: typeof loans[0]) => {
+    const numInstallments = loan.installments || 1;
+    let totalInterest = 0;
+    if (loan.interest_mode === 'on_total') {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+    } else {
+      totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
     }
+    const totalToReceive = loan.principal_amount + totalInterest;
+    const installmentValue = totalToReceive / numInstallments;
+    
+    const receiptData: ContractReceiptData = {
+      type: 'loan',
+      contractId: loan.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      client: {
+        name: loan.client?.full_name || 'Cliente',
+        phone: loan.client?.phone || undefined,
+        address: loan.client?.address || undefined,
+      },
+      negotiation: {
+        principal: loan.principal_amount,
+        interestRate: loan.interest_rate,
+        installments: numInstallments,
+        installmentValue: installmentValue,
+        totalToReceive: totalToReceive,
+        startDate: loan.start_date,
+      },
+      dueDates: (loan.installment_dates as string[]) || [loan.due_date],
+    };
+    
+    setReceiptPreviewData(receiptData);
+    setIsReceiptPreviewOpen(true);
   };
 
   const handleRenegotiateSubmit = async (e: React.FormEvent) => {
@@ -1809,9 +1809,20 @@ export default function Loans() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
-                            <Badge className={`text-[10px] sm:text-xs flex-shrink-0 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
-                              {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
-                            </Badge>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <Button 
+                                variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                size="sm" 
+                                className={`h-6 sm:h-7 text-[10px] sm:text-xs px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                onClick={() => handleGenerateLoanReceipt(loan)}
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                Comprovante
+                              </Button>
+                              <Badge className={`text-[10px] sm:text-xs ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                                {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
+                              </Badge>
+                            </div>
                           </div>
                           <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
                           <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
@@ -1942,15 +1953,6 @@ export default function Loans() {
                           title="Renegociar"
                         >
                           <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </Button>
-                        <Button 
-                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                          size="icon" 
-                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                          onClick={() => handleGenerateLoanReceipt(loan)}
-                          title="Gerar Comprovante PDF"
-                        >
-                          <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -2636,6 +2638,13 @@ export default function Loans() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Receipt Preview Dialog */}
+        <ReceiptPreviewDialog 
+          open={isReceiptPreviewOpen} 
+          onOpenChange={setIsReceiptPreviewOpen} 
+          data={receiptPreviewData} 
+        />
       </div>
     </DashboardLayout>
   );
