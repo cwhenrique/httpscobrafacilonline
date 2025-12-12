@@ -962,9 +962,9 @@ export default function ProductSales() {
                         <label htmlFor="send_creation_notification_product" className="text-sm font-medium cursor-pointer">
                           Receber notificação WhatsApp deste contrato
                         </label>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Alertas de atraso e relatórios continuam sendo enviados normalmente
-                        </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Alertas de atraso e relatórios serão enviados normalmente mesmo que você não marque essa opção
+                    </p>
                       </div>
                     </div>
                     
