@@ -1253,6 +1253,8 @@ export default function Loans() {
       let notesText = loan.notes || '';
       // Remover tag anterior se existir
       notesText = notesText.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+      // IMPORTANTE: Limpar o tracking de pagamento parcial desta parcela, pois o novo valor já considera isso
+      notesText = notesText.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallment}:[0-9.]+\\]`, 'g'), '');
       notesText += `\nTaxa extra: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount}) na parcela ${targetInstallment + 1}`;
       notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}]`;
       
