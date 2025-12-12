@@ -761,6 +761,7 @@ export type Database = {
           buyer_rg: string | null
           chassis: string | null
           color: string | null
+          cost_value: number | null
           created_at: string
           down_payment: number | null
           first_due_date: string
@@ -790,6 +791,7 @@ export type Database = {
           buyer_rg?: string | null
           chassis?: string | null
           color?: string | null
+          cost_value?: number | null
           created_at?: string
           down_payment?: number | null
           first_due_date: string
@@ -819,6 +821,7 @@ export type Database = {
           buyer_rg?: string | null
           chassis?: string | null
           color?: string | null
+          cost_value?: number | null
           created_at?: string
           down_payment?: number | null
           first_due_date?: string

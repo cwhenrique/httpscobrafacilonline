@@ -56,6 +56,7 @@ export interface Vehicle {
   buyer_address: string | null;
   purchase_date: string;
   purchase_value: number;
+  cost_value: number;
   down_payment: number;
   installments: number;
   installment_value: number;
@@ -105,6 +106,7 @@ export interface CreateVehicleData {
   buyer_address?: string;
   purchase_date: string;
   purchase_value: number;
+  cost_value?: number;
   down_payment?: number;
   installments: number;
   installment_value: number;
@@ -129,6 +131,7 @@ export interface UpdateVehicleData {
   buyer_address?: string;
   purchase_date?: string;
   purchase_value?: number;
+  cost_value?: number;
   down_payment?: number;
   installments?: number;
   installment_value?: number;
@@ -182,6 +185,7 @@ export function useVehicles() {
           buyer_email: data.buyer_email || null,
           purchase_date: data.purchase_date || new Date().toISOString().split('T')[0],
           purchase_value: data.purchase_value,
+          cost_value: data.cost_value || 0,
           down_payment: downPayment,
           installments: data.installments,
           installment_value: data.installment_value,
