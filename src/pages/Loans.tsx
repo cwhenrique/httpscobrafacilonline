@@ -2607,18 +2607,19 @@ export default function Loans() {
                                     </span>
                                     {status.isPartial && (
                                       <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                                        Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
+                                        Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
                                       </span>
                                     )}
-                                    {status.isPaid && status.excess > 0 && (
+                                    {status.isPaid && (
                                       <span className="text-xs text-green-600 dark:text-green-400">
-                                        Pago: {formatCurrency(status.paidAmount)} (Excedente: {formatCurrency(status.excess)})
+                                        Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)}
+                                        {status.excess > 0 && ` (+${formatCurrency(status.excess)})`}
                                       </span>
                                     )}
                                   </span>
                                   <span className="flex flex-col items-end gap-0.5">
                                     <span className="text-xs opacity-70">{formatDate(date)}</span>
-                                    <span>
+                                    <span className="font-medium">
                                       {status.isPaid 
                                         ? formatCurrency(status.paidAmount)
                                         : status.isPartial 
