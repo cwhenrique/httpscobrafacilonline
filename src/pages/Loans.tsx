@@ -533,13 +533,29 @@ export default function Loans() {
       notes = `[HISTORICAL_CONTRACT]\n${notes}`.trim();
     }
     
-    // Calculate total_interest based on interest_mode
+    // Calculate total_interest based on interest_mode e valor da parcela (quando informado)
     const principal = parseFloat(formData.principal_amount);
-    const rate = parseFloat(formData.interest_rate);
+    let rate = parseFloat(formData.interest_rate);
     const numInstallments = parseInt(formData.installments) || 1;
-    const totalInterest = formData.interest_mode === 'per_installment'
-      ? principal * (rate / 100) * numInstallments
-      : principal * (rate / 100);
+    let totalInterest: number;
+
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentValue) {
+      const perInstallment = parseFloat(installmentValue);
+      const totalToReceive = perInstallment * numInstallments;
+      totalInterest = totalToReceive - principal;
+
+      // Recalcula a taxa de juros apenas para exibição, baseada no valor arredondado da parcela
+      if (totalInterest >= 0) {
+        const computedRate = formData.interest_mode === 'per_installment'
+          ? (totalInterest / principal / numInstallments) * 100
+          : (totalInterest / principal) * 100;
+        rate = parseFloat(computedRate.toFixed(2));
+      }
+    } else {
+      totalInterest = formData.interest_mode === 'per_installment'
+        ? principal * (rate / 100) * numInstallments
+        : principal * (rate / 100);
+    }
     
     const result = await createLoan({
       ...formData,
