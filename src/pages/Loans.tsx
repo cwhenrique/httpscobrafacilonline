@@ -1897,17 +1897,18 @@ export default function Loans() {
                 
                 // Check if this is an interest-only payment and extract "Valor que falta" from notes
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
-                let remainingToReceive = isDaily ? (loan.remaining_balance || 0) - (loan.total_paid || 0) : totalToReceive - (loan.total_paid || 0);
                 
-                // For interest-only payments, use the stored "Valor que falta" from notes
-                if (isInterestOnlyPayment && loan.notes) {
-                  const valorQueFaltaMatch = loan.notes.match(/Valor que falta: R\$ ([0-9.]+)/);
-                  if (valorQueFaltaMatch) {
-                    const storedRemainingValue = parseFloat(valorQueFaltaMatch[1]);
-                    if (!isNaN(storedRemainingValue) && storedRemainingValue > 0) {
-                      remainingToReceive = storedRemainingValue;
-                    }
-                  }
+                // Para pagamentos só de juros, usar o remaining_balance salvo no banco
+                // O remaining_balance já foi atualizado com o valor editado pelo usuário
+                let remainingToReceive = isDaily 
+                  ? (loan.remaining_balance || 0) - (loan.total_paid || 0) 
+                  : totalToReceive - (loan.total_paid || 0);
+                
+                // Para interest-only payments, o remaining_balance representa o valor real que falta
+                // (já inclui alterações feitas pelo usuário no diálogo de renegociação)
+                if (isInterestOnlyPayment) {
+                  // Usar o remaining_balance diretamente pois é o valor mais atualizado
+                  remainingToReceive = loan.remaining_balance;
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
