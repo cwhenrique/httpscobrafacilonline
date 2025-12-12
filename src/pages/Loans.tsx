@@ -1427,9 +1427,9 @@ export default function Loans() {
                 
                 // For interest-only payments, use the stored "Valor que falta" from notes
                 if (isInterestOnlyPayment && loan.notes) {
-                  const valorQueFaltaMatch = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
+                  const valorQueFaltaMatch = loan.notes.match(/Valor que falta: R\$ ([0-9.]+)/);
                   if (valorQueFaltaMatch) {
-                    const storedRemainingValue = parseFloat(valorQueFaltaMatch[1].replace('.', '').replace(',', '.'));
+                    const storedRemainingValue = parseFloat(valorQueFaltaMatch[1]);
                     if (!isNaN(storedRemainingValue) && storedRemainingValue > 0) {
                       remainingToReceive = storedRemainingValue;
                     }
