@@ -216,10 +216,11 @@ export default function Loans() {
     }
   };
 
-  const [paymentData, setPaymentData] = useState({
+const [paymentData, setPaymentData] = useState({
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
-    payment_type: 'partial' as 'partial' | 'total',
+    payment_type: 'partial' as 'partial' | 'total' | 'installment',
+    selected_installment_index: -1,
   });
 
   // Generate installment dates when start_date or installments change
@@ -610,13 +611,33 @@ export default function Loans() {
     const totalToReceive = selectedLoan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
     
-    const amount = paymentData.payment_type === 'total' 
-      ? remainingToReceive 
-      : parseFloat(paymentData.amount);
+    const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+    const totalPerInstallment = principalPerInstallment + interestPerInstallment;
     
-    // Calculate how much goes to interest vs principal
-    const interest_paid = Math.min(amount, interestPerInstallment);
-    const principal_paid = amount - interest_paid;
+    let amount: number;
+    let interest_paid: number;
+    let principal_paid: number;
+    
+    if (paymentData.payment_type === 'total') {
+      amount = remainingToReceive;
+      // Calculate how much goes to interest vs principal for total payment
+      interest_paid = Math.min(amount, interestPerInstallment);
+      principal_paid = amount - interest_paid;
+    } else if (paymentData.payment_type === 'installment' && paymentData.selected_installment_index >= 0) {
+      // Paying a specific installment
+      amount = totalPerInstallment;
+      interest_paid = interestPerInstallment;
+      principal_paid = principalPerInstallment;
+    } else {
+      // Partial payment
+      amount = parseFloat(paymentData.amount);
+      interest_paid = Math.min(amount, interestPerInstallment);
+      principal_paid = amount - interest_paid;
+    }
+    
+    const installmentNote = paymentData.payment_type === 'installment' && paymentData.selected_installment_index >= 0
+      ? `Parcela ${paymentData.selected_installment_index + 1} de ${numInstallments}`
+      : '';
     
     await registerPayment({
       loan_id: selectedLoanId,
@@ -624,11 +645,11 @@ export default function Loans() {
       principal_paid: principal_paid,
       interest_paid: interest_paid,
       payment_date: paymentData.payment_date,
-      notes: '',
+      notes: installmentNote,
     });
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial' });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installment_index: -1 });
   };
 
   const resetForm = () => {
@@ -1818,23 +1839,106 @@ export default function Loans() {
                   
                   <div className="space-y-2">
                     <Label>Tipo de Pagamento</Label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'partial' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '' })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installment_index: -1 })}
+                        className="text-xs sm:text-sm"
                       >
                         Parcial
                       </Button>
                       <Button
                         type="button"
-                        variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString() })}
+                        variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installment_index: -1 })}
+                        className="text-xs sm:text-sm"
                       >
-                        Total ({formatCurrency(remainingToReceive)})
+                        Parcela
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString(), selected_installment_index: -1 })}
+                        className="text-xs sm:text-sm"
+                      >
+                        Total
                       </Button>
                     </div>
                   </div>
+                  
+                  {paymentData.payment_type === 'installment' && (() => {
+                    const dates = (selectedLoan.installment_dates as string[]) || [];
+                    const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / totalPerInstallment);
+                    
+                    if (dates.length === 0) {
+                      return (
+                        <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
+                          Este empréstimo não possui parcelas registradas.
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="space-y-2">
+                        <Label>Selecione a Parcela</Label>
+                        <ScrollArea className="h-48 rounded-md border p-2">
+                          <div className="space-y-2">
+                            {dates.map((date, index) => {
+                              const isPaid = index < paidInstallments;
+                              const dateObj = new Date(date + 'T12:00:00');
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const isOverdue = !isPaid && dateObj < today;
+                              
+                              return (
+                                <Button
+                                  key={index}
+                                  type="button"
+                                  variant={paymentData.selected_installment_index === index ? 'default' : 'outline'}
+                                  className={`w-full justify-between text-sm ${
+                                    isPaid 
+                                      ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
+                                      : isOverdue 
+                                        ? 'border-destructive text-destructive' 
+                                        : ''
+                                  }`}
+                                  onClick={() => {
+                                    if (!isPaid) {
+                                      setPaymentData({ 
+                                        ...paymentData, 
+                                        selected_installment_index: index,
+                                        amount: totalPerInstallment.toFixed(2)
+                                      });
+                                    }
+                                  }}
+                                  disabled={isPaid}
+                                >
+                                  <span>
+                                    Parcela {index + 1}/{dates.length}
+                                    {isPaid && ' ✓'}
+                                    {isOverdue && ' (Atrasada)'}
+                                  </span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="text-xs opacity-70">{formatDate(date)}</span>
+                                    <span>{formatCurrency(totalPerInstallment)}</span>
+                                  </span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                        {paymentData.selected_installment_index >= 0 && (
+                          <div className="bg-primary/10 rounded-lg p-3 text-sm">
+                            <p><strong>Parcela {paymentData.selected_installment_index + 1}</strong>: {formatCurrency(totalPerInstallment)}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Principal: {formatCurrency(principalPerInstallment)} + Juros: {formatCurrency(interestPerInstallment)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   
                   {paymentData.payment_type === 'partial' && (
                     <div className="space-y-2">
