@@ -22,6 +22,32 @@ const createNotificationRecord = async (
   });
 };
 
+// Função para limpar tags internas das notas antes de enviar em mensagens
+const cleanNotesForMessage = (notes: string | null): string => {
+  if (!notes) return '';
+  
+  return notes
+    // Remove tags de pagamento parcial
+    .replace(/\[PARTIAL_PAID:[^\]]+\]/g, '')
+    // Remove tags de taxa de renovação
+    .replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]/g, '')
+    // Remove tags de contrato histórico
+    .replace(/\[HISTORICAL_CONTRACT\]/g, '')
+    // Remove tags de pagamento só juros
+    .replace(/\[INTEREST_ONLY_PAYMENT\]/g, '')
+    // Remove tags de configuração de multa
+    .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+    // Remove linha de "Taxa extra" legível (é interna, já mostrado de outra forma)
+    .replace(/Taxa extra:.*?(?:\n|$)/g, '')
+    // Remove linha de "Valor que falta" interno
+    .replace(/Valor que falta: R\$ [0-9.,]+\n?/g, '')
+    // Remove linha de "Valor prometido" interno
+    .replace(/Valor prometido: R\$ [0-9.,]+\n?/g, '')
+    // Limpa linhas vazias extras
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 // Helper to send WhatsApp via edge function
 const sendWhatsAppNotification = async (phone: string, message: string): Promise<boolean> => {
   try {
@@ -430,8 +456,9 @@ export function useLoans() {
             message += `⏰ Próximo vencimento: *${formatDate(data.installment_dates[0])}*\n`;
           }
           message += `💵 Total a receber: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
-          if (data.notes) {
-            message += `📝 Obs: ${data.notes}\n`;
+          const cleanedNotes = cleanNotesForMessage(data.notes || null);
+          if (cleanedNotes) {
+            message += `📝 Obs: ${cleanedNotes}\n`;
           }
           message += `\n_CobraFácil - Renegociação registrada_`;
           
@@ -531,8 +558,9 @@ export function useLoans() {
         message += `📅 Vencimento: *${formatDate(data.due_date)}*\n`;
         message += `💵 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
         message += `💵 Restante: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
-        if (data.notes) {
-          message += `📝 Obs: ${data.notes}\n`;
+        const cleanedNotes = cleanNotesForMessage(data.notes || null);
+        if (cleanedNotes) {
+          message += `📝 Obs: ${cleanedNotes}\n`;
         }
         message += `\n_CobraFácil - Edição registrada_`;
         
