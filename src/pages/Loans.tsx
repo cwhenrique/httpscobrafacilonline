@@ -101,7 +101,7 @@ export default function Loans() {
     notes: '',
     interest_only_paid: false,
     interest_amount_paid: '',
-    send_interest_notification: true,
+    send_interest_notification: false,
     renewal_fee_enabled: false,
     renewal_fee_percentage: '20',
     renewal_fee_amount: '',
@@ -149,6 +149,7 @@ export default function Loans() {
     overdue_fixed_amount: '', // Fixed amount for overdue penalty (R$)
     overdue_penalty_type: 'percentage' as 'percentage' | 'fixed', // Type of penalty
     apply_overdue_penalty: false,
+    send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
 
@@ -218,7 +219,7 @@ export default function Loans() {
     daily_amount: '',
     daily_period: '15',
     is_historical_contract: false, // Contract being registered retroactively
-    send_creation_notification: true, // Send WhatsApp notification on creation
+    send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
   });
   
   // Check if any dates are in the past
@@ -328,6 +329,7 @@ export default function Loans() {
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
     selected_installments: [] as number[],
     partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
+    send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
   });
 
   // Generate installment dates when start_date or installments change
@@ -911,6 +913,7 @@ export default function Loans() {
       interest_paid: interest_paid,
       payment_date: paymentData.payment_date,
       notes: installmentNote,
+      send_notification: paymentData.send_notification,
     });
     
     // Calculate new remaining balance after payment - usar remaining_balance do banco
@@ -933,14 +936,14 @@ export default function Loans() {
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [], partial_installment_index: null });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
   };
 
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       interest_mode: 'per_installment', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
-      daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: true,
+      daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: false,
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -1379,6 +1382,7 @@ export default function Loans() {
         : '',
       overdue_penalty_type: hasExistingOverdueConfig ? existingOverdueType! : 'percentage',
       apply_overdue_penalty: hasExistingOverdueConfig,
+      send_notification: false,
     });
     setEditInstallmentDates((loan.installment_dates as string[]) || []);
     setIsEditDialogOpen(true);
@@ -2857,6 +2861,21 @@ export default function Loans() {
                       value={paymentData.payment_date} 
                       onChange={(e) => setPaymentData({ ...paymentData, payment_date: e.target.value })} 
                     />
+                  </div>
+                  
+                  <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                    <input
+                      type="checkbox"
+                      id="send_payment_notification"
+                      checked={paymentData.send_notification}
+                      onChange={(e) => setPaymentData({ ...paymentData, send_notification: e.target.checked })}
+                      className="mt-0.5 rounded border-input"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="send_payment_notification" className="text-sm font-medium cursor-pointer">
+                        Receber notificação WhatsApp deste pagamento
+                      </label>
+                    </div>
                   </div>
                   
                   <div className="flex justify-end gap-2 pt-2">
