@@ -125,16 +125,24 @@ export default function Reports() {
     });
   };
 
+  // Safe arrays with fallbacks for initial loading
+  const safeLoans = loans || [];
+  const safeSales = sales || [];
+  const safeProductPayments = productPayments || [];
+  const safeContracts = contracts || [];
+  const safeVehicles = vehicles || [];
+  const safeVehiclePayments = vehiclePayments || [];
+
   // CONSOLIDATED STATS
   const consolidatedStats = useMemo(() => {
     // Loans
-    const totalLoaned = loans.reduce((sum, l) => sum + l.principal_amount, 0);
-    const totalLoanReceived = loans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
-    const overdueLoans = loans.filter(l => l.status === 'overdue');
-    const totalLoanOverdue = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
+    const totalLoaned = safeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    const totalLoanReceived = safeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
+    const overdueLoansFiltered = safeLoans.filter(l => l.status === 'overdue');
+    const totalLoanOverdue = overdueLoansFiltered.reduce((sum, l) => sum + l.remaining_balance, 0);
 
     let totalLoanInterest = 0;
-    loans.forEach(loan => {
+    safeLoans.forEach(loan => {
       const isDaily = loan.payment_type === 'daily';
       if (isDaily) {
         totalLoanInterest += loan.interest_rate || 0;
@@ -148,11 +156,11 @@ export default function Reports() {
     });
 
     // Products
-    const totalProductSold = sales.reduce((sum, s) => sum + s.total_amount, 0);
-    const totalProductCost = sales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
-    const totalProductReceived = sales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
-    const overdueProducts = sales.filter(s => {
-      return productPayments.some(p => 
+    const totalProductSold = safeSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const totalProductCost = safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
+    const totalProductReceived = safeSales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
+    const overdueProducts = safeSales.filter(s => {
+      return safeProductPayments.some(p => 
         p.product_sale_id === s.id && 
         p.status === 'pending' && 
         new Date(p.due_date) < new Date()
@@ -162,18 +170,18 @@ export default function Reports() {
     const totalProductProfit = totalProductSold - totalProductCost;
 
     // Contracts (receivable only for "to receive")
-    const receivableContracts = contracts.filter(c => c.bill_type === 'receivable');
+    const receivableContracts = safeContracts.filter(c => c.bill_type === 'receivable');
     const totalContractReceivable = receivableContracts.reduce((sum, c) => sum + c.amount_to_receive, 0);
     const totalContractReceived = receivableContracts.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.amount_to_receive, 0);
     const overdueContractsReceivable = receivableContracts.filter(c => c.status === 'overdue' || (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
     const totalContractOverdue = overdueContractsReceivable.reduce((sum, c) => sum + c.amount_to_receive, 0);
 
     // Vehicles
-    const totalVehicleSold = vehicles.reduce((sum, v) => sum + v.purchase_value, 0);
-    const totalVehicleCost = vehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
-    const totalVehicleReceived = vehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
-    const overdueVehiclesList = vehicles.filter(v => {
-      return vehiclePayments.some(p => 
+    const totalVehicleSold = safeVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
+    const totalVehicleCost = safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
+    const totalVehicleReceived = safeVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
+    const overdueVehiclesList = safeVehicles.filter(v => {
+      return safeVehiclePayments.some(p => 
         p.vehicle_id === v.id && 
         p.status === 'pending' && 
         new Date(p.due_date) < new Date()
@@ -190,7 +198,7 @@ export default function Reports() {
 
     // Health score calculation
     const receiptRate = totalToReceive > 0 ? (totalReceived / totalToReceive) * 100 : 100;
-    const delinquencyRate = loans.length > 0 ? (overdueLoans.length / loans.length) * 100 : 0;
+    const delinquencyRate = safeLoans.length > 0 ? (overdueLoansFiltered.length / safeLoans.length) * 100 : 0;
     const profitMargin = totalToReceive > 0 ? (totalProfit / totalToReceive) * 100 : 0;
     
     let healthScore = 100;
@@ -204,19 +212,19 @@ export default function Reports() {
     const nextWeek = addDays(today, 7);
     
     const dueThisWeek = {
-      count: loans.filter(l => {
+      count: safeLoans.filter(l => {
         const dueDate = new Date(l.due_date);
         return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
       }).length,
-      amount: loans.filter(l => {
+      amount: safeLoans.filter(l => {
         const dueDate = new Date(l.due_date);
         return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
       }).reduce((sum, l) => sum + l.remaining_balance, 0)
     };
 
     const overdueMoreThan30Days = {
-      count: overdueLoans.filter(l => differenceInDays(today, new Date(l.due_date)) > 30).length,
-      amount: overdueLoans.filter(l => differenceInDays(today, new Date(l.due_date)) > 30)
+      count: overdueLoansFiltered.filter(l => differenceInDays(today, new Date(l.due_date)) > 30).length,
+      amount: overdueLoansFiltered.filter(l => differenceInDays(today, new Date(l.due_date)) > 30)
         .reduce((sum, l) => sum + l.remaining_balance, 0)
     };
 
@@ -243,11 +251,11 @@ export default function Reports() {
       totalLoanReceived,
       totalLoanInterest,
       totalLoanOverdue,
-      overdueLoansCount: overdueLoans.length,
-      paidLoansCount: loans.filter(l => l.status === 'paid').length,
-      totalLoansCount: loans.length,
+      overdueLoansCount: overdueLoansFiltered.length,
+      paidLoansCount: safeLoans.filter(l => l.status === 'paid').length,
+      totalLoansCount: safeLoans.length,
     };
-  }, [loans, sales, productPayments, contracts, vehicles, vehiclePayments]);
+  }, [safeLoans, safeSales, safeProductPayments, safeContracts, safeVehicles, safeVehiclePayments]);
 
   // Monthly evolution data
   const monthlyEvolutionData = useMemo(() => {
@@ -263,7 +271,7 @@ export default function Reports() {
       let monthLoaned = 0;
       let monthOverdue = 0;
 
-      loans.forEach(loan => {
+      safeLoans.forEach(loan => {
         const loanDate = new Date(loan.start_date);
         if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
           monthLoaned += loan.principal_amount;
@@ -285,7 +293,7 @@ export default function Reports() {
     }
 
     return months;
-  }, [loans, consolidatedStats]);
+  }, [safeLoans, consolidatedStats]);
 
   // Loan chart data
   const loanChartData = useMemo(() => {
@@ -298,7 +306,7 @@ export default function Reports() {
     return allData.filter(item => loanChartFilters[item.key as keyof typeof loanChartFilters]);
   }, [consolidatedStats, loanChartFilters]);
 
-  const overdueLoans = loans.filter(l => l.status === 'overdue');
+  const overdueLoansDisplay = safeLoans.filter(l => l.status === 'overdue');
   const COLORS = ['hsl(var(--chart-2))', 'hsl(var(--chart-4))', 'hsl(var(--chart-3))'];
 
   return (
@@ -528,7 +536,7 @@ export default function Reports() {
             <Card className="shadow-soft">
               <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Inadimplentes</CardTitle></CardHeader>
               <CardContent className="p-2 sm:p-6">
-                {overdueLoans.length === 0 ? (
+                {overdueLoansDisplay.length === 0 ? (
                   <p className="text-muted-foreground text-center py-6 text-sm">Nenhum cliente inadimplente</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -542,7 +550,7 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {overdueLoans.slice(0, 10).map((loan) => (
+                        {overdueLoansDisplay.slice(0, 10).map((loan) => (
                           <TableRow key={loan.id}>
                             <TableCell className="font-medium text-xs sm:text-sm">{loan.client?.full_name}</TableCell>
                             <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{formatCurrency(loan.principal_amount)}</TableCell>
@@ -563,21 +571,21 @@ export default function Reports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
-                value={formatCurrency(sales.reduce((sum, s) => sum + s.total_amount, 0))}
+                value={formatCurrency(safeSales.reduce((sum, s) => sum + s.total_amount, 0))}
                 icon={Package}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
               />
               <MetricCard
                 label="Total Recebido"
-                value={formatCurrency(sales.reduce((sum, s) => sum + (s.total_paid || 0), 0))}
+                value={formatCurrency(safeSales.reduce((sum, s) => sum + (s.total_paid || 0), 0))}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
               />
               <MetricCard
                 label="Pendente"
-                value={formatCurrency(sales.reduce((sum, s) => sum + s.remaining_balance, 0))}
+                value={formatCurrency(safeSales.reduce((sum, s) => sum + s.remaining_balance, 0))}
                 icon={Clock}
                 iconColor="text-amber-500"
                 bgColor="bg-amber-500/10"
@@ -613,14 +621,14 @@ export default function Reports() {
                 >
                   <MetricCard
                     label="Custo Total"
-                    value={formatCurrency(sales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
+                    value={formatCurrency(safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
                     icon={DollarSign}
                     iconColor="text-blue-500"
                     bgColor="bg-blue-500/10"
                   />
                   <MetricCard
                     label="Lucro Bruto"
-                    value={formatCurrency(consolidatedStats.products.total - sales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
+                    value={formatCurrency(consolidatedStats.products.total - safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
                     icon={TrendingUp}
                     iconColor="text-emerald-500"
                     bgColor="bg-emerald-500/10"
@@ -628,15 +636,15 @@ export default function Reports() {
                   />
                   <MetricCard
                     label="Vendas Quitadas"
-                    value={sales.filter(s => s.status === 'paid').length}
+                    value={safeSales.filter(s => s.status === 'paid').length}
                     icon={CheckCircle}
                     iconColor="text-success"
                     bgColor="bg-success/10"
-                    subtitle={`de ${sales.length} total`}
+                    subtitle={`de ${safeSales.length} total`}
                   />
                   <MetricCard
                     label="Total Vendas"
-                    value={sales.length}
+                    value={safeSales.length}
                     icon={Package}
                     iconColor="text-primary"
                     bgColor="bg-primary/10"
@@ -651,21 +659,21 @@ export default function Reports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
-                value={formatCurrency(vehicles.reduce((sum, v) => sum + v.purchase_value, 0))}
+                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + v.purchase_value, 0))}
                 icon={Car}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
               />
               <MetricCard
                 label="Total Recebido"
-                value={formatCurrency(vehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0))}
+                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0))}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
               />
               <MetricCard
                 label="Pendente"
-                value={formatCurrency(vehicles.reduce((sum, v) => sum + v.remaining_balance, 0))}
+                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + v.remaining_balance, 0))}
                 icon={Clock}
                 iconColor="text-amber-500"
                 bgColor="bg-amber-500/10"
@@ -701,14 +709,14 @@ export default function Reports() {
                 >
                   <MetricCard
                     label="Custo Total"
-                    value={formatCurrency(vehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
+                    value={formatCurrency(safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
                     icon={DollarSign}
                     iconColor="text-blue-500"
                     bgColor="bg-blue-500/10"
                   />
                   <MetricCard
                     label="Lucro Bruto"
-                    value={formatCurrency(consolidatedStats.vehicles.total - vehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
+                    value={formatCurrency(consolidatedStats.vehicles.total - safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
                     icon={TrendingUp}
                     iconColor="text-emerald-500"
                     bgColor="bg-emerald-500/10"
@@ -716,15 +724,15 @@ export default function Reports() {
                   />
                   <MetricCard
                     label="Veículos Quitados"
-                    value={vehicles.filter(v => v.status === 'paid').length}
+                    value={safeVehicles.filter(v => v.status === 'paid').length}
                     icon={CheckCircle}
                     iconColor="text-success"
                     bgColor="bg-success/10"
-                    subtitle={`de ${vehicles.length} total`}
+                    subtitle={`de ${safeVehicles.length} total`}
                   />
                   <MetricCard
                     label="Total Veículos"
-                    value={vehicles.length}
+                    value={safeVehicles.length}
                     icon={Car}
                     iconColor="text-primary"
                     bgColor="bg-primary/10"
