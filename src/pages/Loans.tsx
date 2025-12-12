@@ -2188,18 +2188,27 @@ export default function Loans() {
           <DialogContent>
             <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
             {selectedLoanId && (() => {
-              const selectedLoan = loans.find(l => l.id === selectedLoanId);
-              if (!selectedLoan) return null;
-              const numInstallments = selectedLoan.installments || 1;
-              const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-              
-              // Use total_interest from database (already correctly calculated based on interest_mode)
-              const totalInterest = selectedLoan.total_interest || 0;
-              const interestPerInstallment = totalInterest / numInstallments;
-              
-              const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-              const totalToReceive = selectedLoan.principal_amount + totalInterest;
-              const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
+            const selectedLoan = loans.find(l => l.id === selectedLoanId);
+            if (!selectedLoan) return null;
+            const numInstallments = selectedLoan.installments || 1;
+            const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+            
+            // Usar total_interest do banco (já calculado) para cenário geral
+            const totalInterest = selectedLoan.total_interest || 0;
+            const interestPerInstallment = totalInterest / numInstallments;
+            
+            // Valor "teórico" por parcela a partir de principal + juros cadastrados
+            let totalPerInstallment = principalPerInstallment + interestPerInstallment;
+            
+            // Porém o valor realmente devido deve sempre respeitar o remaining_balance,
+            // que já considera renegociações, taxa de renovação, etc.
+            const remainingToReceive = selectedLoan.remaining_balance;
+            
+            // Para contratos de 1 parcela (caso típico de renovação), a próxima parcela
+            // deve ser exatamente o remaining_balance (ex: 300 após taxa de renovação)
+            if (numInstallments === 1) {
+              totalPerInstallment = remainingToReceive;
+            }
               
               return (
                 <form onSubmit={handlePaymentSubmit} className="space-y-4">
