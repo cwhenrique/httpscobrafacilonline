@@ -20,15 +20,16 @@ export default defineConfig(({ mode }) => ({
         enabled: false,
       },
       manifest: {
-        name: "CobraFácil - Gestão de Empréstimos",
+        name: "CobraFácil - Gestão de Cobranças Completa",
         short_name: "CobraFácil",
-        description: "Sistema completo para cobradores e financeiras. Cálculo automático de juros, alertas WhatsApp e controle total das suas cobranças.",
+        description: "Sistema completo para cobradores, financeiras e prestadores de serviço. Gerencie empréstimos, vendas de produtos, veículos e contratos. Cálculo automático de juros, alertas WhatsApp detalhados, calendário de cobranças, score de clientes e relatórios financeiros.",
         theme_color: "#22c55e",
         background_color: "#0a0a0a",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/auth",
+        categories: ["finance", "business", "productivity"],
         icons: [
           {
             src: "/pwa-192x192.png",
@@ -46,6 +47,29 @@ export default defineConfig(({ mode }) => ({
             type: "image/png",
             purpose: "maskable",
           },
+        ],
+        shortcuts: [
+          {
+            name: "Empréstimos",
+            short_name: "Empréstimos",
+            description: "Ver empréstimos",
+            url: "/loans",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+          },
+          {
+            name: "Calendário",
+            short_name: "Calendário",
+            description: "Calendário de cobranças",
+            url: "/calendar",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+          },
+          {
+            name: "Vendas",
+            short_name: "Vendas",
+            description: "Vendas de produtos e veículos",
+            url: "/product-sales",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+          }
         ],
       },
       workbox: {
