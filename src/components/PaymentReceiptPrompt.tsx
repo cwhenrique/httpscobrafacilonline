@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Download, X, FileText, MessageCircle, Send } from 'lucide-react';
 import { generatePaymentReceipt, PaymentReceiptData } from '@/lib/pdfGenerator';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: PaymentReceiptData | null;
+  clientPhone?: string;
 }
 
 const formatCurrency = (value: number): string => {
@@ -31,10 +35,93 @@ const getTypeLabel = (type: 'loan' | 'product' | 'vehicle' | 'contract'): string
   }
 };
 
-export default function PaymentReceiptPrompt({ open, onOpenChange, data }: PaymentReceiptPromptProps) {
+const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): string => {
+  switch (type) {
+    case 'loan': return 'EMP';
+    case 'product': return 'PRD';
+    case 'vehicle': return 'VEI';
+    case 'contract': return 'CTR';
+    default: return 'DOC';
+  }
+};
+
+const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
+  const prefix = getContractPrefix(data.type);
+  const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
+  const isFullyPaid = data.remainingBalance <= 0;
+  
+  let message = `✅ *COMPROVANTE DE PAGAMENTO*\n`;
+  message += `━━━━━━━━━━━━━━━━\n\n`;
+  message += `📋 *Contrato:* ${contractNumber}\n`;
+  message += `👤 *Cliente:* ${data.clientName}\n`;
+  message += `📊 *Parcela:* ${data.installmentNumber}/${data.totalInstallments}\n\n`;
+  
+  message += `💰 *PAGAMENTO*\n`;
+  message += `━━━━━━━━━━━━━━━━\n`;
+  message += `💵 Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  message += `📅 Data: ${formatDate(data.paymentDate)}\n`;
+  
+  if (data.totalPaid) {
+    message += `💰 Total Pago: ${formatCurrency(data.totalPaid)}\n`;
+  }
+  
+  if (isFullyPaid) {
+    message += `\n🎉 *CONTRATO QUITADO!* 🎉\n`;
+    message += `Obrigado pela confiança!\n`;
+  } else {
+    message += `\n📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+  }
+  
+  message += `\n━━━━━━━━━━━━━━━━\n`;
+  message += `_${data.companyName || 'CobraFácil'}_\n`;
+  message += `_Comprovante automático_`;
+  
+  return message;
+};
+
+export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone: initialPhone }: PaymentReceiptPromptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [showWhatsAppInput, setShowWhatsAppInput] = useState(false);
+  const [clientPhone, setClientPhone] = useState('');
 
   if (!data) return null;
+
+  const handleOpenWhatsApp = () => {
+    setClientPhone(initialPhone || '');
+    setShowWhatsAppInput(true);
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!clientPhone.trim()) {
+      toast.error('Informe o número do cliente');
+      return;
+    }
+    
+    setIsSendingWhatsApp(true);
+    try {
+      const message = generateWhatsAppMessage(data);
+      
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: { phone: clientPhone, message },
+      });
+      
+      if (error) throw error;
+      
+      if (result?.success) {
+        toast.success('Comprovante enviado via WhatsApp!');
+        setShowWhatsAppInput(false);
+        setClientPhone('');
+      } else {
+        throw new Error(result?.error || 'Erro ao enviar');
+      }
+    } catch (error: any) {
+      console.error('Error sending WhatsApp:', error);
+      toast.error('Erro ao enviar WhatsApp: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
 
   const handleDownload = async () => {
     setIsGenerating(true);
@@ -61,7 +148,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
             Pagamento Registrado!
           </DialogTitle>
           <DialogDescription>
-            Deseja baixar o comprovante de pagamento?
+            Deseja baixar ou enviar o comprovante?
           </DialogDescription>
         </DialogHeader>
         
@@ -100,12 +187,43 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        {/* WhatsApp Input Section */}
+        {showWhatsAppInput && (
+          <div className="p-3 border rounded-lg bg-muted/50 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-green-600" />
+              <Label htmlFor="paymentClientPhone" className="text-sm font-medium">Enviar para WhatsApp</Label>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                id="paymentClientPhone"
+                placeholder="(00) 00000-0000"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={handleSendWhatsApp} disabled={isSendingWhatsApp} size="sm" className="bg-green-600 hover:bg-green-700">
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowWhatsAppInput(false)}>
+              Cancelar
+            </Button>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 flex-col sm:flex-row">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             <X className="w-4 h-4 mr-2" />
             Fechar
           </Button>
-          <Button onClick={handleDownload} disabled={isGenerating}>
+          {!showWhatsAppInput && (
+            <Button variant="outline" onClick={handleOpenWhatsApp} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700">
+              <MessageCircle className="w-4 h-4 mr-2" />
+              WhatsApp
+            </Button>
+          )}
+          <Button onClick={handleDownload} disabled={isGenerating} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             {isGenerating ? 'Gerando...' : 'Baixar PDF'}
           </Button>
