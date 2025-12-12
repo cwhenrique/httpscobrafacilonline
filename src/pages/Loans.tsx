@@ -2517,10 +2517,10 @@ export default function Loans() {
                           </div>
                           
                           {renegotiateData.renewal_fee_enabled && (
-                            <div className="bg-purple-500/10 dark:bg-purple-900/30 rounded-lg p-4 space-y-3 border border-purple-400/30">
+                            <div className="bg-purple-500/20 rounded-lg p-4 space-y-3 border border-purple-400/30">
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label className="text-purple-900 dark:text-purple-100">Taxa de Renovação (%)</Label>
+                                  <Label className="text-purple-300">Taxa de Renovação (%)</Label>
                                   <Input 
                                     type="number" 
                                     step="0.01" 
@@ -2539,11 +2539,11 @@ export default function Loans() {
                                       });
                                     }} 
                                     placeholder="Ex: 20"
-                                    className="bg-white dark:bg-zinc-800 border-purple-400"
+                                    className="bg-purple-900/50 text-white border-purple-400 placeholder:text-purple-300/50"
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-purple-900 dark:text-purple-100">Valor do Acréscimo (R$)</Label>
+                                  <Label className="text-purple-300">Valor do Acréscimo (R$)</Label>
                                   <Input 
                                     type="number" 
                                     step="0.01"
@@ -2562,19 +2562,19 @@ export default function Loans() {
                                       });
                                     }}
                                     placeholder="Ex: 50,00"
-                                    className="bg-white dark:bg-zinc-800 border-purple-400"
+                                    className="bg-purple-900/50 text-white border-purple-400 placeholder:text-purple-300/50"
                                   />
                                 </div>
                               </div>
                               
-                              <div className="bg-primary/10 dark:bg-primary/20 rounded-lg p-3 text-center border-2 border-primary">
+                              <div className="bg-primary/20 rounded-lg p-3 text-center border-2 border-primary">
                                 <p className="text-sm text-primary">
                                   <strong>Novo valor a cobrar:</strong>
                                 </p>
                                 <p className="text-2xl font-bold text-primary">
                                   {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
                                 </p>
-                                <p className="text-xs text-muted-foreground mt-1">
+                                <p className="text-xs text-purple-300 mt-1">
                                   {formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)} + {renegotiateData.renewal_fee_percentage}% = {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
                                 </p>
                               </div>
