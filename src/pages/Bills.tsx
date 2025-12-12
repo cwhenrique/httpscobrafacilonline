@@ -1156,7 +1156,8 @@ export default function Bills() {
                           </div>
 
                           {expandedVehicle === vehicle.id && (
-                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-1.5 sm:space-y-2">
+                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
+                              <div className="max-h-[180px] overflow-y-auto space-y-1.5 sm:space-y-2 pr-1">
                               {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
                                 <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", 
                                   payment.status === 'paid' ? 'bg-primary/10 text-primary' : 
@@ -1178,6 +1179,7 @@ export default function Bills() {
                                   </div>
                                 </div>
                               ))}
+                              </div>
                             </div>
                           )}
                         </CardContent>
