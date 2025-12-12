@@ -26,6 +26,59 @@ import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
+// Helper para extrair pagamentos parciais do notes do loan
+const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
+  const payments: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    payments[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return payments;
+};
+
+// Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
+const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null }): number => {
+  const numInstallments = loan.installments || 1;
+  
+  let totalInterest = 0;
+  if (loan.interest_mode === 'on_total') {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+  }
+  
+  const principalPerInstallment = loan.principal_amount / numInstallments;
+  const interestPerInstallment = totalInterest / numInstallments;
+  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  
+  // Verificar taxa de renovação
+  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+  const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+  const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+  
+  const getInstallmentValue = (index: number) => {
+    if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+      return renewalFeeValue;
+    }
+    return baseInstallmentValue;
+  };
+  
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  
+  let paidCount = 0;
+  for (let i = 0; i < numInstallments; i++) {
+    const installmentValue = getInstallmentValue(i);
+    const paidAmount = partialPayments[i] || 0;
+    if (paidAmount >= installmentValue * 0.99) { // 99% tolerance for rounding
+      paidCount++;
+    } else {
+      break; // Para no primeiro não pago
+    }
+  }
+  
+  return paidCount;
+};
+
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
@@ -375,7 +428,7 @@ export default function Loans() {
     let daysOverdue = 0;
     
     if (!isPaid && remainingToReceive > 0) {
-      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      const paidInstallments = getPaidInstallmentsCount(loan);
       const dates = (loan.installment_dates as string[]) || [];
       
       if (isHistoricalContract) {
@@ -742,21 +795,77 @@ export default function Loans() {
       interest_paid = (interestPerInstallment * paymentData.selected_installments.length) + extraAmount;
       principal_paid = principalPerInstallment * paymentData.selected_installments.length;
     } else {
-      // Partial payment
+      // Partial payment - permite pagar menos que uma parcela
       amount = parseFloat(paymentData.amount);
       interest_paid = Math.min(amount, interestPerInstallment);
       principal_paid = amount - interest_paid;
     }
     
-    const installmentNote = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
-      ? paymentData.selected_installments.length === 1
+    // Função helper para extrair pagamentos parciais do notes
+    const getPartialPayments = (notes: string | null): Record<number, number> => {
+      const payments: Record<number, number> = {};
+      const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+      for (const match of matches) {
+        payments[parseInt(match[1])] = parseFloat(match[2]);
+      }
+      return payments;
+    };
+    
+    // Calcular qual parcela está sendo paga (primeira não paga completamente)
+    const existingPartials = getPartialPayments(selectedLoan.notes);
+    let targetInstallmentIndex = 0;
+    let accumulatedPaid = 0;
+    
+    for (let i = 0; i < numInstallments; i++) {
+      const installmentVal = getInstallmentValue(i);
+      const partialPaid = existingPartials[i] || 0;
+      
+      if (partialPaid >= installmentVal) {
+        // Esta parcela já está paga completamente
+        continue;
+      } else {
+        // Esta é a parcela atual que precisa ser paga
+        targetInstallmentIndex = i;
+        accumulatedPaid = partialPaid;
+        break;
+      }
+    }
+    
+    // Quando é pagamento parcial, atualizar o tracking de parcelas
+    let updatedNotes = selectedLoan.notes || '';
+    let installmentNote = '';
+    
+    if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      // Pagamento de parcelas selecionadas - marca como completas
+      installmentNote = paymentData.selected_installments.length === 1
         ? `Parcela ${paymentData.selected_installments[0] + 1} de ${numInstallments}`
-        : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`
-      : '';
+        : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`;
+      
+      // Marcar parcelas selecionadas como pagas no tracking
+      for (const idx of paymentData.selected_installments) {
+        const installmentVal = getInstallmentValue(idx);
+        // Remover tracking parcial anterior se existir
+        updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
+        // Adicionar como totalmente paga
+        updatedNotes += `[PARTIAL_PAID:${idx}:${installmentVal.toFixed(2)}]`;
+      }
+    } else if (paymentData.payment_type === 'partial') {
+      // Pagamento parcial - atualizar tracking da parcela atual
+      const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
+      const newPartialTotal = Math.min(accumulatedPaid + amount, targetInstallmentValue);
+      
+      // Remover tracking anterior desta parcela se existir
+      updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
+      // Adicionar novo valor parcial
+      updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${newPartialTotal.toFixed(2)}]`;
+      
+      const remaining = targetInstallmentValue - newPartialTotal;
+      installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
+    }
     
     const installmentNumber = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
       ? paymentData.selected_installments[0] + 1
-      : Math.floor((selectedLoan.total_paid || 0) / baseInstallmentValue) + 1;
+      : targetInstallmentIndex + 1;
     
     await registerPayment({
       loan_id: selectedLoanId,
@@ -766,6 +875,11 @@ export default function Loans() {
       payment_date: paymentData.payment_date,
       notes: installmentNote,
     });
+    
+    // Atualizar notes do loan com tracking de parcelas (usando supabase diretamente para evitar notificação)
+    if (updatedNotes !== selectedLoan.notes) {
+      await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
+    }
     
     // Calculate new remaining balance after payment - usar remaining_balance do banco
     const newRemainingBalance = selectedLoan.remaining_balance - amount;
@@ -968,7 +1082,7 @@ export default function Loans() {
         const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
         const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
         
-        const paidInstallments = Math.floor((loan.total_paid || 0) / originalInstallmentValue);
+        const paidInstallments = getPaidInstallmentsCount(loan);
         const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
           ? paidInstallments 
           : parseInt(renegotiateData.renewal_fee_installment);
@@ -1078,7 +1192,7 @@ export default function Loans() {
       const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
       const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
       
-      const paidInstallments = Math.floor((loan.total_paid || 0) / originalInstallmentValue);
+      const paidInstallments = getPaidInstallmentsCount(loan);
       const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
         ? paidInstallments 
         : parseInt(renegotiateData.renewal_fee_installment);
@@ -1148,7 +1262,7 @@ export default function Loans() {
       const totalInterestForOverdue = loan.total_interest || 0;
       const interestPerInstallmentForOverdue = totalInterestForOverdue / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallmentForOverdue;
-      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      const paidInstallments = getPaidInstallmentsCount(loan);
       const dates = (loan.installment_dates as string[]) || [];
       const overdueDate = dates[paidInstallments] || loan.due_date;
       
@@ -1992,8 +2106,8 @@ export default function Loans() {
                 
                 let isOverdue = false;
                 if (!isPaid && remainingToReceive > 0) {
-                  // Calculate how many installments have been paid
-                  const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                  // Calculate how many installments have been paid using tracking system
+                  const paidInstallments = getPaidInstallmentsCount(loan);
                   
                   // Get installment dates array
                   const dates = (loan.installment_dates as string[]) || [];
@@ -2027,7 +2141,7 @@ export default function Loans() {
                 // Calculate overdue penalty interest
                 const overdueDate = (() => {
                   const dates = (loan.installment_dates as string[]) || [];
-                  const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                  const paidInstallments = getPaidInstallmentsCount(loan);
                   return dates[paidInstallments] || loan.due_date;
                 })();
                 
@@ -2161,7 +2275,7 @@ export default function Loans() {
                           <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Venc: {(() => {
                             const dates = (loan.installment_dates as string[]) || [];
-                            const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                            const paidCount = getPaidInstallmentsCount(loan);
                             const nextDate = dates[paidCount] || loan.due_date;
                             return formatDate(nextDate);
                           })()}</span>
@@ -2192,7 +2306,7 @@ export default function Loans() {
                               <span className="text-red-300 font-medium">
                                 {(() => {
                                   const dates = (loan.installment_dates as string[]) || [];
-                                  const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                                  const paidCount = getPaidInstallmentsCount(loan);
                                   if (dates.length > 0 && paidCount < dates.length) {
                                     return `Parcela ${paidCount + 1}/${dates.length} em atraso`;
                                   }
@@ -2356,7 +2470,6 @@ export default function Loans() {
                   
                   {paymentData.payment_type === 'installment' && (() => {
                     const dates = (selectedLoan.installment_dates as string[]) || [];
-                    const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / totalPerInstallment);
 
                     // Detecta cenário de pagamento só de juros com renovação
                     const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
@@ -2366,6 +2479,18 @@ export default function Loans() {
                     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
                     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
 
+                    // Extrair pagamentos parciais do notes
+                    const getPartialPayments = (notes: string | null): Record<number, number> => {
+                      const payments: Record<number, number> = {};
+                      const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+                      for (const match of matches) {
+                        payments[parseInt(match[1])] = parseFloat(match[2]);
+                      }
+                      return payments;
+                    };
+                    
+                    const partialPayments = getPartialPayments(selectedLoan.notes);
+
                     const getInstallmentValue = (index: number) => {
                       // Se há taxa de renovação aplicada nesta parcela específica
                       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
@@ -2373,6 +2498,20 @@ export default function Loans() {
                       }
                       // Caso contrário, usar o valor normal da parcela
                       return totalPerInstallment;
+                    };
+                    
+                    // Verificar se parcela está paga (totalmente ou parcialmente)
+                    const getInstallmentStatus = (index: number) => {
+                      const installmentValue = getInstallmentValue(index);
+                      const paidAmount = partialPayments[index] || 0;
+                      const remaining = installmentValue - paidAmount;
+                      
+                      if (paidAmount >= installmentValue) {
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0 };
+                      } else if (paidAmount > 0) {
+                        return { isPaid: false, isPartial: true, paidAmount, remaining };
+                      }
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue };
                     };
                     
                     if (dates.length === 0) {
@@ -2392,7 +2531,11 @@ export default function Loans() {
                         next = [...current, index].sort((a, b) => a - b);
                       }
 
-                      const totalSelectedAmount = next.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+                      // Calcular valor total considerando parcelas parcialmente pagas
+                      const totalSelectedAmount = next.reduce((sum, i) => {
+                        const status = getInstallmentStatus(i);
+                        return sum + status.remaining; // Usar o valor restante, não o valor total
+                      }, 0);
 
                       setPaymentData({
                         ...paymentData,
@@ -2408,11 +2551,11 @@ export default function Loans() {
                         <ScrollArea className="h-48 rounded-md border p-2">
                           <div className="space-y-2">
                             {dates.map((date, index) => {
-                              const isPaid = index < paidInstallments;
+                              const status = getInstallmentStatus(index);
                               const dateObj = new Date(date + 'T12:00:00');
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
-                              const isOverdue = !isPaid && dateObj < today;
+                              const isOverdue = !status.isPaid && dateObj < today;
                               const isSelected = paymentData.selected_installments.includes(index);
                               const installmentValue = getInstallmentValue(index);
                               
@@ -2421,31 +2564,40 @@ export default function Loans() {
                                   key={index}
                                   type="button"
                                   variant={isSelected ? 'default' : 'outline'}
-                                  className={`w-full justify-between text-sm ${
-                                    isPaid 
+                                  className={`w-full justify-between text-sm h-auto py-2 ${
+                                    status.isPaid 
                                       ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
-                                      : isOverdue && !isSelected
-                                        ? 'border-destructive text-destructive' 
-                                        : ''
+                                      : status.isPartial
+                                        ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
+                                        : isOverdue && !isSelected
+                                          ? 'border-destructive text-destructive' 
+                                          : ''
                                   }`}
                                   onClick={() => {
-                                    if (!isPaid) {
+                                    if (!status.isPaid) {
                                       toggleInstallment(index);
                                     }
                                   }}
-                                  disabled={isPaid}
+                                  disabled={status.isPaid}
                                 >
-                                  <span className="flex items-center gap-2">
-                                    {isSelected && <span className="text-primary-foreground">✓</span>}
-                                    <span>
-                                      Parcela {index + 1}/{dates.length}
-                                      {isPaid && ' ✓'}
-                                      {isOverdue && !isPaid && ' (Atrasada)'}
+                                  <span className="flex flex-col items-start gap-0.5">
+                                    <span className="flex items-center gap-2">
+                                      {isSelected && <span className="text-primary-foreground">✓</span>}
+                                      <span>
+                                        Parcela {index + 1}/{dates.length}
+                                        {status.isPaid && ' ✓'}
+                                        {isOverdue && !status.isPaid && ' (Atrasada)'}
+                                      </span>
                                     </span>
+                                    {status.isPartial && (
+                                      <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                                        Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
+                                      </span>
+                                    )}
                                   </span>
-                                  <span className="flex items-center gap-2">
+                                  <span className="flex flex-col items-end gap-0.5">
                                     <span className="text-xs opacity-70">{formatDate(date)}</span>
-                                    <span>{formatCurrency(installmentValue)}</span>
+                                    <span>{status.isPartial ? formatCurrency(status.remaining) : formatCurrency(installmentValue)}</span>
                                   </span>
                                 </Button>
                               );
