@@ -943,13 +943,23 @@ export default function Loans() {
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       if (renegotiateData.renewal_fee_enabled) {
         // Determinar qual parcela receberá a taxa de renovação
-        const paidInstallments = Math.floor((loan.total_paid || 0) / ((loan.principal_amount / (loan.installments || 1)) + ((loan.total_interest || 0) / (loan.installments || 1))));
+        const numInstallments = loan.installments || 1;
+        const principalPerInstallment = loan.principal_amount / numInstallments;
+        const totalInterestLoan = loan.total_interest || 0;
+        const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
+        const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
+        
+        const paidInstallments = Math.floor((loan.total_paid || 0) / originalInstallmentValue);
         const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
           ? paidInstallments 
           : parseInt(renegotiateData.renewal_fee_installment);
         
+        // Calcular o novo valor da parcela específica = valor original + taxa de renovação
+        const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
+        const newInstallmentValue = originalInstallmentValue + feeAmount;
+        
         notesText += `\nTaxa de renovação: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount})`;
-        notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${renegotiateData.new_remaining_with_fee}]`;
+        notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}]`;
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
