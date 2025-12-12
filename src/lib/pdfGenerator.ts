@@ -98,6 +98,12 @@ export interface ContractReceiptData {
     name: string;
     description?: string;
   };
+  // Informações de pagamento apenas de juros
+  interestOnlyPayment?: {
+    amountPaid: number;
+    paymentDate: string;
+    remainingBalance: number;
+  };
 }
 
 export interface PaymentReceiptData {
@@ -158,7 +164,10 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(`COMPROVANTE DE ${getContractTypeName(data.type)}`, pageWidth / 2, currentY + 8, { align: 'center' });
+  const documentTitle = data.interestOnlyPayment 
+    ? 'COMPROVANTE DE PAGAMENTO DE JUROS' 
+    : `COMPROVANTE DE ${getContractTypeName(data.type)}`;
+  doc.text(documentTitle, pageWidth / 2, currentY + 8, { align: 'center' });
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -360,6 +369,53 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   }
 
   currentY += 52;
+
+  // === INTEREST ONLY PAYMENT INFO (if applicable) ===
+  if (data.interestOnlyPayment) {
+    const PURPLE = { r: 168, g: 85, b: 247 }; // #a855f7
+    const LIGHT_PURPLE_BG = { r: 245, g: 235, b: 255 }; // light purple bg
+    
+    doc.setDrawColor(PURPLE.r, PURPLE.g, PURPLE.b);
+    doc.setFillColor(LIGHT_PURPLE_BG.r, LIGHT_PURPLE_BG.g, LIGHT_PURPLE_BG.b);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 40, 2, 2, 'FD');
+
+    doc.setTextColor(PURPLE.r, PURPLE.g, PURPLE.b);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAGAMENTO DE JUROS', margin + 5, currentY + 8);
+
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFontSize(9);
+
+    let payY = currentY + 16;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Valor Pago:', col1X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(PURPLE.r, PURPLE.g, PURPLE.b);
+    doc.text(formatCurrency(data.interestOnlyPayment.amountPaid), col1X + 28, payY);
+
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data:', col2X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatDate(data.interestOnlyPayment.paymentDate), col2X + 15, payY);
+
+    payY += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Valor Restante:', col1X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(PURPLE.r, PURPLE.g, PURPLE.b);
+    doc.text(formatCurrency(data.interestOnlyPayment.remainingBalance), col1X + 38, payY);
+
+    doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+    doc.setFontSize(7);
+    payY += 8;
+    doc.text('* Este pagamento corresponde apenas aos juros. O valor principal permanece inalterado.', margin + 5, payY);
+
+    currentY += 48;
+  }
 
   // === DUE DATES ===
   if (data.dueDates.length > 0) {

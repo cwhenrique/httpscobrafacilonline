@@ -49,6 +49,29 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   const typeName = getContractTypeName(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
   
+  // Se for pagamento de juros, usar formato específico
+  if (data.interestOnlyPayment) {
+    let message = `💜 *COMPROVANTE DE PAGAMENTO DE JUROS*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *Contrato:* ${contractNumber}\n`;
+    message += `👤 *Cliente:* ${data.client.name}\n`;
+    
+    message += `\n💰 *PAGAMENTO REALIZADO*\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `💵 Valor Pago (Juros): ${formatCurrency(data.interestOnlyPayment.amountPaid)}\n`;
+    message += `📅 Data: ${formatDate(data.interestOnlyPayment.paymentDate)}\n`;
+    message += `\n💰 *Valor Restante: ${formatCurrency(data.interestOnlyPayment.remainingBalance)}*\n`;
+    
+    message += `\n⚠️ _Este pagamento corresponde apenas aos juros._\n`;
+    message += `_O valor principal permanece inalterado._\n`;
+    
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_${data.companyName || 'CobraFácil'}_\n`;
+    message += `_Sistema de Gestão de Cobranças_`;
+    
+    return message;
+  }
+  
   let message = `📄 *COMPROVANTE DE ${typeName}*\n`;
   message += `━━━━━━━━━━━━━━━━\n\n`;
   message += `📋 *Contrato:* ${contractNumber}\n`;
@@ -171,11 +194,39 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
 
             {/* Document Title */}
             <div className="bg-primary/10 rounded-lg p-3 text-center">
-              <h4 className="font-bold text-primary">COMPROVANTE DE {getContractTypeName(data.type)}</h4>
+              <h4 className="font-bold text-primary">
+                {data.interestOnlyPayment ? 'COMPROVANTE DE PAGAMENTO DE JUROS' : `COMPROVANTE DE ${getContractTypeName(data.type)}`}
+              </h4>
               <p className="text-sm text-muted-foreground">
                 Nº: {getContractPrefix(data.type)}-{data.contractId.substring(0, 8).toUpperCase()}
               </p>
             </div>
+
+            {/* Interest Only Payment Info */}
+            {data.interestOnlyPayment && (
+              <div className="border border-purple-500/50 bg-purple-500/10 rounded-lg p-3 space-y-2">
+                <h5 className="font-semibold text-purple-400 text-sm">PAGAMENTO DE JUROS</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Valor Pago:</span>
+                    <p className="font-bold text-purple-400">{formatCurrency(data.interestOnlyPayment.amountPaid)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Data:</span>
+                    <p className="font-medium">{formatDate(data.interestOnlyPayment.paymentDate)}</p>
+                  </div>
+                </div>
+                <div className="bg-purple-500/20 rounded-lg p-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-purple-300">Valor Restante:</span>
+                    <span className="font-bold text-purple-300 text-lg">{formatCurrency(data.interestOnlyPayment.remainingBalance)}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  * Este pagamento corresponde apenas aos juros. O valor principal permanece inalterado.
+                </p>
+              </div>
+            )}
 
             {/* Client Data */}
             <div className="border border-primary/30 rounded-lg p-3 space-y-2">
