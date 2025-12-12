@@ -2617,7 +2617,16 @@ export default function Loans() {
                   )}
                   
                   {/* Seção de Juros Extra em Parcela Específica - Sempre visível para empréstimos parcelados */}
-                  {selectedLoan && (selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
+                  {selectedLoan && (selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (() => {
+                    // Calcular valor de cada parcela para uso nos cálculos de juros extra
+                    const numInstallments = selectedLoan.installments || 1;
+                    const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+                    const totalInterest = selectedLoan.total_interest || 0;
+                    const interestPerInstallmentCalc = totalInterest / numInstallments;
+                    const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
+                    const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+                    
+                    return (
                     <div className="border-t border-primary/30 pt-4 mt-2">
                       <div className="flex items-center space-x-2 mb-3">
                         <Checkbox 
@@ -2625,9 +2634,9 @@ export default function Loans() {
                           checked={renegotiateData.renewal_fee_enabled}
                           onCheckedChange={(checked) => {
                             const isChecked = checked as boolean;
-                            const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
                             const percentage = parseFloat(renegotiateData.renewal_fee_percentage) || 20;
-                            const feeAmount = remaining * (percentage / 100);
+                            // Calcular taxa sobre o valor da PARCELA, não do saldo total
+                            const feeAmount = installmentValue * (percentage / 100);
                             const newTotal = remaining + feeAmount;
                             
                             setRenegotiateData({ 
@@ -2655,7 +2664,7 @@ export default function Loans() {
                           </div>
                           
                           <p className="text-xs text-amber-300/70">
-                            Aplique um acréscimo em uma parcela específica. As demais parcelas manterão o valor original.
+                            Aplique um acréscimo em uma parcela específica (base: {formatCurrency(installmentValue)} por parcela). As demais parcelas manterão o valor original.
                           </p>
                           
                           <div className="grid grid-cols-2 gap-4">
@@ -2667,8 +2676,8 @@ export default function Loans() {
                                 value={renegotiateData.renewal_fee_percentage} 
                                 onChange={(e) => {
                                   const percentage = parseFloat(e.target.value) || 0;
-                                  const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
-                                  const feeAmount = remaining * (percentage / 100);
+                                  // Calcular taxa sobre o valor da PARCELA
+                                  const feeAmount = installmentValue * (percentage / 100);
                                   const newTotal = remaining + feeAmount;
                                   
                                   setRenegotiateData({ 
@@ -2690,8 +2699,8 @@ export default function Loans() {
                                 value={renegotiateData.renewal_fee_amount} 
                                 onChange={(e) => {
                                   const feeAmount = parseFloat(e.target.value) || 0;
-                                  const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
-                                  const percentage = remaining > 0 ? (feeAmount / remaining) * 100 : 0;
+                                  // Calcular porcentagem com base no valor da PARCELA
+                                  const percentage = installmentValue > 0 ? (feeAmount / installmentValue) * 100 : 0;
                                   const newTotal = remaining + feeAmount;
                                   
                                   setRenegotiateData({ 
@@ -2721,17 +2730,12 @@ export default function Loans() {
                                 <SelectItem value="next">Próxima parcela em aberto</SelectItem>
                                 {(() => {
                                   const dates = (selectedLoan.installment_dates as string[]) || [];
-                                  const numInstallments = selectedLoan.installments || 1;
-                                  const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-                                  const totalInterest = selectedLoan.total_interest || 0;
-                                  const interestPerInstallmentCalc = totalInterest / numInstallments;
-                                  const totalPerInstallmentCalc = principalPerInstallment + interestPerInstallmentCalc;
-                                  const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / totalPerInstallmentCalc);
+                                  const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / installmentValue);
                                   return dates.map((date, index) => {
                                     if (index < paidInstallments) return null;
                                     return (
                                       <SelectItem key={index} value={index.toString()}>
-                                        Parcela {index + 1} - {formatDate(date)}
+                                        Parcela {index + 1} - {formatDate(date)} - {formatCurrency(installmentValue)}
                                       </SelectItem>
                                     );
                                   });
@@ -2749,7 +2753,8 @@ export default function Loans() {
                         </div>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                   
                   <div className="space-y-2">
                     <Label>Observações</Label>
