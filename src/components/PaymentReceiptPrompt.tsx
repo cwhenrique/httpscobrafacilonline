@@ -131,7 +131,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg">
+      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg animate-scale-in">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
