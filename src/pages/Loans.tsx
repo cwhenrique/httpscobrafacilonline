@@ -17,14 +17,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
+import { useProfile } from '@/hooks/useProfile';
 
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
+  const { profile } = useProfile();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'interest_only'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
@@ -802,6 +805,46 @@ export default function Loans() {
     // Guardar o valor original para quando marcar "só juros"
     setInterestOnlyOriginalRemaining(remainingForInterestOnly);
     setIsRenegotiateDialogOpen(true);
+  };
+
+  const handleGenerateLoanReceipt = async (loan: typeof loans[0]) => {
+    try {
+      const numInstallments = loan.installments || 1;
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      const totalToReceive = loan.principal_amount + totalInterest;
+      const installmentValue = totalToReceive / numInstallments;
+      
+      const receiptData: ContractReceiptData = {
+        type: 'loan',
+        contractId: loan.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        client: {
+          name: loan.client?.full_name || 'Cliente',
+          phone: loan.client?.phone || undefined,
+          address: loan.client?.address || undefined,
+        },
+        negotiation: {
+          principal: loan.principal_amount,
+          interestRate: loan.interest_rate,
+          installments: numInstallments,
+          installmentValue: installmentValue,
+          totalToReceive: totalToReceive,
+          startDate: loan.start_date,
+        },
+        dueDates: (loan.installment_dates as string[]) || [loan.due_date],
+      };
+      
+      await generateContractReceipt(receiptData);
+      toast.success('Comprovante gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      toast.error('Erro ao gerar comprovante');
+    }
   };
 
   const handleRenegotiateSubmit = async (e: React.FormEvent) => {
@@ -1899,6 +1942,15 @@ export default function Loans() {
                           title="Renegociar"
                         >
                           <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </Button>
+                        <Button 
+                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                          size="icon" 
+                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                          onClick={() => handleGenerateLoanReceipt(loan)}
+                          title="Gerar Comprovante PDF"
+                        >
+                          <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 

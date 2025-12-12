@@ -41,6 +41,9 @@ import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, Car, FileSignature, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useProfile } from '@/hooks/useProfile';
+import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
+import { toast } from 'sonner';
 
 export default function ProductSales() {
   // Product Sales hooks
@@ -56,6 +59,7 @@ export default function ProductSales() {
   // Vehicles hooks
   const { vehicles, isLoading: vehiclesLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
   const { payments: vehiclePaymentsList, markAsPaid: markVehiclePaymentAsPaid } = useVehiclePayments();
+  const { profile } = useProfile();
 
   // Main tab state
   const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'vehicles' | 'bills'>('products');
@@ -486,7 +490,113 @@ export default function ProductSales() {
     setDeleteBillId(null);
   };
 
-  // Utility functions
+  // Receipt generation functions
+  const handleGenerateProductReceipt = async (sale: ProductSale) => {
+    try {
+      const receiptData: ContractReceiptData = {
+        type: 'product',
+        contractId: sale.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        client: {
+          name: sale.client_name,
+          phone: sale.client_phone || undefined,
+          cpf: sale.client_cpf || undefined,
+          rg: sale.client_rg || undefined,
+          email: sale.client_email || undefined,
+          address: sale.client_address || undefined,
+        },
+        negotiation: {
+          principal: sale.total_amount,
+          installments: sale.installments,
+          installmentValue: sale.installment_value,
+          totalToReceive: sale.total_amount,
+          startDate: sale.sale_date,
+          downPayment: sale.down_payment || 0,
+          costValue: sale.cost_value || 0,
+        },
+        dueDates: getSalePayments(sale.id).map(p => p.due_date),
+        productInfo: { name: sale.product_name, description: sale.product_description || undefined },
+      };
+      await generateContractReceipt(receiptData);
+      toast.success('Comprovante gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      toast.error('Erro ao gerar comprovante');
+    }
+  };
+
+  const handleGenerateVehicleReceipt = async (vehicle: Vehicle) => {
+    try {
+      const receiptData: ContractReceiptData = {
+        type: 'vehicle',
+        contractId: vehicle.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        client: {
+          name: vehicle.buyer_name || vehicle.seller_name,
+          phone: vehicle.buyer_phone || undefined,
+          cpf: vehicle.buyer_cpf || undefined,
+          rg: vehicle.buyer_rg || undefined,
+          email: vehicle.buyer_email || undefined,
+          address: vehicle.buyer_address || undefined,
+        },
+        negotiation: {
+          principal: vehicle.purchase_value,
+          installments: vehicle.installments,
+          installmentValue: vehicle.installment_value,
+          totalToReceive: vehicle.purchase_value,
+          startDate: vehicle.purchase_date,
+          downPayment: vehicle.down_payment || 0,
+          costValue: vehicle.cost_value || 0,
+        },
+        dueDates: vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map(p => p.due_date),
+        vehicleInfo: {
+          brand: vehicle.brand,
+          model: vehicle.model,
+          year: vehicle.year,
+          color: vehicle.color || undefined,
+          plate: vehicle.plate || undefined,
+          chassis: vehicle.chassis || undefined,
+        },
+      };
+      await generateContractReceipt(receiptData);
+      toast.success('Comprovante gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      toast.error('Erro ao gerar comprovante');
+    }
+  };
+
+  const handleGenerateContractReceipt = async (contract: Contract) => {
+    try {
+      const payments = contractPayments[contract.id] || [];
+      const receiptData: ContractReceiptData = {
+        type: 'contract',
+        contractId: contract.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        client: {
+          name: contract.client_name,
+          phone: contract.client_phone || undefined,
+          cpf: contract.client_cpf || undefined,
+          rg: contract.client_rg || undefined,
+          email: contract.client_email || undefined,
+          address: contract.client_address || undefined,
+        },
+        negotiation: {
+          principal: contract.total_amount,
+          installments: contract.installments,
+          installmentValue: contract.total_amount,
+          totalToReceive: contract.amount_to_receive,
+          startDate: contract.first_payment_date,
+        },
+        dueDates: payments.map(p => p.due_date),
+      };
+      await generateContractReceipt(receiptData);
+      toast.success('Comprovante gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+      toast.error('Erro ao gerar comprovante');
+    }
+  };
   const calculateInstallmentValue = (total: number, down: number, installments: number) => {
     if (installments <= 0) return 0;
     return (total - down) / installments;
@@ -1054,6 +1164,9 @@ export default function ProductSales() {
                             </div>
                           </div>
                           <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleGenerateProductReceipt(sale)} title="Gerar Comprovante">
+                              <FileText className="w-4 h-4" />
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => openEditSaleDialog(sale)}>
                               <Edit className="w-4 h-4" />
                             </Button>
