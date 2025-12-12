@@ -174,25 +174,25 @@ export function useProductSales() {
           const profit = saleData.total_amount - (saleData.cost_value || 0);
           const profitPercent = saleData.cost_value && saleData.cost_value > 0 ? (profit / saleData.cost_value * 100) : 0;
           
-          let message = `📦 *Nova Venda - ${contractId}*\n\n`;
+          let message = `📦 *Resumo da Venda - ${contractId}*\n\n`;
           message += `👤 Cliente: ${saleData.client_name}\n\n`;
           message += `💰 *Informações da Venda:*\n`;
-          message += `• Produto: ${saleData.product_name}\n`;
-          message += `• Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          message += `- Produto: ${saleData.product_name}\n`;
+          message += `- Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
           if (saleData.cost_value && saleData.cost_value > 0) {
-            message += `• Custo: R$ ${saleData.cost_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-            message += `• Lucro: R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${profitPercent.toFixed(1)}%)\n`;
+            message += `- Custo: R$ ${saleData.cost_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+            message += `- Lucro: R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${profitPercent.toFixed(1)}%)\n`;
           }
-          message += `• Modalidade: Parcelado\n\n`;
+          message += `- Modalidade: Parcelado\n\n`;
           
           message += `📊 *Status das Parcelas:*\n`;
-          message += `✅ Pagas: 0 de ${saleData.installments} (R$ ${(saleData.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
-          message += `⏰ Pendentes: ${saleData.installments} (R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `✅ Pagas: 0 de ${saleData.installments} parcelas (R$ ${(saleData.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `⏰ Pendentes: ${saleData.installments} parcelas (R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
           message += `📈 Progresso: 0% concluído\n\n`;
           
           message += `📅 *Próxima Parcela:*\n`;
-          message += `• Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}\n`;
-          message += `• Valor: R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          message += `- Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}\n`;
+          message += `- Valor: R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
           
           message += `💰 Saldo Devedor: R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
           message += `━━━━━━━━━━━━━━━━━━━━━\n`;

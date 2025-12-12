@@ -247,17 +247,17 @@ export function useVehicles() {
         const profit = data.purchase_value - (data.cost_value || 0);
         const profitPercent = data.cost_value && data.cost_value > 0 ? (profit / data.cost_value * 100) : 0;
         
-        let message = `🚗 *Novo Veículo - ${contractId}*\n\n`;
+        let message = `🚗 *Resumo do Veículo - ${contractId}*\n\n`;
         message += `👤 Cliente: ${clientName}\n\n`;
         message += `💰 *Informações do Veículo:*\n`;
-        message += `• Veículo: ${vehicleName}\n`;
-        if (data.plate) message += `• Placa: ${data.plate}\n`;
-        message += `• Valor do Veículo: ${formatCurrency(data.purchase_value)}\n`;
+        message += `- Veículo: ${vehicleName}\n`;
+        if (data.plate) message += `- Placa: ${data.plate}\n`;
+        message += `- Valor do Veículo: ${formatCurrency(data.purchase_value)}\n`;
         if (data.cost_value && data.cost_value > 0) {
-          message += `• Custo Aquisição: ${formatCurrency(data.cost_value)}\n`;
-          message += `• Lucro Estimado: ${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)\n`;
+          message += `- Custo Aquisição: ${formatCurrency(data.cost_value)}\n`;
+          message += `- Lucro Estimado: ${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)\n`;
         }
-        message += `• Modalidade: Parcelado\n\n`;
+        message += `- Modalidade: Parcelado\n\n`;
         
         message += `📊 *Status das Parcelas:*\n`;
         message += `✅ Pagas: 0 de ${data.installments} parcelas (${formatCurrency(downPayment)})\n`;
@@ -265,8 +265,8 @@ export function useVehicles() {
         message += `📈 Progresso: 0% concluído\n\n`;
         
         message += `📅 *Próxima Parcela:*\n`;
-        message += `• Vencimento: ${formatDate(data.first_due_date)}\n`;
-        message += `• Valor: ${formatCurrency(data.installment_value)}\n\n`;
+        message += `- Vencimento: ${formatDate(data.first_due_date)}\n`;
+        message += `- Valor: ${formatCurrency(data.installment_value)}\n\n`;
         
         message += `💰 Saldo Devedor: ${formatCurrency(remainingBalance)}\n\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -417,8 +417,8 @@ export function useVehiclePayments(vehicleId?: string) {
           `📅 *Parcela:* ${payment.installment_number}ª\n` +
           `📅 *Data:* ${formatDate(today)}\n\n` +
           `📊 *Situação atual:*\n` +
-          `• Recebido: ${formatCurrency(newTotalPaid)}\n` +
-          `• Falta: ${formatCurrency(newRemainingBalance)}\n\n` +
+          `- Recebido: ${formatCurrency(newTotalPaid)}\n` +
+          `- Falta: ${formatCurrency(newRemainingBalance)}\n\n` +
           `_CobraFácil - Confirmação automática_`;
 
         await sendWhatsAppNotification(userPhone, message);
