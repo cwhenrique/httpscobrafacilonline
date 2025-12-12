@@ -883,83 +883,109 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
     // Loan details
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.3);
-    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 35, 1, 1, 'S');
 
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
+    // Check if it's an interest-only payment loan - simplified layout
+    if (loan.status === 'interest_only') {
+      doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 22, 1, 1, 'S');
 
-    let detailY = currentY + 6;
-    const detailCol1 = margin + 3;
-    const detailCol2 = margin + 50;
-    const detailCol3 = margin + 100;
-    const detailCol4 = margin + 145;
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      doc.setFontSize(9);
 
-    // Row 1
-    doc.setFont('helvetica', 'bold');
-    doc.text('Principal:', detailCol1, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(formatCurrency(loan.principalAmount), detailCol1 + 22, detailY);
+      let detailY = currentY + 8;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Juros:', detailCol2, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${loan.interestRate}%`, detailCol2 + 15, detailY);
+      // Line 1: Cliente pagou só o juros
+      doc.setFont('helvetica', 'bold');
+      doc.text('Cliente pagou só o juros:', margin + 5, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(168, 85, 247); // Purple
+      doc.text(formatCurrency(loan.totalPaid), margin + 58, detailY);
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Parcelas:', detailCol3, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(loan.installments.toString(), detailCol3 + 22, detailY);
+      detailY += 8;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tipo:', detailCol4, detailY);
-    doc.setFont('helvetica', 'normal');
-    const paymentTypeLabel = loan.paymentType === 'single' ? 'Único' : 
-                            loan.paymentType === 'installment' ? 'Parcelado' :
-                            loan.paymentType === 'daily' ? 'Diário' : 'Semanal';
-    doc.text(paymentTypeLabel, detailCol4 + 13, detailY);
+      // Line 2: Falta
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Falta:', margin + 5, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(239, 68, 68); // Red
+      doc.text(formatCurrency(loan.remainingBalance), margin + 22, detailY);
 
-    detailY += 8;
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      currentY += 27;
+    } else {
+      // Standard layout with 3 columns for better spacing
+      doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 32, 1, 1, 'S');
 
-    // Row 2
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total Juros:', detailCol1, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(formatCurrency(loan.totalInterest), detailCol1 + 28, detailY);
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total a Receber:', detailCol2, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(formatCurrency(loan.totalToReceive), detailCol2 + 38, detailY);
+      let detailY = currentY + 6;
+      const detailCol1 = margin + 3;
+      const detailCol2 = margin + 65;
+      const detailCol3 = margin + 130;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Recebido:', detailCol3, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(34, 197, 94);
-    doc.text(formatCurrency(loan.totalPaid), detailCol3 + 24, detailY);
+      // Row 1
+      doc.setFont('helvetica', 'bold');
+      doc.text('Principal:', detailCol1, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatCurrency(loan.principalAmount), detailCol1 + 24, detailY);
 
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Pendente:', detailCol4, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(239, 68, 68);
-    doc.text(formatCurrency(loan.remainingBalance), detailCol4 + 24, detailY);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Juros:', detailCol2, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${loan.interestRate}%`, detailCol2 + 16, detailY);
 
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    detailY += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Parcelas:', detailCol3, detailY);
+      doc.setFont('helvetica', 'normal');
+      const paymentTypeLabel = loan.paymentType === 'single' ? 'Único' : 
+                              loan.paymentType === 'installment' ? 'Parcelado' :
+                              loan.paymentType === 'daily' ? 'Diário' : 'Semanal';
+      doc.text(`${loan.installments} (${paymentTypeLabel})`, detailCol3 + 22, detailY);
 
-    // Row 3
-    doc.setFont('helvetica', 'bold');
-    doc.text('Início:', detailCol1, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(formatDate(loan.startDate), detailCol1 + 16, detailY);
+      detailY += 7;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Vencimento:', detailCol2, detailY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(formatDate(loan.dueDate), detailCol2 + 30, detailY);
+      // Row 2
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total a Receber:', detailCol1, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatCurrency(loan.totalToReceive), detailCol1 + 40, detailY);
 
-    currentY += 40;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Recebido:', detailCol2, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(34, 197, 94);
+      doc.text(formatCurrency(loan.totalPaid), detailCol2 + 25, detailY);
+
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pendente:', detailCol3, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(239, 68, 68);
+      doc.text(formatCurrency(loan.remainingBalance), detailCol3 + 25, detailY);
+
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      detailY += 7;
+
+      // Row 3
+      doc.setFont('helvetica', 'bold');
+      doc.text('Início:', detailCol1, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatDate(loan.startDate), detailCol1 + 18, detailY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Vencimento:', detailCol2, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatDate(loan.dueDate), detailCol2 + 32, detailY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total Juros:', detailCol3, detailY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatCurrency(loan.totalInterest), detailCol3 + 30, detailY);
+
+      currentY += 37;
+    }
 
     // Payments history (if any)
     if (loan.payments.length > 0) {
