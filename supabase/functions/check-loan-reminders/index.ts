@@ -71,6 +71,10 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+const getContractId = (id: string): string => {
+  return `EMP-${id.substring(0, 4).toUpperCase()}`;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("check-loan-reminders function called at", new Date().toISOString());
   
@@ -85,16 +89,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
 
-    // Calculate dates for TODAY (0), 1, 3, and 7 days ahead
-    const reminderDays = [0, 1, 3, 7];
-    const reminderDates = reminderDays.map(days => {
-      const date = new Date(today);
-      date.setDate(date.getDate() + days);
-      return { days, date: date.toISOString().split('T')[0] };
-    });
-
-    console.log("Checking reminders for dates:", reminderDates);
+    // Check for loans due TODAY only (removed 1, 3, 7 day reminders - consolidated in daily summary)
+    console.log("Checking loans due today:", todayStr);
 
     // Fetch all pending loans with client data
     const { data: loans, error: loansError } = await supabase
@@ -112,25 +110,31 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Found ${loans?.length || 0} pending loans`);
 
-    // Group loans by user_id to send consolidated messages
-    const userLoansMap: Map<string, { 
-      loans: any[], 
-      reminderDay: number 
-    }[]> = new Map();
+    // Group loans by user_id
+    const userLoansMap: Map<string, any[]> = new Map();
 
     for (const loan of loans || []) {
       const client = loan.clients as { full_name: string; phone: string | null };
       
-      // Check installment dates
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      
+      // Calculate interest based on mode
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      
+      const interestPerInstallment = totalInterest / numInstallments;
       const principalPerInstallment = loan.principal_amount / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallment;
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
       let nextDueDate: string | null = null;
       let installmentAmount = totalPerInstallment;
+      let currentInstallment = paidInstallments + 1;
 
       if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
         nextDueDate = installmentDates[paidInstallments];
@@ -141,39 +145,35 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      if (!nextDueDate) continue;
+      if (!nextDueDate || nextDueDate !== todayStr) continue;
 
-      // Check if due date matches any reminder date
-      for (const reminder of reminderDates) {
-        if (nextDueDate === reminder.date) {
-          const loanInfo = {
-            ...loan,
-            clientName: client.full_name,
-            clientPhone: client.phone,
-            installmentAmount,
-            dueDate: nextDueDate,
-          };
+      const totalToReceive = loan.principal_amount + totalInterest;
+      const remainingBalance = totalToReceive - (loan.total_paid || 0);
 
-          if (!userLoansMap.has(loan.user_id)) {
-            userLoansMap.set(loan.user_id, []);
-          }
-          
-          const existingReminder = userLoansMap.get(loan.user_id)!.find(r => r.reminderDay === reminder.days);
-          if (existingReminder) {
-            existingReminder.loans.push(loanInfo);
-          } else {
-            userLoansMap.get(loan.user_id)!.push({ loans: [loanInfo], reminderDay: reminder.days });
-          }
-          break;
-        }
+      const loanInfo = {
+        ...loan,
+        clientName: client.full_name,
+        clientPhone: client.phone,
+        installmentAmount,
+        currentInstallment,
+        totalInstallments: numInstallments,
+        paidInstallments,
+        totalPaid: loan.total_paid || 0,
+        remainingBalance,
+        totalToReceive,
+      };
+
+      if (!userLoansMap.has(loan.user_id)) {
+        userLoansMap.set(loan.user_id, []);
       }
+      userLoansMap.get(loan.user_id)!.push(loanInfo);
     }
 
     let sentCount = 0;
     const notifications: any[] = [];
 
-    // Get user profiles to get their phone numbers
-    for (const [userId, reminders] of userLoansMap) {
+    // Send individual detailed messages for each loan due today
+    for (const [userId, userLoans] of userLoansMap) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('phone, full_name')
@@ -185,38 +185,44 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      for (const reminder of reminders) {
-        const loansList = reminder.loans.map(l => 
-          `• *${l.clientName}*: ${formatCurrency(l.installmentAmount)} (vence ${formatDate(new Date(l.dueDate))})`
-        ).join('\n');
-
-        const totalAmount = reminder.loans.reduce((sum, l) => sum + l.installmentAmount, 0);
-
-        let message: string;
-        let notifTitle: string;
+      for (const loan of userLoans) {
+        const contractId = getContractId(loan.id);
+        const progressPercent = Math.round((loan.paidInstallments / loan.totalInstallments) * 100);
         
-        if (reminder.reminderDay === 0) {
-          // Same day - TODAY
-          message = `⏰ *VENCIMENTO HOJE!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* que vence${reminder.loans.length > 1 ? 'm' : ''} *HOJE*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\nNão deixe de cobrar!\n\n_CobraFácil - Alerta automático_`;
-          notifTitle = `⏰ Vencimento Hoje`;
-        } else if (reminder.reminderDay === 1) {
-          message = `📅 *Vencimento Amanhã*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* que vence${reminder.loans.length > 1 ? 'm' : ''} *amanhã*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\nPrepare-se para cobrar!\n\n_CobraFácil - Lembrete automático_`;
-          notifTitle = `📅 Vencimento Amanhã`;
-        } else {
-          message = `📋 *Lembrete de Cobranças*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${reminder.loans.length} cobrança${reminder.loans.length > 1 ? 's' : ''}* para os próximos *${reminder.reminderDay} dias*:\n\n${loansList}\n\n💰 *Total a receber: ${formatCurrency(totalAmount)}*\n\n_CobraFácil - Lembrete automático_`;
-          notifTitle = `📋 Lembrete ${reminder.reminderDay} dias`;
-        }
+        let message = `🏦 *Resumo do Empréstimo - ${contractId}*\n\n`;
+        message += `👤 Cliente: ${loan.clientName}\n\n`;
+        message += `💰 *Informações do Empréstimo:*\n`;
+        message += `• Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
+        message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+        message += `• Taxa de Juros: ${loan.interest_rate}%\n`;
+        message += `• Data Início: ${formatDate(new Date(loan.start_date))}\n`;
+        message += `• Modalidade: ${loan.payment_type === 'daily' ? 'Diário' : loan.payment_type === 'weekly' ? 'Semanal' : loan.payment_type === 'installment' ? 'Parcelado' : 'Único'}\n\n`;
+        
+        message += `📊 *Status das Parcelas:*\n`;
+        message += `✅ Pagas: ${loan.paidInstallments} de ${loan.totalInstallments} parcelas (${formatCurrency(loan.totalPaid)})\n`;
+        message += `⏰ Pendentes: ${loan.totalInstallments - loan.paidInstallments} parcelas (${formatCurrency(loan.remainingBalance)})\n`;
+        message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
+        
+        message += `📅 *PARCELA DE HOJE:*\n`;
+        message += `• Vencimento: ${formatDate(new Date(loan.due_date))} ⚠️\n`;
+        message += `• Valor: ${formatCurrency(loan.installmentAmount)}\n\n`;
+        
+        message += `💰 Saldo Devedor: ${formatCurrency(loan.remainingBalance)}\n\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `_CobraFácil - Não deixe de cobrar!_`;
 
-        console.log(`Sending ${reminder.reminderDay}-day reminder to user ${userId}`);
+        console.log(`Sending detailed loan reminder to user ${userId} for loan ${loan.id}`);
         
         const sent = await sendWhatsApp(profile.phone, message);
         if (sent) {
           sentCount++;
           notifications.push({
             user_id: userId,
-            title: notifTitle,
-            message: `${reminder.loans.length} cobrança(s) - Total: ${formatCurrency(totalAmount)}`,
+            title: `⏰ Vencimento Hoje - ${contractId}`,
+            message: `${loan.clientName}: ${formatCurrency(loan.installmentAmount)}`,
             type: 'info',
+            loan_id: loan.id,
+            client_id: loan.client_id,
           });
         }
       }
@@ -233,7 +239,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(`Sent ${sentCount} reminder messages`);
+    console.log(`Sent ${sentCount} loan reminder messages`);
 
     return new Response(
       JSON.stringify({ 

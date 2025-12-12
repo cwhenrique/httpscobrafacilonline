@@ -13,6 +13,10 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+const formatDate = (date: Date): string => {
+  return new Intl.DateTimeFormat('pt-BR').format(date);
+};
+
 const cleanApiUrl = (url: string): string => {
   let cleaned = url.replace(/\/+$/, '');
   const pathPatterns = [
@@ -67,6 +71,29 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+const getContractId = (id: string): string => {
+  return `VEI-${id.substring(0, 4).toUpperCase()}`;
+};
+
+// Progressive alert days
+const ALERT_DAYS = [1, 3, 7, 15, 30];
+
+const getAlertEmoji = (daysOverdue: number): string => {
+  if (daysOverdue === 1) return '⚠️';
+  if (daysOverdue === 3) return '🚨';
+  if (daysOverdue === 7) return '🔴';
+  if (daysOverdue === 15) return '🔴';
+  return '🆘';
+};
+
+const getAlertTitle = (daysOverdue: number): string => {
+  if (daysOverdue === 1) return 'Atenção: 1 dia de atraso';
+  if (daysOverdue === 3) return 'Alerta: 3 dias de atraso';
+  if (daysOverdue === 7) return 'Alerta: 1 Semana de Atraso';
+  if (daysOverdue === 15) return 'Urgente: 15 Dias de Atraso';
+  return 'CRÍTICO: 30+ Dias de Atraso';
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("check-overdue-vehicles function called at", new Date().toISOString());
   
@@ -83,22 +110,14 @@ const handler = async (req: Request): Promise<Response> => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    // Check for overdue milestones: 1, 3, 7, 15, 30 days
-    const overdueMilestones = [1, 3, 7, 15, 30];
-    const milestoneDates = overdueMilestones.map(days => {
-      const date = new Date(today);
-      date.setDate(date.getDate() - days);
-      return { days, date: date.toISOString().split('T')[0] };
-    });
-
-    console.log("Checking overdue vehicles for dates:", milestoneDates);
+    console.log("Checking overdue vehicles as of:", todayStr);
 
     // Fetch overdue vehicle payments
     const { data: payments, error: paymentsError } = await supabase
       .from('vehicle_payments')
       .select(`
         *,
-        vehicles!inner(brand, model, year, plate, buyer_name, seller_name, user_id)
+        vehicles!inner(id, brand, model, year, plate, buyer_name, seller_name, user_id, purchase_value, cost_value, total_paid, remaining_balance, installments)
       `)
       .eq('status', 'pending')
       .lt('due_date', todayStr);
@@ -111,55 +130,54 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Found ${payments?.length || 0} overdue vehicle payments`);
 
     // Group payments by user_id and milestone
-    const userPaymentsMap: Map<string, { 
-      payments: any[], 
-      daysOverdue: number 
-    }[]> = new Map();
+    const userPaymentsMap: Map<string, Map<number, any[]>> = new Map();
 
     for (const payment of payments || []) {
-      const vehicle = payment.vehicles as { 
-        brand: string; 
-        model: string; 
-        year: number; 
-        plate: string | null;
-        buyer_name: string | null;
-        seller_name: string;
-        user_id: string;
-      };
+      const vehicle = payment.vehicles as any;
       
       // Calculate days overdue
       const dueDate = new Date(payment.due_date);
       const diffTime = today.getTime() - dueDate.getTime();
       const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       
-      // Check if today is a milestone day
-      if (!overdueMilestones.includes(daysOverdue)) continue;
+      // Only send on milestone days
+      if (!ALERT_DAYS.includes(daysOverdue)) continue;
+
+      // Count paid installments
+      const { count } = await supabase
+        .from('vehicle_payments')
+        .select('*', { count: 'exact', head: true })
+        .eq('vehicle_id', vehicle.id)
+        .eq('status', 'paid');
+
+      const paidInstallments = count || 0;
+      const profit = vehicle.purchase_value - (vehicle.cost_value || 0);
+      const profitPercent = vehicle.cost_value > 0 ? (profit / vehicle.cost_value * 100) : 0;
 
       const paymentInfo = {
         ...payment,
-        vehicleName: `${vehicle.brand} ${vehicle.model} ${vehicle.year}`,
-        plate: vehicle.plate,
-        buyerName: vehicle.buyer_name || vehicle.seller_name,
+        vehicle,
+        paidInstallments,
+        profit,
+        profitPercent,
         daysOverdue,
       };
 
       if (!userPaymentsMap.has(vehicle.user_id)) {
-        userPaymentsMap.set(vehicle.user_id, []);
+        userPaymentsMap.set(vehicle.user_id, new Map());
       }
       
-      const existingMilestone = userPaymentsMap.get(vehicle.user_id)!.find(m => m.daysOverdue === daysOverdue);
-      if (existingMilestone) {
-        existingMilestone.payments.push(paymentInfo);
-      } else {
-        userPaymentsMap.get(vehicle.user_id)!.push({ payments: [paymentInfo], daysOverdue });
+      const userAlerts = userPaymentsMap.get(vehicle.user_id)!;
+      if (!userAlerts.has(daysOverdue)) {
+        userAlerts.set(daysOverdue, []);
       }
+      userAlerts.get(daysOverdue)!.push(paymentInfo);
     }
 
     let sentCount = 0;
     const notifications: any[] = [];
 
-    // Get user profiles to get their phone numbers
-    for (const [userId, milestones] of userPaymentsMap) {
+    for (const [userId, alertDaysMap] of userPaymentsMap) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('phone, full_name')
@@ -171,26 +189,56 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      for (const milestone of milestones) {
-        const paymentsList = milestone.payments.map(p => 
-          `• *${p.vehicleName}*${p.plate ? ` (${p.plate})` : ''}\n   Cliente: ${p.buyerName}\n   Parcela ${p.installment_number}: ${formatCurrency(p.amount)}`
-        ).join('\n\n');
+      for (const [alertDay, overduePayments] of alertDaysMap) {
+        const emoji = getAlertEmoji(alertDay);
+        const title = getAlertTitle(alertDay);
 
-        const totalAmount = milestone.payments.reduce((sum, p) => sum + p.amount, 0);
+        for (const payment of overduePayments) {
+          const vehicle = payment.vehicle;
+          const contractId = getContractId(vehicle.id);
+          const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
+          const clientName = vehicle.buyer_name || vehicle.seller_name;
+          const progressPercent = Math.round((payment.paidInstallments / vehicle.installments) * 100);
 
-        const message = `🚨 *PARCELA DE VEÍCULO EM ATRASO!*\n\n⚠️ *${milestone.daysOverdue} dia${milestone.daysOverdue > 1 ? 's' : ''} de atraso*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${milestone.payments.length} parcela${milestone.payments.length > 1 ? 's' : ''}* de veículo em atraso:\n\n${paymentsList}\n\n💰 *Total em atraso: ${formatCurrency(totalAmount)}*\n\nEntre em contato com o cliente!\n\n_CobraFácil - Alerta de atraso_`;
+          let message = `${emoji} *${title}*\n\n`;
+          message += `🚗 *Veículo - ${contractId}*\n\n`;
+          message += `👤 Cliente: ${clientName}\n\n`;
+          message += `💰 *Informações do Veículo:*\n`;
+          message += `• Veículo: ${vehicleName}\n`;
+          if (vehicle.plate) message += `• Placa: ${vehicle.plate}\n`;
+          message += `• Valor do Veículo: ${formatCurrency(vehicle.purchase_value)}\n`;
+          if (vehicle.cost_value > 0) {
+            message += `• Custo Aquisição: ${formatCurrency(vehicle.cost_value)}\n`;
+            message += `• Lucro Estimado: ${formatCurrency(payment.profit)} (${payment.profitPercent.toFixed(1)}%)\n`;
+          }
+          
+          message += `\n📊 *Status das Parcelas:*\n`;
+          message += `✅ Pagas: ${payment.paidInstallments} de ${vehicle.installments} (${formatCurrency(vehicle.total_paid || 0)})\n`;
+          message += `❌ Pendentes: ${vehicle.installments - payment.paidInstallments} (${formatCurrency(vehicle.remaining_balance || 0)})\n`;
+          message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
+          
+          message += `⚠️ *PARCELA EM ATRASO:*\n`;
+          message += `• Venceu em: ${formatDate(new Date(payment.due_date))}\n`;
+          message += `• Parcela: ${payment.installment_number}/${vehicle.installments}\n`;
+          message += `• Dias de atraso: *${alertDay}*\n`;
+          message += `• Valor: ${formatCurrency(payment.amount)}\n\n`;
+          
+          message += `💰 Saldo Devedor: ${formatCurrency(vehicle.remaining_balance || 0)}\n\n`;
+          message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+          message += `_CobraFácil - Entre em contato urgente!_`;
 
-        console.log(`Sending ${milestone.daysOverdue}-day overdue vehicle alert to user ${userId}`);
-        
-        const sent = await sendWhatsApp(profile.phone, message);
-        if (sent) {
-          sentCount++;
-          notifications.push({
-            user_id: userId,
-            title: `🚨 Veículo - ${milestone.daysOverdue} dias em atraso`,
-            message: `${milestone.payments.length} parcela(s) em atraso - Total: ${formatCurrency(totalAmount)}`,
-            type: 'warning',
-          });
+          console.log(`Sending ${alertDay}-day overdue alert to user ${userId}`);
+          
+          const sent = await sendWhatsApp(profile.phone, message);
+          if (sent) {
+            sentCount++;
+            notifications.push({
+              user_id: userId,
+              title: `${emoji} Atraso ${alertDay}d - ${contractId}`,
+              message: `${clientName} - ${vehicleName}: ${formatCurrency(payment.amount)}`,
+              type: 'warning',
+            });
+          }
         }
       }
     }

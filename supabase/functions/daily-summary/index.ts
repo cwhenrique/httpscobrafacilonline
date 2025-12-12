@@ -71,6 +71,10 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+const getContractId = (id: string, prefix: string): string => {
+  return `${prefix}-${id.substring(0, 4).toUpperCase()}`;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("daily-summary function called at", new Date().toISOString());
   
@@ -105,39 +109,60 @@ const handler = async (req: Request): Promise<Response> => {
     for (const profile of profiles || []) {
       if (!profile.phone) continue;
 
-      // Fetch all loans for this user
-      const { data: loans, error: loansError } = await supabase
+      // ============= EMPRÉSTIMOS =============
+      const { data: loans } = await supabase
         .from('loans')
-        .select(`
-          *,
-          clients!inner(full_name, phone)
-        `)
+        .select(`*, clients!inner(full_name, phone)`)
         .eq('user_id', profile.id)
         .in('status', ['pending', 'overdue']);
 
-      if (loansError) {
-        console.error(`Error fetching loans for user ${profile.id}:`, loansError);
-        continue;
-      }
+      // ============= VEÍCULOS =============
+      const { data: vehiclePayments } = await supabase
+        .from('vehicle_payments')
+        .select(`*, vehicles!inner(brand, model, year, plate, buyer_name, seller_name, user_id, purchase_value, total_paid, installments)`)
+        .eq('status', 'pending')
+        .gte('due_date', todayStr);
 
-      if (!loans || loans.length === 0) {
-        console.log(`User ${profile.id} has no pending loans, skipping`);
-        continue;
-      }
+      // ============= PRODUTOS =============
+      const { data: productPayments } = await supabase
+        .from('product_sale_payments')
+        .select(`*, productSale:product_sales!inner(product_name, client_name, user_id, total_amount, total_paid, installments)`)
+        .eq('status', 'pending')
+        .gte('due_date', todayStr);
+
+      // Filter payments for this user
+      const userVehiclePayments = (vehiclePayments || []).filter(p => (p.vehicles as any).user_id === profile.id);
+      const userProductPayments = (productPayments || []).filter(p => (p.productSale as any).user_id === profile.id);
 
       // Categorize loans
-      const dueTodayLoans: any[] = [];
-      const overdueLoans: any[] = [];
+      interface LoanInfo {
+        id: string;
+        clientName: string;
+        amount: number;
+        dueDate: string;
+        daysOverdue?: number;
+      }
+
+      const dueTodayLoans: LoanInfo[] = [];
+      const overdueLoans: LoanInfo[] = [];
       let totalToReceiveToday = 0;
       let totalOverdue = 0;
-      let totalPending = 0;
 
-      for (const loan of loans) {
+      for (const loan of loans || []) {
         const client = loan.clients as { full_name: string; phone: string | null };
         
         const installmentDates = (loan.installment_dates as string[]) || [];
         const numInstallments = loan.installments || 1;
-        const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+        
+        // Calculate interest based on mode
+        let totalInterest = 0;
+        if (loan.interest_mode === 'on_total') {
+          totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+        } else {
+          totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+        }
+        
+        const interestPerInstallment = totalInterest / numInstallments;
         const principalPerInstallment = loan.principal_amount / numInstallments;
         const totalPerInstallment = principalPerInstallment + interestPerInstallment;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
@@ -159,7 +184,8 @@ const handler = async (req: Request): Promise<Response> => {
         const dueDate = new Date(nextDueDate);
         dueDate.setHours(0, 0, 0, 0);
 
-        const loanInfo = {
+        const loanInfo: LoanInfo = {
+          id: loan.id,
           clientName: client.full_name,
           amount: installmentAmount,
           dueDate: nextDueDate,
@@ -169,44 +195,165 @@ const handler = async (req: Request): Promise<Response> => {
           dueTodayLoans.push(loanInfo);
           totalToReceiveToday += installmentAmount;
         } else if (dueDate < today) {
+          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
           overdueLoans.push({
             ...loanInfo,
-            daysOverdue: Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)),
+            daysOverdue,
           });
           totalOverdue += installmentAmount;
         }
+      }
 
-        totalPending += installmentAmount;
+      // Categorize vehicles
+      const dueTodayVehicles: any[] = [];
+      const overdueVehicles: any[] = [];
+      let vehicleTotalToday = 0;
+      let vehicleTotalOverdue = 0;
+
+      for (const payment of userVehiclePayments) {
+        const vehicle = payment.vehicles as any;
+        const paymentDueDate = new Date(payment.due_date);
+        paymentDueDate.setHours(0, 0, 0, 0);
+
+        const paymentInfo = {
+          id: payment.id,
+          vehicleName: `${vehicle.brand} ${vehicle.model} ${vehicle.year}`,
+          buyerName: vehicle.buyer_name || vehicle.seller_name,
+          amount: payment.amount,
+          installment: payment.installment_number,
+          totalInstallments: vehicle.installments,
+        };
+
+        if (payment.due_date === todayStr) {
+          dueTodayVehicles.push(paymentInfo);
+          vehicleTotalToday += payment.amount;
+        } else if (paymentDueDate < today) {
+          const daysOverdue = Math.floor((today.getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          overdueVehicles.push({ ...paymentInfo, daysOverdue });
+          vehicleTotalOverdue += payment.amount;
+        }
+      }
+
+      // Categorize products
+      const dueTodayProducts: any[] = [];
+      const overdueProducts: any[] = [];
+      let productTotalToday = 0;
+      let productTotalOverdue = 0;
+
+      for (const payment of userProductPayments) {
+        const sale = payment.productSale as any;
+        const paymentDueDate = new Date(payment.due_date);
+        paymentDueDate.setHours(0, 0, 0, 0);
+
+        const paymentInfo = {
+          id: payment.id,
+          productName: sale.product_name,
+          clientName: sale.client_name,
+          amount: payment.amount,
+          installment: payment.installment_number,
+          totalInstallments: sale.installments,
+        };
+
+        if (payment.due_date === todayStr) {
+          dueTodayProducts.push(paymentInfo);
+          productTotalToday += payment.amount;
+        } else if (paymentDueDate < today) {
+          const daysOverdue = Math.floor((today.getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          overdueProducts.push({ ...paymentInfo, daysOverdue });
+          productTotalOverdue += payment.amount;
+        }
       }
 
       // Sort overdue by days (most overdue first)
-      overdueLoans.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      overdueLoans.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+      overdueVehicles.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      overdueProducts.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+      const totalDueToday = totalToReceiveToday + vehicleTotalToday + productTotalToday;
+      const grandTotalOverdue = totalOverdue + vehicleTotalOverdue + productTotalOverdue;
+      const hasDueToday = dueTodayLoans.length > 0 || dueTodayVehicles.length > 0 || dueTodayProducts.length > 0;
+      const hasOverdue = overdueLoans.length > 0 || overdueVehicles.length > 0 || overdueProducts.length > 0;
+
+      if (!hasDueToday && !hasOverdue) {
+        console.log(`User ${profile.id} has no pending items, skipping`);
+        continue;
+      }
 
       // Build message
-      let message = `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n📊 *Resumo do dia ${formatDate(today)}*\n\n`;
+      let message = `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
+      message += `📊 *Resumo Financeiro - ${formatDate(today)}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-      if (dueTodayLoans.length > 0) {
-        message += `⏰ *Vence HOJE (${dueTodayLoans.length}):*\n`;
-        message += dueTodayLoans.slice(0, 5).map(l => `• ${l.clientName}: ${formatCurrency(l.amount)}`).join('\n');
-        if (dueTodayLoans.length > 5) {
-          message += `\n_... e mais ${dueTodayLoans.length - 5}_`;
+      // VENCE HOJE
+      if (hasDueToday) {
+        message += `⏰ *VENCE HOJE:*\n\n`;
+
+        if (dueTodayLoans.length > 0) {
+          message += `💰 *Empréstimos (${dueTodayLoans.length}):*\n`;
+          dueTodayLoans.slice(0, 3).forEach(l => {
+            message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
+          });
+          if (dueTodayLoans.length > 3) message += `  _... +${dueTodayLoans.length - 3} empréstimo(s)_\n`;
+          message += `\n`;
         }
-        message += `\n💰 Total: *${formatCurrency(totalToReceiveToday)}*\n\n`;
-      } else {
-        message += `✅ *Nenhum vencimento hoje*\n\n`;
+
+        if (dueTodayVehicles.length > 0) {
+          message += `🚗 *Veículos (${dueTodayVehicles.length}):*\n`;
+          dueTodayVehicles.slice(0, 3).forEach(v => {
+            message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)}\n`;
+          });
+          if (dueTodayVehicles.length > 3) message += `  _... +${dueTodayVehicles.length - 3} veículo(s)_\n`;
+          message += `\n`;
+        }
+
+        if (dueTodayProducts.length > 0) {
+          message += `📦 *Produtos (${dueTodayProducts.length}):*\n`;
+          dueTodayProducts.slice(0, 3).forEach(p => {
+            message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)}\n`;
+          });
+          if (dueTodayProducts.length > 3) message += `  _... +${dueTodayProducts.length - 3} produto(s)_\n`;
+          message += `\n`;
+        }
+
+        message += `💵 *Total Hoje: ${formatCurrency(totalDueToday)}*\n\n`;
       }
 
-      if (overdueLoans.length > 0) {
-        message += `🚨 *Em atraso (${overdueLoans.length}):*\n`;
-        message += overdueLoans.slice(0, 5).map(l => `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)`).join('\n');
-        if (overdueLoans.length > 5) {
-          message += `\n_... e mais ${overdueLoans.length - 5}_`;
+      // EM ATRASO
+      if (hasOverdue) {
+        message += `🚨 *EM ATRASO:*\n\n`;
+
+        if (overdueLoans.length > 0) {
+          message += `💰 *Empréstimos (${overdueLoans.length}):*\n`;
+          overdueLoans.slice(0, 3).forEach(l => {
+            message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+          });
+          if (overdueLoans.length > 3) message += `  _... +${overdueLoans.length - 3} empréstimo(s)_\n`;
+          message += `\n`;
         }
-        message += `\n💰 Total: *${formatCurrency(totalOverdue)}*\n\n`;
+
+        if (overdueVehicles.length > 0) {
+          message += `🚗 *Veículos (${overdueVehicles.length}):*\n`;
+          overdueVehicles.slice(0, 3).forEach(v => {
+            message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)} (${v.daysOverdue}d)\n`;
+          });
+          if (overdueVehicles.length > 3) message += `  _... +${overdueVehicles.length - 3} veículo(s)_\n`;
+          message += `\n`;
+        }
+
+        if (overdueProducts.length > 0) {
+          message += `📦 *Produtos (${overdueProducts.length}):*\n`;
+          overdueProducts.slice(0, 3).forEach(p => {
+            message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)} (${p.daysOverdue}d)\n`;
+          });
+          if (overdueProducts.length > 3) message += `  _... +${overdueProducts.length - 3} produto(s)_\n`;
+          message += `\n`;
+        }
+
+        message += `⚠️ *Total em Atraso: ${formatCurrency(grandTotalOverdue)}*\n\n`;
       }
 
-      message += `📈 *Total a receber: ${formatCurrency(totalPending)}*\n\n`;
-      message += `_CobraFácil - Resumo diário_`;
+      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `_CobraFácil - Resumo às 9h_`;
 
       console.log(`Sending daily summary to user ${profile.id}`);
       

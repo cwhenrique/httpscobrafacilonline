@@ -170,11 +170,36 @@ export function useProductSales() {
           .single();
 
         if (profile?.phone) {
+          const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
+          const profit = saleData.total_amount - (saleData.cost_value || 0);
+          const profitPercent = saleData.cost_value && saleData.cost_value > 0 ? (profit / saleData.cost_value * 100) : 0;
+          
+          let message = `📦 *Nova Venda - ${contractId}*\n\n`;
+          message += `👤 Cliente: ${saleData.client_name}\n\n`;
+          message += `💰 *Informações da Venda:*\n`;
+          message += `• Produto: ${saleData.product_name}\n`;
+          message += `• Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          if (saleData.cost_value && saleData.cost_value > 0) {
+            message += `• Custo: R$ ${saleData.cost_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+            message += `• Lucro: R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${profitPercent.toFixed(1)}%)\n`;
+          }
+          message += `• Modalidade: Parcelado\n\n`;
+          
+          message += `📊 *Status das Parcelas:*\n`;
+          message += `✅ Pagas: 0 de ${saleData.installments} (R$ ${(saleData.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `⏰ Pendentes: ${saleData.installments} (R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `📈 Progresso: 0% concluído\n\n`;
+          
+          message += `📅 *Próxima Parcela:*\n`;
+          message += `• Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}\n`;
+          message += `• Valor: R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          
+          message += `💰 Saldo Devedor: R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+          message += `_CobraFácil - Registro automático_`;
+          
           await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              phone: profile.phone,
-              message: `🛒 *Nova Venda Cadastrada!*\n\n📦 Produto: ${saleData.product_name}\n👤 Cliente: ${saleData.client_name}\n💰 Valor Total: R$ ${saleData.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📅 Parcelas: ${saleData.installments}x de R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📆 Primeiro Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}`,
-            },
+            body: { phone: profile.phone, message },
           });
         }
       } catch (err) {
