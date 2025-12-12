@@ -840,7 +840,7 @@ export default function Loans() {
     setIsRenegotiateDialogOpen(true);
   };
 
-  const handleGenerateLoanReceipt = (loan: typeof loans[0]) => {
+  const handleGenerateLoanReceipt = (loan: typeof loans[0], interestOnlyPayment?: { amountPaid: number; remainingBalance: number }) => {
     const numInstallments = loan.installments || 1;
     let totalInterest = 0;
     if (loan.interest_mode === 'on_total') {
@@ -869,6 +869,11 @@ export default function Loans() {
         startDate: loan.start_date,
       },
       dueDates: (loan.installment_dates as string[]) || [loan.due_date],
+      interestOnlyPayment: interestOnlyPayment ? {
+        amountPaid: interestOnlyPayment.amountPaid,
+        paymentDate: new Date().toISOString().split('T')[0],
+        remainingBalance: interestOnlyPayment.remainingBalance,
+      } : undefined,
     };
     
     setReceiptPreviewData(receiptData);
@@ -945,7 +950,10 @@ export default function Loans() {
       });
       
       // Abrir comprovante após pagamento de juros
-      handleGenerateLoanReceipt(loan);
+      handleGenerateLoanReceipt(loan, {
+        amountPaid: interestPaid,
+        remainingBalance: safeRemaining,
+      });
     } else {
       // Renegociação normal
       let notesText = renegotiateData.notes;
