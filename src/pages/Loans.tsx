@@ -2517,8 +2517,8 @@ export default function Loans() {
                           </div>
                           
                           {renegotiateData.renewal_fee_enabled && (
-                            <div className="bg-muted/80 rounded-lg p-4 space-y-4 border-2 border-amber-500/50">
-                              <div className="flex items-center gap-2 text-amber-400">
+                            <div className="bg-muted/80 rounded-lg p-4 space-y-4 border-2 border-primary">
+                              <div className="flex items-center gap-2 text-primary">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                 </svg>
@@ -2527,7 +2527,7 @@ export default function Loans() {
                               
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label className="text-amber-200 text-sm font-medium">Taxa (%)</Label>
+                                  <Label className="text-foreground text-sm font-medium">Taxa (%)</Label>
                                   <Input 
                                     type="number" 
                                     step="0.01" 
@@ -2546,11 +2546,11 @@ export default function Loans() {
                                       });
                                     }} 
                                     placeholder="20"
-                                    className="bg-amber-900/50 text-white border-amber-600 placeholder:text-amber-400/50 font-semibold"
+                                    className="border-primary font-semibold"
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-amber-200 text-sm font-medium">Acréscimo (R$)</Label>
+                                  <Label className="text-foreground text-sm font-medium">Acréscimo (R$)</Label>
                                   <Input 
                                     type="number" 
                                     step="0.01"
@@ -2569,12 +2569,12 @@ export default function Loans() {
                                       });
                                     }}
                                     placeholder="50,00"
-                                    className="bg-amber-900/50 text-white border-amber-600 placeholder:text-amber-400/50 font-semibold"
+                                    className="border-primary font-semibold"
                                   />
                                 </div>
                               </div>
                               
-                              <div className="bg-primary rounded-lg p-4 text-center">
+                              <div className="bg-primary rounded-lg p-4 text-center border-2 border-primary">
                                 <p className="text-xs text-primary-foreground/80 uppercase tracking-wide font-medium">
                                   Novo valor a cobrar
                                 </p>
