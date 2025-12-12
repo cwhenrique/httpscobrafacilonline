@@ -882,6 +882,12 @@ export default function Loans() {
       ? paymentData.selected_installments[0] + 1
       : targetInstallmentIndex + 1;
     
+    // Atualizar notes do loan com tracking de parcelas ANTES do registerPayment
+    // para que as notas já estejam salvas quando o fetchLoans for chamado
+    if (updatedNotes !== selectedLoan.notes) {
+      await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
+    }
+    
     await registerPayment({
       loan_id: selectedLoanId,
       amount: amount,
@@ -890,11 +896,6 @@ export default function Loans() {
       payment_date: paymentData.payment_date,
       notes: installmentNote,
     });
-    
-    // Atualizar notes do loan com tracking de parcelas (usando supabase diretamente para evitar notificação)
-    if (updatedNotes !== selectedLoan.notes) {
-      await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
-    }
     
     // Calculate new remaining balance after payment - usar remaining_balance do banco
     const newRemainingBalance = selectedLoan.remaining_balance - amount;
