@@ -1685,9 +1685,13 @@ export default function Loans() {
               if (!selectedLoan) return null;
               const numInstallments = selectedLoan.installments || 1;
               const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-              const interestPerInstallment = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+              
+              // Use total_interest from database (already correctly calculated based on interest_mode)
+              const totalInterest = selectedLoan.total_interest || 0;
+              const interestPerInstallment = totalInterest / numInstallments;
+              
               const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-              const totalToReceive = selectedLoan.principal_amount + (interestPerInstallment * numInstallments);
+              const totalToReceive = selectedLoan.principal_amount + totalInterest;
               const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
               
               return (
