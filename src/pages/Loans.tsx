@@ -17,17 +17,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
+import { generateContractReceipt, generatePaymentReceipt, generateOperationsReport, ContractReceiptData, PaymentReceiptData, LoanOperationData, OperationsReportData } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
@@ -1143,6 +1143,89 @@ export default function Loans() {
     setEditingLoanId(null);
   };
 
+  const handleGenerateOperationsReport = async () => {
+    try {
+      toast.loading('Gerando relatório...', { id: 'generating-report' });
+      
+      // Get payments for all loans
+      const loansWithPayments: LoanOperationData[] = await Promise.all(
+        loans.map(async (loan) => {
+          const paymentsResult = await getLoanPayments(loan.id);
+          const payments = paymentsResult.data || [];
+          const numInstallments = loan.installments || 1;
+          
+          // Calculate total interest based on interest_mode
+          let totalInterest = loan.total_interest || 0;
+          const totalToReceive = loan.principal_amount + totalInterest;
+          
+          // Determine status
+          let status = 'pending';
+          if (loan.status === 'paid' || (loan.total_paid || 0) >= totalToReceive) {
+            status = 'paid';
+          } else {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(loan.due_date + 'T12:00:00');
+            if (dueDate < today) {
+              status = 'overdue';
+            }
+          }
+          
+          return {
+            id: loan.id,
+            clientName: loan.client?.full_name || 'Cliente',
+            principalAmount: loan.principal_amount,
+            interestRate: loan.interest_rate,
+            interestMode: loan.interest_mode || 'on_total',
+            installments: numInstallments,
+            totalInterest: totalInterest,
+            totalToReceive: totalToReceive,
+            totalPaid: loan.total_paid || 0,
+            remainingBalance: totalToReceive - (loan.total_paid || 0),
+            status: status,
+            startDate: loan.start_date,
+            dueDate: loan.due_date,
+            paymentType: loan.payment_type,
+            payments: payments.map(p => ({
+              date: p.payment_date,
+              amount: p.amount,
+              principalPaid: p.principal_paid || 0,
+              interestPaid: p.interest_paid || 0,
+              notes: p.notes || undefined,
+            })),
+          };
+        })
+      );
+      
+      // Calculate summary
+      const summary = {
+        totalLoans: loans.length,
+        totalLent: loans.reduce((sum, l) => sum + l.principal_amount, 0),
+        totalInterest: loansWithPayments.reduce((sum, l) => sum + l.totalInterest, 0),
+        totalToReceive: loansWithPayments.reduce((sum, l) => sum + l.totalToReceive, 0),
+        totalReceived: loans.reduce((sum, l) => sum + (l.total_paid || 0), 0),
+        totalPending: loansWithPayments.reduce((sum, l) => sum + l.remainingBalance, 0),
+        paidLoans: loansWithPayments.filter(l => l.status === 'paid').length,
+        pendingLoans: loansWithPayments.filter(l => l.status === 'pending').length,
+        overdueLoans: loansWithPayments.filter(l => l.status === 'overdue').length,
+      };
+      
+      const reportData: OperationsReportData = {
+        companyName: profile?.company_name || '',
+        userName: profile?.full_name || '',
+        generatedAt: new Date().toISOString(),
+        loans: loansWithPayments,
+        summary: summary,
+      };
+      
+      await generateOperationsReport(reportData);
+      toast.success('Relatório gerado com sucesso!', { id: 'generating-report' });
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      toast.error('Erro ao gerar relatório', { id: 'generating-report' });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -1152,6 +1235,16 @@ export default function Loans() {
             <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus empréstimos</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
+              onClick={handleGenerateOperationsReport}
+              disabled={loans.length === 0}
+            >
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Baixar </span>PDF
+            </Button>
             <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
