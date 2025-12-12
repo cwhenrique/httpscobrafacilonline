@@ -113,6 +113,7 @@ export interface CreateVehicleData {
   first_due_date: string;
   notes?: string;
   custom_installments?: InstallmentDate[];
+  send_creation_notification?: boolean;
 }
 
 export interface UpdateVehicleData {
@@ -238,9 +239,10 @@ export function useVehicles() {
 
       if (paymentsError) throw paymentsError;
 
-      // Send WhatsApp notification
-      const userPhone = await getUserPhone(user.id);
-      if (userPhone) {
+      // Send WhatsApp notification - only if enabled (default: true)
+      if (data.send_creation_notification !== false) {
+        const userPhone = await getUserPhone(user.id);
+        if (userPhone) {
         const vehicleName = `${data.brand} ${data.model} ${data.year}`;
         const clientName = data.buyer_name || data.seller_name;
         const contractId = `VEI-${newVehicle.id.substring(0, 4).toUpperCase()}`;
@@ -272,7 +274,8 @@ export function useVehicles() {
         message += `━━━━━━━━━━━━━━━━━━━━━\n`;
         message += `_CobraFácil - Registro automático_`;
 
-        await sendWhatsAppNotification(userPhone, message);
+          await sendWhatsAppNotification(userPhone, message);
+        }
       }
 
       return newVehicle;

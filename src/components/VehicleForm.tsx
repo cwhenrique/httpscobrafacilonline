@@ -42,6 +42,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     installment_value: 0,
     first_due_date: '',
     notes: '',
+    send_creation_notification: true,
   });
 
   // Generate installment dates when relevant fields change
@@ -109,6 +110,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     await onSubmit({
       ...form,
       custom_installments: installmentDates.length > 0 ? installmentDates : undefined,
+      send_creation_notification: form.send_creation_notification,
     });
   };
 
@@ -370,6 +372,25 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           </div>
         </div>
       )}
+
+      {/* WhatsApp Notification Option */}
+      <div className="flex items-start gap-2 p-3 rounded-lg border border-border/50 bg-muted/30">
+        <input
+          type="checkbox"
+          id="send_creation_notification_vehicle"
+          checked={form.send_creation_notification}
+          onChange={(e) => setForm({ ...form, send_creation_notification: e.target.checked })}
+          className="mt-0.5 rounded border-input"
+        />
+        <div className="flex-1">
+          <label htmlFor="send_creation_notification_vehicle" className="text-sm font-medium cursor-pointer">
+            Receber notificação WhatsApp deste contrato
+          </label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Alertas de atraso e relatórios continuam sendo enviados normalmente
+          </p>
+        </div>
+      </div>
 
       <Button 
         onClick={handleSubmit} 

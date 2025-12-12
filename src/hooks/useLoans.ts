@@ -103,6 +103,7 @@ export function useLoans() {
     installment_dates?: string[];
     remaining_balance?: number;
     total_interest?: number;
+    send_creation_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -155,9 +156,10 @@ export function useLoans() {
     // Update client score after creating loan
     await updateClientScore(loan.client_id);
     
-    // Send WhatsApp notification for new loan
-    const phone = await getUserPhone(user.id);
-    if (phone && data) {
+    // Send WhatsApp notification for new loan - only if enabled (default: true)
+    if (loan.send_creation_notification !== false) {
+      const phone = await getUserPhone(user.id);
+      if (phone && data) {
       const clientName = (data.client as any)?.full_name || 'Cliente';
       const numInstallments = loan.installments || 1;
       
@@ -216,6 +218,7 @@ export function useLoans() {
       message += `_CobraFácil - Registro automático_`;
       
       await sendWhatsAppNotification(phone, message);
+      }
     }
     
     await fetchLoans();

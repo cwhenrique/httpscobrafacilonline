@@ -68,6 +68,7 @@ export interface CreateProductSaleData {
   first_due_date: string;
   notes?: string;
   installmentDates?: InstallmentDate[];
+  send_creation_notification?: boolean;
 }
 
 export interface UpdateProductSaleData {
@@ -161,15 +162,16 @@ export function useProductSales() {
 
       if (paymentsError) throw paymentsError;
 
-      // Send WhatsApp notification - fetch user phone first
-      try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('phone')
-          .eq('id', user.id)
-          .single();
+      // Send WhatsApp notification - only if enabled (default: true)
+      if (saleData.send_creation_notification !== false) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('phone')
+            .eq('id', user.id)
+            .single();
 
-        if (profile?.phone) {
+          if (profile?.phone) {
           const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
           const profit = saleData.total_amount - (saleData.cost_value || 0);
           const profitPercent = saleData.cost_value && saleData.cost_value > 0 ? (profit / saleData.cost_value * 100) : 0;
@@ -198,12 +200,13 @@ export function useProductSales() {
           message += `━━━━━━━━━━━━━━━━━━━━━\n`;
           message += `_CobraFácil - Registro automático_`;
           
-          await supabase.functions.invoke('send-whatsapp', {
-            body: { phone: profile.phone, message },
-          });
+            await supabase.functions.invoke('send-whatsapp', {
+              body: { phone: profile.phone, message },
+            });
+          }
+        } catch (err) {
+          console.error('Erro ao enviar WhatsApp:', err);
         }
-      } catch (err) {
-        console.error('Erro ao enviar WhatsApp:', err);
       }
 
       return sale;
