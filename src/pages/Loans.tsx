@@ -1042,11 +1042,17 @@ export default function Loans() {
         }
       }
       
+      // Fechar o diálogo primeiro para evitar problemas de estado
+      setIsRenegotiateDialogOpen(false);
+      setSelectedLoanId(null);
+      
       // Abrir comprovante após pagamento de juros
       handleGenerateLoanReceipt(loan, {
         amountPaid: interestPaid,
         remainingBalance: safeRemaining,
       });
+      
+      return; // Sair da função aqui, não executar o else
     } else {
       // Renegociação normal
       let notesText = renegotiateData.notes;
