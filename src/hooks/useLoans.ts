@@ -177,36 +177,39 @@ export function useLoans() {
       const totalToReceive = loan.principal_amount + totalInterest;
       const progressPercent = 0;
       
-      let message = `🏦 *Novo Empréstimo - ${contractId}*\n\n`;
+      let modalidade = 'Padrão';
+      if (loan.payment_type === 'daily') modalidade = 'Diário';
+      else if (loan.payment_type === 'weekly') modalidade = 'Semanal';
+      else if (loan.payment_type === 'installment') modalidade = 'Parcelado';
+      else if (loan.payment_type === 'single') modalidade = 'Único';
+      
+      let message = `🏦 *Resumo do Empréstimo - ${contractId}*\n\n`;
       message += `👤 Cliente: ${clientName}\n\n`;
       message += `💰 *Informações do Empréstimo:*\n`;
-      message += `• Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
-      message += `• Total a Receber: ${formatCurrency(totalToReceive)}\n`;
-      message += `• Taxa de Juros: ${loan.interest_rate}%\n`;
-      message += `• Data Início: ${formatDate(loan.start_date)}\n`;
+      message += `- Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
+      message += `- Valor Total: ${formatCurrency(totalToReceive)}\n`;
+      message += `- Taxa de Juros: ${loan.interest_rate}%\n`;
+      message += `- Data Início: ${formatDate(loan.start_date)}\n`;
+      message += `- Modalidade: ${modalidade}\n\n`;
       
       if (loan.payment_type === 'daily') {
         const dailyAmount = loan.total_interest || (loan.principal_amount / numInstallments);
         const totalToReceiveDaily = dailyAmount * numInstallments;
         const profit = totalToReceiveDaily - loan.principal_amount;
-        message += `• Modalidade: Diário\n\n`;
-        message += `📊 *Detalhes:*\n`;
-        message += `• Valor diário: ${formatCurrency(dailyAmount)}\n`;
-        message += `• Dias: ${numInstallments}\n`;
-        message += `• Lucro: ${formatCurrency(profit)}\n\n`;
-      } else if (loan.payment_type === 'weekly') {
-        message += `• Modalidade: Semanal\n\n`;
-        message += `📊 *Parcelas:* ${numInstallments}x de ${formatCurrency(totalPerInstallment)}\n\n`;
-      } else if (loan.payment_type === 'installment') {
-        message += `• Modalidade: Parcelado\n\n`;
-        message += `📊 *Parcelas:* ${numInstallments}x de ${formatCurrency(totalPerInstallment)}\n\n`;
-      } else {
-        message += `• Modalidade: Único\n\n`;
+        message += `📊 *Detalhes Diário:*\n`;
+        message += `- Valor diário: ${formatCurrency(dailyAmount)}\n`;
+        message += `- Dias: ${numInstallments}\n`;
+        message += `- Lucro: ${formatCurrency(profit)}\n\n`;
       }
       
+      message += `📊 *Status das Parcelas:*\n`;
+      message += `✅ Pagas: 0 de ${numInstallments} parcelas (${formatCurrency(0)})\n`;
+      message += `⏰ Pendentes: ${numInstallments} parcelas (${formatCurrency(totalToReceive)})\n`;
+      message += `📈 Progresso: 0% concluído\n\n`;
+      
       message += `📅 *Próxima Parcela:*\n`;
-      message += `• Vencimento: ${formatDate(loan.installment_dates?.[0] || loan.due_date)}\n`;
-      message += `• Valor: ${formatCurrency(totalPerInstallment)}\n\n`;
+      message += `- Vencimento: ${formatDate(loan.installment_dates?.[0] || loan.due_date)}\n`;
+      message += `- Valor: ${formatCurrency(totalPerInstallment)}\n\n`;
       
       message += `💰 Saldo Devedor: ${formatCurrency(totalToReceive)}\n\n`;
       message += `━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -303,8 +306,8 @@ export function useLoans() {
           message += `💰 Valor: *${formatCurrency(payment.amount)}*\n`;
           message += `📅 Data: *${formatDate(payment.payment_date)}*\n\n`;
           message += `📊 *Situação atual:*\n`;
-          message += `• Pago: ${formatCurrency(newTotalPaid)}\n`;
-          message += `• Restante: ${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}\n\n`;
+          message += `- Pago: ${formatCurrency(newTotalPaid)}\n`;
+          message += `- Restante: ${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}\n\n`;
           message += `_CobraFácil - Confirmação automática_`;
         }
         
