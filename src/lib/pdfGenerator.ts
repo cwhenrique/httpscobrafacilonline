@@ -864,6 +864,7 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
     // Loan card header
     const statusColor = loan.status === 'paid' ? { r: 34, g: 197, b: 94 } : 
                        loan.status === 'overdue' ? { r: 239, g: 68, b: 68 } : 
+                       loan.status === 'interest_only' ? { r: 168, g: 85, b: 247 } :
                        { r: 234, g: 179, b: 8 };
 
     doc.setFillColor(statusColor.r, statusColor.g, statusColor.b);
@@ -872,7 +873,9 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
     doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    const statusText = loan.status === 'paid' ? 'PAGO' : loan.status === 'overdue' ? 'EM ATRASO' : 'PENDENTE';
+    const statusText = loan.status === 'paid' ? 'PAGO' : 
+                      loan.status === 'overdue' ? 'EM ATRASO' : 
+                      loan.status === 'interest_only' ? 'SÓ JUROS' : 'PENDENTE';
     doc.text(`EMP-${loan.id.substring(0, 8).toUpperCase()} | ${loan.clientName} | ${statusText}`, margin + 3, currentY + 4);
 
     currentY += 8;
