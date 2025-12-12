@@ -1476,28 +1476,25 @@ export default function Loans() {
                 const dailyProfit = isDaily ? loan.interest_rate : 0;
                 const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
                 
-                // For regular loans - calculate based on interest_mode
+                // For regular loans - use stored total_interest (respects rounded installment values)
                 const principalPerInstallment = loan.principal_amount / numInstallments;
+                const storedTotalInterest = loan.total_interest || 0;
                 
-                // Calculate total interest based on interest_mode
+                // Calculate total interest based on interest_mode (only for comparison/fallback)
                 let calculatedTotalInterest = 0;
                 if (!isDaily) {
                   if (loan.interest_mode === 'on_total') {
-                    // Interest on total: rate applies once to the principal
                     calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
                   } else {
-                    // Per installment: rate applies per installment
                     calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
                   }
                 }
                 
-                const calculatedInterestPerInstallment = isDaily ? 0 : calculatedTotalInterest / numInstallments;
-                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                // Use stored total_interest as primary (it's the real rounded value), fallback to calculated
+                const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
                 
-                // Use the stored total_interest if it includes overdue penalty (when it's higher than calculated)
-                const storedTotalInterest = loan.total_interest || 0;
-                // If stored total_interest is higher, it means overdue penalty was applied
-                const effectiveTotalInterest = isDaily ? 0 : Math.max(calculatedTotalInterest, storedTotalInterest);
+                const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
+                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
                 
                 const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
                 
