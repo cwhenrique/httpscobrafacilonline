@@ -347,9 +347,9 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           </Button>
           
           {showInstallments && (
-            <Card className="mt-3">
+            <Card className="mt-3 border border-border">
               <CardContent className="p-3">
-                <div className="max-h-[200px] overflow-y-auto pr-2">
+                <div className="h-[200px] overflow-y-auto border rounded-md p-2 bg-muted/20">
                   <div className="space-y-2">
                     {installmentDates.map((inst, index) => {
                       const instDate = new Date(inst.due_date);
@@ -360,7 +360,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
                       return (
                         <div key={index} className={cn(
                           "flex items-center gap-2 p-2 rounded-lg",
-                          inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-muted/50"
+                          inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-background"
                         )}>
                           <span className={cn(
                             "font-semibold text-sm w-8",
