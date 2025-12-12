@@ -2424,7 +2424,7 @@ export default function Loans() {
                     </div>
                   </div>
                   
-                  <div className="space-y-4 border border-yellow-600 rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/30">
+                  <div className="space-y-4 border-2 border-primary rounded-lg p-4 bg-slate-900">
                     <div className="flex items-center space-x-2">
                       <Checkbox 
                         id="interest_only" 
@@ -2443,27 +2443,27 @@ export default function Loans() {
                           });
                         }}
                       />
-                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer text-yellow-900 dark:text-yellow-100">
+                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer text-primary">
                         Cliente pagou só os juros da parcela
                       </Label>
                     </div>
                     
                     {renegotiateData.interest_only_paid && (
                       <>
-                        <div className="bg-yellow-100 dark:bg-yellow-900/50 rounded-lg p-3 text-sm">
-                          <p className="text-yellow-900 dark:text-yellow-100">
-                            <strong>Resumo:</strong> Cliente paga <strong>{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
+                        <div className="bg-primary/20 rounded-lg p-3 text-sm border border-primary">
+                          <p className="text-white">
+                            <strong>Resumo:</strong> Cliente paga <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
                           </p>
-                          <p className="text-yellow-800 dark:text-yellow-200 mt-1">
+                          <p className="text-gray-300 mt-1">
                             {selectedLoan.payment_type === 'weekly' 
-                              ? <>Na próxima <strong>semana</strong>, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
-                              : <>No próximo <strong>mês</strong>, o valor a cobrar será: <strong>{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                              ? <>Na próxima <strong>semana</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                              : <>No próximo <strong>mês</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
                             }
                           </p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-yellow-900 dark:text-yellow-100">Valor Pago (Juros) (R$) *</Label>
+                            <Label className="text-gray-400 text-xs">Valor Pago (Juros) (R$) *</Label>
                             <Input 
                               type="number" 
                               step="0.01" 
@@ -2471,26 +2471,26 @@ export default function Loans() {
                               onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
                               placeholder="Ex: 100,00"
                               required={renegotiateData.interest_only_paid}
-                              className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
+                              className="bg-slate-800 text-white border-primary font-bold"
                             />
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Valor calculado automaticamente, editável</p>
+                            <p className="text-xs text-gray-500">Valor calculado automaticamente, editável</p>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-yellow-900 dark:text-yellow-100">Valor Total que Falta (R$)</Label>
+                            <Label className="text-gray-400 text-xs">Valor Total que Falta (R$)</Label>
                             <Input 
                               type="number" 
                               step="0.01" 
                               value={renegotiateData.remaining_amount} 
                               onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
                               placeholder="Valor restante"
-                              className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
+                              className="bg-slate-800 text-white border-primary font-bold"
                             />
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Só diminui se pagar mais que o juros</p>
+                            <p className="text-xs text-gray-500">Só diminui se pagar mais que o juros</p>
                           </div>
                         </div>
                         
                         {/* Taxa de Renovação */}
-                        <div className="border-t border-yellow-600/50 pt-4 mt-4">
+                        <div className="border-t border-primary/30 pt-4 mt-4">
                           <div className="flex items-center space-x-2 mb-3">
                             <Checkbox 
                               id="renewal_fee" 
@@ -2511,7 +2511,7 @@ export default function Loans() {
                                 });
                               }}
                             />
-                            <Label htmlFor="renewal_fee" className="text-sm font-medium cursor-pointer text-yellow-900 dark:text-yellow-100">
+                            <Label htmlFor="renewal_fee" className="text-sm font-medium cursor-pointer text-primary">
                               Aplicar taxa de renovação sobre o valor restante
                             </Label>
                           </div>
