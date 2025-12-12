@@ -173,48 +173,44 @@ export function useLoans() {
       const principalPerInstallment = loan.principal_amount / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallment;
       
-      let message = `✅ *Novo Empréstimo Registrado*\n\n`;
-      message += `👤 Cliente: *${clientName}*\n`;
-      message += `💰 Valor: *${formatCurrency(loan.principal_amount)}*\n`;
+      const contractId = `EMP-${data?.id?.substring(0, 4).toUpperCase() || '0000'}`;
+      const totalToReceive = loan.principal_amount + totalInterest;
+      const progressPercent = 0;
+      
+      let message = `🏦 *Novo Empréstimo - ${contractId}*\n\n`;
+      message += `👤 Cliente: ${clientName}\n\n`;
+      message += `💰 *Informações do Empréstimo:*\n`;
+      message += `• Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
+      message += `• Total a Receber: ${formatCurrency(totalToReceive)}\n`;
+      message += `• Taxa de Juros: ${loan.interest_rate}%\n`;
+      message += `• Data Início: ${formatDate(loan.start_date)}\n`;
       
       if (loan.payment_type === 'daily') {
-        // Daily payment loan - use total_interest which stores the daily installment amount
         const dailyAmount = loan.total_interest || (loan.principal_amount / numInstallments);
-        const totalToReceive = dailyAmount * numInstallments;
-        const profit = totalToReceive - loan.principal_amount;
-        const profitPercent = (profit / loan.principal_amount) * 100;
-        
-        message += `📆 Tipo: *Pagamento Diário*\n`;
-        message += `💵 Valor diário: *${formatCurrency(dailyAmount)}*\n`;
-        message += `📅 Dias de cobrança: *${numInstallments} dias*\n`;
-        message += `💰 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
-        message += `📈 Lucro: *${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)*\n\n`;
-        
-        if (loan.installment_dates && loan.installment_dates.length > 0) {
-          message += `*Datas selecionadas:*\n`;
-          loan.installment_dates.forEach((date, index) => {
-            message += `• Dia ${index + 1}: ${formatDate(date)}\n`;
-          });
-        }
-      } else if (loan.payment_type === 'weekly' && numInstallments > 1) {
-        message += `📊 Juros: *${loan.interest_rate}% por semana*\n`;
-        message += `📅 Semanas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
-        if (loan.installment_dates && loan.installment_dates.length > 0) {
-          message += `⏰ 1ª Semana: *${formatDate(loan.installment_dates[0])}*\n`;
-        }
-      } else if (loan.payment_type === 'installment' && numInstallments > 1) {
-        message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
-        message += `📅 Parcelas: *${numInstallments}x de ${formatCurrency(totalPerInstallment)}*\n`;
-        if (loan.installment_dates && loan.installment_dates.length > 0) {
-          message += `⏰ 1ª Parcela: *${formatDate(loan.installment_dates[0])}*\n`;
-        }
+        const totalToReceiveDaily = dailyAmount * numInstallments;
+        const profit = totalToReceiveDaily - loan.principal_amount;
+        message += `• Modalidade: Diário\n\n`;
+        message += `📊 *Detalhes:*\n`;
+        message += `• Valor diário: ${formatCurrency(dailyAmount)}\n`;
+        message += `• Dias: ${numInstallments}\n`;
+        message += `• Lucro: ${formatCurrency(profit)}\n\n`;
+      } else if (loan.payment_type === 'weekly') {
+        message += `• Modalidade: Semanal\n\n`;
+        message += `📊 *Parcelas:* ${numInstallments}x de ${formatCurrency(totalPerInstallment)}\n\n`;
+      } else if (loan.payment_type === 'installment') {
+        message += `• Modalidade: Parcelado\n\n`;
+        message += `📊 *Parcelas:* ${numInstallments}x de ${formatCurrency(totalPerInstallment)}\n\n`;
       } else {
-        message += `📊 Juros: *${loan.interest_rate}% por parcela*\n`;
-        message += `📅 Vencimento: *${formatDate(loan.due_date)}*\n`;
-        message += `💵 Total a receber: *${formatCurrency(loan.principal_amount + interestPerInstallment)}*\n`;
+        message += `• Modalidade: Único\n\n`;
       }
       
-      message += `\n_CobraFácil - Registro automático_`;
+      message += `📅 *Próxima Parcela:*\n`;
+      message += `• Vencimento: ${formatDate(loan.installment_dates?.[0] || loan.due_date)}\n`;
+      message += `• Valor: ${formatCurrency(totalPerInstallment)}\n\n`;
+      
+      message += `💰 Saldo Devedor: ${formatCurrency(totalToReceive)}\n\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `_CobraFácil - Registro automático_`;
       
       await sendWhatsAppNotification(phone, message);
     }

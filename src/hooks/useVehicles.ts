@@ -243,16 +243,34 @@ export function useVehicles() {
       if (userPhone) {
         const vehicleName = `${data.brand} ${data.model} ${data.year}`;
         const clientName = data.buyer_name || data.seller_name;
+        const contractId = `VEI-${newVehicle.id.substring(0, 4).toUpperCase()}`;
+        const profit = data.purchase_value - (data.cost_value || 0);
+        const profitPercent = data.cost_value && data.cost_value > 0 ? (profit / data.cost_value * 100) : 0;
         
-        const message = `🚗 *Novo Veículo Registrado*\n\n` +
-          `📋 *Veículo:* ${vehicleName}\n` +
-          `${data.plate ? `🔖 *Placa:* ${data.plate}\n` : ''}` +
-          `👤 *Cliente:* ${clientName}\n` +
-          `💰 *Valor Total:* ${formatCurrency(data.purchase_value)}\n` +
-          `${downPayment > 0 ? `💵 *Entrada:* ${formatCurrency(downPayment)}\n` : ''}` +
-          `📊 *Parcelas:* ${data.installments}x de ${formatCurrency(data.installment_value)}\n\n` +
-          `📅 *Datas das Parcelas:*\n${installmentsList.join('\n')}\n\n` +
-          `_CobraFácil - Registro automático_`;
+        let message = `🚗 *Novo Veículo - ${contractId}*\n\n`;
+        message += `👤 Cliente: ${clientName}\n\n`;
+        message += `💰 *Informações do Veículo:*\n`;
+        message += `• Veículo: ${vehicleName}\n`;
+        if (data.plate) message += `• Placa: ${data.plate}\n`;
+        message += `• Valor do Veículo: ${formatCurrency(data.purchase_value)}\n`;
+        if (data.cost_value && data.cost_value > 0) {
+          message += `• Custo Aquisição: ${formatCurrency(data.cost_value)}\n`;
+          message += `• Lucro Estimado: ${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)\n`;
+        }
+        message += `• Modalidade: Parcelado\n\n`;
+        
+        message += `📊 *Status das Parcelas:*\n`;
+        message += `✅ Pagas: 0 de ${data.installments} parcelas (${formatCurrency(downPayment)})\n`;
+        message += `⏰ Pendentes: ${data.installments} parcelas (${formatCurrency(remainingBalance)})\n`;
+        message += `📈 Progresso: 0% concluído\n\n`;
+        
+        message += `📅 *Próxima Parcela:*\n`;
+        message += `• Vencimento: ${formatDate(data.first_due_date)}\n`;
+        message += `• Valor: ${formatCurrency(data.installment_value)}\n\n`;
+        
+        message += `💰 Saldo Devedor: ${formatCurrency(remainingBalance)}\n\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `_CobraFácil - Registro automático_`;
 
         await sendWhatsAppNotification(userPhone, message);
       }

@@ -71,23 +71,25 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   }
 };
 
+const getContractId = (id: string): string => {
+  return `EMP-${id.substring(0, 4).toUpperCase()}`;
+};
+
 // Progressive alert days - only send on these specific days
 const ALERT_DAYS = [1, 7, 15, 30];
 
-const getAlertMessage = (daysOverdue: number, loansCount: number, loansList: string, totalAmount: number, userName: string): string => {
-  const greeting = userName ? ` ${userName}` : '';
-  const plural = loansCount > 1;
-  
-  if (daysOverdue === 1) {
-    return `⚠️ *Atenção: Atraso de 1 dia*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *1 dia de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nEntre em contato com seu${plural ? 's' : ''} cliente${plural ? 's' : ''} o quanto antes!\n\n_CobraFácil - Alerta automático_`;
-  } else if (daysOverdue === 7) {
-    return `🚨 *Alerta: 1 Semana de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *7 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nÉ importante cobrar esses valores!\n\n_CobraFácil - Alerta automático_`;
-  } else if (daysOverdue === 15) {
-    return `🔴 *Urgente: 15 Dias de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *15 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nConsidere tomar medidas mais firmes!\n\n_CobraFácil - Alerta automático_`;
-  } else if (daysOverdue === 30) {
-    return `🆘 *CRÍTICO: 30 Dias de Atraso*\n\nOlá${greeting}!\n\nVocê tem *${loansCount} cobrança${plural ? 's' : ''}* com *30 dias de atraso*:\n\n${loansList}\n\n💰 *Total pendente: ${formatCurrency(totalAmount)}*\n\nRecomendamos renegociar ou tomar medidas legais!\n\n_CobraFácil - Alerta automático_`;
-  }
-  return '';
+const getAlertEmoji = (daysOverdue: number): string => {
+  if (daysOverdue === 1) return '⚠️';
+  if (daysOverdue === 7) return '🚨';
+  if (daysOverdue === 15) return '🔴';
+  return '🆘';
+};
+
+const getAlertTitle = (daysOverdue: number): string => {
+  if (daysOverdue === 1) return 'Atenção: 1 dia de atraso';
+  if (daysOverdue === 7) return 'Alerta: 1 Semana de Atraso';
+  if (daysOverdue === 15) return 'Urgente: 15 Dias de Atraso';
+  return 'CRÍTICO: 30+ Dias de Atraso';
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -131,23 +133,28 @@ const handler = async (req: Request): Promise<Response> => {
     for (const loan of loans || []) {
       const client = loan.clients as { full_name: string; phone: string | null };
       
-      // Calculate next due date
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
+      
+      // Calculate interest based on mode
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      
+      const interestPerInstallment = totalInterest / numInstallments;
       const principalPerInstallment = loan.principal_amount / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallment;
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
       let nextDueDate: string | null = null;
-      let remainingAmount = 0;
 
       if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
         nextDueDate = installmentDates[paidInstallments];
-        remainingAmount = totalPerInstallment * (numInstallments - paidInstallments);
       } else {
         nextDueDate = loan.due_date;
-        remainingAmount = loan.remaining_balance + (loan.principal_amount * (loan.interest_rate / 100)) - (loan.total_paid || 0);
       }
 
       if (!nextDueDate) continue;
@@ -167,11 +174,18 @@ const handler = async (req: Request): Promise<Response> => {
         // Only send alert on specific days (1, 7, 15, 30)
         if (!ALERT_DAYS.includes(daysOverdue)) continue;
 
+        const totalToReceive = loan.principal_amount + totalInterest;
+        const remainingBalance = totalToReceive - (loan.total_paid || 0);
+
         const loanInfo = {
           ...loan,
           clientName: client.full_name,
           clientPhone: client.phone,
-          remainingAmount: remainingAmount > 0 ? remainingAmount : totalPerInstallment,
+          paidInstallments,
+          totalInstallments: numInstallments,
+          totalPaid: loan.total_paid || 0,
+          remainingBalance,
+          totalToReceive,
           dueDate: nextDueDate,
           daysOverdue,
         };
@@ -219,26 +233,46 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       for (const [alertDay, overdueLoans] of alertDaysMap) {
-        const loansList = overdueLoans.slice(0, 10).map(l => 
-          `• *${l.clientName}*: ${formatCurrency(l.remainingAmount)}`
-        ).join('\n');
+        const emoji = getAlertEmoji(alertDay);
+        const title = getAlertTitle(alertDay);
 
-        const totalAmount = overdueLoans.reduce((sum, l) => sum + l.remainingAmount, 0);
-        const moreLoans = overdueLoans.length > 10 ? `\n_... e mais ${overdueLoans.length - 10} empréstimo(s)_` : '';
+        for (const loan of overdueLoans) {
+          const contractId = getContractId(loan.id);
+          const progressPercent = Math.round((loan.paidInstallments / loan.totalInstallments) * 100);
 
-        const message = getAlertMessage(alertDay, overdueLoans.length, loansList + moreLoans, totalAmount, profile.full_name || '');
+          let message = `${emoji} *${title}*\n\n`;
+          message += `🏦 *Empréstimo - ${contractId}*\n\n`;
+          message += `👤 Cliente: ${loan.clientName}\n\n`;
+          message += `💰 *Informações do Empréstimo:*\n`;
+          message += `• Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
+          message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+          message += `• Taxa de Juros: ${loan.interest_rate}%\n\n`;
+          
+          message += `📊 *Status das Parcelas:*\n`;
+          message += `✅ Pagas: ${loan.paidInstallments} de ${loan.totalInstallments} (${formatCurrency(loan.totalPaid)})\n`;
+          message += `❌ Pendentes: ${loan.totalInstallments - loan.paidInstallments} (${formatCurrency(loan.remainingBalance)})\n`;
+          message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
+          
+          message += `⚠️ *PARCELA EM ATRASO:*\n`;
+          message += `• Venceu em: ${formatDate(new Date(loan.dueDate))}\n`;
+          message += `• Dias de atraso: *${alertDay}*\n\n`;
+          
+          message += `💰 Saldo Devedor: ${formatCurrency(loan.remainingBalance)}\n\n`;
+          message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+          message += `_CobraFácil - Entre em contato urgente!_`;
 
-        if (message) {
-          console.log(`Sending ${alertDay}-day overdue alert to user ${userId} (${overdueLoans.length} loans)`);
+          console.log(`Sending ${alertDay}-day overdue alert to user ${userId} for loan ${loan.id}`);
           
           const sent = await sendWhatsApp(profile.phone, message);
           if (sent) {
             sentCount++;
             notifications.push({
               user_id: userId,
-              title: `🚨 Atraso de ${alertDay} dia${alertDay > 1 ? 's' : ''}`,
-              message: `${overdueLoans.length} empréstimo(s) - Total: ${formatCurrency(totalAmount)}`,
+              title: `${emoji} Atraso ${alertDay}d - ${contractId}`,
+              message: `${loan.clientName}: ${formatCurrency(loan.remainingBalance)}`,
               type: 'warning',
+              loan_id: loan.id,
+              client_id: loan.client_id,
             });
           }
         }
