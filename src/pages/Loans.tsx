@@ -968,6 +968,16 @@ export default function Loans() {
         remaining_balance: safeRemaining, // Atualiza o saldo restante com o novo valor (inclui taxa de renovação se aplicada)
       });
       
+      // Validação visual do saldo atualizado
+      if (renegotiateData.renewal_fee_enabled) {
+        toast.success(
+          `Saldo atualizado: ${formatCurrency(safeRemaining)} (inclui taxa de renovação de ${renegotiateData.renewal_fee_percentage}%)`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(`Novo saldo a cobrar: ${formatCurrency(safeRemaining)}`, { duration: 4000 });
+      }
+      
       // Enviar notificação WhatsApp se marcado
       if (renegotiateData.send_interest_notification) {
         try {
