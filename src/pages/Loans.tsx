@@ -2023,7 +2023,7 @@ export default function Loans() {
                           onClick={() => openRenegotiateDialog(loan.id)}
                         >
                           <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                          <span className="hidden xs:inline">Pagamento do Juros</span><span className="xs:hidden">Juros</span>
+                          <span className="hidden xs:inline">Pagamento do Juros</span><span className="xs:hidden">Pagar Juros</span>
                         </Button>
                         <div className="flex gap-1.5 sm:gap-2">
                           <Button 
