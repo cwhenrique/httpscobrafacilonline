@@ -17,7 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ import { generateContractReceipt, generatePaymentReceipt, generateOperationsRepo
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+import LoansTutorial from '@/components/tutorials/LoansTutorial';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -152,6 +153,9 @@ export default function Loans() {
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
+  
+  // Tutorial state
+  const [tutorialRun, setTutorialRun] = useState(false);
 
   const handleCreateClientInline = async () => {
     if (!newClientData.full_name.trim()) {
@@ -1540,6 +1544,7 @@ export default function Loans() {
 
   return (
     <DashboardLayout>
+      <LoansTutorial run={tutorialRun} onFinish={() => setTutorialRun(false)} />
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
@@ -1548,9 +1553,18 @@ export default function Loans() {
           </div>
           <div className="flex gap-2">
             <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1.5 text-xs sm:text-sm"
+              onClick={() => setTutorialRun(true)}
+            >
+              <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Tutorial</span>
+            </Button>
+            <Button 
               variant="outline" 
               size="sm" 
-              className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
+              className="tutorial-download-report gap-1.5 sm:gap-2 text-xs sm:text-sm"
               onClick={handleGenerateOperationsReport}
               disabled={loans.length === 0}
             >
@@ -1560,7 +1574,7 @@ export default function Loans() {
             </Button>
             <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
+                <Button variant="outline" size="sm" className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
                 </Button>
               </DialogTrigger>
@@ -1664,7 +1678,7 @@ export default function Loans() {
             </Dialog>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
+                <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
               </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
@@ -2023,12 +2037,12 @@ export default function Loans() {
         </div>
 
         <div className="space-y-3 sm:space-y-4">
-          <div className="relative">
+          <div className="relative tutorial-search">
             <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
             <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
           </div>
 
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 tutorial-filters">
             <Button
               variant={statusFilter === 'all' ? 'default' : 'outline'}
               size="sm"
@@ -2282,7 +2296,7 @@ export default function Loans() {
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
-                  <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                  <Card key={loan.id} className={`tutorial-loan-card shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
                       <div className="flex items-start gap-3 sm:gap-4">
                         <div className="relative group flex-shrink-0">
@@ -2323,7 +2337,7 @@ export default function Loans() {
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
-                                className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                className={`tutorial-loan-receipt h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                 onClick={() => handleGenerateLoanReceipt(loan)}
                               >
                                 <FileText className="w-3 h-3 sm:mr-1" />
@@ -2441,7 +2455,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                            className={`tutorial-loan-payment flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                             onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
                           >
                             <CreditCard className="w-3 h-3 mr-1" />
@@ -2450,7 +2464,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`tutorial-loan-interest flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => openRenegotiateDialog(loan.id)}
                           >
                             <DollarSign className="w-3 h-3 mr-1" />
@@ -2459,7 +2473,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="icon" 
-                            className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`tutorial-loan-edit h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => openEditDialog(loan.id)}
                             title="Editar"
                           >
