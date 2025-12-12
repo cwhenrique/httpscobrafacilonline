@@ -681,10 +681,17 @@ export default function Loans() {
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
       
+      // Manter número de parcelas original e adicionar nova data no final
+      const currentInstallments = loan.installments || 1;
+      const currentDates = (loan.installment_dates as string[]) || [];
+      
+      // Adicionar a nova data de vencimento no final das datas existentes
+      const newInstallmentDates = [...currentDates, renegotiateData.promised_date];
+      
       await renegotiateLoan(selectedLoanId, {
         interest_rate: loan.interest_rate,
-        installments: 1,
-        installment_dates: [renegotiateData.promised_date],
+        installments: currentInstallments + 1, // Adiciona mais uma parcela
+        installment_dates: newInstallmentDates,
         due_date: renegotiateData.promised_date,
         notes: notesText,
       });
