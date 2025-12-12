@@ -859,16 +859,23 @@ export default function Loans() {
       }
     } else if (paymentData.payment_type === 'partial') {
       // Pagamento parcial - atualizar tracking da parcela selecionada
+      // Permite registrar valores maiores que a parcela (sem limitar)
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
-      const newPartialTotal = Math.min(accumulatedPaid + amount, targetInstallmentValue);
+      const newPartialTotal = accumulatedPaid + amount; // Sem Math.min para permitir valor maior
       
       // Remover tracking anterior desta parcela se existir
       updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
-      // Adicionar novo valor parcial
+      // Adicionar novo valor (pode ser maior que o valor original da parcela)
       updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${newPartialTotal.toFixed(2)}]`;
       
       const remaining = targetInstallmentValue - newPartialTotal;
-      installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
+      if (remaining > 0) {
+        installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
+      } else if (remaining < 0) {
+        installmentNote = `Pagamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Excedente: ${formatCurrency(Math.abs(remaining))}`;
+      } else {
+        installmentNote = `Parcela ${targetInstallmentIndex + 1}/${numInstallments} quitada`;
+      }
     }
     
     const installmentNumber = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
@@ -2513,13 +2520,14 @@ export default function Loans() {
                       const installmentValue = getInstallmentValue(index);
                       const paidAmount = partialPayments[index] || 0;
                       const remaining = installmentValue - paidAmount;
+                      const excess = paidAmount > installmentValue ? paidAmount - installmentValue : 0;
                       
-                      if (paidAmount >= installmentValue) {
-                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0 };
+                      if (paidAmount >= installmentValue * 0.99) {
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, excess };
                       } else if (paidAmount > 0) {
-                        return { isPaid: false, isPartial: true, paidAmount, remaining };
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0 };
                       }
-                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue };
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, excess: 0 };
                     };
                     
                     if (dates.length === 0) {
@@ -2602,10 +2610,22 @@ export default function Loans() {
                                         Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
                                       </span>
                                     )}
+                                    {status.isPaid && status.excess > 0 && (
+                                      <span className="text-xs text-green-600 dark:text-green-400">
+                                        Pago: {formatCurrency(status.paidAmount)} (Excedente: {formatCurrency(status.excess)})
+                                      </span>
+                                    )}
                                   </span>
                                   <span className="flex flex-col items-end gap-0.5">
                                     <span className="text-xs opacity-70">{formatDate(date)}</span>
-                                    <span>{status.isPartial ? formatCurrency(status.remaining) : formatCurrency(installmentValue)}</span>
+                                    <span>
+                                      {status.isPaid 
+                                        ? formatCurrency(status.paidAmount)
+                                        : status.isPartial 
+                                          ? formatCurrency(status.remaining) 
+                                          : formatCurrency(installmentValue)
+                                      }
+                                    </span>
                                   </span>
                                 </Button>
                               );
