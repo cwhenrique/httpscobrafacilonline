@@ -943,6 +943,9 @@ export default function Loans() {
         due_date: finalDueDate,
         notes: notesText,
       });
+      
+      // Abrir comprovante após pagamento de juros
+      handleGenerateLoanReceipt(loan);
     } else {
       // Renegociação normal
       let notesText = renegotiateData.notes;
