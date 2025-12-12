@@ -2517,13 +2517,13 @@ export default function Loans() {
                           </div>
                           
                           {renegotiateData.renewal_fee_enabled && (
-                            <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-4 space-y-3 border border-orange-400/50">
+                            <div className="bg-purple-500/10 dark:bg-purple-900/30 rounded-lg p-4 space-y-3 border border-purple-400/30">
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label className="text-orange-900 dark:text-orange-100">Taxa de Renovação (%)</Label>
+                                  <Label className="text-purple-900 dark:text-purple-100">Taxa de Renovação (%)</Label>
                                   <Input 
                                     type="number" 
-                                    step="1" 
+                                    step="0.01" 
                                     value={renegotiateData.renewal_fee_percentage} 
                                     onChange={(e) => {
                                       const percentage = parseFloat(e.target.value) || 0;
@@ -2539,16 +2539,30 @@ export default function Loans() {
                                       });
                                     }} 
                                     placeholder="Ex: 20"
-                                    className="bg-white dark:bg-zinc-800 border-orange-600"
+                                    className="bg-white dark:bg-zinc-800 border-purple-400"
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-orange-900 dark:text-orange-100">Valor do Acréscimo (R$)</Label>
+                                  <Label className="text-purple-900 dark:text-purple-100">Valor do Acréscimo (R$)</Label>
                                   <Input 
-                                    type="text" 
-                                    value={formatCurrency(parseFloat(renegotiateData.renewal_fee_amount) || 0)} 
-                                    disabled
-                                    className="bg-orange-50 dark:bg-orange-900/50 border-orange-600"
+                                    type="number" 
+                                    step="0.01"
+                                    value={renegotiateData.renewal_fee_amount} 
+                                    onChange={(e) => {
+                                      const feeAmount = parseFloat(e.target.value) || 0;
+                                      const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+                                      const percentage = remaining > 0 ? (feeAmount / remaining) * 100 : 0;
+                                      const newTotal = remaining + feeAmount;
+                                      
+                                      setRenegotiateData({ 
+                                        ...renegotiateData, 
+                                        renewal_fee_amount: e.target.value,
+                                        renewal_fee_percentage: percentage.toFixed(2),
+                                        new_remaining_with_fee: newTotal.toFixed(2)
+                                      });
+                                    }}
+                                    placeholder="Ex: 50,00"
+                                    className="bg-white dark:bg-zinc-800 border-purple-400"
                                   />
                                 </div>
                               </div>
