@@ -965,6 +965,7 @@ export default function Loans() {
         installment_dates: finalDates,
         due_date: finalDueDate,
         notes: notesText,
+        remaining_balance: safeRemaining, // Atualiza o saldo restante com o novo valor (inclui taxa de renovação se aplicada)
       });
       
       // Enviar notificação WhatsApp se marcado
