@@ -1836,18 +1836,18 @@ export default function Loans() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <h3 className="font-semibold text-sm sm:text-lg truncate max-w-[120px] sm:max-w-[180px] lg:max-w-[150px] xl:max-w-[200px]">{loan.client?.full_name}</h3>
+                            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
-                                className={`h-6 sm:h-7 text-[10px] sm:text-xs px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                 onClick={() => handleGenerateLoanReceipt(loan)}
                               >
-                                <FileText className="w-3 h-3 mr-1" />
-                                Comprovante
+                                <FileText className="w-3 h-3 sm:mr-1" />
+                                <span className="hidden sm:inline">Comprovante</span>
                               </Button>
-                              <Badge className={`text-[10px] sm:text-xs ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                              <Badge className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                                 {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                               </Badge>
                             </div>
