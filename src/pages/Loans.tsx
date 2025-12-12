@@ -1053,8 +1053,48 @@ export default function Loans() {
       });
       
       return; // Sair da função aqui, não executar o else
+    } else if (renegotiateData.renewal_fee_enabled) {
+      // Aplicar juros extra em parcela específica (sem pagamento de juros)
+      const numInstallments = loan.installments || 1;
+      const principalPerInstallment = loan.principal_amount / numInstallments;
+      const totalInterestLoan = loan.total_interest || 0;
+      const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
+      const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
+      
+      const paidInstallments = Math.floor((loan.total_paid || 0) / originalInstallmentValue);
+      const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
+        ? paidInstallments 
+        : parseInt(renegotiateData.renewal_fee_installment);
+      
+      // Calcular o novo valor da parcela específica = valor original + taxa
+      const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
+      const newInstallmentValue = originalInstallmentValue + feeAmount;
+      
+      // Calcular novo remaining_balance = atual + taxa
+      const newRemaining = loan.remaining_balance + feeAmount;
+      
+      // Atualizar notas com tag de renovação
+      let notesText = loan.notes || '';
+      // Remover tag anterior se existir
+      notesText = notesText.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+      notesText += `\nTaxa extra: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount}) na parcela ${targetInstallment + 1}`;
+      notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}]`;
+      
+      await renegotiateLoan(selectedLoanId, {
+        interest_rate: loan.interest_rate,
+        installments: loan.installments || 1,
+        installment_dates: (loan.installment_dates as string[]) || [],
+        due_date: loan.due_date,
+        notes: notesText,
+        remaining_balance: newRemaining,
+      });
+      
+      toast.success(
+        `Taxa extra de ${formatCurrency(feeAmount)} aplicada na parcela ${targetInstallment + 1}. Novo total: ${formatCurrency(newRemaining)}`,
+        { duration: 5000 }
+      );
     } else {
-      // Renegociação normal
+      // Renegociação normal (não usado atualmente)
       let notesText = renegotiateData.notes;
       if (renegotiateData.remaining_amount) {
         notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
@@ -1893,22 +1933,31 @@ export default function Loans() {
                 const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
                 const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
                 
-                const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
+                // Verificar se há taxa de renovação aplicada
+                const hasRenewalFee = loan.notes?.includes('[RENEWAL_FEE_INSTALLMENT:');
+                const renewalFeeMatch = hasRenewalFee ? loan.notes?.match(/\[RENEWAL_FEE_INSTALLMENT:\d+:([0-9.]+)\]/) : null;
+                const renewalFeeNewInstallmentValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[1]) : 0;
+                const renewalFeeAmount = renewalFeeNewInstallmentValue > 0 ? renewalFeeNewInstallmentValue - totalPerInstallment : 0;
                 
-                // Check if this is an interest-only payment and extract "Valor que falta" from notes
+                // Total a Receber base + taxa extra se existir
+                let totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
+                if (hasRenewalFee && renewalFeeAmount > 0) {
+                  totalToReceive += renewalFeeAmount;
+                }
+                
+                // Check if this is an interest-only payment
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 
-                // Para pagamentos só de juros, usar o remaining_balance salvo no banco
-                // O remaining_balance já foi atualizado com o valor editado pelo usuário
-                let remainingToReceive = isDaily 
-                  ? (loan.remaining_balance || 0) - (loan.total_paid || 0) 
-                  : totalToReceive - (loan.total_paid || 0);
-                
-                // Para interest-only payments, o remaining_balance representa o valor real que falta
-                // (já inclui alterações feitas pelo usuário no diálogo de renegociação)
-                if (isInterestOnlyPayment) {
-                  // Usar o remaining_balance diretamente pois é o valor mais atualizado
+                // Para empréstimos com taxa extra ou interest-only, usar remaining_balance do banco
+                // Caso contrário, calcular normalmente
+                let remainingToReceive: number;
+                if (hasRenewalFee || isInterestOnlyPayment) {
+                  // Usar o remaining_balance diretamente pois já inclui ajustes
                   remainingToReceive = loan.remaining_balance;
+                } else {
+                  remainingToReceive = isDaily 
+                    ? (loan.remaining_balance || 0) - (loan.total_paid || 0) 
+                    : totalToReceive - (loan.total_paid || 0);
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
