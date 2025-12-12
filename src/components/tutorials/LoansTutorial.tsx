@@ -1,172 +1,137 @@
 import Joyride, { CallBackProps, STATUS, Step, ACTIONS, EVENTS } from 'react-joyride';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 interface LoansTutorialProps {
   run: boolean;
   onFinish: () => void;
-  onOpenDialog: () => void;
-  onCloseDialog: () => void;
-  isDialogOpen: boolean;
+  stepIndex: number;
+  onStepChange: (index: number) => void;
 }
+
+// Define which steps require user action (no next button)
+const INTERACTIVE_STEP_INDICES = [0, 1, 2, 3, 4, 5, 6]; // Steps that need user action
 
 const TUTORIAL_STEPS: Step[] = [
   {
     target: '.tutorial-new-loan',
-    content: 'Para criar um novo empréstimo, clique neste botão. Vamos ver como funciona o formulário de criação!',
+    content: '👆 Clique neste botão para começar a criar um empréstimo!',
     title: '🆕 Passo 1: Novo Empréstimo',
     disableBeacon: true,
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-client',
-    content: 'Primeiro, selecione um cliente existente ou clique em "Cadastrar novo cliente" para criar um novo.',
+    content: '👆 Selecione um cliente da lista ou cadastre um novo para continuar.',
     title: '👤 Passo 2: Selecionar Cliente',
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-value',
-    content: 'Informe o valor que será emprestado ao cliente. Este é o valor principal do empréstimo.',
+    content: '📝 Digite o valor que será emprestado ao cliente e pressione TAB ou clique fora.',
     title: '💰 Passo 3: Valor do Empréstimo',
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-interest',
-    content: 'Defina a taxa de juros em percentual. Ex: 10% significa que o cliente pagará 10% a mais sobre o valor.',
+    content: '📝 Defina a taxa de juros em percentual (ex: 10%) e pressione TAB ou clique fora.',
     title: '📊 Passo 4: Taxa de Juros',
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-interest-mode',
-    content: '"Por Parcela" aplica juros em cada parcela. "Sobre o Total" aplica uma vez no valor total.',
+    content: '👆 Escolha como os juros serão aplicados: "Por Parcela" ou "Sobre o Total".',
     title: '⚙️ Passo 5: Modo de Juros',
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-payment-type',
-    content: 'Escolha a modalidade: Único (1 pagamento), Parcelado (mensal), Semanal ou Diário.',
+    content: '👆 Selecione a modalidade de pagamento: Único, Parcelado, Semanal ou Diário.',
     title: '📋 Passo 6: Modalidade',
     placement: 'bottom',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-dates',
-    content: 'Defina a data de início e vencimento. Para parcelados, você pode personalizar cada data.',
+    content: '📅 Defina a data de início do empréstimo.',
     title: '📅 Passo 7: Datas',
     placement: 'top',
+    hideFooter: true,
+    spotlightClicks: true,
   },
   {
     target: '.tutorial-form-notes',
-    content: 'Adicione observações opcionais sobre o empréstimo para referência futura.',
+    content: 'Adicione observações opcionais sobre o empréstimo. Este campo é opcional.',
     title: '📝 Passo 8: Observações',
     placement: 'top',
+    disableBeacon: true,
   },
   {
     target: '.tutorial-form-submit',
-    content: 'Após preencher todos os campos, clique em "Criar" para salvar o empréstimo!',
+    content: '✅ Quando terminar de preencher, clique em "Criar" para salvar o empréstimo! (Você pode cancelar se for apenas um teste)',
     title: '✅ Passo 9: Criar Empréstimo',
     placement: 'top',
+    disableBeacon: true,
   },
   {
     target: '.tutorial-search',
     content: 'Pesquise rapidamente por nome do cliente ou valor para encontrar empréstimos específicos.',
     title: '🔍 Buscar Empréstimos',
     placement: 'bottom',
+    disableBeacon: true,
   },
   {
     target: '.tutorial-filters',
     content: 'Filtre por status: Em Dia, Pagos, Atraso, Renegociados, Só Juros, Semanal ou Diário.',
     title: '📋 Filtros de Status',
     placement: 'bottom',
-  },
-  {
-    target: '.tutorial-loan-card',
-    content: 'Seus empréstimos aparecem como cards. Veja informações do cliente, valores, parcelas e status.',
-    title: '💳 Cards de Empréstimo',
-    placement: 'top',
-  },
-  {
-    target: '.tutorial-loan-payment',
-    content: 'Clique em "Pagar" para registrar pagamentos: parcelas individuais, múltiplas ou valores parciais.',
-    title: '💰 Registrar Pagamento',
-    placement: 'top',
-  },
-  {
-    target: '.tutorial-loan-interest',
-    content: 'Use "Pagar Juros" quando o cliente paga apenas juros ou para aplicar taxas extras.',
-    title: '💵 Pagamento de Juros',
-    placement: 'top',
-  },
-  {
-    target: '.tutorial-loan-receipt',
-    content: 'Gere comprovantes em PDF e envie via WhatsApp. Útil para confirmar pagamentos!',
-    title: '📄 Comprovante',
-    placement: 'left',
+    disableBeacon: true,
   },
 ];
 
-export default function LoansTutorial({ run, onFinish, onOpenDialog, onCloseDialog, isDialogOpen }: LoansTutorialProps) {
-  const [stepIndex, setStepIndex] = useState(0);
+export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }: LoansTutorialProps) {
   // Reset step index when tutorial starts
   useEffect(() => {
-    if (run) {
-      setStepIndex(0);
+    if (run && stepIndex === -1) {
+      onStepChange(0);
     }
-  }, [run]);
+  }, [run, stepIndex, onStepChange]);
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, action, index, type } = data;
     const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
 
     if (finishedStatuses.includes(status)) {
-      onCloseDialog();
       onFinish();
-      setStepIndex(0);
       return;
     }
 
-    // Handle step navigation
-    if (type === EVENTS.STEP_AFTER) {
+    // Handle navigation for non-interactive steps (steps with Next button)
+    if (type === EVENTS.STEP_AFTER && !INTERACTIVE_STEP_INDICES.includes(index)) {
       const nextIndex = index + (action === ACTIONS.PREV ? -1 : 1);
-      
-      // Step 0 -> 1: Open dialog before showing form fields
-      if (index === 0 && action === ACTIONS.NEXT) {
-        onOpenDialog();
-        // Wait for dialog to render
-        setTimeout(() => {
-          setStepIndex(nextIndex);
-        }, 300);
-        return;
+      onStepChange(nextIndex);
+    }
+    
+    // Handle going back on steps with buttons
+    if (type === EVENTS.STEP_AFTER && action === ACTIONS.PREV) {
+      const nextIndex = index - 1;
+      if (nextIndex >= 0) {
+        onStepChange(nextIndex);
       }
-      
-      // Step 8 -> 9: Close dialog when leaving form steps
-      if (index === 8 && action === ACTIONS.NEXT) {
-        onCloseDialog();
-        setTimeout(() => {
-          setStepIndex(nextIndex);
-        }, 300);
-        return;
-      }
-      
-      // Step 9 -> 8: Reopen dialog when going back to form
-      if (index === 9 && action === ACTIONS.PREV) {
-        onOpenDialog();
-        setTimeout(() => {
-          setStepIndex(nextIndex);
-        }, 300);
-        return;
-      }
-      
-      // Step 1 -> 0: Close dialog when going back
-      if (index === 1 && action === ACTIONS.PREV) {
-        onCloseDialog();
-        setTimeout(() => {
-          setStepIndex(nextIndex);
-        }, 300);
-        return;
-      }
-
-      setStepIndex(nextIndex);
     }
   };
+
+  if (stepIndex < 0) return null;
 
   return (
     <Joyride
@@ -179,6 +144,11 @@ export default function LoansTutorial({ run, onFinish, onOpenDialog, onCloseDial
       showProgress
       showSkipButton
       steps={TUTORIAL_STEPS}
+      disableOverlayClose
+      disableCloseOnEsc
+      floaterProps={{
+        disableAnimation: true,
+      }}
       locale={{
         back: 'Voltar',
         close: 'Fechar',
