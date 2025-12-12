@@ -755,13 +755,18 @@ export default function Loans() {
     // Interest per installment for auto-fill
     const interestPerInstallment = totalInterest / numInstallments;
     
-    // Total original do contrato (valor que o cliente ainda deve independente de juros pagos)
+    // Total original do contrato
     const totalToReceive = loan.principal_amount + totalInterest;
     
-    // Para o campo "Valor que falta", usar o total original do contrato
-    // Só diminui se o usuário editar manualmente ou se tiver pagamento de principal registrado
-    // Se já houve pagamento só de juros antes, manter o valor salvo nas notas (que é o total original)
-    let remainingForInterestOnly = totalToReceive;
+    // Total já pago (inclui parcelas + juros anteriores)
+    const totalPaid = loan.total_paid || 0;
+    
+    // Valor que realmente falta considerando pagamentos já feitos
+    const actualRemaining = totalToReceive - totalPaid;
+    
+    // Para "só juros": se já houve pagamento anterior de "só juros", usar o valor salvo
+    // Caso contrário, usar o remaining atual (que já considera parcelas pagas)
+    let remainingForInterestOnly = actualRemaining > 0 ? actualRemaining : 0;
     
     if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
       const match = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
@@ -773,9 +778,8 @@ export default function Loans() {
       }
     }
     
-    // Para renegociação normal, calcular o remaining considerando pagamentos
-    const totalPaid = loan.total_paid || 0;
-    const remainingForRenegotiation = totalToReceive - totalPaid;
+    // Para renegociação normal
+    const remainingForRenegotiation = actualRemaining > 0 ? actualRemaining : 0;
     
     setSelectedLoanId(loanId);
     const today = new Date();
