@@ -2006,11 +2006,11 @@ export default function Loans() {
                         </div>
                       )}
                       
-                      <div className={`flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                      <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <Button 
                           variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                           size="sm" 
-                          className={`flex-1 h-8 sm:h-9 text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                          className={`w-full h-8 sm:h-9 text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                           onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
                         >
                           <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
@@ -2018,30 +2018,32 @@ export default function Loans() {
                         </Button>
                         <Button 
                           variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                          size="icon" 
-                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                          onClick={() => openEditDialog(loan.id)}
-                          title="Editar Empréstimo"
-                        >
-                          <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </Button>
-                        <Button 
-                          variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                          size="icon" 
-                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                          size="sm" 
+                          className={`w-full h-8 sm:h-9 text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                           onClick={() => openRenegotiateDialog(loan.id)}
-                          title="Renegociar"
                         >
-                          <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                          <span className="hidden xs:inline">Pagamento do Juros</span><span className="xs:hidden">Juros</span>
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}`}
-                          onClick={() => setDeleteId(loan.id)}
-                        >
-                          <Trash2 className={`w-3 h-3 sm:w-4 sm:h-4 ${hasSpecialStyle ? '' : 'text-destructive'}`} />
-                        </Button>
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <Button 
+                            variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                            size="icon" 
+                            className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            onClick={() => openEditDialog(loan.id)}
+                            title="Editar Empréstimo"
+                          >
+                            <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={`h-8 w-8 sm:h-9 sm:w-9 ${hasSpecialStyle ? 'text-white/70 hover:text-white hover:bg-white/20' : ''}`}
+                            onClick={() => setDeleteId(loan.id)}
+                          >
+                            <Trash2 className={`w-3 h-3 sm:w-4 sm:h-4 ${hasSpecialStyle ? '' : 'text-destructive'}`} />
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
