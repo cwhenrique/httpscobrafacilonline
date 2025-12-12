@@ -201,7 +201,8 @@ export default function Loans() {
       newRate = (totalInterest / principal) * 100;
     }
     
-    if (newRate >= 0) {
+    // Permite qualquer taxa >= 0 (arredondamentos podem resultar em taxas baixas)
+    if (newRate >= 0 && isFinite(newRate)) {
       setFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
     }
   };
