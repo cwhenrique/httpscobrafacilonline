@@ -1842,19 +1842,19 @@ const [paymentData, setPaymentData] = useState({
                     <div className="grid grid-cols-3 gap-2">
                       <Button
                         type="button"
+                        variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installment_index: -1 })}
+                        className={`text-xs sm:text-sm ${paymentData.payment_type !== 'installment' ? 'border-2 border-primary' : ''}`}
+                      >
+                        Parcela
+                      </Button>
+                      <Button
+                        type="button"
                         variant={paymentData.payment_type === 'partial' ? 'default' : 'outline'}
                         onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installment_index: -1 })}
                         className="text-xs sm:text-sm"
                       >
                         Parcial
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installment_index: -1 })}
-                        className="text-xs sm:text-sm"
-                      >
-                        Parcela
                       </Button>
                       <Button
                         type="button"
