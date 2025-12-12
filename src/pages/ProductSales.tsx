@@ -1365,6 +1365,9 @@ export default function ProductSales() {
                           {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                           Parcelas
                         </Button>
+                        <Button size="icon" variant="outline" onClick={() => handleGenerateContractReceipt(contract)} title="Gerar Comprovante">
+                          <FileText className="w-4 h-4" />
+                        </Button>
                         <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}><Edit className="w-4 h-4" /></Button>
                         <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteContractId(contract.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
@@ -1497,6 +1500,9 @@ export default function ProductSales() {
                           <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleVehicleExpand(vehicle.id)}>
                             {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                             Parcelas
+                          </Button>
+                          <Button size="icon" variant="outline" onClick={() => handleGenerateVehicleReceipt(vehicle)} title="Gerar Comprovante">
+                            <FileText className="w-4 h-4" />
                           </Button>
                           <Button size="icon" variant="outline" onClick={() => openEditVehicleDialog(vehicle)}><Edit className="w-4 h-4" /></Button>
                           <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteVehicleId(vehicle.id)}><Trash2 className="w-4 h-4" /></Button>
