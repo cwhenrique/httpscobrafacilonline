@@ -169,13 +169,21 @@ export default function Loans() {
   const [installmentValue, setInstallmentValue] = useState('');
   const [isManuallyEditingInstallment, setIsManuallyEditingInstallment] = useState(false);
   
+  // Store reference to interest rate for recalculation (avoid dependency loop)
+  const interestRateRef = useRef(formData.interest_rate);
+  useEffect(() => {
+    if (!isManuallyEditingInstallment) {
+      interestRateRef.current = formData.interest_rate;
+    }
+  }, [formData.interest_rate, isManuallyEditingInstallment]);
+  
   // Recalcular valor da parcela quando principal, parcelas ou modo mudam (apenas se não estiver editando manualmente)
   useEffect(() => {
     if (isManuallyEditingInstallment) return;
     
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && formData.principal_amount && formData.interest_rate && formData.installments) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && formData.principal_amount && interestRateRef.current && formData.installments) {
       const principal = parseFloat(formData.principal_amount);
-      const rate = parseFloat(formData.interest_rate);
+      const rate = parseFloat(interestRateRef.current);
       const numInstallments = parseInt(formData.installments) || 1;
       const totalInterest = formData.interest_mode === 'per_installment'
         ? principal * (rate / 100) * numInstallments
