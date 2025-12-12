@@ -1420,14 +1420,28 @@ export default function Loans() {
                 const effectiveTotalInterest = isDaily ? 0 : Math.max(calculatedTotalInterest, storedTotalInterest);
                 
                 const totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
-                const remainingToReceive = isDaily ? (loan.remaining_balance || 0) - (loan.total_paid || 0) : totalToReceive - (loan.total_paid || 0);
+                
+                // Check if this is an interest-only payment and extract "Valor que falta" from notes
+                const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+                let remainingToReceive = isDaily ? (loan.remaining_balance || 0) - (loan.total_paid || 0) : totalToReceive - (loan.total_paid || 0);
+                
+                // For interest-only payments, use the stored "Valor que falta" from notes
+                if (isInterestOnlyPayment && loan.notes) {
+                  const valorQueFaltaMatch = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
+                  if (valorQueFaltaMatch) {
+                    const storedRemainingValue = parseFloat(valorQueFaltaMatch[1].replace('.', '').replace(',', '.'));
+                    if (!isNaN(storedRemainingValue) && storedRemainingValue > 0) {
+                      remainingToReceive = storedRemainingValue;
+                    }
+                  }
+                }
+                
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
                 
                 // Check if overdue penalty was applied (stored interest is higher than calculated)
                 const hasAppliedOverduePenalty = !isDaily && storedTotalInterest > calculatedTotalInterest;
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-                const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 const isRenegotiated = loan.notes?.includes('Valor prometido') && !isInterestOnlyPayment;
                 const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
                 
