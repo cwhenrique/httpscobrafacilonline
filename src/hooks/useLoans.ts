@@ -359,6 +359,7 @@ export function useLoans() {
     installment_dates: string[];
     due_date: string;
     notes?: string;
+    remaining_balance?: number;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -369,16 +370,23 @@ export function useLoans() {
       .eq('id', id)
       .single();
 
+    const updatePayload: Record<string, any> = {
+      interest_rate: data.interest_rate,
+      installments: data.installments,
+      installment_dates: data.installment_dates,
+      due_date: data.due_date,
+      notes: data.notes,
+      status: 'pending',
+    };
+
+    // Se remaining_balance foi passado, atualizar também
+    if (data.remaining_balance !== undefined) {
+      updatePayload.remaining_balance = data.remaining_balance;
+    }
+
     const { error } = await supabase
       .from('loans')
-      .update({
-        interest_rate: data.interest_rate,
-        installments: data.installments,
-        installment_dates: data.installment_dates,
-        due_date: data.due_date,
-        notes: data.notes,
-        status: 'pending',
-      })
+      .update(updatePayload)
       .eq('id', id);
 
     if (error) {
