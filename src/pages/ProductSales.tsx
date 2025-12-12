@@ -1282,10 +1282,31 @@ export default function ProductSales() {
                               <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
                             </div>
                           )}
+                          {(vehicle.cost_value || 0) > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-muted-foreground">Custo</span>
+                              <span className="font-medium">{formatCurrency(vehicle.cost_value || 0)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Valor total</span>
+                            <span className="text-sm text-muted-foreground">Valor venda</span>
                             <span className="font-bold">{formatCurrency(vehicle.purchase_value)}</span>
                           </div>
+                          {(vehicle.cost_value || 0) > 0 && (
+                            <div className={cn("flex justify-between items-center p-2 rounded-lg", 
+                              vehicle.purchase_value - (vehicle.cost_value || 0) >= 0 ? "bg-emerald-500/10" : "bg-destructive/10"
+                            )}>
+                              <span className="text-sm text-muted-foreground">Lucro</span>
+                              <span className={cn("font-bold", 
+                                vehicle.purchase_value - (vehicle.cost_value || 0) >= 0 ? "text-emerald-500" : "text-destructive"
+                              )}>
+                                {formatCurrency(vehicle.purchase_value - (vehicle.cost_value || 0))}
+                                <span className="ml-1 text-xs font-normal">
+                                  ({(vehicle.cost_value || 0) > 0 ? (((vehicle.purchase_value - (vehicle.cost_value || 0)) / (vehicle.cost_value || 1)) * 100).toFixed(1) : 0}%)
+                                </span>
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center p-2 rounded-lg bg-primary/10">
                             <span className="text-sm text-muted-foreground">Recebido</span>
                             <span className="font-bold text-primary">{formatCurrency(vehicle.total_paid)}</span>

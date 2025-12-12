@@ -35,6 +35,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     buyer_rg: '',
     buyer_address: '',
     purchase_date: '',
+    cost_value: 0,
     purchase_value: 0,
     down_payment: 0,
     installments: 12,
@@ -228,9 +229,28 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
             <Input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Valor total (R$) *</Label>
-            <Input type="number" step="0.01" min="0" value={form.purchase_value || ''} onChange={(e) => handlePurchaseValueChange(parseFloat(e.target.value) || 0)} />
+            <Label>Custo de aquisição (R$)</Label>
+            <Input type="number" step="0.01" min="0" placeholder="Quanto você pagou" value={form.cost_value || ''} onChange={(e) => setForm({ ...form, cost_value: parseFloat(e.target.value) || 0 })} />
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="space-y-2">
+            <Label>Valor de venda (R$) *</Label>
+            <Input type="number" step="0.01" min="0" placeholder="Quanto está vendendo" value={form.purchase_value || ''} onChange={(e) => handlePurchaseValueChange(parseFloat(e.target.value) || 0)} />
+          </div>
+          {form.cost_value > 0 && form.purchase_value > 0 && (
+            <div className="space-y-2">
+              <Label>Lucro estimado</Label>
+              <div className={cn("h-10 px-3 py-2 rounded-md border flex items-center font-bold", 
+                form.purchase_value - form.cost_value >= 0 ? "bg-primary/10 text-primary border-primary/30" : "bg-destructive/10 text-destructive border-destructive/30"
+              )}>
+                R$ {(form.purchase_value - form.cost_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <span className="ml-2 text-xs font-normal">
+                  ({form.cost_value > 0 ? (((form.purchase_value - form.cost_value) / form.cost_value) * 100).toFixed(1) : 0}%)
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -318,10 +338,24 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
       {form.purchase_value > 0 && (
         <div className={cn("p-3 rounded-lg", bgColor)}>
           <p className="text-sm text-muted-foreground">Resumo:</p>
+          {form.cost_value > 0 && (
+            <div className="flex justify-between mt-1">
+              <span>Custo:</span>
+              <span className="font-semibold">R$ {form.cost_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          )}
           <div className="flex justify-between mt-1">
-            <span>Valor total:</span>
+            <span>Valor de venda:</span>
             <span className="font-bold">R$ {form.purchase_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
+          {form.cost_value > 0 && (
+            <div className={cn("flex justify-between mt-1 p-2 rounded", form.purchase_value - form.cost_value >= 0 ? "bg-primary/20" : "bg-destructive/20")}>
+              <span>Lucro:</span>
+              <span className={cn("font-bold", form.purchase_value - form.cost_value >= 0 ? "text-primary" : "text-destructive")}>
+                R$ {(form.purchase_value - form.cost_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({form.cost_value > 0 ? (((form.purchase_value - form.cost_value) / form.cost_value) * 100).toFixed(1) : 0}%)
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Entrada:</span>
             <span className="font-semibold">R$ {(form.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
