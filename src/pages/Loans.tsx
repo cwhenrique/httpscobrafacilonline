@@ -1238,16 +1238,10 @@ export default function Loans() {
       const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
       const newInstallmentValue = remainingOnTarget + feeAmount;
       
-      // Calcular novo remaining baseado no valor restante real de todas as parcelas + taxa
-      let totalRemainingFromInstallments = 0;
-      for (let i = 0; i < numInstallments; i++) {
-        const paid = partialPayments[i] || 0;
-        const remaining = originalInstallmentValue - paid;
-        if (remaining > 0) {
-          totalRemainingFromInstallments += remaining;
-        }
-      }
-      const newRemaining = totalRemainingFromInstallments + feeAmount;
+      // O remaining_balance do banco já está correto com o valor que falta pagar
+      // Precisamos apenas adicionar a taxa extra
+      // O remaining_balance já considera os pagamentos parciais e totais feitos
+      const newRemaining = loan.remaining_balance + feeAmount;
       
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
