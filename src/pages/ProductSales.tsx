@@ -1410,45 +1410,47 @@ export default function ProductSales() {
                         </Button>
 
                         {isExpanded && (
-                          <div className="mt-4 pt-4 border-t space-y-2">
-                            {salePayments.map((payment) => {
-                              const isPaid = payment.status === 'paid';
-                              const isOverdue = !isPaid && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date));
-                              const isDueToday = !isPaid && isToday(parseISO(payment.due_date));
-
-                              return (
-                                <div
-                                  key={payment.id}
-                                  className={cn(
-                                    "flex items-center justify-between p-3 rounded-lg",
-                                    isPaid && "bg-primary/10",
-                                    isOverdue && "bg-destructive/10",
-                                    isDueToday && "bg-yellow-500/10",
-                                    !isPaid && !isOverdue && !isDueToday && "bg-muted/50"
-                                  )}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="text-xs">{payment.installment_number}/{sale.installments}</Badge>
-                                    <div>
-                                      <p className="font-medium text-sm">{formatCurrency(payment.amount)}</p>
-                                      <p className="text-xs text-muted-foreground">Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                          <div className="mt-4 pt-4 border-t">
+                            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+                              {salePayments.map((payment) => {
+                                const isPaid = payment.status === 'paid';
+                                const isOverdue = !isPaid && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date));
+                                const isDueToday = !isPaid && isToday(parseISO(payment.due_date));
+        
+                                return (
+                                  <div
+                                    key={payment.id}
+                                    className={cn(
+                                      "flex items-center justify-between p-3 rounded-lg",
+                                      isPaid && "bg-primary/10",
+                                      isOverdue && "bg-destructive/10",
+                                      isDueToday && "bg-yellow-500/10",
+                                      !isPaid && !isOverdue && !isDueToday && "bg-muted/50"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Badge variant="outline" className="text-xs">{payment.installment_number}/{sale.installments}</Badge>
+                                      <div>
+                                        <p className="font-medium text-sm">{formatCurrency(payment.amount)}</p>
+                                        <p className="text-xs text-muted-foreground">Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {getStatusBadge(payment.status, payment.due_date)}
+                                      {!isPaid && (
+                                        <Button size="sm" className="gap-1" onClick={() => openPaymentDialog(payment)} disabled={markSalePaymentAsPaid.isPending}>
+                                          <Banknote className="w-3 h-3" />
+                                          Registrar
+                                        </Button>
+                                      )}
+                                      {isPaid && payment.paid_date && (
+                                        <span className="text-xs text-muted-foreground">Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    {getStatusBadge(payment.status, payment.due_date)}
-                                    {!isPaid && (
-                                      <Button size="sm" className="gap-1" onClick={() => openPaymentDialog(payment)} disabled={markSalePaymentAsPaid.isPending}>
-                                        <Banknote className="w-3 h-3" />
-                                        Registrar
-                                      </Button>
-                                    )}
-                                    {isPaid && payment.paid_date && (
-                                      <span className="text-xs text-muted-foreground">Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </CardContent>
