@@ -51,8 +51,10 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   const interestPerInstallment = totalInterest / numInstallments;
   const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
   
-  // Verificar taxa de renovação
-  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+  // Verificar taxa de renovação (suporta formato novo e antigo)
+  // Novo: [RENEWAL_FEE_INSTALLMENT:index:newValue:feeAmount]
+  // Antigo: [RENEWAL_FEE_INSTALLMENT:index:newValue]
+  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
   const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
   const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
   
@@ -764,7 +766,8 @@ export default function Loans() {
     const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
     
     // Verificar se há taxa de renovação aplicada em uma parcela específica
-    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+    // Suporta formato novo e antigo
+    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
     
@@ -1108,7 +1111,7 @@ export default function Loans() {
         const newInstallmentValue = originalInstallmentValue + feeAmount;
         
         notesText += `\nTaxa de renovação: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount})`;
-        notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}]`;
+        notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}:${feeAmount.toFixed(2)}]`;
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
@@ -1251,7 +1254,8 @@ export default function Loans() {
       // IMPORTANTE: Limpar o tracking de pagamento parcial desta parcela, pois o novo valor já considera isso
       notesText = notesText.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallment}:[0-9.]+\\]`, 'g'), '');
       notesText += `\nTaxa extra: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount}) na parcela ${targetInstallment + 1}`;
-      notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}]`;
+      // Armazenar: índice da parcela, novo valor da parcela, e a taxa real aplicada
+      notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}:${feeAmount.toFixed(2)}]`;
       
       await renegotiateLoan(selectedLoanId, {
         interest_rate: loan.interest_rate,
@@ -2107,10 +2111,21 @@ export default function Loans() {
                 const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
                 
                 // Verificar se há taxa de renovação aplicada
+                // Formato novo: [RENEWAL_FEE_INSTALLMENT:index:newValue:feeAmount]
+                // Formato antigo: [RENEWAL_FEE_INSTALLMENT:index:newValue]
                 const hasRenewalFee = loan.notes?.includes('[RENEWAL_FEE_INSTALLMENT:');
-                const renewalFeeMatch = hasRenewalFee ? loan.notes?.match(/\[RENEWAL_FEE_INSTALLMENT:\d+:([0-9.]+)\]/) : null;
-                const renewalFeeNewInstallmentValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[1]) : 0;
-                const renewalFeeAmount = renewalFeeNewInstallmentValue > 0 ? renewalFeeNewInstallmentValue - totalPerInstallment : 0;
+                const renewalFeeMatchNew = hasRenewalFee ? loan.notes?.match(/\[RENEWAL_FEE_INSTALLMENT:\d+:([0-9.]+):([0-9.]+)\]/) : null;
+                const renewalFeeMatchOld = hasRenewalFee && !renewalFeeMatchNew ? loan.notes?.match(/\[RENEWAL_FEE_INSTALLMENT:\d+:([0-9.]+)\]/) : null;
+                
+                let renewalFeeAmount = 0;
+                if (renewalFeeMatchNew) {
+                  // Novo formato: usar a taxa real armazenada
+                  renewalFeeAmount = parseFloat(renewalFeeMatchNew[2]);
+                } else if (renewalFeeMatchOld) {
+                  // Formato antigo: calcular diferença (fallback)
+                  const renewalFeeNewInstallmentValue = parseFloat(renewalFeeMatchOld[1]);
+                  renewalFeeAmount = renewalFeeNewInstallmentValue > 0 ? renewalFeeNewInstallmentValue - totalPerInstallment : 0;
+                }
                 
                 // Total a Receber base + taxa extra se existir
                 let totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
@@ -2516,7 +2531,7 @@ export default function Loans() {
                     const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
                     
                     // Verificar se há taxa de renovação aplicada em uma parcela específica
-                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
                     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
                     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
 
@@ -2698,7 +2713,7 @@ export default function Loans() {
                     const partialPayments = getPartialPaymentsFromNotes(selectedLoan.notes);
                     
                     // Verificar taxa de renovação
-                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
                     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
                     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
                     
@@ -2850,8 +2865,9 @@ export default function Loans() {
               const totalInterest = selectedLoan.total_interest || 0;
               const interestPerInstallmentCalc = totalInterest / numInstallments;
               const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
-              // Usar o remaining_balance real do empréstimo, não o do formulário
-              const actualRemaining = selectedLoan.remaining_balance;
+              // Calcular o valor que realmente falta (principal + juros total - total pago)
+              const totalToReceive = selectedLoan.principal_amount + totalInterest;
+              const actualRemaining = totalToReceive - (selectedLoan.total_paid || 0);
               
               // Função helper para extrair pagamentos parciais do notes
               const getPartialPayments = (notes: string | null): Record<number, number> => {
@@ -2896,7 +2912,7 @@ export default function Loans() {
                       <div>
                         <p className="font-semibold">{selectedLoan.client?.full_name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Saldo devedor: {formatCurrency(selectedLoan.remaining_balance)}
+                          Saldo devedor: {formatCurrency(actualRemaining)}
                         </p>
                         {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
                           <p className="text-xs text-muted-foreground">
