@@ -193,10 +193,33 @@ export default function Loans() {
     }
   }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type, isManuallyEditingInstallment]);
   
-  // Reset manual editing flag when key params change (but not interest_rate)
+  // Reset manual editing flag quando dados principais mudam (mas não quando só a taxa muda)
   useEffect(() => {
     setIsManuallyEditingInstallment(false);
   }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type]);
+  
+  // Calcula o "Juros Total" exibido no formulário, priorizando o valor da parcela arredondada
+  const getTotalInterestDisplay = () => {
+    if (!formData.principal_amount) return 'R$ 0,00';
+    const principal = parseFloat(formData.principal_amount);
+    const numInstallments = parseInt(formData.installments || '1');
+    let totalInterest: number | null = null;
+
+    // Se o usuário editou o valor da parcela, usamos ele como base
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentValue) {
+      const perInstallment = parseFloat(installmentValue);
+      if (!perInstallment) return 'R$ 0,00';
+      totalInterest = perInstallment * numInstallments - principal;
+    } else if (formData.interest_rate) {
+      const rate = parseFloat(formData.interest_rate);
+      totalInterest = formData.interest_mode === 'per_installment'
+        ? principal * (rate / 100) * numInstallments
+        : principal * (rate / 100);
+    }
+
+    if (totalInterest === null || !isFinite(totalInterest)) return 'R$ 0,00';
+    return formatCurrency(totalInterest);
+  };
   
   // Handler para quando o usuário edita o valor da parcela
   const handleInstallmentValueChange = (value: string) => {
@@ -224,7 +247,7 @@ export default function Loans() {
     }
   };
 
-const [paymentData, setPaymentData] = useState({
+  const [paymentData, setPaymentData] = useState({
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
@@ -1239,12 +1262,7 @@ const [paymentData, setPaymentData] = useState({
                         <Input 
                           type="text" 
                           readOnly 
-                          value={formData.principal_amount && formData.interest_rate
-                            ? formData.interest_mode === 'per_installment'
-                              ? formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100) * parseInt(formData.installments || '1'))
-                              : formatCurrency(parseFloat(formData.principal_amount) * (parseFloat(formData.interest_rate) / 100))
-                            : 'R$ 0,00'
-                          } 
+                          value={getTotalInterestDisplay()} 
                           className="bg-muted h-9 sm:h-10 text-sm"
                         />
                       </div>
