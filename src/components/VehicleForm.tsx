@@ -19,6 +19,7 @@ interface VehicleFormProps {
 export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps) {
   const [showInstallments, setShowInstallments] = useState(false);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
+  const [isHistorical, setIsHistorical] = useState(false);
   
   const [form, setForm] = useState({
     brand: '',
@@ -83,6 +84,24 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
       return updated;
     });
   };
+  
+  const toggleInstallmentPaid = (index: number) => {
+    setInstallmentDates(prev => 
+      prev.map((item, i) => i === index ? { ...item, isPaid: !item.isPaid } : item)
+    );
+  };
+  
+  // Check if there are past installments
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const hasPastInstallments = installmentDates.some(inst => {
+    const instDate = new Date(inst.due_date);
+    instDate.setHours(0, 0, 0, 0);
+    return instDate < today;
+  });
+  
+  const paidHistoricalCount = installmentDates.filter(inst => inst.isPaid).length;
+  const paidHistoricalAmount = installmentDates.filter(inst => inst.isPaid).reduce((sum, inst) => sum + inst.amount, 0);
 
   const handlePurchaseValueChange = (value: number) => {
     const downPayment = form.down_payment || 0;
@@ -111,6 +130,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
       ...form,
       custom_installments: installmentDates.length > 0 ? installmentDates : undefined,
       send_creation_notification: form.send_creation_notification,
+      is_historical: isHistorical,
     });
   };
 
@@ -279,6 +299,37 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
         </div>
       </div>
 
+      {/* Historical Contract Checkbox */}
+      {hasPastInstallments && installmentDates.length > 0 && (
+        <div className="p-3 rounded-lg border border-amber-500/50 bg-amber-500/10 space-y-3">
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="is_historical_vehicle"
+              checked={isHistorical}
+              onChange={(e) => setIsHistorical(e.target.checked)}
+              className="mt-0.5 rounded border-input"
+            />
+            <div className="flex-1">
+              <label htmlFor="is_historical_vehicle" className="text-sm font-medium cursor-pointer text-amber-600">
+                É uma venda antiga que está registrando na plataforma?
+              </label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Marque as parcelas que já foram pagas antes de registrar na plataforma
+              </p>
+            </div>
+          </div>
+          
+          {isHistorical && paidHistoricalCount > 0 && (
+            <div className="p-2 rounded bg-primary/10 border border-primary/30">
+              <p className="text-sm text-primary font-medium">
+                {paidHistoricalCount} parcela(s) marcada(s) como paga(s) = R$ {paidHistoricalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Installments List */}
       {installmentDates.length > 0 && (
         <div className="border-t pt-4">
@@ -300,24 +351,48 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
               <CardContent className="p-3">
                 <ScrollArea className="h-[200px] pr-4">
                   <div className="space-y-2">
-                    {installmentDates.map((inst, index) => (
-                      <div key={index} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                        <span className="font-semibold text-sm w-8">{inst.installment_number}ª</span>
-                        <Input
-                          type="date"
-                          value={inst.due_date}
-                          onChange={(e) => updateInstallmentDate(index, 'due_date', e.target.value)}
-                          className="flex-1 h-8 text-sm"
-                        />
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">R$</span>
+                    {installmentDates.map((inst, index) => {
+                      const instDate = new Date(inst.due_date);
+                      instDate.setHours(0, 0, 0, 0);
+                      const isPastDate = instDate < today;
+                      const showPaidCheckbox = isHistorical && isPastDate;
+                      
+                      return (
+                        <div key={index} className={cn(
+                          "flex items-center gap-2 p-2 rounded-lg",
+                          inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-muted/50"
+                        )}>
+                          <span className={cn(
+                            "font-semibold text-sm w-8",
+                            inst.isPaid && "text-primary"
+                          )}>{inst.installment_number}ª</span>
                           <Input
-                            type="number"
-                            step="0.01"
-                            value={inst.amount}
-                            onChange={(e) => updateInstallmentDate(index, 'amount', parseFloat(e.target.value) || 0)}
-                            className="w-24 h-8 text-sm"
+                            type="date"
+                            value={inst.due_date}
+                            onChange={(e) => updateInstallmentDate(index, 'due_date', e.target.value)}
+                            className="flex-1 h-8 text-sm"
                           />
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">R$</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={inst.amount}
+                              onChange={(e) => updateInstallmentDate(index, 'amount', parseFloat(e.target.value) || 0)}
+                              className="w-24 h-8 text-sm"
+                            />
+                          </div>
+                          {showPaidCheckbox && (
+                            <Button
+                              type="button"
+                              variant={inst.isPaid ? "default" : "outline"}
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => toggleInstallmentPaid(index)}
+                            >
+                              {inst.isPaid ? "✓ Paga" : "Marcar"}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

@@ -88,6 +88,7 @@ export interface InstallmentDate {
   installment_number: number;
   due_date: string;
   amount: number;
+  isPaid?: boolean; // For historical contracts
 }
 
 export interface CreateVehicleData {
@@ -114,6 +115,7 @@ export interface CreateVehicleData {
   notes?: string;
   custom_installments?: InstallmentDate[];
   send_creation_notification?: boolean;
+  is_historical?: boolean; // Flag for historical contracts
 }
 
 export interface UpdateVehicleData {
@@ -204,16 +206,27 @@ export function useVehicles() {
       // Generate installment payments - use custom dates if provided
       const payments = [];
       const installmentsList: string[] = [];
+      let paidCount = 0;
+      let paidAmount = 0;
       
       if (data.custom_installments && data.custom_installments.length > 0) {
         for (const inst of data.custom_installments) {
+          const isPaid = data.is_historical && inst.isPaid === true;
+          
+          if (isPaid) {
+            paidCount++;
+            paidAmount += inst.amount;
+          }
+          
           payments.push({
             user_id: user.id,
             vehicle_id: newVehicle.id,
             installment_number: inst.installment_number,
             amount: inst.amount,
             due_date: inst.due_date,
-            status: 'pending',
+            status: isPaid ? 'paid' : 'pending',
+            paid_date: isPaid ? new Date().toISOString().split('T')[0] : null,
+            notes: isPaid ? '[CONTRATO_ANTIGO]' : null,
           });
           installmentsList.push(`${inst.installment_number}ª: ${formatDate(inst.due_date)} - ${formatCurrency(inst.amount)}`);
         }
@@ -238,6 +251,21 @@ export function useVehicles() {
         .insert(payments);
 
       if (paymentsError) throw paymentsError;
+      
+      // Update vehicle totals if there were pre-paid installments
+      if (paidCount > 0) {
+        const newTotalPaid = downPayment + paidAmount;
+        const newRemainingBalance = data.purchase_value - newTotalPaid;
+        
+        await supabase
+          .from('vehicles')
+          .update({
+            total_paid: newTotalPaid,
+            remaining_balance: newRemainingBalance,
+            status: newRemainingBalance <= 0 ? 'paid' : 'pending',
+          })
+          .eq('id', newVehicle.id);
+      }
 
       // Send WhatsApp notification - only if enabled (default: true)
       if (data.send_creation_notification !== false) {
@@ -248,6 +276,16 @@ export function useVehicles() {
         const contractId = `VEI-${newVehicle.id.substring(0, 4).toUpperCase()}`;
         const profit = data.purchase_value - (data.cost_value || 0);
         const profitPercent = data.cost_value && data.cost_value > 0 ? (profit / data.cost_value * 100) : 0;
+        
+        // Calculate actual remaining balance considering pre-paid installments
+        const actualTotalPaid = downPayment + paidAmount;
+        const actualRemainingBalance = data.purchase_value - actualTotalPaid;
+        const pendingInstallments = data.installments - paidCount;
+        const progressPercent = data.installments > 0 ? Math.round((paidCount / data.installments) * 100) : 0;
+        
+        // Find next due date (first unpaid installment)
+        const nextDueInstallment = data.custom_installments?.find(inst => !inst.isPaid);
+        const nextDueDate = nextDueInstallment?.due_date || data.first_due_date;
         
         let message = `🚗 *Resumo do Veículo - ${contractId}*\n\n`;
         message += `👤 Cliente: ${clientName}\n\n`;
@@ -262,15 +300,17 @@ export function useVehicles() {
         message += `- Modalidade: Parcelado\n\n`;
         
         message += `📊 *Status das Parcelas:*\n`;
-        message += `✅ Pagas: 0 de ${data.installments} parcelas (${formatCurrency(downPayment)})\n`;
-        message += `⏰ Pendentes: ${data.installments} parcelas (${formatCurrency(remainingBalance)})\n`;
-        message += `📈 Progresso: 0% concluído\n\n`;
+        message += `✅ Pagas: ${paidCount} de ${data.installments} parcelas (${formatCurrency(actualTotalPaid)})\n`;
+        message += `⏰ Pendentes: ${pendingInstallments} parcelas (${formatCurrency(actualRemainingBalance)})\n`;
+        message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
         
-        message += `📅 *Próxima Parcela:*\n`;
-        message += `- Vencimento: ${formatDate(data.first_due_date)}\n`;
-        message += `- Valor: ${formatCurrency(data.installment_value)}\n\n`;
+        if (pendingInstallments > 0) {
+          message += `📅 *Próxima Parcela:*\n`;
+          message += `- Vencimento: ${formatDate(nextDueDate)}\n`;
+          message += `- Valor: ${formatCurrency(data.installment_value)}\n\n`;
+        }
         
-        message += `💰 Saldo Devedor: ${formatCurrency(remainingBalance)}\n\n`;
+        message += `💰 Saldo Devedor: ${formatCurrency(actualRemainingBalance)}\n\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━\n`;
         message += `_CobraFácil - Registro automático_`;
 
