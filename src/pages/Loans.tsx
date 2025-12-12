@@ -319,6 +319,10 @@ const [paymentData, setPaymentData] = useState({
     today.setHours(0, 0, 0, 0);
     
     let isOverdue = false;
+    let overdueInstallmentIndex = -1;
+    let overdueDate = '';
+    let daysOverdue = 0;
+    
     if (!isPaid && remainingToReceive > 0) {
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
       const dates = (loan.installment_dates as string[]) || [];
@@ -331,28 +335,51 @@ const [paymentData, setPaymentData] = useState({
         });
         
         if (futureDates.length > 0) {
-          // Find the first future date that should have been paid
           const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
           isOverdue = today > nextFutureDate;
+          if (isOverdue) {
+            overdueInstallmentIndex = dates.indexOf(futureDates[0]);
+            overdueDate = futureDates[0];
+            daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
         } else if (dates.length === 0) {
-          // Single payment loan - check due_date
           const dueDate = new Date(loan.due_date + 'T12:00:00');
           isOverdue = dueDate >= today ? false : today > dueDate;
+          if (isOverdue) {
+            overdueDate = loan.due_date;
+            daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
         }
-        // If all dates are past and it's historical, check if latest date has passed
       } else {
         // Normal logic for non-historical contracts
         if (dates.length > 0 && paidInstallments < dates.length) {
           const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
           isOverdue = today > nextDueDate;
+          if (isOverdue) {
+            overdueInstallmentIndex = paidInstallments;
+            overdueDate = dates[paidInstallments];
+            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
         } else {
           const dueDate = new Date(loan.due_date + 'T12:00:00');
           isOverdue = today > dueDate;
+          if (isOverdue) {
+            overdueDate = loan.due_date;
+            daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
         }
       }
     }
     
-    return { isPaid, isRenegotiated, isOverdue };
+    return { 
+      isPaid, 
+      isRenegotiated, 
+      isOverdue, 
+      overdueInstallmentIndex, 
+      overdueDate, 
+      daysOverdue,
+      totalPerInstallment 
+    };
   };
 
   const filteredLoans = loans.filter(loan => {
@@ -1733,28 +1760,49 @@ const [paymentData, setPaymentData] = useState({
                         </div>
                       )}
                       
-                      {/* Overdue penalty section */}
-                      {isOverdue && dynamicPenaltyAmount > 0 && (
+                      {/* Overdue installment info */}
+                      {isOverdue && (
                         <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
-                          <div className="flex items-center justify-between text-xs sm:text-sm">
-                            <span className="text-red-300 font-medium">
-                              Juros de Atraso ({daysOverdue} dias)
-                            </span>
-                            <span className="font-bold text-red-200">
-                              {daysOverdue} dias = {formatCurrency(dynamicPenaltyAmount)}
-                            </span>
-                          </div>
-                          {hasOverdueConfig && (
-                            <div className="text-xs text-red-300/70 mt-1">
-                              {formatCurrency(overdueConfigValue)}/dia
+                          <div className="text-xs sm:text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-red-300 font-medium">
+                                {(() => {
+                                  const dates = (loan.installment_dates as string[]) || [];
+                                  const paidCount = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+                                  if (dates.length > 0 && paidCount < dates.length) {
+                                    return `Parcela ${paidCount + 1}/${dates.length} em atraso`;
+                                  }
+                                  return 'Pagamento em atraso';
+                                })()}
+                              </span>
+                              <span className="text-red-200 font-bold">{daysOverdue} dias</span>
                             </div>
-                          )}
-                          <div className="flex items-center justify-between mt-1 text-xs sm:text-sm">
-                            <span className="text-red-300/80">Total com Atraso:</span>
-                            <span className="font-bold text-white">
-                              {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
-                            </span>
+                            <div className="flex items-center justify-between mt-1 text-red-300/70">
+                              <span>Vencimento: {formatDate(overdueDate)}</span>
+                              <span>Valor: {formatCurrency(totalPerInstallment)}</span>
+                            </div>
                           </div>
+                          {dynamicPenaltyAmount > 0 && (
+                            <>
+                              <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                <span className="text-red-300">
+                                  Multa ({formatCurrency(overdueConfigValue)}/dia)
+                                </span>
+                                <span className="font-bold text-red-200">
+                                  +{formatCurrency(dynamicPenaltyAmount)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
+                                <span className="text-red-300/80">Total com Atraso:</span>
+                                <span className="font-bold text-white">
+                                  {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                          <p className="text-[10px] text-red-300/60 mt-2">
+                            Pague a parcela em atraso para regularizar o empréstimo
+                          </p>
                         </div>
                       )}
                       
