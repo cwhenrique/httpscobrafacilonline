@@ -51,6 +51,7 @@ export default function Loans() {
     renewal_fee_percentage: '20',
     renewal_fee_amount: '',
     new_remaining_with_fee: '',
+    renewal_fee_installment: 'next' as 'next' | string, // 'next' = próxima parcela, ou índice específico
   });
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
@@ -843,6 +844,7 @@ export default function Loans() {
       renewal_fee_percentage: '20',
       renewal_fee_amount: '',
       new_remaining_with_fee: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
+      renewal_fee_installment: 'next',
     });
     // Guardar o valor original para quando marcar "só juros"
     setInterestOnlyOriginalRemaining(remainingForInterestOnly);
@@ -940,7 +942,14 @@ export default function Loans() {
       }
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       if (renegotiateData.renewal_fee_enabled) {
+        // Determinar qual parcela receberá a taxa de renovação
+        const paidInstallments = Math.floor((loan.total_paid || 0) / ((loan.principal_amount / (loan.installments || 1)) + ((loan.total_interest || 0) / (loan.installments || 1))));
+        const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
+          ? paidInstallments 
+          : parseInt(renegotiateData.renewal_fee_installment);
+        
         notesText += `\nTaxa de renovação: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount})`;
+        notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${renegotiateData.new_remaining_with_fee}]`;
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
@@ -2266,18 +2275,18 @@ export default function Loans() {
 
                     // Detecta cenário de pagamento só de juros com renovação
                     const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
-                    const remainingInstallments = Math.max(dates.length - paidInstallments, 0);
-
-                    // Para cenário de juros + renovação, as parcelas futuras devem ser recalculadas
-                    // dividindo o remaining_balance igualmente entre as parcelas em aberto
-                    const renewedInstallmentValue = hasInterestOnlyTag && remainingInstallments > 0
-                      ? remainingToReceive / remainingInstallments
-                      : totalPerInstallment;
+                    
+                    // Verificar se há taxa de renovação aplicada em uma parcela específica
+                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+                    const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+                    const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
 
                     const getInstallmentValue = (index: number) => {
-                      if (hasInterestOnlyTag && index >= paidInstallments) {
-                        return renewedInstallmentValue;
+                      // Se há taxa de renovação aplicada nesta parcela específica
+                      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+                        return renewalFeeValue;
                       }
+                      // Caso contrário, usar o valor normal da parcela
                       return totalPerInstallment;
                     };
                     
@@ -2611,6 +2620,40 @@ export default function Loans() {
                                     className="bg-slate-800 text-white border-primary font-bold"
                                   />
                                 </div>
+                              </div>
+                              
+                              {/* Seletor de parcela para aplicar a taxa */}
+                              <div className="space-y-2">
+                                <Label className="text-gray-400 text-xs">Aplicar taxa em qual parcela?</Label>
+                                <Select 
+                                  value={renegotiateData.renewal_fee_installment} 
+                                  onValueChange={(v) => setRenegotiateData({ ...renegotiateData, renewal_fee_installment: v })}
+                                >
+                                  <SelectTrigger className="bg-slate-800 text-white border-primary">
+                                    <SelectValue placeholder="Selecione a parcela" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="next">Próxima parcela em aberto</SelectItem>
+                                    {(() => {
+                                      const dates = (selectedLoan.installment_dates as string[]) || [];
+                                      const numInstallments = selectedLoan.installments || 1;
+                                      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+                                      const totalInterest = selectedLoan.total_interest || 0;
+                                      const interestPerInstallmentCalc = totalInterest / numInstallments;
+                                      const totalPerInstallmentCalc = principalPerInstallment + interestPerInstallmentCalc;
+                                      const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / totalPerInstallmentCalc);
+                                      return dates.map((date, index) => {
+                                        if (index < paidInstallments) return null; // Pular parcelas já pagas
+                                        return (
+                                          <SelectItem key={index} value={index.toString()}>
+                                            Parcela {index + 1} - {formatDate(date)}
+                                          </SelectItem>
+                                        );
+                                      });
+                                    })()}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-gray-500">As demais parcelas manterão o valor original</p>
                               </div>
                               
                               <div className="bg-primary/20 rounded-lg p-4 flex justify-between items-center border border-primary">
