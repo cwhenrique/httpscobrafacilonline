@@ -1247,6 +1247,22 @@ export default function Loans() {
       const originalRemaining = totalToReceiveBase - (loan.total_paid || 0);
       const newRemaining = originalRemaining + feeAmount;
       
+      // DEBUG: Logs para verificar cálculos
+      console.log('=== APLICAR TAXA EXTRA ===');
+      console.log('loan.principal_amount:', loan.principal_amount);
+      console.log('loan.total_interest:', storedTotalInterest);
+      console.log('loan.total_paid:', loan.total_paid);
+      console.log('totalToReceiveBase:', totalToReceiveBase);
+      console.log('originalRemaining:', originalRemaining);
+      console.log('feeAmount:', feeAmount);
+      console.log('newRemaining:', newRemaining);
+      console.log('targetInstallment:', targetInstallment);
+      console.log('paidOnTarget:', paidOnTarget);
+      console.log('originalInstallmentValue:', originalInstallmentValue);
+      console.log('remainingOnTarget:', remainingOnTarget);
+      console.log('newInstallmentValue:', newInstallmentValue);
+      console.log('========================');
+      
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
       // Remover tag anterior se existir
