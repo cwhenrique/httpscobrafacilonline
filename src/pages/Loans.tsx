@@ -220,7 +220,7 @@ const [paymentData, setPaymentData] = useState({
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
-    selected_installment_index: -1,
+    selected_installments: [] as number[],
   });
 
   // Generate installment dates when start_date or installments change
@@ -623,11 +623,12 @@ const [paymentData, setPaymentData] = useState({
       // Calculate how much goes to interest vs principal for total payment
       interest_paid = Math.min(amount, interestPerInstallment);
       principal_paid = amount - interest_paid;
-    } else if (paymentData.payment_type === 'installment' && paymentData.selected_installment_index >= 0) {
-      // Paying a specific installment
-      amount = totalPerInstallment;
-      interest_paid = interestPerInstallment;
-      principal_paid = principalPerInstallment;
+    } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      // Paying selected installments
+      const numSelected = paymentData.selected_installments.length;
+      amount = totalPerInstallment * numSelected;
+      interest_paid = interestPerInstallment * numSelected;
+      principal_paid = principalPerInstallment * numSelected;
     } else {
       // Partial payment
       amount = parseFloat(paymentData.amount);
@@ -635,8 +636,10 @@ const [paymentData, setPaymentData] = useState({
       principal_paid = amount - interest_paid;
     }
     
-    const installmentNote = paymentData.payment_type === 'installment' && paymentData.selected_installment_index >= 0
-      ? `Parcela ${paymentData.selected_installment_index + 1} de ${numInstallments}`
+    const installmentNote = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
+      ? paymentData.selected_installments.length === 1
+        ? `Parcela ${paymentData.selected_installments[0] + 1} de ${numInstallments}`
+        : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`
       : '';
     
     await registerPayment({
@@ -649,7 +652,7 @@ const [paymentData, setPaymentData] = useState({
     });
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installment_index: -1 });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [] });
   };
 
   const resetForm = () => {
@@ -1843,7 +1846,7 @@ const [paymentData, setPaymentData] = useState({
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installment_index: -1 })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installments: [] })}
                         className={`text-xs sm:text-sm ${paymentData.payment_type !== 'installment' ? 'border-2 border-primary' : ''}`}
                       >
                         Parcela
@@ -1851,7 +1854,7 @@ const [paymentData, setPaymentData] = useState({
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'partial' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installment_index: -1 })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installments: [] })}
                         className="text-xs sm:text-sm"
                       >
                         Parcial
@@ -1859,7 +1862,7 @@ const [paymentData, setPaymentData] = useState({
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString(), selected_installment_index: -1 })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString(), selected_installments: [] })}
                         className="text-xs sm:text-sm"
                       >
                         Total
@@ -1879,9 +1882,27 @@ const [paymentData, setPaymentData] = useState({
                       );
                     }
                     
+                    const toggleInstallment = (index: number) => {
+                      const current = paymentData.selected_installments;
+                      if (current.includes(index)) {
+                        setPaymentData({
+                          ...paymentData,
+                          selected_installments: current.filter(i => i !== index),
+                          amount: ((current.length - 1) * totalPerInstallment).toFixed(2)
+                        });
+                      } else {
+                        setPaymentData({
+                          ...paymentData,
+                          selected_installments: [...current, index].sort((a, b) => a - b),
+                          amount: ((current.length + 1) * totalPerInstallment).toFixed(2)
+                        });
+                      }
+                    };
+                    
                     return (
                       <div className="space-y-2">
-                        <Label>Selecione a Parcela</Label>
+                        <Label>Selecione a(s) Parcela(s)</Label>
+                        <p className="text-xs text-muted-foreground">Clique para selecionar múltiplas parcelas</p>
                         <ScrollArea className="h-48 rounded-md border p-2">
                           <div className="space-y-2">
                             {dates.map((date, index) => {
@@ -1890,34 +1911,34 @@ const [paymentData, setPaymentData] = useState({
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
                               const isOverdue = !isPaid && dateObj < today;
+                              const isSelected = paymentData.selected_installments.includes(index);
                               
                               return (
                                 <Button
                                   key={index}
                                   type="button"
-                                  variant={paymentData.selected_installment_index === index ? 'default' : 'outline'}
+                                  variant={isSelected ? 'default' : 'outline'}
                                   className={`w-full justify-between text-sm ${
                                     isPaid 
                                       ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
-                                      : isOverdue 
+                                      : isOverdue && !isSelected
                                         ? 'border-destructive text-destructive' 
                                         : ''
                                   }`}
                                   onClick={() => {
                                     if (!isPaid) {
-                                      setPaymentData({ 
-                                        ...paymentData, 
-                                        selected_installment_index: index,
-                                        amount: totalPerInstallment.toFixed(2)
-                                      });
+                                      toggleInstallment(index);
                                     }
                                   }}
                                   disabled={isPaid}
                                 >
-                                  <span>
-                                    Parcela {index + 1}/{dates.length}
-                                    {isPaid && ' ✓'}
-                                    {isOverdue && ' (Atrasada)'}
+                                  <span className="flex items-center gap-2">
+                                    {isSelected && <span className="text-primary-foreground">✓</span>}
+                                    <span>
+                                      Parcela {index + 1}/{dates.length}
+                                      {isPaid && ' ✓'}
+                                      {isOverdue && !isPaid && ' (Atrasada)'}
+                                    </span>
                                   </span>
                                   <span className="flex items-center gap-2">
                                     <span className="text-xs opacity-70">{formatDate(date)}</span>
@@ -1928,11 +1949,30 @@ const [paymentData, setPaymentData] = useState({
                             })}
                           </div>
                         </ScrollArea>
-                        {paymentData.selected_installment_index >= 0 && (
+                        
+                        {paymentData.selected_installments.length >= 2 && (
+                          <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-sm">
+                            <p className="font-medium text-yellow-700 dark:text-yellow-300">
+                              ⚠️ Atenção: Você selecionou {paymentData.selected_installments.length} parcelas
+                            </p>
+                            <p className="text-yellow-600 dark:text-yellow-400 text-xs mt-1">
+                              O valor total será de {formatCurrency(totalPerInstallment * paymentData.selected_installments.length)}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {paymentData.selected_installments.length > 0 && (
                           <div className="bg-primary/10 rounded-lg p-3 text-sm">
-                            <p><strong>Parcela {paymentData.selected_installment_index + 1}</strong>: {formatCurrency(totalPerInstallment)}</p>
+                            <p>
+                              <strong>
+                                {paymentData.selected_installments.length === 1 
+                                  ? `Parcela ${paymentData.selected_installments[0] + 1}`
+                                  : `${paymentData.selected_installments.length} Parcelas selecionadas`
+                                }
+                              </strong>: {formatCurrency(totalPerInstallment * paymentData.selected_installments.length)}
+                            </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Principal: {formatCurrency(principalPerInstallment)} + Juros: {formatCurrency(interestPerInstallment)}
+                              Principal: {formatCurrency(principalPerInstallment * paymentData.selected_installments.length)} + Juros: {formatCurrency(interestPerInstallment * paymentData.selected_installments.length)}
                             </p>
                           </div>
                         )}
