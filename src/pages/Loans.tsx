@@ -2744,11 +2744,19 @@ export default function Loans() {
                             </Select>
                           </div>
                           
-                          <div className="bg-amber-500/20 rounded-lg p-4 flex justify-between items-center border border-amber-500">
-                            <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
-                            <span className="text-xl font-bold text-amber-400">
-                              {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
-                            </span>
+                          <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
+                            <div className="flex justify-between items-center">
+                              <span className="text-amber-300 font-medium text-sm">Novo valor da parcela:</span>
+                              <span className="text-lg font-bold text-white">
+                                {formatCurrency(installmentValue + (parseFloat(renegotiateData.renewal_fee_amount) || 0))}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
+                              <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
+                              <span className="text-xl font-bold text-amber-400">
+                                {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       )}
