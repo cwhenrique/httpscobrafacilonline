@@ -131,7 +131,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
@@ -177,27 +177,27 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
           </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-            <X className="w-4 h-4 mr-2" />
+        <DialogFooter className="gap-2 flex-wrap justify-center sm:justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="text-xs sm:text-sm">
+            <X className="w-4 h-4 mr-1 sm:mr-2" />
             Fechar
           </Button>
           <Button 
             variant="outline" 
             onClick={handleSendWhatsApp} 
             disabled={isSendingWhatsApp}
-            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+            className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
           >
             {isSendingWhatsApp ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
             ) : (
-              <MessageCircle className="w-4 h-4 mr-2" />
+              <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
             )}
-            {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
+            {isSendingWhatsApp ? 'Enviando...' : 'WhatsApp'}
           </Button>
-          <Button onClick={handleDownload} disabled={isGenerating} className="w-full sm:w-auto">
-            <Download className="w-4 h-4 mr-2" />
-            {isGenerating ? 'Gerando...' : 'Baixar PDF'}
+          <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
+            <Download className="w-4 h-4 mr-1 sm:mr-2" />
+            {isGenerating ? 'Gerando...' : 'PDF'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1466,7 +1466,7 @@ export default function Bills() {
 
         {/* Vehicle Payment Confirmation Dialog */}
         <Dialog open={vehiclePaymentDialogOpen} onOpenChange={setVehiclePaymentDialogOpen}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="w-[95vw] max-w-md">
             <DialogHeader>
               <DialogTitle>Confirmar Pagamento</DialogTitle>
             </DialogHeader>
