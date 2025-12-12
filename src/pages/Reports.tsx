@@ -104,7 +104,7 @@ export default function Reports() {
   const { payments: vehiclePayments } = useVehiclePayments();
 
   // Period filter state
-  const [period, setPeriod] = useState<PeriodType>('thisMonth');
+  const [period, setPeriod] = useState<PeriodType>('custom');
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const [lastUpdated] = useState<Date>(new Date());
