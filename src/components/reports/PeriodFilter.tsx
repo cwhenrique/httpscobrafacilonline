@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Download, RefreshCw } from 'lucide-react';
+import { CalendarIcon, Download, RefreshCw, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 
 export type PeriodType = 'custom';
@@ -31,20 +30,28 @@ export function PeriodFilter({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [tempRange, setTempRange] = useState<DateRange | undefined>({ from: startDate, to: endDate });
 
+  // Sync tempRange when props change
+  useEffect(() => {
+    setTempRange({ from: startDate, to: endDate });
+  }, [startDate, endDate]);
+
   const handleRangeSelect = (range: DateRange | undefined) => {
     setTempRange(range);
-    
-    if (range?.from && range?.to) {
-      onPeriodChange('custom', range.from, range.to);
-      setCalendarOpen(false);
+  };
+
+  const handleConfirm = () => {
+    if (tempRange?.from && tempRange?.to) {
+      onPeriodChange('custom', tempRange.from, tempRange.to);
+    } else if (tempRange?.from) {
+      onPeriodChange('custom', tempRange.from, tempRange.from);
     }
+    setCalendarOpen(false);
   };
 
   const handleOpenChange = (open: boolean) => {
     setCalendarOpen(open);
     if (open) {
-      // Reset temp range when opening to allow fresh selection
-      setTempRange(undefined);
+      setTempRange({ from: startDate, to: endDate });
     }
   };
 
@@ -73,6 +80,12 @@ export function PeriodFilter({
               <p className="text-sm text-muted-foreground">
                 {!tempRange?.from ? 'Selecione a data inicial' : !tempRange?.to ? 'Selecione a data final' : 'Período selecionado'}
               </p>
+              {tempRange?.from && (
+                <p className="text-sm font-medium text-primary mt-1">
+                  {format(tempRange.from, 'dd/MM/yyyy', { locale: ptBR })}
+                  {tempRange?.to && ` - ${format(tempRange.to, 'dd/MM/yyyy', { locale: ptBR })}`}
+                </p>
+              )}
             </div>
             <Calendar
               mode="range"
@@ -81,7 +94,24 @@ export function PeriodFilter({
               numberOfMonths={2}
               initialFocus
               className="pointer-events-auto"
+              modifiersClassNames={{
+                selected: 'bg-primary text-primary-foreground',
+                range_start: 'bg-primary text-primary-foreground rounded-l-md',
+                range_end: 'bg-primary text-primary-foreground rounded-r-md',
+                range_middle: 'bg-primary/20 text-foreground',
+              }}
             />
+            <div className="p-3 border-t flex justify-end">
+              <Button 
+                size="sm" 
+                onClick={handleConfirm}
+                disabled={!tempRange?.from}
+                className="gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Confirmar
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
