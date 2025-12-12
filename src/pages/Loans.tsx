@@ -522,11 +522,21 @@ export default function Loans() {
       notes = `[HISTORICAL_CONTRACT]\n${notes}`.trim();
     }
     
+    // Calculate total_interest based on interest_mode
+    const principal = parseFloat(formData.principal_amount);
+    const rate = parseFloat(formData.interest_rate);
+    const numInstallments = parseInt(formData.installments) || 1;
+    const totalInterest = formData.interest_mode === 'per_installment'
+      ? principal * (rate / 100) * numInstallments
+      : principal * (rate / 100);
+    
     const result = await createLoan({
       ...formData,
-      principal_amount: parseFloat(formData.principal_amount),
-      interest_rate: parseFloat(formData.interest_rate),
-      installments: parseInt(formData.installments),
+      principal_amount: principal,
+      interest_rate: rate,
+      installments: numInstallments,
+      total_interest: totalInterest,
+      remaining_balance: principal,
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
       notes: notes || undefined,
     });
