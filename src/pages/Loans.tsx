@@ -46,6 +46,7 @@ export default function Loans() {
     notes: '',
     interest_only_paid: false,
     interest_amount_paid: '',
+    send_interest_notification: true,
   });
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
@@ -833,6 +834,7 @@ export default function Loans() {
       notes: loan.notes || '',
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
+      send_interest_notification: true,
       // Armazenar o valor original para uso quando marcar "só juros"
     });
     // Guardar o valor original para quando marcar "só juros"
@@ -948,6 +950,45 @@ export default function Loans() {
         due_date: finalDueDate,
         notes: notesText,
       });
+      
+      // Enviar notificação WhatsApp se marcado
+      if (renegotiateData.send_interest_notification) {
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('phone')
+              .eq('id', currentUser.id)
+              .single();
+            
+            const userPhone = profileData?.phone;
+            if (userPhone) {
+              const loanIdShort = selectedLoanId.split('-')[0].toUpperCase();
+              const clientName = loan.client?.full_name || 'Cliente';
+              const newDueDate = formatDate(finalDueDate);
+              
+              const message = `💰 *PAGAMENTO DE JUROS REGISTRADO*
+━━━━━━━━━━━━━━━━━━━━━
+
+📋 Contrato: EMP-${loanIdShort}
+👤 Cliente: ${clientName}
+💵 Valor Pago (Juros): ${formatCurrency(interestPaid)}
+📊 Valor Restante: ${formatCurrency(safeRemaining)}
+📅 Nova Data de Vencimento: ${newDueDate}
+
+✅ Pagamento de juros registrado com sucesso!
+📌 O valor principal não foi alterado.`;
+
+              await supabase.functions.invoke('send-whatsapp', {
+                body: { phone: userPhone, message }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao enviar notificação WhatsApp:', error);
+        }
+      }
       
       // Abrir comprovante após pagamento de juros
       handleGenerateLoanReceipt(loan, {
@@ -2368,16 +2409,29 @@ export default function Loans() {
                   )}
                   
                   {renegotiateData.interest_only_paid && (
-                    <div className="space-y-2">
-                      <Label>Nova Data de Vencimento *</Label>
-                      <Input 
-                        type="date" 
-                        value={renegotiateData.promised_date} 
-                        onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
-                        required 
-                      />
-                      <p className="text-xs text-muted-foreground">Próxima data de cobrança do valor restante</p>
-                    </div>
+                    <>
+                      <div className="space-y-2">
+                        <Label>Nova Data de Vencimento *</Label>
+                        <Input 
+                          type="date" 
+                          value={renegotiateData.promised_date} 
+                          onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
+                          required 
+                        />
+                        <p className="text-xs text-muted-foreground">Próxima data de cobrança do valor restante</p>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 p-3 rounded-lg border-2 border-primary bg-primary/5">
+                        <Checkbox 
+                          id="send_interest_notification" 
+                          checked={renegotiateData.send_interest_notification} 
+                          onCheckedChange={(checked) => setRenegotiateData({ ...renegotiateData, send_interest_notification: checked as boolean })} 
+                        />
+                        <Label htmlFor="send_interest_notification" className="text-sm font-medium cursor-pointer">
+                          Receber notificação WhatsApp deste pagamento
+                        </Label>
+                      </div>
+                    </>
                   )}
                   
                   <div className="space-y-2">
