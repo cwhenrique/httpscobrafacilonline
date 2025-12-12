@@ -115,6 +115,7 @@ export default function ProductSales() {
     client_address: '',
     sale_date: format(new Date(), 'yyyy-MM-dd'),
     total_amount: 0,
+    cost_value: 0,
     down_payment: 0,
     installments: 1,
     installment_value: 0,
@@ -184,6 +185,7 @@ export default function ProductSales() {
       client_address: '',
       sale_date: format(new Date(), 'yyyy-MM-dd'),
       total_amount: 0,
+      cost_value: 0,
       down_payment: 0,
       installments: 1,
       installment_value: 0,
@@ -833,16 +835,42 @@ export default function ProductSales() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Valor Total (R$) *</Label>
+                        <Label>Custo (R$)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formData.cost_value || ''}
+                          onChange={(e) => setFormData({ ...formData, cost_value: parseFloat(e.target.value) || 0 })}
+                          placeholder="Quanto você pagou"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor de Venda (R$) *</Label>
                         <Input
                           type="number"
                           min="0"
                           step="0.01"
                           value={formData.total_amount || ''}
                           onChange={(e) => handleTotalChange(parseFloat(e.target.value) || 0)}
-                          placeholder="0,00"
+                          placeholder="Quanto está vendendo"
                         />
                       </div>
+                      {(formData.cost_value || 0) > 0 && formData.total_amount > 0 && (
+                        <div className="space-y-2">
+                          <Label>Lucro Estimado</Label>
+                          <div className={cn("h-10 px-3 py-2 rounded-md border flex items-center font-bold text-sm", 
+                            formData.total_amount - (formData.cost_value || 0) >= 0 ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" : "bg-destructive/10 text-destructive border-destructive/30"
+                          )}>
+                            {formatCurrency(formData.total_amount - (formData.cost_value || 0))}
+                            <span className="ml-2 text-xs font-normal">
+                              ({(formData.cost_value || 0) > 0 ? (((formData.total_amount - (formData.cost_value || 0)) / (formData.cost_value || 1)) * 100).toFixed(1) : 0}%)
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -962,11 +990,25 @@ export default function ProductSales() {
                               <span>{sale.client_name}</span>
                               {sale.client_phone && <span className="text-xs">• {sale.client_phone}</span>}
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-sm">
+                              {(sale as any).cost_value > 0 && (
+                                <div>
+                                  <span className="text-muted-foreground">Custo:</span>
+                                  <p className="font-medium">{formatCurrency((sale as any).cost_value || 0)}</p>
+                                </div>
+                              )}
                               <div>
-                                <span className="text-muted-foreground">Total:</span>
+                                <span className="text-muted-foreground">Venda:</span>
                                 <p className="font-medium">{formatCurrency(sale.total_amount)}</p>
                               </div>
+                              {(sale as any).cost_value > 0 && (
+                                <div className={cn("rounded px-2 py-1", sale.total_amount - ((sale as any).cost_value || 0) >= 0 ? "bg-emerald-500/10" : "bg-destructive/10")}>
+                                  <span className="text-muted-foreground">Lucro:</span>
+                                  <p className={cn("font-bold", sale.total_amount - ((sale as any).cost_value || 0) >= 0 ? "text-emerald-500" : "text-destructive")}>
+                                    {formatCurrency(sale.total_amount - ((sale as any).cost_value || 0))}
+                                  </p>
+                                </div>
+                              )}
                               <div className="bg-primary/10 rounded px-2 py-1">
                                 <span className="text-muted-foreground">Pago:</span>
                                 <p className="font-bold text-primary">{formatCurrency(sale.total_paid || 0)}</p>

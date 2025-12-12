@@ -40,6 +40,8 @@ export default function Reports() {
   // Product sales stats
   const productStats = useMemo(() => {
     const totalSold = sales.reduce((sum, s) => sum + s.total_amount, 0);
+    const totalCost = sales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
+    const totalProfit = totalSold - totalCost;
     const totalReceived = sales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
     const totalPending = sales.reduce((sum, s) => sum + s.remaining_balance, 0);
     const overdueSales = sales.filter(s => {
@@ -51,12 +53,14 @@ export default function Reports() {
       return hasOverduePayment;
     });
     
-    return { totalSold, totalReceived, totalPending, overdueSales };
+    return { totalSold, totalCost, totalProfit, totalReceived, totalPending, overdueSales };
   }, [sales, productPayments]);
 
   const productChartData = [
+    { name: 'Custo', value: productStats.totalCost, fill: 'hsl(var(--chart-4))' },
     { name: 'Vendido', value: productStats.totalSold, fill: 'hsl(var(--chart-1))' },
-    { name: 'Recebido', value: productStats.totalReceived, fill: 'hsl(var(--chart-2))' },
+    { name: 'Lucro', value: productStats.totalProfit, fill: 'hsl(var(--chart-2))' },
+    { name: 'Recebido', value: productStats.totalReceived, fill: 'hsl(var(--chart-5))' },
     { name: 'Pendente', value: productStats.totalPending, fill: 'hsl(var(--chart-3))' },
   ];
 
@@ -281,7 +285,20 @@ export default function Reports() {
 
           {/* PRODUCTS TAB */}
           <TabsContent value="products" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card className="shadow-soft">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/10 shrink-0">
+                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Custo Total</p>
+                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalCost)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               <Card className="shadow-soft">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -298,17 +315,35 @@ export default function Reports() {
               <Card className="shadow-soft">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
+                    <div className={`p-2 sm:p-3 rounded-xl shrink-0 ${productStats.totalProfit >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
+                      <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Lucro Total</p>
+                      <p className={`text-lg sm:text-2xl font-bold truncate ${productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                        {formatCurrency(productStats.totalProfit)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-soft">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
                     <div className="p-2 sm:p-3 rounded-xl bg-success/10 shrink-0">
                       <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Recebido</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Recebido</p>
                       <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalReceived)}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="shadow-soft col-span-2 md:col-span-1">
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="shadow-soft">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 sm:p-3 rounded-xl bg-warning/10 shrink-0">
@@ -317,6 +352,19 @@ export default function Reports() {
                     <div className="min-w-0">
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">Pendente</p>
                       <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalPending)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-soft">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
+                      <Package className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Vendas</p>
+                      <p className="text-lg sm:text-2xl font-bold truncate">{sales.length}</p>
                     </div>
                   </div>
                 </CardContent>
