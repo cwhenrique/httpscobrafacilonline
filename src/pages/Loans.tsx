@@ -1478,7 +1478,7 @@ export default function Loans() {
                       Receber notificação WhatsApp deste contrato
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Alertas de atraso e relatórios continuam sendo enviados normalmente
+                      Alertas de atraso e relatórios serão enviados normalmente mesmo que você não marque essa opção
                     </p>
                   </div>
                 </div>
