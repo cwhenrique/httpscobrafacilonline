@@ -1544,7 +1544,13 @@ export default function Loans() {
 
   return (
     <DashboardLayout>
-      <LoansTutorial run={tutorialRun} onFinish={() => setTutorialRun(false)} />
+<LoansTutorial 
+          run={tutorialRun} 
+          onFinish={() => setTutorialRun(false)}
+          onOpenDialog={() => setIsDialogOpen(true)}
+          onCloseDialog={() => setIsDialogOpen(false)}
+          isDialogOpen={isDialogOpen}
+        />
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
@@ -1683,7 +1689,7 @@ export default function Loans() {
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-2 tutorial-form-client">
                   <Label>Cliente *</Label>
                   
                   {!showNewClientForm ? (
@@ -1765,11 +1771,11 @@ export default function Loans() {
                 </div>
                 {formData.payment_type !== 'daily' && (
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                    <div className="space-y-1 sm:space-y-2">
+                    <div className="space-y-1 sm:space-y-2 tutorial-form-value">
                       <Label className="text-xs sm:text-sm">Valor *</Label>
                       <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
-                    <div className="space-y-1 sm:space-y-2">
+                    <div className="space-y-1 sm:space-y-2 tutorial-form-interest">
                       <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
                       <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
@@ -1777,7 +1783,7 @@ export default function Loans() {
                 )}
                 {formData.payment_type !== 'daily' && (
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                    <div className="space-y-1 sm:space-y-2">
+                    <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                       <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
@@ -1787,7 +1793,7 @@ export default function Loans() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1 sm:space-y-2">
+                    <div className="space-y-1 sm:space-y-2 tutorial-form-payment-type">
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
                       <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
@@ -1890,7 +1896,7 @@ export default function Loans() {
                     </div>
                   </>
                 )}
-                <div className={`grid gap-2 sm:gap-4 ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-2 sm:gap-4 tutorial-form-dates ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Data Início</Label>
                     <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
@@ -1965,7 +1971,7 @@ export default function Loans() {
                     )}
                   </div>
                 )}
-                <div className="space-y-1 sm:space-y-2">
+                <div className="space-y-1 sm:space-y-2 tutorial-form-notes">
                   <Label className="text-xs sm:text-sm">Observações</Label>
                   <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                 </div>
@@ -2028,7 +2034,7 @@ export default function Loans() {
                 
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
-                  <Button type="submit" className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar</Button>
+                  <Button type="submit" className="tutorial-form-submit h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar</Button>
                 </div>
               </form>
             </DialogContent>
