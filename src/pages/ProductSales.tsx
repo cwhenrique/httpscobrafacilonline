@@ -194,6 +194,15 @@ export default function ProductSales() {
   const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
+  
+  // Vehicle payment dialog states
+  const [vehiclePaymentDialogOpen, setVehiclePaymentDialogOpen] = useState(false);
+  const [selectedVehiclePaymentData, setSelectedVehiclePaymentData] = useState<{
+    paymentId: string;
+    vehicleId: string;
+    payment: { id: string; amount: number; installment_number: number; due_date: string };
+    vehicle: Vehicle;
+  } | null>(null);
 
   // Bills states
   const [isBillOpen, setIsBillOpen] = useState(false);
@@ -490,30 +499,38 @@ export default function ProductSales() {
     setPaymentDialogOpen(true);
   };
 
-  // Wrapper for vehicle payment with receipt prompt
-  const handleMarkVehiclePaymentAsPaid = async (paymentId: string, vehicleId: string) => {
-    const payment = vehiclePaymentsList.find(p => p.id === paymentId);
-    const vehicle = vehicles.find(v => v.id === vehicleId);
+  // Open vehicle payment dialog
+  const openVehiclePaymentDialog = (payment: { id: string; amount: number; installment_number: number; due_date: string }, vehicle: Vehicle) => {
+    setSelectedVehiclePaymentData({ paymentId: payment.id, vehicleId: vehicle.id, payment, vehicle });
+    setVehiclePaymentDialogOpen(true);
+  };
+
+  // Confirm vehicle payment with receipt prompt
+  const confirmVehiclePaymentWithReceipt = async () => {
+    if (!selectedVehiclePaymentData) return;
+    
+    const { paymentId, vehicleId, payment, vehicle } = selectedVehiclePaymentData;
     
     await markVehiclePaymentAsPaid.mutateAsync({ paymentId, vehicleId });
     
+    setVehiclePaymentDialogOpen(false);
+    setSelectedVehiclePaymentData(null);
+    
     // Show payment receipt prompt
-    if (payment && vehicle) {
-      const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
-      setPaymentReceiptData({
-        type: 'vehicle',
-        contractId: vehicle.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        clientName: vehicle.buyer_name || vehicle.seller_name,
-        installmentNumber: payment.installment_number,
-        totalInstallments: vehicle.installments,
-        amountPaid: payment.amount,
-        paymentDate: format(new Date(), 'yyyy-MM-dd'),
-        remainingBalance: newRemainingBalance,
-        totalPaid: (vehicle.total_paid || 0) + payment.amount,
-      });
-      setIsPaymentReceiptOpen(true);
-    }
+    const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
+    setPaymentReceiptData({
+      type: 'vehicle',
+      contractId: vehicle.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      clientName: vehicle.buyer_name || vehicle.seller_name,
+      installmentNumber: payment.installment_number,
+      totalInstallments: vehicle.installments,
+      amountPaid: payment.amount,
+      paymentDate: format(new Date(), 'yyyy-MM-dd'),
+      remainingBalance: newRemainingBalance,
+      totalPaid: (vehicle.total_paid || 0) + payment.amount,
+    });
+    setIsPaymentReceiptOpen(true);
   };
 
   // Wrapper for contract payment with receipt prompt
@@ -1763,8 +1780,8 @@ export default function ProductSales() {
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold">{formatCurrency(payment.amount)}</span>
                                     {payment.status !== 'paid' ? (
-                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkVehiclePaymentAsPaid(payment.id, vehicle.id)}>
-                                        <Check className="w-3 h-3" />
+                                      <Button size="sm" variant="default" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
+                                        Pagar
                                       </Button>
                                     ) : (
                                       <Check className="w-4 h-4 text-primary" />
@@ -2133,6 +2150,51 @@ export default function ProductSales() {
           onOpenChange={setIsPaymentReceiptOpen} 
           data={paymentReceiptData} 
         />
+
+        {/* Vehicle Payment Confirmation Dialog */}
+        <Dialog open={vehiclePaymentDialogOpen} onOpenChange={setVehiclePaymentDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Confirmar Pagamento</DialogTitle>
+            </DialogHeader>
+            
+            {selectedVehiclePaymentData && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Veículo:</span>
+                    <span className="font-medium">{selectedVehiclePaymentData.vehicle.brand} {selectedVehiclePaymentData.vehicle.model}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Comprador:</span>
+                    <span className="font-medium">{selectedVehiclePaymentData.vehicle.buyer_name || selectedVehiclePaymentData.vehicle.seller_name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Parcela:</span>
+                    <span className="font-medium">{selectedVehiclePaymentData.payment.installment_number}ª de {selectedVehiclePaymentData.vehicle.installments}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vencimento:</span>
+                    <span className="font-medium">{format(parseISO(selectedVehiclePaymentData.payment.due_date), "dd/MM/yyyy")}</span>
+                  </div>
+                  <div className="flex justify-between text-lg pt-2 border-t">
+                    <span className="text-muted-foreground">Valor:</span>
+                    <span className="font-bold text-primary">{formatCurrency(selectedVehiclePaymentData.payment.amount)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setVehiclePaymentDialogOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={confirmVehiclePaymentWithReceipt} disabled={markVehiclePaymentAsPaid.isPending} className="flex-1">
+                {markVehiclePaymentAsPaid.isPending ? 'Processando...' : 'Confirmar Pagamento'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

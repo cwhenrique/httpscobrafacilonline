@@ -63,7 +63,17 @@ export default function Bills() {
   const [mainTab, setMainTab] = useState<'payable' | 'receivable'>('receivable');
   const [activeTab, setActiveTab] = useState('contracts');
   const [expandedContract, setExpandedContract] = useState<string | null>(null);
-  const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
+  const [expandedReceivableVehicle, setExpandedReceivableVehicle] = useState<string | null>(null);
+  const [expandedPayableVehicle, setExpandedPayableVehicle] = useState<string | null>(null);
+  
+  // Vehicle payment dialog states
+  const [vehiclePaymentDialogOpen, setVehiclePaymentDialogOpen] = useState(false);
+  const [selectedVehiclePayment, setSelectedVehiclePayment] = useState<{
+    paymentId: string;
+    vehicleId: string;
+    payment: VehiclePayment;
+    vehicle: Vehicle;
+  } | null>(null);
   const [contractPayments, setContractPayments] = useState<Record<string, ContractPayment[]>>({});
   const [vehiclePayments, setVehiclePayments] = useState<Record<string, VehiclePayment[]>>({});
   
@@ -201,15 +211,39 @@ export default function Bills() {
     resetVehicleForm();
   };
 
-  const toggleVehicleExpand = async (vehicleId: string) => {
-    if (expandedVehicle === vehicleId) {
-      setExpandedVehicle(null);
+  const toggleReceivableVehicleExpand = async (vehicleId: string) => {
+    if (expandedReceivableVehicle === vehicleId) {
+      setExpandedReceivableVehicle(null);
     } else {
-      setExpandedVehicle(vehicleId);
-      // Load payments for this vehicle
+      setExpandedReceivableVehicle(vehicleId);
       const payments = vehiclePaymentsList.filter(p => p.vehicle_id === vehicleId);
       setVehiclePayments(prev => ({ ...prev, [vehicleId]: payments }));
     }
+  };
+
+  const togglePayableVehicleExpand = async (vehicleId: string) => {
+    if (expandedPayableVehicle === vehicleId) {
+      setExpandedPayableVehicle(null);
+    } else {
+      setExpandedPayableVehicle(vehicleId);
+      const payments = vehiclePaymentsList.filter(p => p.vehicle_id === vehicleId);
+      setVehiclePayments(prev => ({ ...prev, [vehicleId]: payments }));
+    }
+  };
+
+  const openVehiclePaymentDialog = (payment: VehiclePayment, vehicle: Vehicle) => {
+    setSelectedVehiclePayment({ paymentId: payment.id, vehicleId: vehicle.id, payment, vehicle });
+    setVehiclePaymentDialogOpen(true);
+  };
+
+  const confirmVehiclePayment = async () => {
+    if (!selectedVehiclePayment) return;
+    await markVehiclePaymentAsPaid.mutateAsync({ 
+      paymentId: selectedVehiclePayment.paymentId, 
+      vehicleId: selectedVehiclePayment.vehicleId 
+    });
+    setVehiclePaymentDialogOpen(false);
+    setSelectedVehiclePayment(null);
   };
 
   const resetForm = () => {
@@ -787,8 +821,8 @@ export default function Bills() {
                           {vehicle.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mb-3 italic line-clamp-2">"{vehicle.notes}"</p>}
 
                           <div className="flex gap-1.5 sm:gap-2">
-                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleVehicleExpand(vehicle.id)}>
-                              {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleReceivableVehicleExpand(vehicle.id)}>
+                              {expandedReceivableVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                               Parcelas
                             </Button>
                             <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditVehicleDialog(vehicle)}>
@@ -799,7 +833,7 @@ export default function Bills() {
                             </Button>
                           </div>
 
-                          {expandedVehicle === vehicle.id && (
+                          {expandedReceivableVehicle === vehicle.id && (
                             <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                               <div className="max-h-[180px] overflow-y-auto space-y-1.5 sm:space-y-2 pr-1">
                                 {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
@@ -814,8 +848,8 @@ export default function Bills() {
                                     <div className="flex items-center gap-1.5 sm:gap-2">
                                       <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                       {payment.status !== 'paid' ? (
-                                        <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
-                                          <Check className="w-3 h-3" />
+                                        <Button size="sm" variant="default" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2 bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
+                                          Pagar
                                         </Button>
                                       ) : (
                                         <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
@@ -1145,8 +1179,8 @@ export default function Bills() {
                           {vehicle.notes && <p className="text-[10px] sm:text-xs text-muted-foreground mb-3 italic line-clamp-2">"{vehicle.notes}"</p>}
 
                           <div className="flex gap-1.5 sm:gap-2">
-                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => toggleVehicleExpand(vehicle.id)}>
-                              {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                            <Button size="sm" variant="outline" className="flex-1 text-xs sm:text-sm h-8 sm:h-9" onClick={() => togglePayableVehicleExpand(vehicle.id)}>
+                              {expandedPayableVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                               Parcelas
                             </Button>
                             <Button size="icon" variant="outline" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => openEditVehicleDialog(vehicle)}>
@@ -1157,7 +1191,7 @@ export default function Bills() {
                             </Button>
                           </div>
 
-                          {expandedVehicle === vehicle.id && (
+                          {expandedPayableVehicle === vehicle.id && (
                             <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                               <div className="max-h-[180px] overflow-y-auto space-y-1.5 sm:space-y-2 pr-1">
                               {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
@@ -1172,8 +1206,8 @@ export default function Bills() {
                                   <div className="flex items-center gap-1.5 sm:gap-2">
                                     <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                     {payment.status !== 'paid' ? (
-                                      <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
-                                        <Check className="w-3 h-3" />
+                                      <Button size="sm" variant="default" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2 bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
+                                        Pagar
                                       </Button>
                                     ) : (
                                       <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
@@ -1425,6 +1459,51 @@ export default function Bills() {
               </div>
               <Button onClick={handleEditVehicle} disabled={updateVehicle.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
                 {updateVehicle.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Vehicle Payment Confirmation Dialog */}
+        <Dialog open={vehiclePaymentDialogOpen} onOpenChange={setVehiclePaymentDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Confirmar Pagamento</DialogTitle>
+            </DialogHeader>
+            
+            {selectedVehiclePayment && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Veículo:</span>
+                    <span className="font-medium">{selectedVehiclePayment.vehicle.brand} {selectedVehiclePayment.vehicle.model}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Comprador:</span>
+                    <span className="font-medium">{selectedVehiclePayment.vehicle.buyer_name || selectedVehiclePayment.vehicle.seller_name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Parcela:</span>
+                    <span className="font-medium">{selectedVehiclePayment.payment.installment_number}ª de {selectedVehiclePayment.vehicle.installments}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vencimento:</span>
+                    <span className="font-medium">{format(parseISO(selectedVehiclePayment.payment.due_date), "dd/MM/yyyy")}</span>
+                  </div>
+                  <div className="flex justify-between text-lg pt-2 border-t">
+                    <span className="text-muted-foreground">Valor:</span>
+                    <span className="font-bold text-primary">R$ {selectedVehiclePayment.payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setVehiclePaymentDialogOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={confirmVehiclePayment} disabled={markVehiclePaymentAsPaid.isPending} className="flex-1">
+                {markVehiclePaymentAsPaid.isPending ? 'Processando...' : 'Confirmar Pagamento'}
               </Button>
             </div>
           </DialogContent>
