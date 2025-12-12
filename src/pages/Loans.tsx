@@ -2166,14 +2166,17 @@ export default function Loans() {
                 
                 // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
                 // usamos o valor do banco. Nos demais, calculamos normalmente.
+                // IMPORTANTE: Se o status é 'paid', o remaining é sempre 0
                 let remainingToReceive: number;
-                if (isInterestOnlyPayment || hasRenewalFee) {
+                if (loan.status === 'paid') {
+                  remainingToReceive = 0;
+                } else if (isInterestOnlyPayment || hasRenewalFee) {
                   // Usar remaining_balance do banco que já foi atualizado corretamente
-                  remainingToReceive = loan.remaining_balance;
+                  remainingToReceive = Math.max(0, loan.remaining_balance);
                 } else {
                   remainingToReceive = isDaily 
-                    ? (loan.remaining_balance || 0) - (loan.total_paid || 0) 
-                    : totalToReceive - (loan.total_paid || 0);
+                    ? Math.max(0, (loan.remaining_balance || 0) - (loan.total_paid || 0))
+                    : Math.max(0, totalToReceive - (loan.total_paid || 0));
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
