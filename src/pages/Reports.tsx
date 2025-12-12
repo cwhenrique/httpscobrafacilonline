@@ -7,10 +7,13 @@ import { useContracts } from '@/hooks/useContracts';
 import { useVehicles, useVehiclePayments } from '@/hooks/useVehicles';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, FileText, Car, Percent, Users, Clock, Target, CheckCircle, XCircle, ArrowUpDown, PiggyBank } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, FileText, Car, Percent, Users, Clock, Target, CheckCircle, XCircle, ArrowUpDown, PiggyBank, ChevronDown, Filter } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 // Helper component for metric cards
 const MetricCard = ({ 
@@ -46,6 +49,31 @@ const MetricCard = ({
   </Card>
 );
 
+// Chart filter button component
+const ChartFilterButton = ({ 
+  label, 
+  active, 
+  onClick, 
+  color 
+}: { 
+  label: string; 
+  active: boolean; 
+  onClick: () => void; 
+  color: string;
+}) => (
+  <Button
+    variant={active ? "default" : "outline"}
+    size="sm"
+    onClick={onClick}
+    className={cn(
+      "text-xs h-7 px-2",
+      active && color
+    )}
+  >
+    {label}
+  </Button>
+);
+
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('loans');
   const { stats } = useDashboardStats();
@@ -56,12 +84,44 @@ export default function Reports() {
   const { vehicles } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
 
+  // Expand/collapse states for each tab
+  const [showMoreLoans, setShowMoreLoans] = useState(false);
+  const [showMoreProducts, setShowMoreProducts] = useState(false);
+  const [showMoreContracts, setShowMoreContracts] = useState(false);
+  const [showMoreVehicles, setShowMoreVehicles] = useState(false);
+
+  // Chart filter states
+  const [loanChartFilters, setLoanChartFilters] = useState({
+    emprestado: true,
+    juros: true,
+    recebido: true,
+    atraso: true
+  });
+  const [productChartFilters, setProductChartFilters] = useState({
+    custo: true,
+    vendido: true,
+    lucro: true,
+    recebido: true,
+    atraso: true
+  });
+  const [contractChartFilters, setContractChartFilters] = useState({
+    receber: true,
+    pagar: true,
+    saldo: true
+  });
+  const [vehicleChartFilters, setVehicleChartFilters] = useState({
+    custo: true,
+    vendido: true,
+    lucro: true,
+    recebido: true,
+    atraso: true
+  });
+
   // LOAN DETAILED STATS
   const loanStats = useMemo(() => {
     const totalLoaned = loans.reduce((sum, l) => sum + l.principal_amount, 0);
     const totalReceived = loans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
     
-    // Calculate total interest to receive
     let totalInterestToReceive = 0;
     let totalInterestReceived = 0;
     
@@ -71,16 +131,13 @@ export default function Reports() {
       
       let loanTotalInterest = 0;
       if (isDaily) {
-        // For daily loans, profit is stored in interest_rate field
         loanTotalInterest = loan.interest_rate || 0;
       } else {
-        // For regular loans
         if (loan.interest_mode === 'on_total') {
           loanTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
         } else {
           loanTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
         }
-        // Use stored total_interest if available and higher (includes penalties)
         if (loan.total_interest && loan.total_interest > loanTotalInterest) {
           loanTotalInterest = loan.total_interest;
         }
@@ -88,32 +145,23 @@ export default function Reports() {
       
       totalInterestToReceive += loanTotalInterest;
       
-      // Calculate proportional interest received
       const totalToReceive = loan.principal_amount + loanTotalInterest;
       const proportionPaid = totalToReceive > 0 ? (loan.total_paid || 0) / totalToReceive : 0;
       totalInterestReceived += loanTotalInterest * proportionPaid;
     });
     
-    // Overdue calculations
     const overdueLoans = loans.filter(l => l.status === 'overdue');
     const totalOverdueAmount = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
     const overdueClientsSet = new Set(overdueLoans.map(l => l.client_id));
     const overdueClientsCount = overdueClientsSet.size;
     
-    // Paid loans
     const paidLoans = loans.filter(l => l.status === 'paid');
     const paidLoansCount = paidLoans.length;
     
-    // Profit (received - loaned)
     const realizedProfit = Math.max(0, totalReceived - totalLoaned);
-    
-    // Delinquency rate
     const delinquencyRate = loans.length > 0 ? (overdueLoans.length / loans.length) * 100 : 0;
-    
-    // Average ticket
     const averageTicket = loans.length > 0 ? totalLoaned / loans.length : 0;
     
-    // Weighted average interest rate
     const totalWeightedRate = loans.reduce((sum, l) => {
       if (l.payment_type === 'daily') return sum;
       return sum + (l.interest_rate * l.principal_amount);
@@ -122,7 +170,6 @@ export default function Reports() {
     const nonDailyTotal = nonDailyLoans.reduce((sum, l) => sum + l.principal_amount, 0);
     const averageInterestRate = nonDailyTotal > 0 ? totalWeightedRate / nonDailyTotal : 0;
     
-    // Interest still pending (not yet received)
     const interestPending = totalInterestToReceive - totalInterestReceived;
     
     return {
@@ -145,13 +192,16 @@ export default function Reports() {
 
   const overdueLoans = loans.filter(l => l.status === 'overdue');
 
-  // Loan chart data
-  const loanChartData = [
-    { name: 'Emprestado', value: loanStats.totalLoaned, fill: 'hsl(var(--chart-1))' },
-    { name: 'Juros Total', value: loanStats.totalInterestToReceive, fill: 'hsl(var(--chart-4))' },
-    { name: 'Recebido', value: loanStats.totalReceived, fill: 'hsl(var(--chart-2))' },
-    { name: 'Em Atraso', value: loanStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
-  ];
+  // Filtered loan chart data
+  const loanChartData = useMemo(() => {
+    const allData = [
+      { name: 'Emprestado', value: loanStats.totalLoaned, fill: 'hsl(var(--chart-1))', key: 'emprestado' },
+      { name: 'Juros Total', value: loanStats.totalInterestToReceive, fill: 'hsl(var(--chart-4))', key: 'juros' },
+      { name: 'Recebido', value: loanStats.totalReceived, fill: 'hsl(var(--chart-2))', key: 'recebido' },
+      { name: 'Em Atraso', value: loanStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))', key: 'atraso' },
+    ];
+    return allData.filter(item => loanChartFilters[item.key as keyof typeof loanChartFilters]);
+  }, [loanStats, loanChartFilters]);
 
   const loanPieData = [
     { name: 'Recebido', value: loanStats.totalReceived },
@@ -167,7 +217,6 @@ export default function Reports() {
     const totalReceived = sales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
     const totalPending = sales.reduce((sum, s) => sum + s.remaining_balance, 0);
     
-    // Overdue sales
     const overdueSales = sales.filter(s => {
       const hasOverduePayment = productPayments.some(p => 
         p.product_sale_id === s.id && 
@@ -178,19 +227,10 @@ export default function Reports() {
     });
     const totalOverdueAmount = overdueSales.reduce((sum, s) => sum + s.remaining_balance, 0);
     
-    // Paid sales
     const paidSales = sales.filter(s => s.status === 'paid');
-    
-    // Realized profit (proportional to received)
     const realizedProfit = totalSold > 0 ? (totalReceived / totalSold) * totalProfit : 0;
-    
-    // Profit margin
     const profitMargin = totalSold > 0 ? (totalProfit / totalSold) * 100 : 0;
-    
-    // Average ticket
     const averageTicket = sales.length > 0 ? totalSold / sales.length : 0;
-    
-    // Delinquency rate
     const delinquencyRate = sales.length > 0 ? (overdueSales.length / sales.length) * 100 : 0;
     
     return { 
@@ -210,13 +250,17 @@ export default function Reports() {
     };
   }, [sales, productPayments]);
 
-  const productChartData = [
-    { name: 'Custo', value: productStats.totalCost, fill: 'hsl(var(--chart-4))' },
-    { name: 'Vendido', value: productStats.totalSold, fill: 'hsl(var(--chart-1))' },
-    { name: 'Lucro', value: productStats.totalProfit, fill: 'hsl(var(--chart-2))' },
-    { name: 'Recebido', value: productStats.totalReceived, fill: 'hsl(var(--chart-5))' },
-    { name: 'Em Atraso', value: productStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
-  ];
+  // Filtered product chart data
+  const productChartData = useMemo(() => {
+    const allData = [
+      { name: 'Custo', value: productStats.totalCost, fill: 'hsl(var(--chart-4))', key: 'custo' },
+      { name: 'Vendido', value: productStats.totalSold, fill: 'hsl(var(--chart-1))', key: 'vendido' },
+      { name: 'Lucro', value: productStats.totalProfit, fill: 'hsl(var(--chart-2))', key: 'lucro' },
+      { name: 'Recebido', value: productStats.totalReceived, fill: 'hsl(var(--chart-5))', key: 'recebido' },
+      { name: 'Em Atraso', value: productStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))', key: 'atraso' },
+    ];
+    return allData.filter(item => productChartFilters[item.key as keyof typeof productChartFilters]);
+  }, [productStats, productChartFilters]);
 
   const productPieData = [
     { name: 'Recebido', value: productStats.totalReceived },
@@ -232,24 +276,19 @@ export default function Reports() {
     const totalPayable = payableContracts.reduce((sum, c) => sum + c.amount_to_receive, 0);
     const totalContracts = contracts.reduce((sum, c) => sum + c.total_amount, 0);
     
-    // Net balance
     const netBalance = totalReceivable - totalPayable;
     
-    // Overdue receivables
     const overdueReceivables = receivableContracts.filter(c => c.status === 'overdue' || 
       (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
     const overdueReceivableAmount = overdueReceivables.reduce((sum, c) => sum + c.amount_to_receive, 0);
     
-    // Overdue payables
     const overduePayables = payableContracts.filter(c => c.status === 'overdue' ||
       (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
     const overduePayableAmount = overduePayables.reduce((sum, c) => sum + c.amount_to_receive, 0);
     
-    // Paid contracts
     const paidReceivables = receivableContracts.filter(c => c.status === 'paid');
     const paidPayables = payableContracts.filter(c => c.status === 'paid');
     
-    // Active contracts
     const activeReceivables = receivableContracts.filter(c => c.status === 'active');
     const activePayables = payableContracts.filter(c => c.status === 'active');
     
@@ -271,11 +310,15 @@ export default function Reports() {
     };
   }, [contracts]);
 
-  const contractChartData = [
-    { name: 'A Receber', value: contractStats.totalReceivable, fill: 'hsl(var(--chart-2))' },
-    { name: 'A Pagar', value: contractStats.totalPayable, fill: 'hsl(var(--chart-3))' },
-    { name: 'Saldo Líquido', value: Math.abs(contractStats.netBalance), fill: contractStats.netBalance >= 0 ? 'hsl(var(--chart-5))' : 'hsl(var(--chart-4))' },
-  ];
+  // Filtered contract chart data
+  const contractChartData = useMemo(() => {
+    const allData = [
+      { name: 'A Receber', value: contractStats.totalReceivable, fill: 'hsl(var(--chart-2))', key: 'receber' },
+      { name: 'A Pagar', value: contractStats.totalPayable, fill: 'hsl(var(--chart-3))', key: 'pagar' },
+      { name: 'Saldo Líquido', value: Math.abs(contractStats.netBalance), fill: contractStats.netBalance >= 0 ? 'hsl(var(--chart-5))' : 'hsl(var(--chart-4))', key: 'saldo' },
+    ];
+    return allData.filter(item => contractChartFilters[item.key as keyof typeof contractChartFilters]);
+  }, [contractStats, contractChartFilters]);
 
   const contractPieData = [
     { name: 'A Receber', value: contractStats.totalReceivable },
@@ -290,7 +333,6 @@ export default function Reports() {
     const totalReceived = vehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
     const totalPending = vehicles.reduce((sum, v) => sum + v.remaining_balance, 0);
     
-    // Overdue vehicles
     const overdueVehicles = vehicles.filter(v => {
       const hasOverduePayment = vehiclePayments.some(p => 
         p.vehicle_id === v.id && 
@@ -301,19 +343,10 @@ export default function Reports() {
     });
     const totalOverdueAmount = overdueVehicles.reduce((sum, v) => sum + v.remaining_balance, 0);
     
-    // Paid vehicles
     const paidVehicles = vehicles.filter(v => v.status === 'paid');
-    
-    // Realized profit (proportional to received)
     const realizedProfit = totalSold > 0 ? (totalReceived / totalSold) * totalProfit : 0;
-    
-    // Profit margin
     const profitMargin = totalSold > 0 ? (totalProfit / totalSold) * 100 : 0;
-    
-    // Average ticket
     const averageTicket = vehicles.length > 0 ? totalSold / vehicles.length : 0;
-    
-    // Delinquency rate
     const delinquencyRate = vehicles.length > 0 ? (overdueVehicles.length / vehicles.length) * 100 : 0;
     
     return { 
@@ -333,13 +366,17 @@ export default function Reports() {
     };
   }, [vehicles, vehiclePayments]);
 
-  const vehicleChartData = [
-    { name: 'Custo', value: vehicleStats.totalCost, fill: 'hsl(var(--chart-4))' },
-    { name: 'Vendido', value: vehicleStats.totalSold, fill: 'hsl(var(--chart-1))' },
-    { name: 'Lucro', value: vehicleStats.totalProfit, fill: 'hsl(var(--chart-2))' },
-    { name: 'Recebido', value: vehicleStats.totalReceived, fill: 'hsl(var(--chart-5))' },
-    { name: 'Em Atraso', value: vehicleStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
-  ];
+  // Filtered vehicle chart data
+  const vehicleChartData = useMemo(() => {
+    const allData = [
+      { name: 'Custo', value: vehicleStats.totalCost, fill: 'hsl(var(--chart-4))', key: 'custo' },
+      { name: 'Vendido', value: vehicleStats.totalSold, fill: 'hsl(var(--chart-1))', key: 'vendido' },
+      { name: 'Lucro', value: vehicleStats.totalProfit, fill: 'hsl(var(--chart-2))', key: 'lucro' },
+      { name: 'Recebido', value: vehicleStats.totalReceived, fill: 'hsl(var(--chart-5))', key: 'recebido' },
+      { name: 'Em Atraso', value: vehicleStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))', key: 'atraso' },
+    ];
+    return allData.filter(item => vehicleChartFilters[item.key as keyof typeof vehicleChartFilters]);
+  }, [vehicleStats, vehicleChartFilters]);
 
   const vehiclePieData = [
     { name: 'Recebido', value: vehicleStats.totalReceived },
@@ -377,8 +414,8 @@ export default function Reports() {
           </TabsList>
 
           {/* LOANS TAB */}
-          <TabsContent value="loans" className="space-y-6 mt-4">
-            {/* Primary Metrics */}
+          <TabsContent value="loans" className="space-y-4 mt-4">
+            {/* Primary Metrics - Always Visible */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Emprestado"
@@ -395,37 +432,9 @@ export default function Reports() {
                 bgColor="bg-emerald-500/10"
               />
               <MetricCard
-                label="Juros a Receber"
-                value={formatCurrency(loanStats.totalInterestToReceive)}
-                icon={PiggyBank}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
-                subtitle={`${formatCurrency(loanStats.totalInterestReceived)} já recebido`}
-              />
-              <MetricCard
-                label="Juros Pendentes"
-                value={formatCurrency(loanStats.interestPending)}
-                icon={Clock}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
-              />
-            </div>
-
-            {/* Secondary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
                 label="Total em Atraso"
                 value={formatCurrency(loanStats.totalOverdueAmount)}
                 icon={AlertTriangle}
-                iconColor="text-destructive"
-                bgColor="bg-destructive/10"
-                valueColor="text-destructive"
-                subtitle={`${loanStats.overdueLoansCount} empréstimos`}
-              />
-              <MetricCard
-                label="Clientes Inadimplentes"
-                value={loanStats.overdueClientsCount}
-                icon={Users}
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
                 valueColor="text-destructive"
@@ -438,51 +447,107 @@ export default function Reports() {
                 bgColor="bg-emerald-500/10"
                 valueColor="text-emerald-500"
               />
-              <MetricCard
-                label="Empréstimos Quitados"
-                value={loanStats.paidLoansCount}
-                icon={CheckCircle}
-                iconColor="text-success"
-                bgColor="bg-success/10"
-                subtitle={`de ${loanStats.totalLoans} total`}
-              />
             </div>
 
-            {/* Tertiary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
-                label="% Inadimplência"
-                value={`${loanStats.delinquencyRate.toFixed(1)}%`}
-                icon={Percent}
-                iconColor={loanStats.delinquencyRate > 20 ? 'text-destructive' : loanStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
-                bgColor={loanStats.delinquencyRate > 20 ? 'bg-destructive/10' : loanStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
-              />
-              <MetricCard
-                label="Ticket Médio"
-                value={formatCurrency(loanStats.averageTicket)}
-                icon={ArrowUpDown}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
-              />
-              <MetricCard
-                label="Taxa Média Juros"
-                value={`${loanStats.averageInterestRate.toFixed(2)}%`}
-                icon={Percent}
-                iconColor="text-purple-500"
-                bgColor="bg-purple-500/10"
-              />
-              <MetricCard
-                label="Total Empréstimos"
-                value={loanStats.totalLoans}
-                icon={Banknote}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-              />
-            </div>
+            {/* Toggle Button for More Metrics */}
+            <Button
+              variant="outline"
+              onClick={() => setShowMoreLoans(!showMoreLoans)}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              {showMoreLoans ? 'Ver Menos Métricas' : `Ver Mais Métricas (${8})`}
+              <ChevronDown className={cn("w-4 h-4 transition-transform", showMoreLoans && "rotate-180")} />
+            </Button>
+
+            {/* Expandable Secondary & Tertiary Metrics */}
+            <AnimatePresence>
+              {showMoreLoans && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Juros a Receber"
+                      value={formatCurrency(loanStats.totalInterestToReceive)}
+                      icon={PiggyBank}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                      subtitle={`${formatCurrency(loanStats.totalInterestReceived)} já recebido`}
+                    />
+                    <MetricCard
+                      label="Juros Pendentes"
+                      value={formatCurrency(loanStats.interestPending)}
+                      icon={Clock}
+                      iconColor="text-amber-500"
+                      bgColor="bg-amber-500/10"
+                    />
+                    <MetricCard
+                      label="Clientes Inadimplentes"
+                      value={loanStats.overdueClientsCount}
+                      icon={Users}
+                      iconColor="text-destructive"
+                      bgColor="bg-destructive/10"
+                      valueColor="text-destructive"
+                    />
+                    <MetricCard
+                      label="Empréstimos Quitados"
+                      value={loanStats.paidLoansCount}
+                      icon={CheckCircle}
+                      iconColor="text-success"
+                      bgColor="bg-success/10"
+                      subtitle={`de ${loanStats.totalLoans} total`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="% Inadimplência"
+                      value={`${loanStats.delinquencyRate.toFixed(1)}%`}
+                      icon={Percent}
+                      iconColor={loanStats.delinquencyRate > 20 ? 'text-destructive' : loanStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                      bgColor={loanStats.delinquencyRate > 20 ? 'bg-destructive/10' : loanStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+                    />
+                    <MetricCard
+                      label="Ticket Médio"
+                      value={formatCurrency(loanStats.averageTicket)}
+                      icon={ArrowUpDown}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                    />
+                    <MetricCard
+                      label="Taxa Média Juros"
+                      value={`${loanStats.averageInterestRate.toFixed(2)}%`}
+                      icon={Percent}
+                      iconColor="text-purple-500"
+                      bgColor="bg-purple-500/10"
+                    />
+                    <MetricCard
+                      label="Total Empréstimos"
+                      value={loanStats.totalLoans}
+                      icon={Banknote}
+                      iconColor="text-primary"
+                      bgColor="bg-primary/10"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="grid lg:grid-cols-2 gap-4">
               <Card className="shadow-soft">
-                <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="Emprestado" active={loanChartFilters.emprestado} onClick={() => setLoanChartFilters(f => ({ ...f, emprestado: !f.emprestado }))} color="bg-chart-1" />
+                    <ChartFilterButton label="Juros" active={loanChartFilters.juros} onClick={() => setLoanChartFilters(f => ({ ...f, juros: !f.juros }))} color="bg-chart-4" />
+                    <ChartFilterButton label="Recebido" active={loanChartFilters.recebido} onClick={() => setLoanChartFilters(f => ({ ...f, recebido: !f.recebido }))} color="bg-chart-2" />
+                    <ChartFilterButton label="Atraso" active={loanChartFilters.atraso} onClick={() => setLoanChartFilters(f => ({ ...f, atraso: !f.atraso }))} color="bg-chart-3" />
+                  </div>
+                </CardHeader>
                 <CardContent className="p-2 sm:p-6">
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={loanChartData}>
@@ -545,8 +610,8 @@ export default function Reports() {
           </TabsContent>
 
           {/* PRODUCTS TAB */}
-          <TabsContent value="products" className="space-y-6 mt-4">
-            {/* Primary Metrics */}
+          <TabsContent value="products" className="space-y-4 mt-4">
+            {/* Primary Metrics - Always Visible */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
@@ -554,13 +619,6 @@ export default function Reports() {
                 icon={Package}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
-              />
-              <MetricCard
-                label="Custo Total"
-                value={formatCurrency(productStats.totalCost)}
-                icon={DollarSign}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
               />
               <MetricCard
                 label="Lucro Bruto"
@@ -571,31 +629,11 @@ export default function Reports() {
                 valueColor={productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
               />
               <MetricCard
-                label="Lucro Realizado"
-                value={formatCurrency(productStats.realizedProfit)}
-                icon={Target}
-                iconColor="text-emerald-500"
-                bgColor="bg-emerald-500/10"
-                valueColor="text-emerald-500"
-                subtitle="Proporcional ao recebido"
-              />
-            </div>
-
-            {/* Secondary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
                 label="Total Recebido"
                 value={formatCurrency(productStats.totalReceived)}
                 icon={CheckCircle}
                 iconColor="text-success"
                 bgColor="bg-success/10"
-              />
-              <MetricCard
-                label="Total Pendente"
-                value={formatCurrency(productStats.totalPending)}
-                icon={Clock}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
               />
               <MetricCard
                 label="Em Atraso"
@@ -604,53 +642,109 @@ export default function Reports() {
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
                 valueColor="text-destructive"
-                subtitle={`${productStats.overdueSales.length} vendas`}
-              />
-              <MetricCard
-                label="Margem de Lucro"
-                value={`${productStats.profitMargin.toFixed(1)}%`}
-                icon={Percent}
-                iconColor={productStats.profitMargin >= 20 ? 'text-emerald-500' : productStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
-                bgColor={productStats.profitMargin >= 20 ? 'bg-emerald-500/10' : productStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
               />
             </div>
 
-            {/* Tertiary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
-                label="Ticket Médio"
-                value={formatCurrency(productStats.averageTicket)}
-                icon={ArrowUpDown}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
-              />
-              <MetricCard
-                label="% Inadimplência"
-                value={`${productStats.delinquencyRate.toFixed(1)}%`}
-                icon={XCircle}
-                iconColor={productStats.delinquencyRate > 20 ? 'text-destructive' : productStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
-                bgColor={productStats.delinquencyRate > 20 ? 'bg-destructive/10' : productStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
-              />
-              <MetricCard
-                label="Vendas Quitadas"
-                value={productStats.paidSalesCount}
-                icon={CheckCircle}
-                iconColor="text-success"
-                bgColor="bg-success/10"
-                subtitle={`de ${productStats.totalSales} total`}
-              />
-              <MetricCard
-                label="Total Vendas"
-                value={productStats.totalSales}
-                icon={Package}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-              />
-            </div>
+            {/* Toggle Button for More Metrics */}
+            <Button
+              variant="outline"
+              onClick={() => setShowMoreProducts(!showMoreProducts)}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              {showMoreProducts ? 'Ver Menos Métricas' : `Ver Mais Métricas (${8})`}
+              <ChevronDown className={cn("w-4 h-4 transition-transform", showMoreProducts && "rotate-180")} />
+            </Button>
+
+            {/* Expandable Metrics */}
+            <AnimatePresence>
+              {showMoreProducts && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Custo Total"
+                      value={formatCurrency(productStats.totalCost)}
+                      icon={DollarSign}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                    />
+                    <MetricCard
+                      label="Lucro Realizado"
+                      value={formatCurrency(productStats.realizedProfit)}
+                      icon={Target}
+                      iconColor="text-emerald-500"
+                      bgColor="bg-emerald-500/10"
+                      valueColor="text-emerald-500"
+                      subtitle="Proporcional ao recebido"
+                    />
+                    <MetricCard
+                      label="Total Pendente"
+                      value={formatCurrency(productStats.totalPending)}
+                      icon={Clock}
+                      iconColor="text-amber-500"
+                      bgColor="bg-amber-500/10"
+                    />
+                    <MetricCard
+                      label="Margem de Lucro"
+                      value={`${productStats.profitMargin.toFixed(1)}%`}
+                      icon={Percent}
+                      iconColor={productStats.profitMargin >= 20 ? 'text-emerald-500' : productStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
+                      bgColor={productStats.profitMargin >= 20 ? 'bg-emerald-500/10' : productStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Ticket Médio"
+                      value={formatCurrency(productStats.averageTicket)}
+                      icon={ArrowUpDown}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                    />
+                    <MetricCard
+                      label="% Inadimplência"
+                      value={`${productStats.delinquencyRate.toFixed(1)}%`}
+                      icon={XCircle}
+                      iconColor={productStats.delinquencyRate > 20 ? 'text-destructive' : productStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                      bgColor={productStats.delinquencyRate > 20 ? 'bg-destructive/10' : productStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+                    />
+                    <MetricCard
+                      label="Vendas Quitadas"
+                      value={productStats.paidSalesCount}
+                      icon={CheckCircle}
+                      iconColor="text-success"
+                      bgColor="bg-success/10"
+                      subtitle={`de ${productStats.totalSales} total`}
+                    />
+                    <MetricCard
+                      label="Total Vendas"
+                      value={productStats.totalSales}
+                      icon={Package}
+                      iconColor="text-primary"
+                      bgColor="bg-primary/10"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="grid lg:grid-cols-2 gap-4">
               <Card className="shadow-soft">
-                <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="Custo" active={productChartFilters.custo} onClick={() => setProductChartFilters(f => ({ ...f, custo: !f.custo }))} color="bg-chart-4" />
+                    <ChartFilterButton label="Vendido" active={productChartFilters.vendido} onClick={() => setProductChartFilters(f => ({ ...f, vendido: !f.vendido }))} color="bg-chart-1" />
+                    <ChartFilterButton label="Lucro" active={productChartFilters.lucro} onClick={() => setProductChartFilters(f => ({ ...f, lucro: !f.lucro }))} color="bg-chart-2" />
+                    <ChartFilterButton label="Recebido" active={productChartFilters.recebido} onClick={() => setProductChartFilters(f => ({ ...f, recebido: !f.recebido }))} color="bg-chart-5" />
+                    <ChartFilterButton label="Atraso" active={productChartFilters.atraso} onClick={() => setProductChartFilters(f => ({ ...f, atraso: !f.atraso }))} color="bg-chart-3" />
+                  </div>
+                </CardHeader>
                 <CardContent className="p-2 sm:p-6">
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={productChartData}>
@@ -711,8 +805,8 @@ export default function Reports() {
           </TabsContent>
 
           {/* CONTRACTS TAB */}
-          <TabsContent value="contracts" className="space-y-6 mt-4">
-            {/* Primary Metrics */}
+          <TabsContent value="contracts" className="space-y-4 mt-4">
+            {/* Primary Metrics - Always Visible */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total a Receber"
@@ -721,7 +815,6 @@ export default function Reports() {
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
                 valueColor="text-emerald-500"
-                subtitle={`${contractStats.receivableCount} contratos`}
               />
               <MetricCard
                 label="Total a Pagar"
@@ -730,7 +823,6 @@ export default function Reports() {
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
                 valueColor="text-destructive"
-                subtitle={`${contractStats.payableCount} contas`}
               />
               <MetricCard
                 label="Saldo Líquido"
@@ -739,93 +831,120 @@ export default function Reports() {
                 iconColor={contractStats.netBalance >= 0 ? 'text-emerald-500' : 'text-destructive'}
                 bgColor={contractStats.netBalance >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}
                 valueColor={contractStats.netBalance >= 0 ? 'text-emerald-500' : 'text-destructive'}
-                subtitle="Receitas - Despesas"
               />
               <MetricCard
-                label="Valor Total"
-                value={formatCurrency(contractStats.totalContracts)}
-                icon={DollarSign}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-              />
-            </div>
-
-            {/* Secondary Metrics - Overdue */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
-                label="Em Atraso (Receber)"
-                value={formatCurrency(contractStats.overdueReceivableAmount)}
+                label="Em Atraso Total"
+                value={formatCurrency(contractStats.overdueReceivableAmount + contractStats.overduePayableAmount)}
                 icon={Clock}
                 iconColor="text-amber-500"
                 bgColor="bg-amber-500/10"
-                subtitle={`${contractStats.overdueReceivablesCount} contratos`}
-              />
-              <MetricCard
-                label="Em Atraso (Pagar)"
-                value={formatCurrency(contractStats.overduePayableAmount)}
-                icon={XCircle}
-                iconColor="text-destructive"
-                bgColor="bg-destructive/10"
-                valueColor="text-destructive"
-                subtitle={`${contractStats.overduePayablesCount} contas`}
-              />
-              <MetricCard
-                label="Contratos Ativos"
-                value={contractStats.activeReceivablesCount}
-                icon={FileText}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
-                subtitle="A receber"
-              />
-              <MetricCard
-                label="Contas Ativas"
-                value={contractStats.activePayablesCount}
-                icon={FileText}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
-                subtitle="A pagar"
               />
             </div>
 
-            {/* Tertiary Metrics - Status */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
-                label="Contratos Quitados"
-                value={contractStats.paidReceivablesCount}
-                icon={CheckCircle}
-                iconColor="text-success"
-                bgColor="bg-success/10"
-                subtitle="Receitas recebidas"
-              />
-              <MetricCard
-                label="Contas Pagas"
-                value={contractStats.paidPayablesCount}
-                icon={CheckCircle}
-                iconColor="text-success"
-                bgColor="bg-success/10"
-                subtitle="Despesas quitadas"
-              />
-              <MetricCard
-                label="Total Contratos"
-                value={contractStats.receivableCount}
-                icon={FileText}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-                subtitle="Receitas"
-              />
-              <MetricCard
-                label="Total Contas"
-                value={contractStats.payableCount}
-                icon={FileText}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-                subtitle="Despesas"
-              />
-            </div>
+            {/* Toggle Button for More Metrics */}
+            <Button
+              variant="outline"
+              onClick={() => setShowMoreContracts(!showMoreContracts)}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              {showMoreContracts ? 'Ver Menos Métricas' : `Ver Mais Métricas (${8})`}
+              <ChevronDown className={cn("w-4 h-4 transition-transform", showMoreContracts && "rotate-180")} />
+            </Button>
+
+            {/* Expandable Metrics */}
+            <AnimatePresence>
+              {showMoreContracts && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Em Atraso (Receber)"
+                      value={formatCurrency(contractStats.overdueReceivableAmount)}
+                      icon={Clock}
+                      iconColor="text-amber-500"
+                      bgColor="bg-amber-500/10"
+                      subtitle={`${contractStats.overdueReceivablesCount} contratos`}
+                    />
+                    <MetricCard
+                      label="Em Atraso (Pagar)"
+                      value={formatCurrency(contractStats.overduePayableAmount)}
+                      icon={XCircle}
+                      iconColor="text-destructive"
+                      bgColor="bg-destructive/10"
+                      valueColor="text-destructive"
+                      subtitle={`${contractStats.overduePayablesCount} contas`}
+                    />
+                    <MetricCard
+                      label="Contratos Ativos"
+                      value={contractStats.activeReceivablesCount}
+                      icon={FileText}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                      subtitle="A receber"
+                    />
+                    <MetricCard
+                      label="Contas Ativas"
+                      value={contractStats.activePayablesCount}
+                      icon={FileText}
+                      iconColor="text-amber-500"
+                      bgColor="bg-amber-500/10"
+                      subtitle="A pagar"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Contratos Quitados"
+                      value={contractStats.paidReceivablesCount}
+                      icon={CheckCircle}
+                      iconColor="text-success"
+                      bgColor="bg-success/10"
+                      subtitle="Receitas recebidas"
+                    />
+                    <MetricCard
+                      label="Contas Pagas"
+                      value={contractStats.paidPayablesCount}
+                      icon={CheckCircle}
+                      iconColor="text-success"
+                      bgColor="bg-success/10"
+                      subtitle="Despesas quitadas"
+                    />
+                    <MetricCard
+                      label="Total Contratos"
+                      value={contractStats.receivableCount}
+                      icon={FileText}
+                      iconColor="text-primary"
+                      bgColor="bg-primary/10"
+                      subtitle="Receitas"
+                    />
+                    <MetricCard
+                      label="Total Contas"
+                      value={contractStats.payableCount}
+                      icon={FileText}
+                      iconColor="text-primary"
+                      bgColor="bg-primary/10"
+                      subtitle="Despesas"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="grid lg:grid-cols-2 gap-4">
               <Card className="shadow-soft">
-                <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="A Receber" active={contractChartFilters.receber} onClick={() => setContractChartFilters(f => ({ ...f, receber: !f.receber }))} color="bg-chart-2" />
+                    <ChartFilterButton label="A Pagar" active={contractChartFilters.pagar} onClick={() => setContractChartFilters(f => ({ ...f, pagar: !f.pagar }))} color="bg-chart-3" />
+                    <ChartFilterButton label="Saldo" active={contractChartFilters.saldo} onClick={() => setContractChartFilters(f => ({ ...f, saldo: !f.saldo }))} color="bg-chart-5" />
+                  </div>
+                </CardHeader>
                 <CardContent className="p-2 sm:p-6">
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={contractChartData}>
@@ -896,8 +1015,8 @@ export default function Reports() {
           </TabsContent>
 
           {/* VEHICLES TAB */}
-          <TabsContent value="vehicles" className="space-y-6 mt-4">
-            {/* Primary Metrics */}
+          <TabsContent value="vehicles" className="space-y-4 mt-4">
+            {/* Primary Metrics - Always Visible */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
@@ -905,13 +1024,6 @@ export default function Reports() {
                 icon={Car}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
-              />
-              <MetricCard
-                label="Custo Total"
-                value={formatCurrency(vehicleStats.totalCost)}
-                icon={DollarSign}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
               />
               <MetricCard
                 label="Lucro Bruto"
@@ -922,31 +1034,11 @@ export default function Reports() {
                 valueColor={vehicleStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
               />
               <MetricCard
-                label="Lucro Realizado"
-                value={formatCurrency(vehicleStats.realizedProfit)}
-                icon={Target}
-                iconColor="text-emerald-500"
-                bgColor="bg-emerald-500/10"
-                valueColor="text-emerald-500"
-                subtitle="Proporcional ao recebido"
-              />
-            </div>
-
-            {/* Secondary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
                 label="Total Recebido"
                 value={formatCurrency(vehicleStats.totalReceived)}
                 icon={CheckCircle}
                 iconColor="text-success"
                 bgColor="bg-success/10"
-              />
-              <MetricCard
-                label="Total Pendente"
-                value={formatCurrency(vehicleStats.totalPending)}
-                icon={Clock}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
               />
               <MetricCard
                 label="Em Atraso"
@@ -955,53 +1047,109 @@ export default function Reports() {
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
                 valueColor="text-destructive"
-                subtitle={`${vehicleStats.overdueVehicles.length} veículos`}
-              />
-              <MetricCard
-                label="Margem de Lucro"
-                value={`${vehicleStats.profitMargin.toFixed(1)}%`}
-                icon={Percent}
-                iconColor={vehicleStats.profitMargin >= 20 ? 'text-emerald-500' : vehicleStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
-                bgColor={vehicleStats.profitMargin >= 20 ? 'bg-emerald-500/10' : vehicleStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
               />
             </div>
 
-            {/* Tertiary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              <MetricCard
-                label="Ticket Médio"
-                value={formatCurrency(vehicleStats.averageTicket)}
-                icon={ArrowUpDown}
-                iconColor="text-blue-500"
-                bgColor="bg-blue-500/10"
-              />
-              <MetricCard
-                label="% Inadimplência"
-                value={`${vehicleStats.delinquencyRate.toFixed(1)}%`}
-                icon={XCircle}
-                iconColor={vehicleStats.delinquencyRate > 20 ? 'text-destructive' : vehicleStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
-                bgColor={vehicleStats.delinquencyRate > 20 ? 'bg-destructive/10' : vehicleStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
-              />
-              <MetricCard
-                label="Veículos Quitados"
-                value={vehicleStats.paidVehiclesCount}
-                icon={CheckCircle}
-                iconColor="text-success"
-                bgColor="bg-success/10"
-                subtitle={`de ${vehicleStats.totalVehicles} total`}
-              />
-              <MetricCard
-                label="Total Veículos"
-                value={vehicleStats.totalVehicles}
-                icon={Car}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-              />
-            </div>
+            {/* Toggle Button for More Metrics */}
+            <Button
+              variant="outline"
+              onClick={() => setShowMoreVehicles(!showMoreVehicles)}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              {showMoreVehicles ? 'Ver Menos Métricas' : `Ver Mais Métricas (${8})`}
+              <ChevronDown className={cn("w-4 h-4 transition-transform", showMoreVehicles && "rotate-180")} />
+            </Button>
+
+            {/* Expandable Metrics */}
+            <AnimatePresence>
+              {showMoreVehicles && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Custo Total"
+                      value={formatCurrency(vehicleStats.totalCost)}
+                      icon={DollarSign}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                    />
+                    <MetricCard
+                      label="Lucro Realizado"
+                      value={formatCurrency(vehicleStats.realizedProfit)}
+                      icon={Target}
+                      iconColor="text-emerald-500"
+                      bgColor="bg-emerald-500/10"
+                      valueColor="text-emerald-500"
+                      subtitle="Proporcional ao recebido"
+                    />
+                    <MetricCard
+                      label="Total Pendente"
+                      value={formatCurrency(vehicleStats.totalPending)}
+                      icon={Clock}
+                      iconColor="text-amber-500"
+                      bgColor="bg-amber-500/10"
+                    />
+                    <MetricCard
+                      label="Margem de Lucro"
+                      value={`${vehicleStats.profitMargin.toFixed(1)}%`}
+                      icon={Percent}
+                      iconColor={vehicleStats.profitMargin >= 20 ? 'text-emerald-500' : vehicleStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
+                      bgColor={vehicleStats.profitMargin >= 20 ? 'bg-emerald-500/10' : vehicleStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                    <MetricCard
+                      label="Ticket Médio"
+                      value={formatCurrency(vehicleStats.averageTicket)}
+                      icon={ArrowUpDown}
+                      iconColor="text-blue-500"
+                      bgColor="bg-blue-500/10"
+                    />
+                    <MetricCard
+                      label="% Inadimplência"
+                      value={`${vehicleStats.delinquencyRate.toFixed(1)}%`}
+                      icon={XCircle}
+                      iconColor={vehicleStats.delinquencyRate > 20 ? 'text-destructive' : vehicleStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                      bgColor={vehicleStats.delinquencyRate > 20 ? 'bg-destructive/10' : vehicleStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+                    />
+                    <MetricCard
+                      label="Veículos Quitados"
+                      value={vehicleStats.paidVehiclesCount}
+                      icon={CheckCircle}
+                      iconColor="text-success"
+                      bgColor="bg-success/10"
+                      subtitle={`de ${vehicleStats.totalVehicles} total`}
+                    />
+                    <MetricCard
+                      label="Total Veículos"
+                      value={vehicleStats.totalVehicles}
+                      icon={Car}
+                      iconColor="text-primary"
+                      bgColor="bg-primary/10"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="grid lg:grid-cols-2 gap-4">
               <Card className="shadow-soft">
-                <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="Custo" active={vehicleChartFilters.custo} onClick={() => setVehicleChartFilters(f => ({ ...f, custo: !f.custo }))} color="bg-chart-4" />
+                    <ChartFilterButton label="Vendido" active={vehicleChartFilters.vendido} onClick={() => setVehicleChartFilters(f => ({ ...f, vendido: !f.vendido }))} color="bg-chart-1" />
+                    <ChartFilterButton label="Lucro" active={vehicleChartFilters.lucro} onClick={() => setVehicleChartFilters(f => ({ ...f, lucro: !f.lucro }))} color="bg-chart-2" />
+                    <ChartFilterButton label="Recebido" active={vehicleChartFilters.recebido} onClick={() => setVehicleChartFilters(f => ({ ...f, recebido: !f.recebido }))} color="bg-chart-5" />
+                    <ChartFilterButton label="Atraso" active={vehicleChartFilters.atraso} onClick={() => setVehicleChartFilters(f => ({ ...f, atraso: !f.atraso }))} color="bg-chart-3" />
+                  </div>
+                </CardHeader>
                 <CardContent className="p-2 sm:p-6">
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={vehicleChartData}>
