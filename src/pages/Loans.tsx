@@ -681,18 +681,26 @@ export default function Loans() {
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
       notesText += `\nValor que falta: R$ ${renegotiateData.remaining_amount}`;
       
-      // Manter número de parcelas original e adicionar nova data no final
+      // Manter número de parcelas original, mas empurrar as datas para o próximo mês
       const currentInstallments = loan.installments || 1;
       const currentDates = (loan.installment_dates as string[]) || [];
       
-      // Adicionar a nova data de vencimento no final das datas existentes
-      const newInstallmentDates = [...currentDates, renegotiateData.promised_date];
+      // Empurrar todas as datas um mês para frente
+      const newInstallmentDates = currentDates.map(dateStr => {
+        const date = new Date(dateStr + 'T12:00:00');
+        date.setMonth(date.getMonth() + 1);
+        return date.toISOString().split('T')[0];
+      });
+      
+      // Se não tinha datas, usar a nova data prometida
+      const finalDates = newInstallmentDates.length > 0 ? newInstallmentDates : [renegotiateData.promised_date];
+      const finalDueDate = finalDates[finalDates.length - 1];
       
       await renegotiateLoan(selectedLoanId, {
         interest_rate: loan.interest_rate,
-        installments: currentInstallments + 1, // Adiciona mais uma parcela
-        installment_dates: newInstallmentDates,
-        due_date: renegotiateData.promised_date,
+        installments: currentInstallments, // Mantém o número original de parcelas
+        installment_dates: finalDates,
+        due_date: finalDueDate,
         notes: notesText,
       });
     } else {
