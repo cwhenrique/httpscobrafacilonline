@@ -713,8 +713,9 @@ export default function Loans() {
     if (isOverdue) {
       const numInstallments = loan.installments || 1;
       const principalPerInstallment = loan.principal_amount / numInstallments;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-      const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+      const totalInterestForOverdue = loan.total_interest || 0;
+      const interestPerInstallmentForOverdue = totalInterestForOverdue / numInstallments;
+      const totalPerInstallment = principalPerInstallment + interestPerInstallmentForOverdue;
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
       const dates = (loan.installment_dates as string[]) || [];
       const overdueDate = dates[paidInstallments] || loan.due_date;

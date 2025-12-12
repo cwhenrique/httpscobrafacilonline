@@ -35,8 +35,8 @@ export default function Dashboard() {
     if (loan.status === 'paid') return false;
     
     const numInstallments = loan.installments || 1;
-    const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-    const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+    const totalInterest = loan.total_interest || 0;
+    const totalToReceive = loan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (loan.total_paid || 0);
     
     if (remainingToReceive <= 0) return false;
@@ -45,6 +45,7 @@ export default function Dashboard() {
     today.setHours(0, 0, 0, 0);
     
     const principalPerInstallment = loan.principal_amount / numInstallments;
+    const interestPerInstallment = totalInterest / numInstallments;
     const totalPerInstallment = principalPerInstallment + interestPerInstallment;
     const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
     const dates = (loan.installment_dates as string[]) || [];
@@ -173,8 +174,8 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {overdueLoans.slice(0, 5).map((loan) => {
                   const numInstallments = loan.installments || 1;
-                  const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-                  const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+                  const totalInterest = loan.total_interest || 0;
+                  const totalToReceive = loan.principal_amount + totalInterest;
                   const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                   
                   const dueDate = new Date(loan.due_date);

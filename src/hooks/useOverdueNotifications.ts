@@ -15,13 +15,14 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
       if (loan.status === 'paid') return false;
 
       const numInstallments = loan.installments || 1;
-      const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-      const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+      const totalInterest = loan.total_interest || 0;
+      const totalToReceive = loan.principal_amount + totalInterest;
       const remainingToReceive = totalToReceive - (loan.total_paid || 0);
 
       if (remainingToReceive <= 0) return false;
 
       const principalPerInstallment = loan.principal_amount / numInstallments;
+      const interestPerInstallment = totalInterest / numInstallments;
       const totalPerInstallment = principalPerInstallment + interestPerInstallment;
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
       const dates = (loan.installment_dates as string[]) || [];
