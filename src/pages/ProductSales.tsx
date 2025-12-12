@@ -1164,7 +1164,7 @@ export default function ProductSales() {
                     {installmentDates.length > 1 && (
                       <div className="space-y-2">
                         <Label>Datas das Parcelas</Label>
-                        <ScrollArea className="h-[200px] rounded-md border p-3">
+                        <div className="max-h-[200px] overflow-y-auto rounded-md border p-3">
                           <div className="space-y-2">
                             {installmentDates.map((inst, index) => {
                               const instDate = new Date(inst.date);
@@ -1208,7 +1208,7 @@ export default function ProductSales() {
                               );
                             })}
                           </div>
-                        </ScrollArea>
+                        </div>
                       </div>
                     )}
                     <div className="space-y-2">
