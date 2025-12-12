@@ -600,6 +600,7 @@ export type Database = {
           client_name: string
           client_phone: string | null
           client_rg: string | null
+          cost_value: number | null
           created_at: string
           down_payment: number | null
           first_due_date: string
@@ -624,6 +625,7 @@ export type Database = {
           client_name: string
           client_phone?: string | null
           client_rg?: string | null
+          cost_value?: number | null
           created_at?: string
           down_payment?: number | null
           first_due_date: string
@@ -648,6 +650,7 @@ export type Database = {
           client_name?: string
           client_phone?: string | null
           client_rg?: string | null
+          cost_value?: number | null
           created_at?: string
           down_payment?: number | null
           first_due_date?: string

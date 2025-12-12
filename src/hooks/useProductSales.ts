@@ -17,6 +17,7 @@ export interface ProductSale {
   client_address: string | null;
   sale_date: string;
   total_amount: number;
+  cost_value: number;
   down_payment: number | null;
   installments: number;
   installment_value: number;
@@ -60,6 +61,7 @@ export interface CreateProductSaleData {
   client_address?: string;
   sale_date: string;
   total_amount: number;
+  cost_value?: number;
   down_payment?: number;
   installments: number;
   installment_value: number;
@@ -121,6 +123,7 @@ export function useProductSales() {
           client_email: saleData.client_email,
           sale_date: saleData.sale_date,
           total_amount: saleData.total_amount,
+          cost_value: saleData.cost_value || 0,
           down_payment: downPayment,
           installments: saleData.installments,
           installment_value: saleData.installment_value,
