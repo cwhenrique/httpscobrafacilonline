@@ -800,28 +800,30 @@ export default function Bills() {
                           </div>
 
                           {expandedVehicle === vehicle.id && (
-                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-1.5 sm:space-y-2">
-                              {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
-                                <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", 
-                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' : 
-                                  isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
-                                )}>
-                                  <div className="min-w-0">
-                                    <span className="font-medium">{payment.installment_number}ª</span>
-                                    <span className="ml-1 sm:ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
+                              <div className="max-h-[180px] overflow-y-auto space-y-1.5 sm:space-y-2 pr-1">
+                                {vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map((payment) => (
+                                  <div key={payment.id} className={cn("flex items-center justify-between p-1.5 sm:p-2 rounded-lg text-xs sm:text-sm", 
+                                    payment.status === 'paid' ? 'bg-primary/10 text-primary' : 
+                                    isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
+                                  )}>
+                                    <div className="min-w-0">
+                                      <span className="font-medium">{payment.installment_number}ª</span>
+                                      <span className="ml-1 sm:ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 sm:gap-2">
+                                      <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      {payment.status !== 'paid' ? (
+                                        <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
+                                          <Check className="w-3 h-3" />
+                                        </Button>
+                                      ) : (
+                                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1.5 sm:gap-2">
-                                    <span className="font-semibold">R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    {payment.status !== 'paid' ? (
-                                      <Button size="sm" variant="outline" className="h-6 sm:h-7 text-[10px] sm:text-xs px-2" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
-                                        <Check className="w-3 h-3" />
-                                      </Button>
-                                    ) : (
-                                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
                           )}
                         </CardContent>

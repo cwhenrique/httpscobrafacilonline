@@ -1749,28 +1749,30 @@ export default function ProductSales() {
                           <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteVehicleId(vehicle.id)}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                         {expandedVehicle === vehicle.id && (
-                          <div className="mt-4 pt-4 border-t space-y-2">
-                            {vehiclePaymentsForCard.map((payment) => (
-                              <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
-                                payment.status === 'paid' ? 'bg-primary/10 text-primary' :
-                                isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
-                              )}>
-                                <div>
-                                  <span className="font-medium">{payment.installment_number}ª</span>
-                                  <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                          <div className="mt-4 pt-4 border-t">
+                            <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1">
+                              {vehiclePaymentsForCard.map((payment) => (
+                                <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
+                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' :
+                                  isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
+                                )}>
+                                  <div>
+                                    <span className="font-medium">{payment.installment_number}ª</span>
+                                    <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkVehiclePaymentAsPaid(payment.id, vehicle.id)}>
+                                        <Check className="w-3 h-3" />
+                                      </Button>
+                                    ) : (
+                                      <Check className="w-4 h-4 text-primary" />
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold">{formatCurrency(payment.amount)}</span>
-                                  {payment.status !== 'paid' ? (
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkVehiclePaymentAsPaid(payment.id, vehicle.id)}>
-                                      <Check className="w-3 h-3" />
-                                    </Button>
-                                  ) : (
-                                    <Check className="w-4 h-4 text-primary" />
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
                         )}
                       </CardContent>
