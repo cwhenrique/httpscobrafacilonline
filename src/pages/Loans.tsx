@@ -167,9 +167,12 @@ export default function Loans() {
   })();
   
   const [installmentValue, setInstallmentValue] = useState('');
+  const [isManuallyEditingInstallment, setIsManuallyEditingInstallment] = useState(false);
   
-  // Recalcular valor da parcela quando principal, juros ou parcelas mudam
+  // Recalcular valor da parcela quando principal, parcelas ou modo mudam (apenas se não estiver editando manualmente)
   useEffect(() => {
+    if (isManuallyEditingInstallment) return;
+    
     if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && formData.principal_amount && formData.interest_rate && formData.installments) {
       const principal = parseFloat(formData.principal_amount);
       const rate = parseFloat(formData.interest_rate);
@@ -180,10 +183,16 @@ export default function Loans() {
       const total = principal + totalInterest;
       setInstallmentValue((total / numInstallments).toFixed(2));
     }
-  }, [formData.principal_amount, formData.interest_rate, formData.installments, formData.interest_mode, formData.payment_type]);
+  }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type, isManuallyEditingInstallment]);
+  
+  // Reset manual editing flag when key params change (but not interest_rate)
+  useEffect(() => {
+    setIsManuallyEditingInstallment(false);
+  }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type]);
   
   // Handler para quando o usuário edita o valor da parcela
   const handleInstallmentValueChange = (value: string) => {
+    setIsManuallyEditingInstallment(true);
     setInstallmentValue(value);
     const newInstallmentValue = parseFloat(value);
     if (!newInstallmentValue || !formData.principal_amount || !formData.installments) return;
