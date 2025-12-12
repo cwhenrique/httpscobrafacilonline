@@ -136,6 +136,7 @@ export default function ProductSales() {
     first_due_date: '',
     notes: '',
     send_creation_notification: false,
+    is_historical: false,
   });
 
   const [contractForm, setContractForm] = useState<CreateContractData>({
@@ -207,6 +208,7 @@ export default function ProductSales() {
       first_due_date: '',
       notes: '',
       send_creation_notification: false,
+      is_historical: false,
     });
     setInstallmentDates([]);
   };
@@ -294,6 +296,30 @@ export default function ProductSales() {
       prev.map((item, i) => i === index ? { ...item, date: newDate } : item)
     );
   };
+  
+  const toggleInstallmentPaid = (index: number) => {
+    setInstallmentDates(prev => 
+      prev.map((item, i) => i === index ? { ...item, isPaid: !item.isPaid } : item)
+    );
+  };
+  
+  // Check if there are past installments
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const hasPastInstallments = installmentDates.some(inst => {
+    const instDate = new Date(inst.date);
+    instDate.setHours(0, 0, 0, 0);
+    return instDate < today;
+  });
+  
+  const pastInstallmentsCount = installmentDates.filter(inst => {
+    const instDate = new Date(inst.date);
+    instDate.setHours(0, 0, 0, 0);
+    return instDate < today;
+  }).length;
+  
+  const paidHistoricalCount = installmentDates.filter(inst => inst.isPaid).length;
+  const paidHistoricalAmount = paidHistoricalCount * formData.installment_value;
 
   // Product Sales handlers
   const handleCreateSale = async () => {
@@ -1104,24 +1130,83 @@ export default function ProductSales() {
                         />
                       </div>
                     </div>
+                    {/* Historical Sale Checkbox */}
+                    {hasPastInstallments && (
+                      <div className="p-3 rounded-lg border border-amber-500/50 bg-amber-500/10 space-y-3">
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            id="is_historical_product"
+                            checked={formData.is_historical}
+                            onChange={(e) => setFormData({ ...formData, is_historical: e.target.checked })}
+                            className="mt-0.5 rounded border-input"
+                          />
+                          <div className="flex-1">
+                            <label htmlFor="is_historical_product" className="text-sm font-medium cursor-pointer text-amber-600">
+                              É uma venda antiga que está registrando na plataforma?
+                            </label>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Marque as parcelas que já foram pagas antes de registrar na plataforma
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {formData.is_historical && paidHistoricalCount > 0 && (
+                          <div className="p-2 rounded bg-primary/10 border border-primary/30">
+                            <p className="text-sm text-primary font-medium">
+                              {paidHistoricalCount} parcela(s) marcada(s) como paga(s) = {formatCurrency(paidHistoricalAmount)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {installmentDates.length > 1 && (
                       <div className="space-y-2">
                         <Label>Datas das Parcelas</Label>
                         <ScrollArea className="h-[200px] rounded-md border p-3">
                           <div className="space-y-2">
-                            {installmentDates.map((inst, index) => (
-                              <div key={inst.number} className="flex items-center gap-3">
-                                <Badge variant="outline" className="w-16 justify-center text-xs">
-                                  {inst.number}ª
-                                </Badge>
-                                <Input
-                                  type="date"
-                                  value={inst.date}
-                                  onChange={(e) => updateInstallmentDate(index, e.target.value)}
-                                  className="flex-1"
-                                />
-                              </div>
-                            ))}
+                            {installmentDates.map((inst, index) => {
+                              const instDate = new Date(inst.date);
+                              instDate.setHours(0, 0, 0, 0);
+                              const isPastDate = instDate < today;
+                              const showPaidCheckbox = formData.is_historical && isPastDate;
+                              
+                              return (
+                                <div key={inst.number} className={cn(
+                                  "flex items-center gap-3 p-2 rounded-lg transition-colors",
+                                  inst.isPaid && "bg-primary/10 border border-primary/30"
+                                )}>
+                                  <Badge variant="outline" className={cn(
+                                    "w-16 justify-center text-xs",
+                                    inst.isPaid && "bg-primary text-primary-foreground border-primary"
+                                  )}>
+                                    {inst.number}ª
+                                  </Badge>
+                                  <Input
+                                    type="date"
+                                    value={inst.date}
+                                    onChange={(e) => updateInstallmentDate(index, e.target.value)}
+                                    className="flex-1"
+                                  />
+                                  {showPaidCheckbox && (
+                                    <Button
+                                      type="button"
+                                      variant={inst.isPaid ? "default" : "outline"}
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => toggleInstallmentPaid(index)}
+                                    >
+                                      {inst.isPaid ? (
+                                        <><Check className="w-3 h-3 mr-1" /> Paga</>
+                                      ) : (
+                                        "Marcar Paga"
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </ScrollArea>
                       </div>

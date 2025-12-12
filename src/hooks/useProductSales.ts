@@ -48,6 +48,7 @@ export interface ProductSalePayment {
 export interface InstallmentDate {
   number: number;
   date: string;
+  isPaid?: boolean; // For historical contracts
 }
 
 export interface CreateProductSaleData {
@@ -69,6 +70,7 @@ export interface CreateProductSaleData {
   notes?: string;
   installmentDates?: InstallmentDate[];
   send_creation_notification?: boolean;
+  is_historical?: boolean; // Flag for historical contracts
 }
 
 export interface UpdateProductSaleData {
@@ -140,11 +142,21 @@ export function useProductSales() {
 
       // Create payment installments
       const payments = [];
+      let paidCount = 0;
+      let paidAmount = 0;
+      
       for (let i = 0; i < saleData.installments; i++) {
         // Use custom dates if provided, otherwise calculate
         const dueDate = saleData.installmentDates?.[i]?.date 
           ? saleData.installmentDates[i].date
           : format(addMonths(new Date(saleData.first_due_date), i), 'yyyy-MM-dd');
+        
+        const isPaid = saleData.is_historical && saleData.installmentDates?.[i]?.isPaid === true;
+        
+        if (isPaid) {
+          paidCount++;
+          paidAmount += saleData.installment_value;
+        }
         
         payments.push({
           product_sale_id: sale.id,
@@ -152,7 +164,9 @@ export function useProductSales() {
           amount: saleData.installment_value,
           installment_number: i + 1,
           due_date: dueDate,
-          status: 'pending',
+          status: isPaid ? 'paid' : 'pending',
+          paid_date: isPaid ? new Date().toISOString().split('T')[0] : null,
+          notes: isPaid ? '[CONTRATO_ANTIGO]' : null,
         });
       }
 
@@ -161,6 +175,21 @@ export function useProductSales() {
         .insert(payments);
 
       if (paymentsError) throw paymentsError;
+      
+      // Update sale totals if there were pre-paid installments
+      if (paidCount > 0) {
+        const newTotalPaid = downPayment + paidAmount;
+        const newRemainingBalance = saleData.total_amount - newTotalPaid;
+        
+        await supabase
+          .from('product_sales')
+          .update({
+            total_paid: newTotalPaid,
+            remaining_balance: newRemainingBalance,
+            status: newRemainingBalance <= 0 ? 'paid' : 'pending',
+          })
+          .eq('id', sale.id);
+      }
 
       // Send WhatsApp notification - only if enabled (default: true)
       if (saleData.send_creation_notification !== false) {
@@ -176,6 +205,16 @@ export function useProductSales() {
           const profit = saleData.total_amount - (saleData.cost_value || 0);
           const profitPercent = saleData.cost_value && saleData.cost_value > 0 ? (profit / saleData.cost_value * 100) : 0;
           
+          // Calculate actual remaining balance considering pre-paid installments
+          const actualTotalPaid = downPayment + paidAmount;
+          const actualRemainingBalance = saleData.total_amount - actualTotalPaid;
+          const pendingInstallments = saleData.installments - paidCount;
+          const progressPercent = saleData.installments > 0 ? Math.round((paidCount / saleData.installments) * 100) : 0;
+          
+          // Find next due date (first unpaid installment)
+          const nextDueInstallment = saleData.installmentDates?.find(inst => !inst.isPaid);
+          const nextDueDate = nextDueInstallment?.date || saleData.first_due_date;
+          
           let message = `📦 *Resumo da Venda - ${contractId}*\n\n`;
           message += `👤 Cliente: ${saleData.client_name}\n\n`;
           message += `💰 *Informações da Venda:*\n`;
@@ -188,15 +227,17 @@ export function useProductSales() {
           message += `- Modalidade: Parcelado\n\n`;
           
           message += `📊 *Status das Parcelas:*\n`;
-          message += `✅ Pagas: 0 de ${saleData.installments} parcelas (R$ ${(saleData.down_payment || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
-          message += `⏰ Pendentes: ${saleData.installments} parcelas (R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
-          message += `📈 Progresso: 0% concluído\n\n`;
+          message += `✅ Pagas: ${paidCount} de ${saleData.installments} parcelas (R$ ${actualTotalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `⏰ Pendentes: ${pendingInstallments} parcelas (R$ ${actualRemainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
           
-          message += `📅 *Próxima Parcela:*\n`;
-          message += `- Vencimento: ${format(new Date(saleData.first_due_date), 'dd/MM/yyyy')}\n`;
-          message += `- Valor: R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          if (pendingInstallments > 0) {
+            message += `📅 *Próxima Parcela:*\n`;
+            message += `- Vencimento: ${format(new Date(nextDueDate), 'dd/MM/yyyy')}\n`;
+            message += `- Valor: R$ ${saleData.installment_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          }
           
-          message += `💰 Saldo Devedor: R$ ${remainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+          message += `💰 Saldo Devedor: R$ ${actualRemainingBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
           message += `━━━━━━━━━━━━━━━━━━━━━\n`;
           message += `_CobraFácil - Registro automático_`;
           
