@@ -2471,7 +2471,8 @@ export default function Loans() {
               const totalInterest = selectedLoan.total_interest || 0;
               const interestPerInstallmentCalc = totalInterest / numInstallments;
               const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
-              const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+              // Usar o remaining_balance real do empréstimo, não o do formulário
+              const actualRemaining = selectedLoan.remaining_balance;
               
               // Estado para controlar qual opção está ativa
               const activeOption = renegotiateData.interest_only_paid ? 'interest' : 
@@ -2536,7 +2537,7 @@ export default function Loans() {
                           onClick={() => {
                             const percentage = 20;
                             const feeAmount = installmentValue * (percentage / 100);
-                            const newTotal = remaining + feeAmount;
+                            const newTotal = actualRemaining + feeAmount;
                             setRenegotiateData({ 
                               ...renegotiateData, 
                               interest_only_paid: false,
@@ -2686,7 +2687,7 @@ export default function Loans() {
                             onChange={(e) => {
                               const percentage = parseFloat(e.target.value) || 0;
                               const feeAmount = installmentValue * (percentage / 100);
-                              const newTotal = remaining + feeAmount;
+                              const newTotal = actualRemaining + feeAmount;
                               
                               setRenegotiateData({ 
                                 ...renegotiateData, 
@@ -2708,7 +2709,7 @@ export default function Loans() {
                             onChange={(e) => {
                               const feeAmount = parseFloat(e.target.value) || 0;
                               const percentage = installmentValue > 0 ? (feeAmount / installmentValue) * 100 : 0;
-                              const newTotal = remaining + feeAmount;
+                              const newTotal = actualRemaining + feeAmount;
                               
                               setRenegotiateData({ 
                                 ...renegotiateData, 
