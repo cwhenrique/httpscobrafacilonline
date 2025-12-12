@@ -26,6 +26,7 @@ import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import LoansTutorial from '@/components/tutorials/LoansTutorial';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -154,15 +155,91 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
-  // Tutorial state - auto-show on first visit
-  const [tutorialRun, setTutorialRun] = useState(() => {
-    const hasSeenTutorial = localStorage.getItem('loans_tutorial_seen');
-    return !hasSeenTutorial;
-  });
+  // Tutorial state - interactive guided tutorial
+  const [tutorialRun, setTutorialRun] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(-1);
+  const { user } = useAuth();
 
-  const handleTutorialFinish = () => {
+  // Check if user has seen tutorial on mount
+  useEffect(() => {
+    const checkTutorialStatus = async () => {
+      if (!user?.id) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('has_seen_loans_tutorial')
+        .eq('id', user.id)
+        .single();
+      
+      // Show tutorial if user hasn't seen it yet
+      if (profile && !profile.has_seen_loans_tutorial) {
+        setTutorialRun(true);
+        setTutorialStep(0);
+      }
+    };
+    
+    checkTutorialStatus();
+  }, [user?.id]);
+
+  const handleTutorialFinish = async () => {
     setTutorialRun(false);
-    localStorage.setItem('loans_tutorial_seen', 'true');
+    setTutorialStep(-1);
+    setIsDialogOpen(false);
+    
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ has_seen_loans_tutorial: true })
+        .eq('id', user.id);
+    }
+  };
+
+  // Advance tutorial when user performs actions
+  const advanceTutorialStep = (fromStep: number) => {
+    if (tutorialRun && tutorialStep === fromStep) {
+      setTutorialStep(fromStep + 1);
+    }
+  };
+
+  // Tutorial action handlers
+  const handleTutorialDialogOpen = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (open && tutorialRun && tutorialStep === 0) {
+      // Advance to step 1 when dialog opens
+      setTimeout(() => advanceTutorialStep(0), 300);
+    }
+  };
+
+  const handleTutorialClientSelect = (clientId: string) => {
+    setFormData(prev => ({ ...prev, client_id: clientId }));
+    advanceTutorialStep(1);
+  };
+
+  const handleTutorialValueBlur = () => {
+    if (formData.principal_amount && parseFloat(formData.principal_amount) > 0) {
+      advanceTutorialStep(2);
+    }
+  };
+
+  const handleTutorialInterestBlur = () => {
+    if (formData.interest_rate && parseFloat(formData.interest_rate) >= 0) {
+      advanceTutorialStep(3);
+    }
+  };
+
+  const handleTutorialInterestModeChange = (value: 'per_installment' | 'on_total') => {
+    setFormData(prev => ({ ...prev, interest_mode: value }));
+    advanceTutorialStep(4);
+  };
+
+  const handleTutorialPaymentTypeChange = (value: LoanPaymentType) => {
+    setFormData(prev => ({ ...prev, payment_type: value }));
+    advanceTutorialStep(5);
+  };
+
+  const handleTutorialStartDateChange = (value: string) => {
+    setFormData(prev => ({ ...prev, start_date: value }));
+    advanceTutorialStep(6);
   };
 
   const handleCreateClientInline = async () => {
@@ -1555,9 +1632,8 @@ export default function Loans() {
 <LoansTutorial 
           run={tutorialRun} 
           onFinish={handleTutorialFinish}
-          onOpenDialog={() => setIsDialogOpen(true)}
-          onCloseDialog={() => setIsDialogOpen(false)}
-          isDialogOpen={isDialogOpen}
+          stepIndex={tutorialStep}
+          onStepChange={setTutorialStep}
         />
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -1570,7 +1646,10 @@ export default function Loans() {
               variant="ghost" 
               size="sm" 
               className="gap-1.5 text-xs sm:text-sm"
-              onClick={() => setTutorialRun(true)}
+              onClick={() => {
+                setTutorialRun(true);
+                setTutorialStep(0);
+              }}
             >
               <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Tutorial</span>
@@ -1690,7 +1769,7 @@ export default function Loans() {
                 </form>
               </DialogContent>
             </Dialog>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={handleTutorialDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
               </DialogTrigger>
@@ -1711,7 +1790,7 @@ export default function Loans() {
                         <Plus className="w-4 h-4 mr-2" />
                         Cadastrar novo cliente
                       </Button>
-                      <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
+                      <Select value={formData.client_id} onValueChange={handleTutorialClientSelect}>
                         <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
                         <SelectContent>
                           {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
@@ -1781,11 +1860,11 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-value">
                       <Label className="text-xs sm:text-sm">Valor *</Label>
-                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} onBlur={handleTutorialValueBlur} required className="h-9 sm:h-10 text-sm" />
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest">
                       <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
-                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} onBlur={handleTutorialInterestBlur} required className="h-9 sm:h-10 text-sm" />
                     </div>
                   </div>
                 )}
@@ -1793,7 +1872,7 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
-                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
+                      <Select value={formData.interest_mode} onValueChange={handleTutorialInterestModeChange}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
@@ -1803,7 +1882,7 @@ export default function Loans() {
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-payment-type">
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
-                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
+                      <Select value={formData.payment_type} onValueChange={handleTutorialPaymentTypeChange}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
@@ -1907,7 +1986,7 @@ export default function Loans() {
                 <div className={`grid gap-2 sm:gap-4 tutorial-form-dates ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Data Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                    <Input type="date" value={formData.start_date} onChange={(e) => handleTutorialStartDateChange(e.target.value)} required className="h-9 sm:h-10 text-sm" />
                   </div>
                   {formData.payment_type === 'single' && (
                     <div className="space-y-1 sm:space-y-2">
