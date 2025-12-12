@@ -2263,6 +2263,23 @@ export default function Loans() {
                   {paymentData.payment_type === 'installment' && (() => {
                     const dates = (selectedLoan.installment_dates as string[]) || [];
                     const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / totalPerInstallment);
+
+                    // Detecta cenário de pagamento só de juros com renovação
+                    const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
+                    const remainingInstallments = Math.max(dates.length - paidInstallments, 0);
+
+                    // Para cenário de juros + renovação, as parcelas futuras devem ser recalculadas
+                    // dividindo o remaining_balance igualmente entre as parcelas em aberto
+                    const renewedInstallmentValue = hasInterestOnlyTag && remainingInstallments > 0
+                      ? remainingToReceive / remainingInstallments
+                      : totalPerInstallment;
+
+                    const getInstallmentValue = (index: number) => {
+                      if (hasInterestOnlyTag && index >= paidInstallments) {
+                        return renewedInstallmentValue;
+                      }
+                      return totalPerInstallment;
+                    };
                     
                     if (dates.length === 0) {
                       return (
@@ -2274,19 +2291,20 @@ export default function Loans() {
                     
                     const toggleInstallment = (index: number) => {
                       const current = paymentData.selected_installments;
+                      let next: number[];
                       if (current.includes(index)) {
-                        setPaymentData({
-                          ...paymentData,
-                          selected_installments: current.filter(i => i !== index),
-                          amount: ((current.length - 1) * totalPerInstallment).toFixed(2)
-                        });
+                        next = current.filter(i => i !== index);
                       } else {
-                        setPaymentData({
-                          ...paymentData,
-                          selected_installments: [...current, index].sort((a, b) => a - b),
-                          amount: ((current.length + 1) * totalPerInstallment).toFixed(2)
-                        });
+                        next = [...current, index].sort((a, b) => a - b);
                       }
+
+                      const totalSelectedAmount = next.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+
+                      setPaymentData({
+                        ...paymentData,
+                        selected_installments: next,
+                        amount: totalSelectedAmount.toFixed(2),
+                      });
                     };
                     
                     return (
@@ -2302,6 +2320,7 @@ export default function Loans() {
                               today.setHours(0, 0, 0, 0);
                               const isOverdue = !isPaid && dateObj < today;
                               const isSelected = paymentData.selected_installments.includes(index);
+                              const installmentValue = getInstallmentValue(index);
                               
                               return (
                                 <Button
@@ -2332,7 +2351,7 @@ export default function Loans() {
                                   </span>
                                   <span className="flex items-center gap-2">
                                     <span className="text-xs opacity-70">{formatDate(date)}</span>
-                                    <span>{formatCurrency(totalPerInstallment)}</span>
+                                    <span>{formatCurrency(installmentValue)}</span>
                                   </span>
                                 </Button>
                               );
@@ -2346,7 +2365,7 @@ export default function Loans() {
                               ⚠️ Atenção: Você selecionou {paymentData.selected_installments.length} parcelas
                             </p>
                             <p className="text-yellow-600 dark:text-yellow-400 text-xs mt-1">
-                              O valor total será de {formatCurrency(totalPerInstallment * paymentData.selected_installments.length)}
+                              O valor total será de {formatCurrency(paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0))}
                             </p>
                           </div>
                         )}
@@ -2359,7 +2378,7 @@ export default function Loans() {
                                   ? `Parcela ${paymentData.selected_installments[0] + 1}`
                                   : `${paymentData.selected_installments.length} Parcelas selecionadas`
                                 }
-                              </strong>: {formatCurrency(totalPerInstallment * paymentData.selected_installments.length)}
+                              </strong>: {formatCurrency(paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0))}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
                               Principal: {formatCurrency(principalPerInstallment * paymentData.selected_installments.length)} + Juros: {formatCurrency(interestPerInstallment * paymentData.selected_installments.length)}
