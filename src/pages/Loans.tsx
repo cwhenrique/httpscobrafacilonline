@@ -859,6 +859,11 @@ export default function Loans() {
         updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
         // Adicionar como totalmente paga
         updatedNotes += `[PARTIAL_PAID:${idx}:${installmentVal.toFixed(2)}]`;
+        
+        // IMPORTANTE: Se esta parcela tinha taxa extra, remover a tag pois já foi paga
+        if (renewalFeeInstallmentIndex !== null && idx === renewalFeeInstallmentIndex) {
+          updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+        }
       }
     } else if (paymentData.payment_type === 'partial') {
       // Pagamento parcial - atualizar tracking da parcela selecionada
@@ -876,8 +881,16 @@ export default function Loans() {
         installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
       } else if (remaining < 0) {
         installmentNote = `Pagamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Excedente: ${formatCurrency(Math.abs(remaining))}`;
+        // Se esta parcela tinha taxa extra e foi quitada (mesmo com excedente), remover a tag
+        if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
+          updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+        }
       } else {
         installmentNote = `Parcela ${targetInstallmentIndex + 1}/${numInstallments} quitada`;
+        // Se esta parcela tinha taxa extra e foi quitada, remover a tag
+        if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
+          updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+        }
       }
     }
     
@@ -1244,24 +1257,23 @@ export default function Loans() {
       // Recalcular o saldo restante real com base no contrato (principal + juros já registrados)
       const storedTotalInterest = loan.total_interest || 0;
       const totalToReceiveBase = loan.principal_amount + storedTotalInterest;
-      const originalRemaining = totalToReceiveBase - (loan.total_paid || 0);
-      const newRemaining = originalRemaining + feeAmount;
       
-      // DEBUG: Logs para verificar cálculos
-      console.log('=== APLICAR TAXA EXTRA ===');
-      console.log('loan.principal_amount:', loan.principal_amount);
-      console.log('loan.total_interest:', storedTotalInterest);
-      console.log('loan.total_paid:', loan.total_paid);
-      console.log('totalToReceiveBase:', totalToReceiveBase);
-      console.log('originalRemaining:', originalRemaining);
-      console.log('feeAmount:', feeAmount);
-      console.log('newRemaining:', newRemaining);
-      console.log('targetInstallment:', targetInstallment);
-      console.log('paidOnTarget:', paidOnTarget);
-      console.log('originalInstallmentValue:', originalInstallmentValue);
-      console.log('remainingOnTarget:', remainingOnTarget);
-      console.log('newInstallmentValue:', newInstallmentValue);
-      console.log('========================');
+      // IMPORTANTE: Se já existia uma taxa anterior, precisamos SUBTRAIR ela do remaining_balance antes de adicionar a nova
+      // Para obter o saldo "limpo" sem taxas anteriores
+      const existingFeeMatchNew = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+:([0-9.]+)\]/);
+      const existingFeeMatchOld = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+      let existingFeeAmount = 0;
+      if (existingFeeMatchNew) {
+        existingFeeAmount = parseFloat(existingFeeMatchNew[1]);
+      } else if (existingFeeMatchOld) {
+        // Formato antigo - calcular diferença entre novo valor e valor original
+        const oldNewValue = parseFloat(existingFeeMatchOld[2]);
+        existingFeeAmount = Math.max(0, oldNewValue - originalInstallmentValue);
+      }
+      
+      // Calcular o saldo sem a taxa anterior
+      const cleanRemaining = totalToReceiveBase - (loan.total_paid || 0) - existingFeeAmount;
+      const newRemaining = cleanRemaining + feeAmount;
       
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
@@ -2152,10 +2164,11 @@ export default function Loans() {
                 // Check if this is an interest-only payment
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 
-                // Para pagamentos só de juros, usar remaining_balance do banco (já atualizado)
-                // Nos demais casos (incluindo taxa extra), calcular normalmente com base no total a receber
+                // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
+                // usamos o valor do banco. Nos demais, calculamos normalmente.
                 let remainingToReceive: number;
-                if (isInterestOnlyPayment) {
+                if (isInterestOnlyPayment || hasRenewalFee) {
+                  // Usar remaining_balance do banco que já foi atualizado corretamente
                   remainingToReceive = loan.remaining_balance;
                 } else {
                   remainingToReceive = isDaily 
