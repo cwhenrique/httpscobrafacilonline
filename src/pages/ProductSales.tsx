@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,99 @@ import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, P
 import { toast } from 'sonner';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+
+// Subcomponente para lista de parcelas de produtos com scroll automático
+interface ProductInstallment {
+  number: number;
+  date: string;
+  isPaid?: boolean;
+}
+
+function ProductInstallmentsList({
+  installmentDates,
+  isHistorical,
+  today,
+  updateInstallmentDate,
+  toggleInstallmentPaid,
+}: {
+  installmentDates: ProductInstallment[];
+  isHistorical: boolean;
+  today: Date;
+  updateInstallmentDate: (index: number, date: string) => void;
+  toggleInstallmentPaid: (index: number) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const firstUnpaidRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isHistorical && firstUnpaidRef.current && scrollRef.current) {
+      const container = scrollRef.current;
+      const element = firstUnpaidRef.current;
+      const offsetTop = element.offsetTop - container.offsetTop;
+      container.scrollTop = Math.max(0, offsetTop - 10);
+    }
+  }, [isHistorical, installmentDates]);
+
+  const firstUnpaidIndex = installmentDates.findIndex(inst => !inst.isPaid);
+
+  return (
+    <div className="space-y-2">
+      <Label>Datas das Parcelas</Label>
+      <div
+        ref={scrollRef}
+        className="h-[180px] overflow-y-auto rounded-md border p-3 space-y-2"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {installmentDates.map((inst, index) => {
+          const instDate = new Date(inst.date);
+          instDate.setHours(0, 0, 0, 0);
+          const isPastDate = instDate < today;
+          const showPaidCheckbox = isHistorical && isPastDate;
+          const isFirstUnpaid = index === firstUnpaidIndex;
+
+          return (
+            <div
+              key={inst.number}
+              ref={isFirstUnpaid ? firstUnpaidRef : undefined}
+              className={cn(
+                "flex items-center gap-3 p-2 rounded-lg transition-colors",
+                inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-background border border-border"
+              )}
+            >
+              <Badge variant="outline" className={cn(
+                "w-16 justify-center text-xs",
+                inst.isPaid && "bg-primary text-primary-foreground border-primary"
+              )}>
+                {inst.number}ª
+              </Badge>
+              <Input
+                type="date"
+                value={inst.date}
+                onChange={(e) => updateInstallmentDate(index, e.target.value)}
+                className="flex-1"
+              />
+              {showPaidCheckbox && (
+                <Button
+                  type="button"
+                  variant={inst.isPaid ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => toggleInstallmentPaid(index)}
+                >
+                  {inst.isPaid ? (
+                    <><Check className="w-3 h-3 mr-1" /> Paga</>
+                  ) : (
+                    "Marcar Paga"
+                  )}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function ProductSales() {
   // Product Sales hooks
@@ -1162,54 +1255,13 @@ export default function ProductSales() {
                     )}
                     
                     {installmentDates.length > 1 && (
-                      <div className="space-y-2">
-                        <Label>Datas das Parcelas</Label>
-                        <div className="max-h-[200px] overflow-y-auto rounded-md border p-3">
-                          <div className="space-y-2">
-                            {installmentDates.map((inst, index) => {
-                              const instDate = new Date(inst.date);
-                              instDate.setHours(0, 0, 0, 0);
-                              const isPastDate = instDate < today;
-                              const showPaidCheckbox = formData.is_historical && isPastDate;
-                              
-                              return (
-                                <div key={inst.number} className={cn(
-                                  "flex items-center gap-3 p-2 rounded-lg transition-colors",
-                                  inst.isPaid && "bg-primary/10 border border-primary/30"
-                                )}>
-                                  <Badge variant="outline" className={cn(
-                                    "w-16 justify-center text-xs",
-                                    inst.isPaid && "bg-primary text-primary-foreground border-primary"
-                                  )}>
-                                    {inst.number}ª
-                                  </Badge>
-                                  <Input
-                                    type="date"
-                                    value={inst.date}
-                                    onChange={(e) => updateInstallmentDate(index, e.target.value)}
-                                    className="flex-1"
-                                  />
-                                  {showPaidCheckbox && (
-                                    <Button
-                                      type="button"
-                                      variant={inst.isPaid ? "default" : "outline"}
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => toggleInstallmentPaid(index)}
-                                    >
-                                      {inst.isPaid ? (
-                                        <><Check className="w-3 h-3 mr-1" /> Paga</>
-                                      ) : (
-                                        "Marcar Paga"
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
+                      <ProductInstallmentsList
+                        installmentDates={installmentDates}
+                        isHistorical={formData.is_historical || false}
+                        today={today}
+                        updateInstallmentDate={updateInstallmentDate}
+                        toggleInstallmentPaid={toggleInstallmentPaid}
+                      />
                     )}
                     <div className="space-y-2">
                       <Label>Observações</Label>
