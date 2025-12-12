@@ -47,6 +47,10 @@ export default function Loans() {
     interest_only_paid: false,
     interest_amount_paid: '',
     send_interest_notification: true,
+    renewal_fee_enabled: false,
+    renewal_fee_percentage: '20',
+    renewal_fee_amount: '',
+    new_remaining_with_fee: '',
   });
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
@@ -835,7 +839,10 @@ export default function Loans() {
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
       send_interest_notification: true,
-      // Armazenar o valor original para uso quando marcar "só juros"
+      renewal_fee_enabled: false,
+      renewal_fee_percentage: '20',
+      renewal_fee_amount: '',
+      new_remaining_with_fee: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
     });
     // Guardar o valor original para quando marcar "só juros"
     setInterestOnlyOriginalRemaining(remainingForInterestOnly);
@@ -904,10 +911,16 @@ export default function Loans() {
 
       // O valor que falta NUNCA deve descer automaticamente em pagamento só de juros.
       // Usamos sempre o que o usuário digitou (editável) ou, se vazio, o original.
-      const manualRemaining = renegotiateData.remaining_amount
-        ? parseFloat(renegotiateData.remaining_amount.replace(',', '.'))
-        : originalRemaining;
-      const safeRemaining = isNaN(manualRemaining) ? originalRemaining : manualRemaining;
+      // Se taxa de renovação estiver habilitada, usar o novo valor com acréscimo
+      let safeRemaining: number;
+      if (renegotiateData.renewal_fee_enabled && renegotiateData.new_remaining_with_fee) {
+        safeRemaining = parseFloat(renegotiateData.new_remaining_with_fee.replace(',', '.'));
+      } else {
+        const manualRemaining = renegotiateData.remaining_amount
+          ? parseFloat(renegotiateData.remaining_amount.replace(',', '.'))
+          : originalRemaining;
+        safeRemaining = isNaN(manualRemaining) ? originalRemaining : manualRemaining;
+      }
 
       // Registrar pagamento apenas dos juros (principal_pago continua 0)
       await registerPayment({
@@ -926,6 +939,9 @@ export default function Loans() {
         notesText = `[INTEREST_ONLY_PAYMENT]\n${notesText}`;
       }
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
+      if (renegotiateData.renewal_fee_enabled) {
+        notesText += `\nTaxa de renovação: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount})`;
+      }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
       // Manter número de parcelas original, mas empurrar as datas para o próximo mês
@@ -968,13 +984,17 @@ export default function Loans() {
               const clientName = loan.client?.full_name || 'Cliente';
               const newDueDate = formatDate(finalDueDate);
               
+              const renewalFeeInfo = renegotiateData.renewal_fee_enabled 
+                ? `\n📈 Taxa de Renovação: ${renegotiateData.renewal_fee_percentage}% (+${formatCurrency(parseFloat(renegotiateData.renewal_fee_amount) || 0)})`
+                : '';
+              
               const message = `💰 *PAGAMENTO DE JUROS REGISTRADO*
 ━━━━━━━━━━━━━━━━━━━━━
 
 📋 Contrato: EMP-${loanIdShort}
 👤 Cliente: ${clientName}
-💵 Valor Pago (Juros): ${formatCurrency(interestPaid)}
-📊 Valor Restante: ${formatCurrency(safeRemaining)}
+💵 Valor Pago (Juros): ${formatCurrency(interestPaid)}${renewalFeeInfo}
+📊 Novo Valor a Cobrar: ${formatCurrency(safeRemaining)}
 📅 Nova Data de Vencimento: ${newDueDate}
 
 ✅ Pagamento de juros registrado com sucesso!
@@ -2467,6 +2487,85 @@ export default function Loans() {
                             />
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Só diminui se pagar mais que o juros</p>
                           </div>
+                        </div>
+                        
+                        {/* Taxa de Renovação */}
+                        <div className="border-t border-yellow-600/50 pt-4 mt-4">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <Checkbox 
+                              id="renewal_fee" 
+                              checked={renegotiateData.renewal_fee_enabled}
+                              onCheckedChange={(checked) => {
+                                const isChecked = checked as boolean;
+                                const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+                                const percentage = parseFloat(renegotiateData.renewal_fee_percentage) || 20;
+                                const feeAmount = remaining * (percentage / 100);
+                                const newTotal = remaining + feeAmount;
+                                
+                                setRenegotiateData({ 
+                                  ...renegotiateData, 
+                                  renewal_fee_enabled: isChecked,
+                                  renewal_fee_percentage: isChecked ? '20' : '',
+                                  renewal_fee_amount: isChecked ? feeAmount.toFixed(2) : '',
+                                  new_remaining_with_fee: isChecked ? newTotal.toFixed(2) : renegotiateData.remaining_amount
+                                });
+                              }}
+                            />
+                            <Label htmlFor="renewal_fee" className="text-sm font-medium cursor-pointer text-yellow-900 dark:text-yellow-100">
+                              Aplicar taxa de renovação sobre o valor restante
+                            </Label>
+                          </div>
+                          
+                          {renegotiateData.renewal_fee_enabled && (
+                            <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-4 space-y-3 border border-orange-400/50">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-orange-900 dark:text-orange-100">Taxa de Renovação (%)</Label>
+                                  <Input 
+                                    type="number" 
+                                    step="1" 
+                                    value={renegotiateData.renewal_fee_percentage} 
+                                    onChange={(e) => {
+                                      const percentage = parseFloat(e.target.value) || 0;
+                                      const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+                                      const feeAmount = remaining * (percentage / 100);
+                                      const newTotal = remaining + feeAmount;
+                                      
+                                      setRenegotiateData({ 
+                                        ...renegotiateData, 
+                                        renewal_fee_percentage: e.target.value,
+                                        renewal_fee_amount: feeAmount.toFixed(2),
+                                        new_remaining_with_fee: newTotal.toFixed(2)
+                                      });
+                                    }} 
+                                    placeholder="Ex: 20"
+                                    className="bg-white dark:bg-zinc-800 border-orange-600"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-orange-900 dark:text-orange-100">Valor do Acréscimo (R$)</Label>
+                                  <Input 
+                                    type="text" 
+                                    value={formatCurrency(parseFloat(renegotiateData.renewal_fee_amount) || 0)} 
+                                    disabled
+                                    className="bg-orange-50 dark:bg-orange-900/50 border-orange-600"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="bg-primary/10 dark:bg-primary/20 rounded-lg p-3 text-center border-2 border-primary">
+                                <p className="text-sm text-primary">
+                                  <strong>Novo valor a cobrar:</strong>
+                                </p>
+                                <p className="text-2xl font-bold text-primary">
+                                  {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)} + {renegotiateData.renewal_fee_percentage}% = {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
