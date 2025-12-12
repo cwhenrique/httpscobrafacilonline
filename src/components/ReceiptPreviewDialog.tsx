@@ -156,7 +156,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] p-0 overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-lg sm:max-w-xl md:max-w-2xl max-h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="bg-primary text-primary-foreground p-4">
           <DialogTitle className="text-center">Pré-visualização do Comprovante</DialogTitle>
         </DialogHeader>
