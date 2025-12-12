@@ -507,6 +507,7 @@ export default function Loans() {
   };
 
   // Calculate past installments and their value for historical contracts
+  // Uses the rounded installmentValue when available (user-edited)
   const pastInstallmentsData = (() => {
     if (!formData.is_historical_contract || !hasPastDates) return { count: 0, totalValue: 0 };
     
@@ -514,20 +515,33 @@ export default function Loans() {
     today.setHours(0, 0, 0, 0);
     
     const principal = parseFloat(formData.principal_amount) || 0;
-    const rate = parseFloat(formData.interest_rate) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     
-    if (formData.payment_type === 'installment' && installmentDates.length > 0) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0) {
       const pastDates = installmentDates.filter(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
       });
       
-      const interestPerInstallment = formData.interest_mode === 'per_installment'
-        ? principal * (rate / 100)
-        : (principal * (rate / 100)) / numInstallments;
-      const principalPerInstallment = principal / numInstallments;
-      const valuePerInstallment = principalPerInstallment + interestPerInstallment;
+      // Use the rounded installment value if user edited it, otherwise calculate
+      let valuePerInstallment: number;
+      let principalPerInstallment: number;
+      let interestPerInstallment: number;
+      
+      if (installmentValue && parseFloat(installmentValue) > 0) {
+        // User edited/rounded the installment value - use it directly
+        valuePerInstallment = parseFloat(installmentValue);
+        principalPerInstallment = principal / numInstallments;
+        interestPerInstallment = valuePerInstallment - principalPerInstallment;
+      } else {
+        // Calculate from interest rate
+        const rate = parseFloat(formData.interest_rate) || 0;
+        interestPerInstallment = formData.interest_mode === 'per_installment'
+          ? principal * (rate / 100)
+          : (principal * (rate / 100)) / numInstallments;
+        principalPerInstallment = principal / numInstallments;
+        valuePerInstallment = principalPerInstallment + interestPerInstallment;
+      }
       
       return {
         count: pastDates.length,
@@ -543,6 +557,7 @@ export default function Loans() {
     if (formData.due_date) {
       const dueDate = new Date(formData.due_date + 'T12:00:00');
       if (dueDate < today) {
+        const rate = parseFloat(formData.interest_rate) || 0;
         const interestAmount = principal * (rate / 100);
         return {
           count: 1,
