@@ -2828,6 +2828,31 @@ export default function Loans() {
               // Usar o remaining_balance real do empréstimo, não o do formulário
               const actualRemaining = selectedLoan.remaining_balance;
               
+              // Função helper para extrair pagamentos parciais do notes
+              const getPartialPayments = (notes: string | null): Record<number, number> => {
+                const payments: Record<number, number> = {};
+                const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+                for (const match of matches) {
+                  payments[parseInt(match[1])] = parseFloat(match[2]);
+                }
+                return payments;
+              };
+              
+              const partialPayments = getPartialPayments(selectedLoan.notes);
+              
+              // Obter valor restante de uma parcela específica (considerando pagamentos parciais)
+              const getInstallmentRemainingValue = (index: number) => {
+                const paidAmount = partialPayments[index] || 0;
+                const remaining = installmentValue - paidAmount;
+                return remaining > 0 ? remaining : 0;
+              };
+              
+              // Verificar se parcela está totalmente paga
+              const isInstallmentPaid = (index: number) => {
+                const paidAmount = partialPayments[index] || 0;
+                return paidAmount >= installmentValue * 0.99;
+              };
+              
               // Estado para controlar qual opção está ativa
               const activeOption = renegotiateData.interest_only_paid ? 'interest' : 
                                    renegotiateData.renewal_fee_enabled ? 'fee' : null;
@@ -2889,8 +2914,21 @@ export default function Loans() {
                         <button
                           type="button"
                           onClick={() => {
+                            // Encontrar próxima parcela em aberto e usar seu valor restante
+                            const dates = (selectedLoan.installment_dates as string[]) || [];
+                            let nextUnpaidIndex = -1;
+                            for (let i = 0; i < dates.length; i++) {
+                              if (!isInstallmentPaid(i)) {
+                                nextUnpaidIndex = i;
+                                break;
+                              }
+                            }
+                            const baseValue = nextUnpaidIndex >= 0 
+                              ? getInstallmentRemainingValue(nextUnpaidIndex) 
+                              : installmentValue;
+                            
                             const percentage = 20;
-                            const feeAmount = installmentValue * (percentage / 100);
+                            const feeAmount = baseValue * (percentage / 100);
                             const newTotal = actualRemaining + feeAmount;
                             setRenegotiateData({ 
                               ...renegotiateData, 
@@ -3027,56 +3065,93 @@ export default function Loans() {
                         </Button>
                       </div>
                       
-                      <p className="text-xs text-amber-300/70">
-                        Aplique um acréscimo em uma parcela específica (base: {formatCurrency(installmentValue)} por parcela). As demais parcelas manterão o valor original.
-                      </p>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-amber-300 text-xs">Taxa (%):</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={renegotiateData.renewal_fee_percentage} 
-                            onChange={(e) => {
-                              const percentage = parseFloat(e.target.value) || 0;
-                              const feeAmount = installmentValue * (percentage / 100);
-                              const newTotal = actualRemaining + feeAmount;
-                              
-                              setRenegotiateData({ 
-                                ...renegotiateData, 
-                                renewal_fee_percentage: e.target.value,
-                                renewal_fee_amount: feeAmount.toFixed(2),
-                                new_remaining_with_fee: newTotal.toFixed(2)
-                              });
-                            }} 
-                            placeholder="20"
-                            className="bg-amber-950 text-white border-amber-500 font-bold"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-amber-300 text-xs">Acréscimo (R$):</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01"
-                            value={renegotiateData.renewal_fee_amount} 
-                            onChange={(e) => {
-                              const feeAmount = parseFloat(e.target.value) || 0;
-                              const percentage = installmentValue > 0 ? (feeAmount / installmentValue) * 100 : 0;
-                              const newTotal = actualRemaining + feeAmount;
-                              
-                              setRenegotiateData({ 
-                                ...renegotiateData, 
-                                renewal_fee_amount: e.target.value,
-                                renewal_fee_percentage: percentage.toFixed(2),
-                                new_remaining_with_fee: newTotal.toFixed(2)
-                              });
-                            }}
-                            placeholder="50,00"
-                            className="bg-amber-950 text-white border-amber-500 font-bold"
-                          />
-                        </div>
-                      </div>
+                      {/* Calcular valor base da parcela selecionada (considerando pagamentos parciais) */}
+                      {(() => {
+                        // Determinar qual parcela está selecionada
+                        let selectedInstallmentIndex = -1;
+                        if (renegotiateData.renewal_fee_installment === 'next') {
+                          // Encontrar próxima parcela em aberto
+                          const dates = (selectedLoan.installment_dates as string[]) || [];
+                          for (let i = 0; i < dates.length; i++) {
+                            if (!isInstallmentPaid(i)) {
+                              selectedInstallmentIndex = i;
+                              break;
+                            }
+                          }
+                        } else if (renegotiateData.renewal_fee_installment) {
+                          selectedInstallmentIndex = parseInt(renegotiateData.renewal_fee_installment);
+                        }
+                        
+                        // Valor restante da parcela selecionada (ou valor original se não há parcela selecionada)
+                        const baseValueForFee = selectedInstallmentIndex >= 0 
+                          ? getInstallmentRemainingValue(selectedInstallmentIndex) 
+                          : installmentValue;
+                        
+                        const paidOnSelected = selectedInstallmentIndex >= 0 
+                          ? (partialPayments[selectedInstallmentIndex] || 0) 
+                          : 0;
+                        const hasPartialPayment = paidOnSelected > 0 && paidOnSelected < installmentValue * 0.99;
+                        
+                        return (
+                          <>
+                            <p className="text-xs text-amber-300/70">
+                              Aplique um acréscimo sobre o valor que falta da parcela {selectedInstallmentIndex >= 0 ? `${selectedInstallmentIndex + 1}` : 'selecionada'}. 
+                              {hasPartialPayment && (
+                                <span className="block mt-1 text-yellow-400">
+                                  ⚠️ Esta parcela já teve pagamento parcial de {formatCurrency(paidOnSelected)}. Base para juros: {formatCurrency(baseValueForFee)}
+                                </span>
+                              )}
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-amber-300 text-xs">Taxa (%):</Label>
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  value={renegotiateData.renewal_fee_percentage} 
+                                  onChange={(e) => {
+                                    const percentage = parseFloat(e.target.value) || 0;
+                                    const feeAmount = baseValueForFee * (percentage / 100);
+                                    const newTotal = actualRemaining + feeAmount;
+                                    
+                                    setRenegotiateData({ 
+                                      ...renegotiateData, 
+                                      renewal_fee_percentage: e.target.value,
+                                      renewal_fee_amount: feeAmount.toFixed(2),
+                                      new_remaining_with_fee: newTotal.toFixed(2)
+                                    });
+                                  }} 
+                                  placeholder="20"
+                                  className="bg-amber-950 text-white border-amber-500 font-bold"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-amber-300 text-xs">Acréscimo (R$):</Label>
+                                <Input 
+                                  type="number" 
+                                  step="0.01"
+                                  value={renegotiateData.renewal_fee_amount} 
+                                  onChange={(e) => {
+                                    const feeAmount = parseFloat(e.target.value) || 0;
+                                    const percentage = baseValueForFee > 0 ? (feeAmount / baseValueForFee) * 100 : 0;
+                                    const newTotal = actualRemaining + feeAmount;
+                                    
+                                    setRenegotiateData({ 
+                                      ...renegotiateData, 
+                                      renewal_fee_amount: e.target.value,
+                                      renewal_fee_percentage: percentage.toFixed(2),
+                                      new_remaining_with_fee: newTotal.toFixed(2)
+                                    });
+                                  }}
+                                  placeholder="50,00"
+                                  className="bg-amber-950 text-white border-amber-500 font-bold"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                       
                       <div className="space-y-2">
                         <Label className="text-amber-300 text-xs">Aplicar em qual parcela?</Label>
@@ -3091,12 +3166,19 @@ export default function Loans() {
                             <SelectItem value="next">Próxima parcela em aberto</SelectItem>
                             {(() => {
                               const dates = (selectedLoan.installment_dates as string[]) || [];
-                              const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / installmentValue);
                               return dates.map((date, index) => {
-                                if (index < paidInstallments) return null;
+                                // Pular parcelas totalmente pagas
+                                if (isInstallmentPaid(index)) return null;
+                                
+                                const remainingValue = getInstallmentRemainingValue(index);
+                                const paidAmount = partialPayments[index] || 0;
+                                const isPartiallyPaid = paidAmount > 0 && paidAmount < installmentValue * 0.99;
+                                
                                 return (
                                   <SelectItem key={index} value={index.toString()}>
-                                    Parcela {index + 1} - {formatDate(date)} - {formatCurrency(installmentValue)}
+                                    Parcela {index + 1} - {formatDate(date)} - {isPartiallyPaid 
+                                      ? `Falta: ${formatCurrency(remainingValue)}` 
+                                      : formatCurrency(installmentValue)}
                                   </SelectItem>
                                 );
                               });
@@ -3105,20 +3187,41 @@ export default function Loans() {
                         </Select>
                       </div>
                       
-                      <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
-                        <div className="flex justify-between items-center">
-                          <span className="text-amber-300 font-medium text-sm">Novo valor da parcela:</span>
-                          <span className="text-lg font-bold text-white">
-                            {formatCurrency(installmentValue + (parseFloat(renegotiateData.renewal_fee_amount) || 0))}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
-                          <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
-                          <span className="text-xl font-bold text-amber-400">
-                            {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        // Recalcular valor base da parcela selecionada para exibir resumo correto
+                        let selectedIdx = -1;
+                        if (renegotiateData.renewal_fee_installment === 'next') {
+                          const dates = (selectedLoan.installment_dates as string[]) || [];
+                          for (let i = 0; i < dates.length; i++) {
+                            if (!isInstallmentPaid(i)) {
+                              selectedIdx = i;
+                              break;
+                            }
+                          }
+                        } else if (renegotiateData.renewal_fee_installment) {
+                          selectedIdx = parseInt(renegotiateData.renewal_fee_installment);
+                        }
+                        
+                        const baseVal = selectedIdx >= 0 ? getInstallmentRemainingValue(selectedIdx) : installmentValue;
+                        const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
+                        
+                        return (
+                          <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
+                            <div className="flex justify-between items-center">
+                              <span className="text-amber-300 font-medium text-sm">Valor restante + juros:</span>
+                              <span className="text-lg font-bold text-white">
+                                {formatCurrency(baseVal + feeAmount)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
+                              <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
+                              <span className="text-xl font-bold text-amber-400">
+                                {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   
