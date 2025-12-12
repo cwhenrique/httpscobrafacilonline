@@ -1158,9 +1158,14 @@ export default function Loans() {
           let totalInterest = loan.total_interest || 0;
           const totalToReceive = loan.principal_amount + totalInterest;
           
+          // Check if it's an interest-only payment loan
+          const isInterestOnlyLoan = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+          
           // Determine status
           let status = 'pending';
-          if (loan.status === 'paid' || (loan.total_paid || 0) >= totalToReceive) {
+          if (isInterestOnlyLoan) {
+            status = 'interest_only';
+          } else if (loan.status === 'paid' || (loan.total_paid || 0) >= totalToReceive) {
             status = 'paid';
           } else {
             const today = new Date();
@@ -1243,7 +1248,8 @@ export default function Loans() {
               disabled={loans.length === 0}
             >
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Baixar </span>PDF
+              <span className="hidden sm:inline">Baixar Relatório</span>
+              <span className="sm:hidden">Relatório</span>
             </Button>
             <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
               <DialogTrigger asChild>
