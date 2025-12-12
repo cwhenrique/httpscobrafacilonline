@@ -349,7 +349,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           {showInstallments && (
             <Card className="mt-3">
               <CardContent className="p-3">
-                <ScrollArea className="h-[200px] pr-4">
+                <div className="max-h-[200px] overflow-y-auto pr-2">
                   <div className="space-y-2">
                     {installmentDates.map((inst, index) => {
                       const instDate = new Date(inst.due_date);
@@ -397,7 +397,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
                       );
                     })}
                   </div>
-                </ScrollArea>
+                </div>
                 <p className="text-xs text-muted-foreground mt-2 text-center">
                   Você pode editar a data e valor de cada parcela individualmente
                 </p>
