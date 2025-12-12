@@ -1238,10 +1238,11 @@ export default function Loans() {
       const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
       const newInstallmentValue = remainingOnTarget + feeAmount;
       
-      // O remaining_balance do banco já está correto com o valor que falta pagar
-      // Precisamos apenas adicionar a taxa extra
-      // O remaining_balance já considera os pagamentos parciais e totais feitos
-      const newRemaining = loan.remaining_balance + feeAmount;
+      // Recalcular o saldo restante real com base no contrato (principal + juros já registrados)
+      const storedTotalInterest = loan.total_interest || 0;
+      const totalToReceiveBase = loan.principal_amount + storedTotalInterest;
+      const originalRemaining = totalToReceiveBase - (loan.total_paid || 0);
+      const newRemaining = originalRemaining + feeAmount;
       
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
@@ -2120,11 +2121,10 @@ export default function Loans() {
                 // Check if this is an interest-only payment
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 
-                // Para empréstimos com taxa extra ou interest-only, usar remaining_balance do banco
-                // Caso contrário, calcular normalmente
+                // Para pagamentos só de juros, usar remaining_balance do banco (já atualizado)
+                // Nos demais casos (incluindo taxa extra), calcular normalmente com base no total a receber
                 let remainingToReceive: number;
-                if (hasRenewalFee || isInterestOnlyPayment) {
-                  // Usar o remaining_balance diretamente pois já inclui ajustes
+                if (isInterestOnlyPayment) {
                   remainingToReceive = loan.remaining_balance;
                 } else {
                   remainingToReceive = isDaily 
