@@ -8,16 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/calculations';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, FileText, Car, ChevronDown, Filter, Users, CheckCircle, Clock, Percent } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, Car, ChevronDown, Filter, Users, CheckCircle, Clock, Percent, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
-// Import new report components
 import { HealthScoreCard } from '@/components/reports/HealthScoreCard';
 import { PeriodFilter, PeriodType } from '@/components/reports/PeriodFilter';
 import { ConsolidatedSummary } from '@/components/reports/ConsolidatedSummary';
@@ -25,7 +24,7 @@ import { AlertsCard } from '@/components/reports/AlertsCard';
 import { EvolutionChart } from '@/components/reports/EvolutionChart';
 import { CategoryBreakdown } from '@/components/reports/CategoryBreakdown';
 
-// Helper component for metric cards
+// Helper component for metric cards with variation
 const MetricCard = ({ 
   label, 
   value, 
@@ -33,7 +32,8 @@ const MetricCard = ({
   iconColor = 'text-primary', 
   bgColor = 'bg-primary/10',
   valueColor = '',
-  subtitle = ''
+  subtitle = '',
+  variation,
 }: { 
   label: string; 
   value: string | number; 
@@ -42,6 +42,7 @@ const MetricCard = ({
   bgColor?: string;
   valueColor?: string;
   subtitle?: string;
+  variation?: number;
 }) => (
   <Card className="shadow-soft">
     <CardContent className="p-3 sm:p-4">
@@ -53,6 +54,15 @@ const MetricCard = ({
           <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
           <p className={`text-sm sm:text-lg font-bold truncate ${valueColor}`}>{value}</p>
           {subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>}
+          {variation !== undefined && (
+            <div className={cn(
+              "flex items-center gap-1 text-[10px]",
+              variation >= 0 ? "text-emerald-500" : "text-destructive"
+            )}>
+              {variation >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              <span>{variation >= 0 ? '+' : ''}{variation.toFixed(1)}% vs anterior</span>
+            </div>
+          )}
         </div>
       </div>
     </CardContent>
@@ -102,7 +112,6 @@ export default function Reports() {
   // Expand/collapse states for each tab
   const [showMoreLoans, setShowMoreLoans] = useState(false);
   const [showMoreProducts, setShowMoreProducts] = useState(false);
-  const [showMoreContracts, setShowMoreContracts] = useState(false);
   const [showMoreVehicles, setShowMoreVehicles] = useState(false);
 
   // Chart filter states
@@ -110,6 +119,18 @@ export default function Reports() {
     emprestado: true,
     juros: true,
     recebido: true,
+    atraso: true
+  });
+  const [productChartFilters, setProductChartFilters] = useState({
+    vendido: true,
+    custo: true,
+    lucro: true,
+    atraso: true
+  });
+  const [vehicleChartFilters, setVehicleChartFilters] = useState({
+    vendido: true,
+    custo: true,
+    lucro: true,
     atraso: true
   });
 
@@ -133,16 +154,73 @@ export default function Reports() {
   const safeVehicles = vehicles || [];
   const safeVehiclePayments = vehiclePayments || [];
 
-  // CONSOLIDATED STATS
+  // Calculate previous period dates for comparison
+  const periodDuration = differenceInDays(endDate, startDate);
+  const prevEndDate = subMonths(startDate, 0);
+  prevEndDate.setDate(prevEndDate.getDate() - 1);
+  const prevStartDate = new Date(prevEndDate);
+  prevStartDate.setDate(prevStartDate.getDate() - periodDuration);
+
+  // FILTERED DATA BY PERIOD
+  const filteredLoans = useMemo(() => {
+    return safeLoans.filter(loan => {
+      const loanDate = new Date(loan.start_date);
+      return isWithinInterval(loanDate, { start: startDate, end: endDate });
+    });
+  }, [safeLoans, startDate, endDate]);
+
+  const prevPeriodLoans = useMemo(() => {
+    return safeLoans.filter(loan => {
+      const loanDate = new Date(loan.start_date);
+      return isWithinInterval(loanDate, { start: prevStartDate, end: prevEndDate });
+    });
+  }, [safeLoans, prevStartDate, prevEndDate]);
+
+  const filteredSales = useMemo(() => {
+    return safeSales.filter(sale => {
+      const saleDate = new Date(sale.created_at);
+      return isWithinInterval(saleDate, { start: startDate, end: endDate });
+    });
+  }, [safeSales, startDate, endDate]);
+
+  const prevPeriodSales = useMemo(() => {
+    return safeSales.filter(sale => {
+      const saleDate = new Date(sale.created_at);
+      return isWithinInterval(saleDate, { start: prevStartDate, end: prevEndDate });
+    });
+  }, [safeSales, prevStartDate, prevEndDate]);
+
+  const filteredVehicles = useMemo(() => {
+    return safeVehicles.filter(vehicle => {
+      const vehicleDate = new Date(vehicle.created_at);
+      return isWithinInterval(vehicleDate, { start: startDate, end: endDate });
+    });
+  }, [safeVehicles, startDate, endDate]);
+
+  const prevPeriodVehicles = useMemo(() => {
+    return safeVehicles.filter(vehicle => {
+      const vehicleDate = new Date(vehicle.created_at);
+      return isWithinInterval(vehicleDate, { start: prevStartDate, end: prevEndDate });
+    });
+  }, [safeVehicles, prevStartDate, prevEndDate]);
+
+  const filteredContracts = useMemo(() => {
+    return safeContracts.filter(contract => {
+      const contractDate = new Date(contract.created_at);
+      return isWithinInterval(contractDate, { start: startDate, end: endDate });
+    });
+  }, [safeContracts, startDate, endDate]);
+
+  // CONSOLIDATED STATS (using filtered data)
   const consolidatedStats = useMemo(() => {
     // Loans
-    const totalLoaned = safeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
-    const totalLoanReceived = safeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
-    const overdueLoansFiltered = safeLoans.filter(l => l.status === 'overdue');
+    const totalLoaned = filteredLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    const totalLoanReceived = filteredLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
+    const overdueLoansFiltered = filteredLoans.filter(l => l.status === 'overdue');
     const totalLoanOverdue = overdueLoansFiltered.reduce((sum, l) => sum + l.remaining_balance, 0);
 
     let totalLoanInterest = 0;
-    safeLoans.forEach(loan => {
+    filteredLoans.forEach(loan => {
       const isDaily = loan.payment_type === 'daily';
       if (isDaily) {
         totalLoanInterest += loan.interest_rate || 0;
@@ -155,11 +233,15 @@ export default function Reports() {
       }
     });
 
+    // Previous period loans for comparison
+    const prevTotalLoaned = prevPeriodLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    const loanedVariation = prevTotalLoaned > 0 ? ((totalLoaned - prevTotalLoaned) / prevTotalLoaned) * 100 : 0;
+
     // Products
-    const totalProductSold = safeSales.reduce((sum, s) => sum + s.total_amount, 0);
-    const totalProductCost = safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
-    const totalProductReceived = safeSales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
-    const overdueProducts = safeSales.filter(s => {
+    const totalProductSold = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const totalProductCost = filteredSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
+    const totalProductReceived = filteredSales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
+    const overdueProducts = filteredSales.filter(s => {
       return safeProductPayments.some(p => 
         p.product_sale_id === s.id && 
         p.status === 'pending' && 
@@ -169,18 +251,22 @@ export default function Reports() {
     const totalProductOverdue = overdueProducts.reduce((sum, s) => sum + s.remaining_balance, 0);
     const totalProductProfit = totalProductSold - totalProductCost;
 
+    // Previous period products
+    const prevTotalProductSold = prevPeriodSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const productSoldVariation = prevTotalProductSold > 0 ? ((totalProductSold - prevTotalProductSold) / prevTotalProductSold) * 100 : 0;
+
     // Contracts (receivable only for "to receive")
-    const receivableContracts = safeContracts.filter(c => c.bill_type === 'receivable');
+    const receivableContracts = filteredContracts.filter(c => c.bill_type === 'receivable');
     const totalContractReceivable = receivableContracts.reduce((sum, c) => sum + c.amount_to_receive, 0);
     const totalContractReceived = receivableContracts.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.amount_to_receive, 0);
     const overdueContractsReceivable = receivableContracts.filter(c => c.status === 'overdue' || (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
     const totalContractOverdue = overdueContractsReceivable.reduce((sum, c) => sum + c.amount_to_receive, 0);
 
     // Vehicles
-    const totalVehicleSold = safeVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
-    const totalVehicleCost = safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
-    const totalVehicleReceived = safeVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
-    const overdueVehiclesList = safeVehicles.filter(v => {
+    const totalVehicleSold = filteredVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
+    const totalVehicleCost = filteredVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
+    const totalVehicleReceived = filteredVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
+    const overdueVehiclesList = filteredVehicles.filter(v => {
       return safeVehiclePayments.some(p => 
         p.vehicle_id === v.id && 
         p.status === 'pending' && 
@@ -190,6 +276,10 @@ export default function Reports() {
     const totalVehicleOverdue = overdueVehiclesList.reduce((sum, v) => sum + v.remaining_balance, 0);
     const totalVehicleProfit = totalVehicleSold - totalVehicleCost;
 
+    // Previous period vehicles
+    const prevTotalVehicleSold = prevPeriodVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
+    const vehicleSoldVariation = prevTotalVehicleSold > 0 ? ((totalVehicleSold - prevTotalVehicleSold) / prevTotalVehicleSold) * 100 : 0;
+
     // Grand totals
     const totalToReceive = (totalLoaned + totalLoanInterest) + totalProductSold + totalContractReceivable + totalVehicleSold;
     const totalReceived = totalLoanReceived + totalProductReceived + totalContractReceived + totalVehicleReceived;
@@ -198,7 +288,7 @@ export default function Reports() {
 
     // Health score calculation
     const receiptRate = totalToReceive > 0 ? (totalReceived / totalToReceive) * 100 : 100;
-    const delinquencyRate = safeLoans.length > 0 ? (overdueLoansFiltered.length / safeLoans.length) * 100 : 0;
+    const delinquencyRate = filteredLoans.length > 0 ? (overdueLoansFiltered.length / filteredLoans.length) * 100 : 0;
     const profitMargin = totalToReceive > 0 ? (totalProfit / totalToReceive) * 100 : 0;
     
     let healthScore = 100;
@@ -212,11 +302,11 @@ export default function Reports() {
     const nextWeek = addDays(today, 7);
     
     const dueThisWeek = {
-      count: safeLoans.filter(l => {
+      count: filteredLoans.filter(l => {
         const dueDate = new Date(l.due_date);
         return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
       }).length,
-      amount: safeLoans.filter(l => {
+      amount: filteredLoans.filter(l => {
         const dueDate = new Date(l.due_date);
         return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
       }).reduce((sum, l) => sum + l.remaining_balance, 0)
@@ -252,12 +342,37 @@ export default function Reports() {
       totalLoanInterest,
       totalLoanOverdue,
       overdueLoansCount: overdueLoansFiltered.length,
-      paidLoansCount: safeLoans.filter(l => l.status === 'paid').length,
-      totalLoansCount: safeLoans.length,
+      paidLoansCount: filteredLoans.filter(l => l.status === 'paid').length,
+      totalLoansCount: filteredLoans.length,
+      loanedVariation,
+      // Product specific
+      totalProductSold,
+      totalProductCost,
+      totalProductReceived,
+      totalProductOverdue,
+      totalProductProfit,
+      productSoldVariation,
+      overdueProductsCount: overdueProducts.length,
+      paidProductsCount: filteredSales.filter(s => s.status === 'paid').length,
+      totalProductsCount: filteredSales.length,
+      // Vehicle specific
+      totalVehicleSold,
+      totalVehicleCost,
+      totalVehicleReceived,
+      totalVehicleOverdue,
+      totalVehicleProfit,
+      vehicleSoldVariation,
+      overdueVehiclesCount: overdueVehiclesList.length,
+      paidVehiclesCount: filteredVehicles.filter(v => v.status === 'paid').length,
+      totalVehiclesCount: filteredVehicles.length,
+      // Overdue lists for tables
+      overdueLoansFiltered,
+      overdueProducts,
+      overdueVehiclesList,
     };
-  }, [safeLoans, safeSales, safeProductPayments, safeContracts, safeVehicles, safeVehiclePayments]);
+  }, [filteredLoans, filteredSales, filteredVehicles, filteredContracts, safeProductPayments, safeVehiclePayments, prevPeriodLoans, prevPeriodSales, prevPeriodVehicles]);
 
-  // Monthly evolution data
+  // Monthly evolution data for charts
   const monthlyEvolutionData = useMemo(() => {
     const months: { month: string; received: number; loaned: number; profit: number; overdue: number }[] = [];
     
@@ -275,13 +390,12 @@ export default function Reports() {
         const loanDate = new Date(loan.start_date);
         if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
           monthLoaned += loan.principal_amount;
+          monthReceived += loan.total_paid || 0;
+          if (loan.status === 'overdue') {
+            monthOverdue += loan.remaining_balance;
+          }
         }
-        // Approximate received by checking payments
-        monthReceived += (loan.total_paid || 0) / 6; // Distribute across months (approximation)
       });
-
-      // Adjust overdue for the month
-      monthOverdue = consolidatedStats.totalOverdue / 6;
 
       months.push({
         month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
@@ -293,7 +407,7 @@ export default function Reports() {
     }
 
     return months;
-  }, [safeLoans, consolidatedStats]);
+  }, [safeLoans]);
 
   // Loan chart data
   const loanChartData = useMemo(() => {
@@ -306,7 +420,102 @@ export default function Reports() {
     return allData.filter(item => loanChartFilters[item.key as keyof typeof loanChartFilters]);
   }, [consolidatedStats, loanChartFilters]);
 
-  const overdueLoansDisplay = safeLoans.filter(l => l.status === 'overdue');
+  // Product chart data
+  const productChartData = useMemo(() => {
+    const allData = [
+      { name: 'Vendido', value: consolidatedStats.totalProductSold, fill: 'hsl(var(--chart-1))', key: 'vendido' },
+      { name: 'Custo', value: consolidatedStats.totalProductCost, fill: 'hsl(var(--chart-4))', key: 'custo' },
+      { name: 'Lucro', value: consolidatedStats.totalProductProfit, fill: 'hsl(var(--chart-2))', key: 'lucro' },
+      { name: 'Em Atraso', value: consolidatedStats.totalProductOverdue, fill: 'hsl(var(--chart-3))', key: 'atraso' },
+    ];
+    return allData.filter(item => productChartFilters[item.key as keyof typeof productChartFilters]);
+  }, [consolidatedStats, productChartFilters]);
+
+  // Vehicle chart data
+  const vehicleChartData = useMemo(() => {
+    const allData = [
+      { name: 'Vendido', value: consolidatedStats.totalVehicleSold, fill: 'hsl(var(--chart-1))', key: 'vendido' },
+      { name: 'Custo', value: consolidatedStats.totalVehicleCost, fill: 'hsl(var(--chart-4))', key: 'custo' },
+      { name: 'Lucro', value: consolidatedStats.totalVehicleProfit, fill: 'hsl(var(--chart-2))', key: 'lucro' },
+      { name: 'Em Atraso', value: consolidatedStats.totalVehicleOverdue, fill: 'hsl(var(--chart-3))', key: 'atraso' },
+    ];
+    return allData.filter(item => vehicleChartFilters[item.key as keyof typeof vehicleChartFilters]);
+  }, [consolidatedStats, vehicleChartFilters]);
+
+  // Monthly product evolution data
+  const monthlyProductData = useMemo(() => {
+    const months: { month: string; vendido: number; custo: number; lucro: number; atraso: number }[] = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(new Date(), i);
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
+      const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
+
+      let monthSold = 0;
+      let monthCost = 0;
+      let monthOverdue = 0;
+
+      safeSales.forEach(sale => {
+        const saleDate = new Date(sale.created_at);
+        if (isWithinInterval(saleDate, { start: monthStart, end: monthEnd })) {
+          monthSold += sale.total_amount;
+          monthCost += (sale as any).cost_value || 0;
+          if (sale.status === 'overdue') {
+            monthOverdue += sale.remaining_balance;
+          }
+        }
+      });
+
+      months.push({
+        month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+        vendido: Math.round(monthSold),
+        custo: Math.round(monthCost),
+        lucro: Math.round(monthSold - monthCost),
+        atraso: Math.round(monthOverdue),
+      });
+    }
+
+    return months;
+  }, [safeSales]);
+
+  // Monthly vehicle evolution data
+  const monthlyVehicleData = useMemo(() => {
+    const months: { month: string; vendido: number; custo: number; lucro: number; atraso: number }[] = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(new Date(), i);
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
+      const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
+
+      let monthSold = 0;
+      let monthCost = 0;
+      let monthOverdue = 0;
+
+      safeVehicles.forEach(vehicle => {
+        const vehicleDate = new Date(vehicle.created_at);
+        if (isWithinInterval(vehicleDate, { start: monthStart, end: monthEnd })) {
+          monthSold += vehicle.purchase_value;
+          monthCost += (vehicle as any).cost_value || 0;
+          if (vehicle.status === 'overdue') {
+            monthOverdue += vehicle.remaining_balance;
+          }
+        }
+      });
+
+      months.push({
+        month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+        vendido: Math.round(monthSold),
+        custo: Math.round(monthCost),
+        lucro: Math.round(monthSold - monthCost),
+        atraso: Math.round(monthOverdue),
+      });
+    }
+
+    return months;
+  }, [safeVehicles]);
+
   const COLORS = ['hsl(var(--chart-2))', 'hsl(var(--chart-4))', 'hsl(var(--chart-3))'];
 
   return (
@@ -351,7 +560,6 @@ export default function Reports() {
 
           {/* OVERVIEW TAB */}
           <TabsContent value="overview" className="space-y-4 mt-4">
-            {/* Health Score Card */}
             <HealthScoreCard
               score={consolidatedStats.healthScore}
               receiptRate={consolidatedStats.receiptRate}
@@ -361,7 +569,6 @@ export default function Reports() {
               profitMargin={consolidatedStats.profitMargin}
             />
 
-            {/* Consolidated Summary */}
             <ConsolidatedSummary
               totalToReceive={consolidatedStats.totalToReceive}
               totalReceived={consolidatedStats.totalReceived}
@@ -369,7 +576,6 @@ export default function Reports() {
               totalOverdue={consolidatedStats.totalOverdue}
             />
 
-            {/* Alerts and Category Breakdown */}
             <div className="grid lg:grid-cols-2 gap-4">
               <AlertsCard
                 dueThisWeek={consolidatedStats.dueThisWeek}
@@ -385,13 +591,11 @@ export default function Reports() {
               />
             </div>
 
-            {/* Evolution Chart */}
             <EvolutionChart data={monthlyEvolutionData} />
           </TabsContent>
 
           {/* LOANS TAB */}
           <TabsContent value="loans" className="space-y-4 mt-4">
-            {/* Primary Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Emprestado"
@@ -399,6 +603,7 @@ export default function Reports() {
                 icon={DollarSign}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
+                variation={consolidatedStats.loanedVariation}
               />
               <MetricCard
                 label="Total Recebido"
@@ -424,7 +629,6 @@ export default function Reports() {
               />
             </div>
 
-            {/* Toggle Button for More Metrics */}
             <Button
               variant="outline"
               onClick={() => setShowMoreLoans(!showMoreLoans)}
@@ -435,7 +639,6 @@ export default function Reports() {
               <ChevronDown className={cn("w-4 h-4 transition-transform", showMoreLoans && "rotate-180")} />
             </Button>
 
-            {/* Expandable Metrics */}
             <AnimatePresence>
               {showMoreLoans && (
                 <motion.div
@@ -479,7 +682,6 @@ export default function Reports() {
               )}
             </AnimatePresence>
 
-            {/* Charts */}
             <div className="grid lg:grid-cols-2 gap-4">
               <Card className="shadow-soft">
                 <CardHeader className="pb-2">
@@ -505,39 +707,30 @@ export default function Reports() {
               </Card>
 
               <Card className="shadow-soft">
-                <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Distribuição</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Evolução Mensal</CardTitle>
+                </CardHeader>
                 <CardContent className="p-2 sm:p-6">
                   <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie 
-                        data={[
-                          { name: 'Recebido', value: consolidatedStats.totalLoanReceived },
-                          { name: 'Juros Pendentes', value: Math.max(0, consolidatedStats.totalLoanInterest - (consolidatedStats.totalLoanReceived - consolidatedStats.totalLoaned)) },
-                          { name: 'Em Atraso', value: consolidatedStats.totalLoanOverdue },
-                        ]} 
-                        cx="50%" 
-                        cy="50%" 
-                        innerRadius={40} 
-                        outerRadius={70} 
-                        paddingAngle={5} 
-                        dataKey="value" 
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {[0, 1, 2].map((index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                      </Pie>
+                    <LineChart data={monthlyEvolutionData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} width={50} />
                       <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                    </PieChart>
+                      <Legend />
+                      <Line type="monotone" dataKey="loaned" name="Emprestado" stroke="hsl(var(--chart-1))" strokeWidth={2} />
+                      <Line type="monotone" dataKey="received" name="Recebido" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                    </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Overdue Table */}
             <Card className="shadow-soft">
-              <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Inadimplentes</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Inadimplentes no Período</CardTitle></CardHeader>
               <CardContent className="p-2 sm:p-6">
-                {overdueLoansDisplay.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhum cliente inadimplente</p>
+                {consolidatedStats.overdueLoansFiltered.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhum cliente inadimplente no período</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -550,7 +743,7 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {overdueLoansDisplay.slice(0, 10).map((loan) => (
+                        {consolidatedStats.overdueLoansFiltered.slice(0, 10).map((loan) => (
                           <TableRow key={loan.id}>
                             <TableCell className="font-medium text-xs sm:text-sm">{loan.client?.full_name}</TableCell>
                             <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{formatCurrency(loan.principal_amount)}</TableCell>
@@ -571,28 +764,30 @@ export default function Reports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
-                value={formatCurrency(safeSales.reduce((sum, s) => sum + s.total_amount, 0))}
+                value={formatCurrency(consolidatedStats.totalProductSold)}
                 icon={Package}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
+                variation={consolidatedStats.productSoldVariation}
               />
               <MetricCard
                 label="Total Recebido"
-                value={formatCurrency(safeSales.reduce((sum, s) => sum + (s.total_paid || 0), 0))}
+                value={formatCurrency(consolidatedStats.totalProductReceived)}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
               />
               <MetricCard
-                label="Pendente"
-                value={formatCurrency(safeSales.reduce((sum, s) => sum + s.remaining_balance, 0))}
-                icon={Clock}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
+                label="Lucro Bruto"
+                value={formatCurrency(consolidatedStats.totalProductProfit)}
+                icon={TrendingUp}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
               />
               <MetricCard
                 label="Em Atraso"
-                value={formatCurrency(consolidatedStats.productsOverdue.amount)}
+                value={formatCurrency(consolidatedStats.totalProductOverdue)}
                 icon={AlertTriangle}
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
@@ -621,30 +816,29 @@ export default function Reports() {
                 >
                   <MetricCard
                     label="Custo Total"
-                    value={formatCurrency(safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
+                    value={formatCurrency(consolidatedStats.totalProductCost)}
                     icon={DollarSign}
                     iconColor="text-blue-500"
                     bgColor="bg-blue-500/10"
                   />
                   <MetricCard
-                    label="Lucro Bruto"
-                    value={formatCurrency(consolidatedStats.products.total - safeSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0))}
-                    icon={TrendingUp}
-                    iconColor="text-emerald-500"
-                    bgColor="bg-emerald-500/10"
-                    valueColor="text-emerald-500"
+                    label="Pendente"
+                    value={formatCurrency(filteredSales.reduce((sum, s) => sum + s.remaining_balance, 0))}
+                    icon={Clock}
+                    iconColor="text-amber-500"
+                    bgColor="bg-amber-500/10"
                   />
                   <MetricCard
                     label="Vendas Quitadas"
-                    value={safeSales.filter(s => s.status === 'paid').length}
+                    value={consolidatedStats.paidProductsCount}
                     icon={CheckCircle}
                     iconColor="text-success"
                     bgColor="bg-success/10"
-                    subtitle={`de ${safeSales.length} total`}
+                    subtitle={`de ${consolidatedStats.totalProductsCount} total`}
                   />
                   <MetricCard
                     label="Total Vendas"
-                    value={safeSales.length}
+                    value={consolidatedStats.totalProductsCount}
                     icon={Package}
                     iconColor="text-primary"
                     bgColor="bg-primary/10"
@@ -652,6 +846,80 @@ export default function Reports() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <div className="grid lg:grid-cols-2 gap-4">
+              <Card className="shadow-soft">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="Vendido" active={productChartFilters.vendido} onClick={() => setProductChartFilters(f => ({ ...f, vendido: !f.vendido }))} color="bg-chart-1" />
+                    <ChartFilterButton label="Custo" active={productChartFilters.custo} onClick={() => setProductChartFilters(f => ({ ...f, custo: !f.custo }))} color="bg-chart-4" />
+                    <ChartFilterButton label="Lucro" active={productChartFilters.lucro} onClick={() => setProductChartFilters(f => ({ ...f, lucro: !f.lucro }))} color="bg-chart-2" />
+                    <ChartFilterButton label="Atraso" active={productChartFilters.atraso} onClick={() => setProductChartFilters(f => ({ ...f, atraso: !f.atraso }))} color="bg-chart-3" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-2 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={productChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} width={50} />
+                      <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-soft">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Evolução Mensal</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={monthlyProductData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} width={50} />
+                      <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Legend />
+                      <Line type="monotone" dataKey="vendido" name="Vendido" stroke="hsl(var(--chart-1))" strokeWidth={2} />
+                      <Line type="monotone" dataKey="lucro" name="Lucro" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="shadow-soft">
+              <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Vendas em Atraso no Período</CardTitle></CardHeader>
+              <CardContent className="p-2 sm:p-6">
+                {consolidatedStats.overdueProducts.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhuma venda em atraso no período</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Cliente</TableHead>
+                          <TableHead className="text-xs">Produto</TableHead>
+                          <TableHead className="text-xs">Saldo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consolidatedStats.overdueProducts.slice(0, 10).map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell className="font-medium text-xs sm:text-sm">{sale.client_name}</TableCell>
+                            <TableCell className="text-xs sm:text-sm">{sale.product_name}</TableCell>
+                            <TableCell className="font-semibold text-destructive text-xs sm:text-sm">{formatCurrency(sale.remaining_balance)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* VEHICLES TAB */}
@@ -659,28 +927,30 @@ export default function Reports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
                 label="Total Vendido"
-                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + v.purchase_value, 0))}
+                value={formatCurrency(consolidatedStats.totalVehicleSold)}
                 icon={Car}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
+                variation={consolidatedStats.vehicleSoldVariation}
               />
               <MetricCard
                 label="Total Recebido"
-                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0))}
+                value={formatCurrency(consolidatedStats.totalVehicleReceived)}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
               />
               <MetricCard
-                label="Pendente"
-                value={formatCurrency(safeVehicles.reduce((sum, v) => sum + v.remaining_balance, 0))}
-                icon={Clock}
-                iconColor="text-amber-500"
-                bgColor="bg-amber-500/10"
+                label="Lucro Bruto"
+                value={formatCurrency(consolidatedStats.totalVehicleProfit)}
+                icon={TrendingUp}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
               />
               <MetricCard
                 label="Em Atraso"
-                value={formatCurrency(consolidatedStats.vehiclesOverdue.amount)}
+                value={formatCurrency(consolidatedStats.totalVehicleOverdue)}
                 icon={AlertTriangle}
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
@@ -709,30 +979,29 @@ export default function Reports() {
                 >
                   <MetricCard
                     label="Custo Total"
-                    value={formatCurrency(safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
+                    value={formatCurrency(consolidatedStats.totalVehicleCost)}
                     icon={DollarSign}
                     iconColor="text-blue-500"
                     bgColor="bg-blue-500/10"
                   />
                   <MetricCard
-                    label="Lucro Bruto"
-                    value={formatCurrency(consolidatedStats.vehicles.total - safeVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0))}
-                    icon={TrendingUp}
-                    iconColor="text-emerald-500"
-                    bgColor="bg-emerald-500/10"
-                    valueColor="text-emerald-500"
+                    label="Pendente"
+                    value={formatCurrency(filteredVehicles.reduce((sum, v) => sum + v.remaining_balance, 0))}
+                    icon={Clock}
+                    iconColor="text-amber-500"
+                    bgColor="bg-amber-500/10"
                   />
                   <MetricCard
                     label="Veículos Quitados"
-                    value={safeVehicles.filter(v => v.status === 'paid').length}
+                    value={consolidatedStats.paidVehiclesCount}
                     icon={CheckCircle}
                     iconColor="text-success"
                     bgColor="bg-success/10"
-                    subtitle={`de ${safeVehicles.length} total`}
+                    subtitle={`de ${consolidatedStats.totalVehiclesCount} total`}
                   />
                   <MetricCard
                     label="Total Veículos"
-                    value={safeVehicles.length}
+                    value={consolidatedStats.totalVehiclesCount}
                     icon={Car}
                     iconColor="text-primary"
                     bgColor="bg-primary/10"
@@ -740,6 +1009,80 @@ export default function Reports() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <div className="grid lg:grid-cols-2 gap-4">
+              <Card className="shadow-soft">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Resumo Financeiro</CardTitle>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <ChartFilterButton label="Vendido" active={vehicleChartFilters.vendido} onClick={() => setVehicleChartFilters(f => ({ ...f, vendido: !f.vendido }))} color="bg-chart-1" />
+                    <ChartFilterButton label="Custo" active={vehicleChartFilters.custo} onClick={() => setVehicleChartFilters(f => ({ ...f, custo: !f.custo }))} color="bg-chart-4" />
+                    <ChartFilterButton label="Lucro" active={vehicleChartFilters.lucro} onClick={() => setVehicleChartFilters(f => ({ ...f, lucro: !f.lucro }))} color="bg-chart-2" />
+                    <ChartFilterButton label="Atraso" active={vehicleChartFilters.atraso} onClick={() => setVehicleChartFilters(f => ({ ...f, atraso: !f.atraso }))} color="bg-chart-3" />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-2 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={vehicleChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} width={50} />
+                      <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-soft">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">Evolução Mensal</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 sm:p-6">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={monthlyVehicleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} width={50} />
+                      <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Legend />
+                      <Line type="monotone" dataKey="vendido" name="Vendido" stroke="hsl(var(--chart-1))" strokeWidth={2} />
+                      <Line type="monotone" dataKey="lucro" name="Lucro" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="shadow-soft">
+              <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Veículos em Atraso no Período</CardTitle></CardHeader>
+              <CardContent className="p-2 sm:p-6">
+                {consolidatedStats.overdueVehiclesList.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhum veículo em atraso no período</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Comprador</TableHead>
+                          <TableHead className="text-xs">Veículo</TableHead>
+                          <TableHead className="text-xs">Saldo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consolidatedStats.overdueVehiclesList.slice(0, 10).map((vehicle) => (
+                          <TableRow key={vehicle.id}>
+                            <TableCell className="font-medium text-xs sm:text-sm">{vehicle.buyer_name || 'Sem comprador'}</TableCell>
+                            <TableCell className="text-xs sm:text-sm">{vehicle.brand} {vehicle.model}</TableCell>
+                            <TableCell className="font-semibold text-destructive text-xs sm:text-sm">{formatCurrency(vehicle.remaining_balance)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
