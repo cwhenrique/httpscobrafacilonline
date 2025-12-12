@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { CreateVehicleData, InstallmentDate } from '@/hooks/useVehicles';
 import { addMonths, format, setDate, getDate } from 'date-fns';
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
@@ -14,6 +13,109 @@ interface VehicleFormProps {
   billType: 'receivable' | 'payable';
   onSubmit: (data: CreateVehicleData) => Promise<void>;
   isPending: boolean;
+}
+
+// Subcomponente para lista de parcelas com scroll automático
+function InstallmentsList({
+  installmentDates,
+  isHistorical,
+  today,
+  updateInstallmentDate,
+  toggleInstallmentPaid,
+}: {
+  installmentDates: InstallmentDate[];
+  isHistorical: boolean;
+  today: Date;
+  updateInstallmentDate: (index: number, field: 'due_date' | 'amount', value: string | number) => void;
+  toggleInstallmentPaid: (index: number) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const firstUnpaidRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Se for contrato histórico, rolar para primeira parcela não paga
+    if (isHistorical && firstUnpaidRef.current && scrollRef.current) {
+      const container = scrollRef.current;
+      const element = firstUnpaidRef.current;
+      const offsetTop = element.offsetTop - container.offsetTop;
+      container.scrollTop = Math.max(0, offsetTop - 10);
+    }
+  }, [isHistorical, installmentDates]);
+
+  // Encontrar índice da primeira parcela não paga
+  const firstUnpaidIndex = installmentDates.findIndex(inst => !inst.isPaid);
+
+  return (
+    <Card className="mt-3">
+      <CardContent className="p-3">
+        <div
+          ref={scrollRef}
+          className="h-[180px] overflow-y-auto space-y-2 pr-1"
+          style={{ scrollBehavior: 'smooth' }}
+        >
+          {installmentDates.map((inst, index) => {
+            const instDate = new Date(inst.due_date);
+            instDate.setHours(0, 0, 0, 0);
+            const isPastDate = instDate < today;
+            const showPaidCheckbox = isHistorical && isPastDate;
+            const isFirstUnpaid = index === firstUnpaidIndex;
+
+            return (
+              <div
+                key={index}
+                ref={isFirstUnpaid ? firstUnpaidRef : undefined}
+                className={cn(
+                  "flex items-center gap-2 p-2 rounded-lg",
+                  inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-background border border-border"
+                )}
+              >
+                <span
+                  className={cn(
+                    "font-semibold text-sm w-8",
+                    inst.isPaid && "text-primary"
+                  )}
+                >
+                  {inst.installment_number}ª
+                </span>
+                <Input
+                  type="date"
+                  value={inst.due_date}
+                  onChange={(e) => updateInstallmentDate(index, 'due_date', e.target.value)}
+                  className="flex-1 h-8 text-sm"
+                />
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground">R$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={inst.amount}
+                    onChange={(e) =>
+                      updateInstallmentDate(index, 'amount', parseFloat(e.target.value) || 0)
+                    }
+                    className="w-24 h-8 text-sm"
+                  />
+                </div>
+                {showPaidCheckbox && (
+                  <Button
+                    type="button"
+                    variant={inst.isPaid ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => toggleInstallmentPaid(index)}
+                  >
+                    {inst.isPaid ? '✓ Paga' : 'Marcar'}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          Você pode editar a data e valor de cada parcela individualmente
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps) {
@@ -347,73 +449,13 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           </Button>
           
           {showInstallments && (
-            <Card className="mt-3 max-h-[260px] overflow-y-auto">
-              <CardContent className="p-3">
-                <div className="space-y-2">
-                  {installmentDates.map((inst, index) => {
-                    const instDate = new Date(inst.due_date);
-                    instDate.setHours(0, 0, 0, 0);
-                    const isPastDate = instDate < today;
-                    const showPaidCheckbox = isHistorical && isPastDate;
-                    
-                    return (
-                      <div
-                        key={index}
-                        className={cn(
-                          "flex items-center gap-2 p-2 rounded-lg",
-                          inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-background"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "font-semibold text-sm w-8",
-                            inst.isPaid && "text-primary"
-                          )}
-                        >
-                          {inst.installment_number}ª
-                        </span>
-                        <Input
-                          type="date"
-                          value={inst.due_date}
-                          onChange={(e) => updateInstallmentDate(index, 'due_date', e.target.value)}
-                          className="flex-1 h-8 text-sm"
-                        />
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">R$</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={inst.amount}
-                            onChange={(e) =>
-                              updateInstallmentDate(
-                                index,
-                                'amount',
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="w-24 h-8 text-sm"
-                          />
-                        </div>
-                        {showPaidCheckbox && (
-                          <Button
-                            type="button"
-                            variant={inst.isPaid ? 'default' : 'outline'}
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => toggleInstallmentPaid(index)}
-                          >
-                            {inst.isPaid ? '✓ Paga' : 'Marcar'}
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Você pode editar a data e valor de cada parcela individualmente
-                </p>
-              </CardContent>
-            </Card>
+            <InstallmentsList
+              installmentDates={installmentDates}
+              isHistorical={isHistorical}
+              today={today}
+              updateInstallmentDate={updateInstallmentDate}
+              toggleInstallmentPaid={toggleInstallmentPaid}
+            />
           )}
         </div>
       )}
