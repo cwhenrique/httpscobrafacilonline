@@ -707,23 +707,40 @@ export default function Loans() {
     const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
     
     const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-    const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+    const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+    
+    // Verificar se há taxa de renovação aplicada em uma parcela específica
+    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+    const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+    const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+    
+    // Função para obter o valor de uma parcela específica (considera taxa extra)
+    const getInstallmentValue = (index: number) => {
+      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+        return renewalFeeValue;
+      }
+      return baseInstallmentValue;
+    };
     
     let amount: number;
     let interest_paid: number;
     let principal_paid: number;
     
     if (paymentData.payment_type === 'total') {
-      amount = remainingToReceive;
-      // Calculate how much goes to interest vs principal for total payment
+      // Usar o remaining_balance real do banco
+      amount = selectedLoan.remaining_balance;
       interest_paid = Math.min(amount, interestPerInstallment);
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-      // Paying selected installments
-      const numSelected = paymentData.selected_installments.length;
-      amount = totalPerInstallment * numSelected;
-      interest_paid = interestPerInstallment * numSelected;
-      principal_paid = principalPerInstallment * numSelected;
+      // Paying selected installments - somar valor real de cada parcela (incluindo taxa extra se aplicável)
+      amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+      
+      // Calcular juros e principal proporcionalmente
+      const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
+      const extraAmount = amount - baseTotal; // Valor extra da taxa de renovação
+      
+      interest_paid = (interestPerInstallment * paymentData.selected_installments.length) + extraAmount;
+      principal_paid = principalPerInstallment * paymentData.selected_installments.length;
     } else {
       // Partial payment
       amount = parseFloat(paymentData.amount);
@@ -739,7 +756,7 @@ export default function Loans() {
     
     const installmentNumber = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
       ? paymentData.selected_installments[0] + 1
-      : Math.floor((selectedLoan.total_paid || 0) / totalPerInstallment) + 1;
+      : Math.floor((selectedLoan.total_paid || 0) / baseInstallmentValue) + 1;
     
     await registerPayment({
       loan_id: selectedLoanId,
@@ -750,8 +767,8 @@ export default function Loans() {
       notes: installmentNote,
     });
     
-    // Calculate new remaining balance after payment
-    const newRemainingBalance = remainingToReceive - amount;
+    // Calculate new remaining balance after payment - usar remaining_balance do banco
+    const newRemainingBalance = selectedLoan.remaining_balance - amount;
     
     // Show payment receipt prompt
     setPaymentReceiptData({
