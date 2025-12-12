@@ -1792,7 +1792,7 @@ export default function Loans() {
                       </Button>
                       <Select value={formData.client_id} onValueChange={handleTutorialClientSelect}>
                         <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[10001]">
                           {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
                         </SelectContent>
                       </Select>
@@ -1874,7 +1874,7 @@ export default function Loans() {
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                       <Select value={formData.interest_mode} onValueChange={handleTutorialInterestModeChange}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
                           <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
                         </SelectContent>
@@ -1884,7 +1884,7 @@ export default function Loans() {
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
                       <Select value={formData.payment_type} onValueChange={handleTutorialPaymentTypeChange}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[10001]">
                           <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
                           <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
                           <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>

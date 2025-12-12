@@ -25,7 +25,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-client',
     content: '👆 Selecione um cliente da lista ou cadastre um novo para continuar.',
     title: '👤 Passo 2: Selecionar Cliente',
-    placement: 'bottom',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -33,7 +33,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-value',
     content: '📝 Digite o valor que será emprestado ao cliente e pressione TAB ou clique fora.',
     title: '💰 Passo 3: Valor do Empréstimo',
-    placement: 'bottom',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -41,7 +41,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-interest',
     content: '📝 Defina a taxa de juros em percentual (ex: 10%) e pressione TAB ou clique fora.',
     title: '📊 Passo 4: Taxa de Juros',
-    placement: 'bottom',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -49,7 +49,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-interest-mode',
     content: '👆 Escolha como os juros serão aplicados: "Por Parcela" ou "Sobre o Total".',
     title: '⚙️ Passo 5: Modo de Juros',
-    placement: 'bottom',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -57,7 +57,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-payment-type',
     content: '👆 Selecione a modalidade de pagamento: Único, Parcelado, Semanal ou Diário.',
     title: '📋 Passo 6: Modalidade',
-    placement: 'bottom',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -65,7 +65,7 @@ const TUTORIAL_STEPS: Step[] = [
     target: '.tutorial-form-dates',
     content: '📅 Defina a data de início do empréstimo.',
     title: '📅 Passo 7: Datas',
-    placement: 'top',
+    placement: 'right',
     hideFooter: true,
     spotlightClicks: true,
   },
@@ -148,7 +148,9 @@ export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }
       disableCloseOnEsc
       floaterProps={{
         disableAnimation: true,
+        offset: 15,
       }}
+      spotlightPadding={8}
       locale={{
         back: 'Voltar',
         close: 'Fechar',
