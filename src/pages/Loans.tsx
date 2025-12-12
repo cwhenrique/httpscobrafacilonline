@@ -42,6 +42,7 @@ export default function Loans() {
     interest_only_paid: false,
     interest_amount_paid: '',
   });
+  const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -618,10 +619,9 @@ export default function Loans() {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
-    // Calculate remaining amount (total to receive - total paid)
+    // Calculate total interest based on interest_mode
     const numInstallments = loan.installments || 1;
     
-    // Calculate total interest based on interest_mode
     let totalInterest = 0;
     if (loan.interest_mode === 'on_total') {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
@@ -632,20 +632,27 @@ export default function Loans() {
     // Interest per installment for auto-fill
     const interestPerInstallment = totalInterest / numInstallments;
     
+    // Total original do contrato (valor que o cliente ainda deve independente de juros pagos)
     const totalToReceive = loan.principal_amount + totalInterest;
-    const totalPaid = loan.total_paid || 0;
-    let remainingAmount = totalToReceive - totalPaid;
-
-    // Se já houve pagamento só de juros antes, usar o "Valor que falta" salvo nas notas
+    
+    // Para o campo "Valor que falta", usar o total original do contrato
+    // Só diminui se o usuário editar manualmente ou se tiver pagamento de principal registrado
+    // Se já houve pagamento só de juros antes, manter o valor salvo nas notas (que é o total original)
+    let remainingForInterestOnly = totalToReceive;
+    
     if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
-      const match = loan.notes.match(/Valor que falta: R\$ ([0-9.]+)/);
+      const match = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
       if (match) {
-        const storedRemaining = parseFloat(match[1]);
+        const storedRemaining = parseFloat(match[1].replace(',', '.'));
         if (!isNaN(storedRemaining) && storedRemaining > 0) {
-          remainingAmount = storedRemaining;
+          remainingForInterestOnly = storedRemaining;
         }
       }
     }
+    
+    // Para renegociação normal, calcular o remaining considerando pagamentos
+    const totalPaid = loan.total_paid || 0;
+    const remainingForRenegotiation = totalToReceive - totalPaid;
     
     setSelectedLoanId(loanId);
     const today = new Date();
@@ -654,11 +661,16 @@ export default function Loans() {
     setRenegotiateData({
       promised_amount: '',
       promised_date: today.toISOString().split('T')[0],
-      remaining_amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : '0',
+      // Aqui usamos o remaining para renegociação normal, mas o modal vai usar
+      // remainingForInterestOnly quando "só juros" estiver marcado
+      remaining_amount: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
       notes: loan.notes || '',
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
+      // Armazenar o valor original para uso quando marcar "só juros"
     });
+    // Guardar o valor original para quando marcar "só juros"
+    setInterestOnlyOriginalRemaining(remainingForInterestOnly);
     setIsRenegotiateDialogOpen(true);
   };
 
@@ -1882,23 +1894,15 @@ export default function Loans() {
                         checked={renegotiateData.interest_only_paid}
                         onCheckedChange={(checked) => {
                           const isChecked = checked as boolean;
-                          // Calculate the total remaining amount (total to receive - total paid)
-                          const numInstallments = selectedLoan.installments || 1;
-                          let totalInterest = 0;
-                          if (selectedLoan.interest_mode === 'on_total') {
-                            totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
-                          } else {
-                            totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
-                          }
                           
-                          const totalToReceive = selectedLoan.principal_amount + totalInterest;
-                          const totalPaid = selectedLoan.total_paid || 0;
-                          const remainingTotal = totalToReceive - totalPaid;
-                          
+                          // Quando marca "só juros", usar o valor original (total do contrato)
+                          // que foi salvo ao abrir o modal
                           setRenegotiateData({ 
                             ...renegotiateData, 
                             interest_only_paid: isChecked,
-                            remaining_amount: isChecked ? remainingTotal.toFixed(2) : renegotiateData.remaining_amount
+                            remaining_amount: isChecked 
+                              ? interestOnlyOriginalRemaining.toFixed(2) 
+                              : renegotiateData.remaining_amount
                           });
                         }}
                       />
@@ -1944,7 +1948,7 @@ export default function Loans() {
                               placeholder="Valor restante"
                               className="bg-white text-gray-900 placeholder:text-gray-500 dark:bg-zinc-800 dark:text-white dark:placeholder:text-gray-400 border-yellow-600"
                             />
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Valor total restante a receber</p>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Só diminui se pagar mais que o juros</p>
                           </div>
                         </div>
                       </>
