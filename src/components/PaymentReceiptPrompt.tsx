@@ -1,18 +1,16 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Download, X, FileText, MessageCircle, Send } from 'lucide-react';
+import { Download, X, FileText, MessageCircle, Loader2 } from 'lucide-react';
 import { generatePaymentReceipt, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
+import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: PaymentReceiptData | null;
-  clientPhone?: string;
 }
 
 const formatCurrency = (value: number): string => {
@@ -79,22 +77,16 @@ const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
   return message;
 };
 
-export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone: initialPhone }: PaymentReceiptPromptProps) {
+export default function PaymentReceiptPrompt({ open, onOpenChange, data }: PaymentReceiptPromptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
-  const [showWhatsAppInput, setShowWhatsAppInput] = useState(false);
-  const [clientPhone, setClientPhone] = useState('');
+  const { profile } = useProfile();
 
   if (!data) return null;
 
-  const handleOpenWhatsApp = () => {
-    setClientPhone(initialPhone || '');
-    setShowWhatsAppInput(true);
-  };
-
   const handleSendWhatsApp = async () => {
-    if (!clientPhone.trim()) {
-      toast.error('Informe o número do cliente');
+    if (!profile?.phone) {
+      toast.error('Configure seu telefone no perfil para receber comprovantes');
       return;
     }
     
@@ -103,15 +95,13 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       const message = generateWhatsAppMessage(data);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: clientPhone, message },
+        body: { phone: profile.phone, message },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Comprovante enviado via WhatsApp!');
-        setShowWhatsAppInput(false);
-        setClientPhone('');
+        toast.success('Comprovante enviado para seu WhatsApp!');
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
       }
@@ -187,42 +177,24 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
           </div>
         </div>
 
-        {/* WhatsApp Input Section */}
-        {showWhatsAppInput && (
-          <div className="p-3 border rounded-lg bg-muted/50 space-y-3">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-green-600" />
-              <Label htmlFor="paymentClientPhone" className="text-sm font-medium">Enviar para WhatsApp</Label>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                id="paymentClientPhone"
-                placeholder="(00) 00000-0000"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={handleSendWhatsApp} disabled={isSendingWhatsApp} size="sm" className="bg-green-600 hover:bg-green-700">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowWhatsAppInput(false)}>
-              Cancelar
-            </Button>
-          </div>
-        )}
-
         <DialogFooter className="gap-2 flex-col sm:flex-row">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             <X className="w-4 h-4 mr-2" />
             Fechar
           </Button>
-          {!showWhatsAppInput && (
-            <Button variant="outline" onClick={handleOpenWhatsApp} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700">
+          <Button 
+            variant="outline" 
+            onClick={handleSendWhatsApp} 
+            disabled={isSendingWhatsApp}
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+          >
+            {isSendingWhatsApp ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
               <MessageCircle className="w-4 h-4 mr-2" />
-              WhatsApp
-            </Button>
-          )}
+            )}
+            {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
+          </Button>
           <Button onClick={handleDownload} disabled={isGenerating} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             {isGenerating ? 'Gerando...' : 'Baixar PDF'}
