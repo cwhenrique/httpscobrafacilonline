@@ -912,11 +912,13 @@ export default function Loans() {
       const originalRemaining = totalToReceive - totalPaidBefore;
 
       // O valor que falta NUNCA deve descer automaticamente em pagamento só de juros.
-      // Usamos sempre o que o usuário digitou (editável) ou, se vazio, o original.
-      // Se taxa de renovação estiver habilitada, usar o novo valor com acréscimo
+      // Se taxa de renovação estiver habilitada, o remaining_balance deve AUMENTAR pelo valor da taxa
+      // (não substituir pelo valor da parcela única)
       let safeRemaining: number;
-      if (renegotiateData.renewal_fee_enabled && renegotiateData.new_remaining_with_fee) {
-        safeRemaining = parseFloat(renegotiateData.new_remaining_with_fee.replace(',', '.'));
+      if (renegotiateData.renewal_fee_enabled) {
+        // Quando há taxa de renovação, o remaining_balance = original + taxa
+        const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
+        safeRemaining = originalRemaining + feeAmount;
       } else {
         const manualRemaining = renegotiateData.remaining_amount
           ? parseFloat(renegotiateData.remaining_amount.replace(',', '.'))
