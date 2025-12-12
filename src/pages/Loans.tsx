@@ -154,8 +154,16 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
-  // Tutorial state
-  const [tutorialRun, setTutorialRun] = useState(false);
+  // Tutorial state - auto-show on first visit
+  const [tutorialRun, setTutorialRun] = useState(() => {
+    const hasSeenTutorial = localStorage.getItem('loans_tutorial_seen');
+    return !hasSeenTutorial;
+  });
+
+  const handleTutorialFinish = () => {
+    setTutorialRun(false);
+    localStorage.setItem('loans_tutorial_seen', 'true');
+  };
 
   const handleCreateClientInline = async () => {
     if (!newClientData.full_name.trim()) {
@@ -1546,7 +1554,7 @@ export default function Loans() {
     <DashboardLayout>
 <LoansTutorial 
           run={tutorialRun} 
-          onFinish={() => setTutorialRun(false)}
+          onFinish={handleTutorialFinish}
           onOpenDialog={() => setIsDialogOpen(true)}
           onCloseDialog={() => setIsDialogOpen(false)}
           isDialogOpen={isDialogOpen}
