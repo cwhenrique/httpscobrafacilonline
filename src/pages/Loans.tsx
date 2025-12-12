@@ -1208,17 +1208,46 @@ export default function Loans() {
       const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
       const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
       
-      const paidInstallments = getPaidInstallmentsCount(loan);
-      const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
-        ? paidInstallments 
-        : parseInt(renegotiateData.renewal_fee_installment);
+      // Extrair pagamentos parciais
+      const partialPayments: Record<number, number> = {};
+      const matches = (loan.notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+      for (const match of matches) {
+        partialPayments[parseInt(match[1])] = parseFloat(match[2]);
+      }
       
-      // Calcular o novo valor da parcela específica = valor original + taxa
+      // Determinar parcela alvo
+      let targetInstallment = 0;
+      if (renegotiateData.renewal_fee_installment === 'next') {
+        // Encontrar próxima parcela não totalmente paga
+        for (let i = 0; i < numInstallments; i++) {
+          const paidAmount = partialPayments[i] || 0;
+          if (paidAmount < originalInstallmentValue * 0.99) {
+            targetInstallment = i;
+            break;
+          }
+        }
+      } else {
+        targetInstallment = parseInt(renegotiateData.renewal_fee_installment);
+      }
+      
+      // Calcular valor RESTANTE da parcela alvo (considerando pagamentos parciais)
+      const paidOnTarget = partialPayments[targetInstallment] || 0;
+      const remainingOnTarget = originalInstallmentValue - paidOnTarget;
+      
+      // Calcular o novo valor da parcela específica = valor restante + taxa
       const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
-      const newInstallmentValue = originalInstallmentValue + feeAmount;
+      const newInstallmentValue = remainingOnTarget + feeAmount;
       
-      // Calcular novo remaining_balance = atual + taxa
-      const newRemaining = loan.remaining_balance + feeAmount;
+      // Calcular novo remaining baseado no valor restante real de todas as parcelas + taxa
+      let totalRemainingFromInstallments = 0;
+      for (let i = 0; i < numInstallments; i++) {
+        const paid = partialPayments[i] || 0;
+        const remaining = originalInstallmentValue - paid;
+        if (remaining > 0) {
+          totalRemainingFromInstallments += remaining;
+        }
+      }
+      const newRemaining = totalRemainingFromInstallments + feeAmount;
       
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
