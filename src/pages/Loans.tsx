@@ -325,6 +325,7 @@ export default function Loans() {
     payment_date: new Date().toISOString().split('T')[0],
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
     selected_installments: [] as number[],
+    partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
   });
 
   // Generate installment dates when start_date or installments change
@@ -811,23 +812,30 @@ export default function Loans() {
       return payments;
     };
     
-    // Calcular qual parcela está sendo paga (primeira não paga completamente)
+    // Calcular qual parcela está sendo paga
     const existingPartials = getPartialPayments(selectedLoan.notes);
     let targetInstallmentIndex = 0;
     let accumulatedPaid = 0;
     
-    for (let i = 0; i < numInstallments; i++) {
-      const installmentVal = getInstallmentValue(i);
-      const partialPaid = existingPartials[i] || 0;
-      
-      if (partialPaid >= installmentVal) {
-        // Esta parcela já está paga completamente
-        continue;
-      } else {
-        // Esta é a parcela atual que precisa ser paga
-        targetInstallmentIndex = i;
-        accumulatedPaid = partialPaid;
-        break;
+    // Se o usuário selecionou uma parcela específica, usar ela
+    if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null) {
+      targetInstallmentIndex = paymentData.partial_installment_index;
+      accumulatedPaid = existingPartials[targetInstallmentIndex] || 0;
+    } else {
+      // Senão, encontrar a primeira parcela não paga completamente
+      for (let i = 0; i < numInstallments; i++) {
+        const installmentVal = getInstallmentValue(i);
+        const partialPaid = existingPartials[i] || 0;
+        
+        if (partialPaid >= installmentVal * 0.99) {
+          // Esta parcela já está paga completamente
+          continue;
+        } else {
+          // Esta é a parcela atual que precisa ser paga
+          targetInstallmentIndex = i;
+          accumulatedPaid = partialPaid;
+          break;
+        }
       }
     }
     
@@ -850,7 +858,7 @@ export default function Loans() {
         updatedNotes += `[PARTIAL_PAID:${idx}:${installmentVal.toFixed(2)}]`;
       }
     } else if (paymentData.payment_type === 'partial') {
-      // Pagamento parcial - atualizar tracking da parcela atual
+      // Pagamento parcial - atualizar tracking da parcela selecionada
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
       const newPartialTotal = Math.min(accumulatedPaid + amount, targetInstallmentValue);
       
@@ -901,7 +909,7 @@ export default function Loans() {
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [] });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [], partial_installment_index: null });
   };
 
   const resetForm = () => {
@@ -2444,7 +2452,7 @@ export default function Loans() {
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installments: [] })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'installment', amount: '', selected_installments: [], partial_installment_index: null })}
                         className={`text-xs sm:text-sm ${paymentData.payment_type !== 'installment' ? 'border-2 border-primary' : ''}`}
                       >
                         Parcela
@@ -2452,7 +2460,7 @@ export default function Loans() {
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'partial' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installments: [] })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'partial', amount: '', selected_installments: [], partial_installment_index: null })}
                         className="text-xs sm:text-sm"
                       >
                         Parcial
@@ -2460,7 +2468,7 @@ export default function Loans() {
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'total' ? 'default' : 'outline'}
-                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString(), selected_installments: [] })}
+                        onClick={() => setPaymentData({ ...paymentData, payment_type: 'total', amount: remainingToReceive.toString(), selected_installments: [], partial_installment_index: null })}
                         className="text-xs sm:text-sm"
                       >
                         Total
@@ -2635,19 +2643,118 @@ export default function Loans() {
                     );
                   })()}
                   
-                  {paymentData.payment_type === 'partial' && (
-                    <div className="space-y-2">
-                      <Label>Valor Pago *</Label>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        value={paymentData.amount} 
-                        onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} 
-                        placeholder={`Ex: ${totalPerInstallment.toFixed(2)}`}
-                        required 
-                      />
-                    </div>
-                  )}
+                  {paymentData.payment_type === 'partial' && (() => {
+                    const dates = (selectedLoan.installment_dates as string[]) || [];
+                    const numInstallments = selectedLoan.installments || 1;
+                    
+                    // Extrair pagamentos parciais
+                    const partialPayments = getPartialPaymentsFromNotes(selectedLoan.notes);
+                    
+                    // Verificar taxa de renovação
+                    const renewalFeeMatch = (selectedLoan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
+                    const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+                    const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+                    
+                    const getInstallmentValuePartial = (index: number) => {
+                      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+                        return renewalFeeValue;
+                      }
+                      return totalPerInstallment;
+                    };
+                    
+                    const getInstallmentStatusPartial = (index: number) => {
+                      const installmentValue = getInstallmentValuePartial(index);
+                      const paidAmount = partialPayments[index] || 0;
+                      const remaining = installmentValue - paidAmount;
+                      
+                      if (paidAmount >= installmentValue * 0.99) {
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0 };
+                      } else if (paidAmount > 0) {
+                        return { isPaid: false, isPartial: true, paidAmount, remaining };
+                      }
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue };
+                    };
+                    
+                    // Encontrar parcelas não pagas
+                    const unpaidInstallments = [];
+                    for (let i = 0; i < numInstallments; i++) {
+                      const status = getInstallmentStatusPartial(i);
+                      if (!status.isPaid) {
+                        unpaidInstallments.push({ index: i, status, date: dates[i] || '' });
+                      }
+                    }
+                    
+                    // Definir parcela selecionada (primeira não paga por padrão)
+                    const selectedPartialIndex = paymentData.partial_installment_index ?? (unpaidInstallments[0]?.index ?? 0);
+                    const selectedStatus = getInstallmentStatusPartial(selectedPartialIndex);
+                    
+                    return (
+                      <div className="space-y-4">
+                        {/* Seletor de Parcela */}
+                        {dates.length > 0 && (
+                          <div className="space-y-2">
+                            <Label>Referente a qual Parcela?</Label>
+                            <Select 
+                              value={selectedPartialIndex.toString()} 
+                              onValueChange={(value) => setPaymentData({ ...paymentData, partial_installment_index: parseInt(value) })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a parcela" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {unpaidInstallments.map(({ index, status, date }) => (
+                                  <SelectItem key={index} value={index.toString()}>
+                                    <span className="flex items-center gap-2">
+                                      Parcela {index + 1}/{dates.length}
+                                      {date && <span className="text-xs text-muted-foreground">- {formatDate(date)}</span>}
+                                      {status.isPartial && (
+                                        <span className="text-xs text-yellow-600">(Falta: {formatCurrency(status.remaining)})</span>
+                                      )}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            
+                            {/* Info da parcela selecionada */}
+                            <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                              <div className="flex justify-between">
+                                <span>Valor da parcela:</span>
+                                <span className="font-medium">{formatCurrency(getInstallmentValuePartial(selectedPartialIndex))}</span>
+                              </div>
+                              {selectedStatus.isPartial && (
+                                <>
+                                  <div className="flex justify-between text-yellow-600">
+                                    <span>Já pago:</span>
+                                    <span>{formatCurrency(selectedStatus.paidAmount)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-medium">
+                                    <span>Falta pagar:</span>
+                                    <span>{formatCurrency(selectedStatus.remaining)}</span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="space-y-2">
+                          <Label>Valor Pago *</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={paymentData.amount} 
+                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} 
+                            placeholder={`Máx: ${formatCurrency(selectedStatus.remaining)}`}
+                            required 
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Digite qualquer valor até {formatCurrency(selectedStatus.remaining)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   
                   <div className="space-y-2">
                     <Label>Data do Pagamento</Label>
