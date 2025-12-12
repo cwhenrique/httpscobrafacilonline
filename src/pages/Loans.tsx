@@ -634,7 +634,18 @@ export default function Loans() {
     
     const totalToReceive = loan.principal_amount + totalInterest;
     const totalPaid = loan.total_paid || 0;
-    const remainingAmount = totalToReceive - totalPaid;
+    let remainingAmount = totalToReceive - totalPaid;
+
+    // Se já houve pagamento só de juros antes, usar o "Valor que falta" salvo nas notas
+    if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
+      const match = loan.notes.match(/Valor que falta: R\$ ([0-9.]+)/);
+      if (match) {
+        const storedRemaining = parseFloat(match[1]);
+        if (!isNaN(storedRemaining) && storedRemaining > 0) {
+          remainingAmount = storedRemaining;
+        }
+      }
+    }
     
     setSelectedLoanId(loanId);
     const today = new Date();
