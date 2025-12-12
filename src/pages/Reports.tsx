@@ -10,7 +10,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, FileText, Car } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, FileText, Car, Percent, Users, Clock, Target, CheckCircle, XCircle, ArrowUpDown, PiggyBank } from 'lucide-react';
+
+// Helper component for metric cards
+const MetricCard = ({ 
+  label, 
+  value, 
+  icon: Icon, 
+  iconColor = 'text-primary', 
+  bgColor = 'bg-primary/10',
+  valueColor = '',
+  subtitle = ''
+}: { 
+  label: string; 
+  value: string | number; 
+  icon: React.ElementType; 
+  iconColor?: string; 
+  bgColor?: string;
+  valueColor?: string;
+  subtitle?: string;
+}) => (
+  <Card className="shadow-soft">
+    <CardContent className="p-3 sm:p-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className={`p-2 sm:p-3 rounded-xl ${bgColor} shrink-0`}>
+          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColor}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
+          <p className={`text-sm sm:text-lg font-bold truncate ${valueColor}`}>{value}</p>
+          {subtitle && <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('loans');
@@ -22,28 +56,118 @@ export default function Reports() {
   const { vehicles } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
 
+  // LOAN DETAILED STATS
+  const loanStats = useMemo(() => {
+    const totalLoaned = loans.reduce((sum, l) => sum + l.principal_amount, 0);
+    const totalReceived = loans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
+    
+    // Calculate total interest to receive
+    let totalInterestToReceive = 0;
+    let totalInterestReceived = 0;
+    
+    loans.forEach(loan => {
+      const numInstallments = loan.installments || 1;
+      const isDaily = loan.payment_type === 'daily';
+      
+      let loanTotalInterest = 0;
+      if (isDaily) {
+        // For daily loans, profit is stored in interest_rate field
+        loanTotalInterest = loan.interest_rate || 0;
+      } else {
+        // For regular loans
+        if (loan.interest_mode === 'on_total') {
+          loanTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+        } else {
+          loanTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+        }
+        // Use stored total_interest if available and higher (includes penalties)
+        if (loan.total_interest && loan.total_interest > loanTotalInterest) {
+          loanTotalInterest = loan.total_interest;
+        }
+      }
+      
+      totalInterestToReceive += loanTotalInterest;
+      
+      // Calculate proportional interest received
+      const totalToReceive = loan.principal_amount + loanTotalInterest;
+      const proportionPaid = totalToReceive > 0 ? (loan.total_paid || 0) / totalToReceive : 0;
+      totalInterestReceived += loanTotalInterest * proportionPaid;
+    });
+    
+    // Overdue calculations
+    const overdueLoans = loans.filter(l => l.status === 'overdue');
+    const totalOverdueAmount = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
+    const overdueClientsSet = new Set(overdueLoans.map(l => l.client_id));
+    const overdueClientsCount = overdueClientsSet.size;
+    
+    // Paid loans
+    const paidLoans = loans.filter(l => l.status === 'paid');
+    const paidLoansCount = paidLoans.length;
+    
+    // Profit (received - loaned)
+    const realizedProfit = Math.max(0, totalReceived - totalLoaned);
+    
+    // Delinquency rate
+    const delinquencyRate = loans.length > 0 ? (overdueLoans.length / loans.length) * 100 : 0;
+    
+    // Average ticket
+    const averageTicket = loans.length > 0 ? totalLoaned / loans.length : 0;
+    
+    // Weighted average interest rate
+    const totalWeightedRate = loans.reduce((sum, l) => {
+      if (l.payment_type === 'daily') return sum;
+      return sum + (l.interest_rate * l.principal_amount);
+    }, 0);
+    const nonDailyLoans = loans.filter(l => l.payment_type !== 'daily');
+    const nonDailyTotal = nonDailyLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    const averageInterestRate = nonDailyTotal > 0 ? totalWeightedRate / nonDailyTotal : 0;
+    
+    // Interest still pending (not yet received)
+    const interestPending = totalInterestToReceive - totalInterestReceived;
+    
+    return {
+      totalLoaned,
+      totalReceived,
+      totalInterestToReceive,
+      totalInterestReceived,
+      interestPending,
+      totalOverdueAmount,
+      overdueClientsCount,
+      overdueLoansCount: overdueLoans.length,
+      paidLoansCount,
+      realizedProfit,
+      delinquencyRate,
+      averageTicket,
+      averageInterestRate,
+      totalLoans: loans.length
+    };
+  }, [loans]);
+
   const overdueLoans = loans.filter(l => l.status === 'overdue');
 
-  // Loan stats
+  // Loan chart data
   const loanChartData = [
-    { name: 'Emprestado', value: stats.totalLoaned, fill: 'hsl(var(--chart-1))' },
-    { name: 'A Receber', value: stats.totalToReceive, fill: 'hsl(var(--chart-4))' },
-    { name: 'Recebido', value: stats.totalReceived, fill: 'hsl(var(--chart-2))' },
-    { name: 'Pendente', value: stats.totalPending, fill: 'hsl(var(--chart-3))' },
+    { name: 'Emprestado', value: loanStats.totalLoaned, fill: 'hsl(var(--chart-1))' },
+    { name: 'Juros Total', value: loanStats.totalInterestToReceive, fill: 'hsl(var(--chart-4))' },
+    { name: 'Recebido', value: loanStats.totalReceived, fill: 'hsl(var(--chart-2))' },
+    { name: 'Em Atraso', value: loanStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
   ];
 
   const loanPieData = [
-    { name: 'Recebido', value: stats.totalReceived },
-    { name: 'Pendente', value: stats.totalPending },
+    { name: 'Recebido', value: loanStats.totalReceived },
+    { name: 'Juros Pendentes', value: loanStats.interestPending },
+    { name: 'Em Atraso', value: loanStats.totalOverdueAmount },
   ];
 
-  // Product sales stats
+  // PRODUCT SALES DETAILED STATS
   const productStats = useMemo(() => {
     const totalSold = sales.reduce((sum, s) => sum + s.total_amount, 0);
     const totalCost = sales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
     const totalProfit = totalSold - totalCost;
     const totalReceived = sales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
     const totalPending = sales.reduce((sum, s) => sum + s.remaining_balance, 0);
+    
+    // Overdue sales
     const overdueSales = sales.filter(s => {
       const hasOverduePayment = productPayments.some(p => 
         p.product_sale_id === s.id && 
@@ -52,8 +176,38 @@ export default function Reports() {
       );
       return hasOverduePayment;
     });
+    const totalOverdueAmount = overdueSales.reduce((sum, s) => sum + s.remaining_balance, 0);
     
-    return { totalSold, totalCost, totalProfit, totalReceived, totalPending, overdueSales };
+    // Paid sales
+    const paidSales = sales.filter(s => s.status === 'paid');
+    
+    // Realized profit (proportional to received)
+    const realizedProfit = totalSold > 0 ? (totalReceived / totalSold) * totalProfit : 0;
+    
+    // Profit margin
+    const profitMargin = totalSold > 0 ? (totalProfit / totalSold) * 100 : 0;
+    
+    // Average ticket
+    const averageTicket = sales.length > 0 ? totalSold / sales.length : 0;
+    
+    // Delinquency rate
+    const delinquencyRate = sales.length > 0 ? (overdueSales.length / sales.length) * 100 : 0;
+    
+    return { 
+      totalSold, 
+      totalCost, 
+      totalProfit, 
+      totalReceived, 
+      totalPending, 
+      overdueSales,
+      totalOverdueAmount,
+      paidSalesCount: paidSales.length,
+      realizedProfit,
+      profitMargin,
+      averageTicket,
+      delinquencyRate,
+      totalSales: sales.length
+    };
   }, [sales, productPayments]);
 
   const productChartData = [
@@ -61,7 +215,7 @@ export default function Reports() {
     { name: 'Vendido', value: productStats.totalSold, fill: 'hsl(var(--chart-1))' },
     { name: 'Lucro', value: productStats.totalProfit, fill: 'hsl(var(--chart-2))' },
     { name: 'Recebido', value: productStats.totalReceived, fill: 'hsl(var(--chart-5))' },
-    { name: 'Pendente', value: productStats.totalPending, fill: 'hsl(var(--chart-3))' },
+    { name: 'Em Atraso', value: productStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
   ];
 
   const productPieData = [
@@ -69,7 +223,7 @@ export default function Reports() {
     { name: 'Pendente', value: productStats.totalPending },
   ];
 
-  // Contract stats
+  // CONTRACT DETAILED STATS
   const contractStats = useMemo(() => {
     const receivableContracts = contracts.filter(c => c.bill_type === 'receivable');
     const payableContracts = contracts.filter(c => c.bill_type === 'payable');
@@ -78,21 +232,49 @@ export default function Reports() {
     const totalPayable = payableContracts.reduce((sum, c) => sum + c.amount_to_receive, 0);
     const totalContracts = contracts.reduce((sum, c) => sum + c.total_amount, 0);
     
-    const overdueContracts = contracts.filter(c => c.status === 'overdue' || c.status === 'active');
+    // Net balance
+    const netBalance = totalReceivable - totalPayable;
+    
+    // Overdue receivables
+    const overdueReceivables = receivableContracts.filter(c => c.status === 'overdue' || 
+      (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
+    const overdueReceivableAmount = overdueReceivables.reduce((sum, c) => sum + c.amount_to_receive, 0);
+    
+    // Overdue payables
+    const overduePayables = payableContracts.filter(c => c.status === 'overdue' ||
+      (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
+    const overduePayableAmount = overduePayables.reduce((sum, c) => sum + c.amount_to_receive, 0);
+    
+    // Paid contracts
+    const paidReceivables = receivableContracts.filter(c => c.status === 'paid');
+    const paidPayables = payableContracts.filter(c => c.status === 'paid');
+    
+    // Active contracts
+    const activeReceivables = receivableContracts.filter(c => c.status === 'active');
+    const activePayables = payableContracts.filter(c => c.status === 'active');
     
     return { 
       totalReceivable, 
       totalPayable, 
       totalContracts, 
-      overdueContracts,
+      netBalance,
       receivableCount: receivableContracts.length,
-      payableCount: payableContracts.length
+      payableCount: payableContracts.length,
+      overdueReceivableAmount,
+      overduePayableAmount,
+      overdueReceivablesCount: overdueReceivables.length,
+      overduePayablesCount: overduePayables.length,
+      paidReceivablesCount: paidReceivables.length,
+      paidPayablesCount: paidPayables.length,
+      activeReceivablesCount: activeReceivables.length,
+      activePayablesCount: activePayables.length
     };
   }, [contracts]);
 
   const contractChartData = [
     { name: 'A Receber', value: contractStats.totalReceivable, fill: 'hsl(var(--chart-2))' },
     { name: 'A Pagar', value: contractStats.totalPayable, fill: 'hsl(var(--chart-3))' },
+    { name: 'Saldo Líquido', value: Math.abs(contractStats.netBalance), fill: contractStats.netBalance >= 0 ? 'hsl(var(--chart-5))' : 'hsl(var(--chart-4))' },
   ];
 
   const contractPieData = [
@@ -100,13 +282,15 @@ export default function Reports() {
     { name: 'A Pagar', value: contractStats.totalPayable },
   ];
 
-  // Vehicle stats
+  // VEHICLE DETAILED STATS
   const vehicleStats = useMemo(() => {
     const totalSold = vehicles.reduce((sum, v) => sum + v.purchase_value, 0);
     const totalCost = vehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
     const totalProfit = totalSold - totalCost;
     const totalReceived = vehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
     const totalPending = vehicles.reduce((sum, v) => sum + v.remaining_balance, 0);
+    
+    // Overdue vehicles
     const overdueVehicles = vehicles.filter(v => {
       const hasOverduePayment = vehiclePayments.some(p => 
         p.vehicle_id === v.id && 
@@ -115,8 +299,38 @@ export default function Reports() {
       );
       return hasOverduePayment;
     });
+    const totalOverdueAmount = overdueVehicles.reduce((sum, v) => sum + v.remaining_balance, 0);
     
-    return { totalSold, totalCost, totalProfit, totalReceived, totalPending, overdueVehicles };
+    // Paid vehicles
+    const paidVehicles = vehicles.filter(v => v.status === 'paid');
+    
+    // Realized profit (proportional to received)
+    const realizedProfit = totalSold > 0 ? (totalReceived / totalSold) * totalProfit : 0;
+    
+    // Profit margin
+    const profitMargin = totalSold > 0 ? (totalProfit / totalSold) * 100 : 0;
+    
+    // Average ticket
+    const averageTicket = vehicles.length > 0 ? totalSold / vehicles.length : 0;
+    
+    // Delinquency rate
+    const delinquencyRate = vehicles.length > 0 ? (overdueVehicles.length / vehicles.length) * 100 : 0;
+    
+    return { 
+      totalSold, 
+      totalCost, 
+      totalProfit, 
+      totalReceived, 
+      totalPending, 
+      overdueVehicles,
+      totalOverdueAmount,
+      paidVehiclesCount: paidVehicles.length,
+      realizedProfit,
+      profitMargin,
+      averageTicket,
+      delinquencyRate,
+      totalVehicles: vehicles.length
+    };
   }, [vehicles, vehiclePayments]);
 
   const vehicleChartData = [
@@ -124,7 +338,7 @@ export default function Reports() {
     { name: 'Vendido', value: vehicleStats.totalSold, fill: 'hsl(var(--chart-1))' },
     { name: 'Lucro', value: vehicleStats.totalProfit, fill: 'hsl(var(--chart-2))' },
     { name: 'Recebido', value: vehicleStats.totalReceived, fill: 'hsl(var(--chart-5))' },
-    { name: 'Pendente', value: vehicleStats.totalPending, fill: 'hsl(var(--chart-3))' },
+    { name: 'Em Atraso', value: vehicleStats.totalOverdueAmount, fill: 'hsl(var(--chart-3))' },
   ];
 
   const vehiclePieData = [
@@ -132,14 +346,14 @@ export default function Reports() {
     { name: 'Pendente', value: vehicleStats.totalPending },
   ];
 
-  const COLORS = ['hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
+  const COLORS = ['hsl(var(--chart-2))', 'hsl(var(--chart-4))', 'hsl(var(--chart-3))'];
 
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-display font-bold">Relatórios</h1>
-          <p className="text-muted-foreground">Análise financeira do seu sistema</p>
+          <p className="text-muted-foreground">Análise financeira detalhada do seu sistema</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -164,59 +378,106 @@ export default function Reports() {
 
           {/* LOANS TAB */}
           <TabsContent value="loans" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
-                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Emprestado</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats.totalLoaned)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/10 shrink-0">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total a Receber</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats.totalToReceive)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-success/10 shrink-0">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Recebido</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats.totalReceived)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-warning/10 shrink-0">
-                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-warning" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Pendente</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(stats.totalPending)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Primary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total Emprestado"
+                value={formatCurrency(loanStats.totalLoaned)}
+                icon={DollarSign}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
+              <MetricCard
+                label="Total Recebido"
+                value={formatCurrency(loanStats.totalReceived)}
+                icon={TrendingUp}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+              />
+              <MetricCard
+                label="Juros a Receber"
+                value={formatCurrency(loanStats.totalInterestToReceive)}
+                icon={PiggyBank}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+                subtitle={`${formatCurrency(loanStats.totalInterestReceived)} já recebido`}
+              />
+              <MetricCard
+                label="Juros Pendentes"
+                value={formatCurrency(loanStats.interestPending)}
+                icon={Clock}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
+              />
+            </div>
+
+            {/* Secondary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total em Atraso"
+                value={formatCurrency(loanStats.totalOverdueAmount)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+                subtitle={`${loanStats.overdueLoansCount} empréstimos`}
+              />
+              <MetricCard
+                label="Clientes Inadimplentes"
+                value={loanStats.overdueClientsCount}
+                icon={Users}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+              />
+              <MetricCard
+                label="Lucro Realizado"
+                value={formatCurrency(loanStats.realizedProfit)}
+                icon={Target}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
+              />
+              <MetricCard
+                label="Empréstimos Quitados"
+                value={loanStats.paidLoansCount}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+                subtitle={`de ${loanStats.totalLoans} total`}
+              />
+            </div>
+
+            {/* Tertiary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="% Inadimplência"
+                value={`${loanStats.delinquencyRate.toFixed(1)}%`}
+                icon={Percent}
+                iconColor={loanStats.delinquencyRate > 20 ? 'text-destructive' : loanStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                bgColor={loanStats.delinquencyRate > 20 ? 'bg-destructive/10' : loanStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+              />
+              <MetricCard
+                label="Ticket Médio"
+                value={formatCurrency(loanStats.averageTicket)}
+                icon={ArrowUpDown}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+              />
+              <MetricCard
+                label="Taxa Média Juros"
+                value={`${loanStats.averageInterestRate.toFixed(2)}%`}
+                icon={Percent}
+                iconColor="text-purple-500"
+                bgColor="bg-purple-500/10"
+              />
+              <MetricCard
+                label="Total Empréstimos"
+                value={loanStats.totalLoans}
+                icon={Banknote}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
@@ -285,90 +546,106 @@ export default function Reports() {
 
           {/* PRODUCTS TAB */}
           <TabsContent value="products" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/10 shrink-0">
-                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Custo Total</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalCost)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-emerald-500/10 shrink-0">
-                      <Package className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Vendido</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalSold)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 sm:p-3 rounded-xl shrink-0 ${productStats.totalProfit >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
-                      <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Lucro Total</p>
-                      <p className={`text-lg sm:text-2xl font-bold truncate ${productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                        {formatCurrency(productStats.totalProfit)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-success/10 shrink-0">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Recebido</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalReceived)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Primary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total Vendido"
+                value={formatCurrency(productStats.totalSold)}
+                icon={Package}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
+              <MetricCard
+                label="Custo Total"
+                value={formatCurrency(productStats.totalCost)}
+                icon={DollarSign}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+              />
+              <MetricCard
+                label="Lucro Bruto"
+                value={formatCurrency(productStats.totalProfit)}
+                icon={TrendingUp}
+                iconColor={productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
+                bgColor={productStats.totalProfit >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}
+                valueColor={productStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
+              />
+              <MetricCard
+                label="Lucro Realizado"
+                value={formatCurrency(productStats.realizedProfit)}
+                icon={Target}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
+                subtitle="Proporcional ao recebido"
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-warning/10 shrink-0">
-                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-warning" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Pendente</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(productStats.totalPending)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
-                      <Package className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Vendas</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{sales.length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Secondary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total Recebido"
+                value={formatCurrency(productStats.totalReceived)}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+              />
+              <MetricCard
+                label="Total Pendente"
+                value={formatCurrency(productStats.totalPending)}
+                icon={Clock}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
+              />
+              <MetricCard
+                label="Em Atraso"
+                value={formatCurrency(productStats.totalOverdueAmount)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+                subtitle={`${productStats.overdueSales.length} vendas`}
+              />
+              <MetricCard
+                label="Margem de Lucro"
+                value={`${productStats.profitMargin.toFixed(1)}%`}
+                icon={Percent}
+                iconColor={productStats.profitMargin >= 20 ? 'text-emerald-500' : productStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
+                bgColor={productStats.profitMargin >= 20 ? 'bg-emerald-500/10' : productStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
+              />
+            </div>
+
+            {/* Tertiary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Ticket Médio"
+                value={formatCurrency(productStats.averageTicket)}
+                icon={ArrowUpDown}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+              />
+              <MetricCard
+                label="% Inadimplência"
+                value={`${productStats.delinquencyRate.toFixed(1)}%`}
+                icon={XCircle}
+                iconColor={productStats.delinquencyRate > 20 ? 'text-destructive' : productStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                bgColor={productStats.delinquencyRate > 20 ? 'bg-destructive/10' : productStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+              />
+              <MetricCard
+                label="Vendas Quitadas"
+                value={productStats.paidSalesCount}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+                subtitle={`de ${productStats.totalSales} total`}
+              />
+              <MetricCard
+                label="Total Vendas"
+                value={productStats.totalSales}
+                icon={Package}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
@@ -435,59 +712,115 @@ export default function Reports() {
 
           {/* CONTRACTS TAB */}
           <TabsContent value="contracts" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/10 shrink-0">
-                      <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Contratos</p>
-                      <p className="text-lg sm:text-2xl font-bold">{contracts.length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-success/10 shrink-0">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">A Receber</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(contractStats.totalReceivable)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-destructive/10 shrink-0">
-                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">A Pagar</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(contractStats.totalPayable)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
-                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Valor Total</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(contractStats.totalContracts)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Primary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total a Receber"
+                value={formatCurrency(contractStats.totalReceivable)}
+                icon={TrendingUp}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
+                subtitle={`${contractStats.receivableCount} contratos`}
+              />
+              <MetricCard
+                label="Total a Pagar"
+                value={formatCurrency(contractStats.totalPayable)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+                subtitle={`${contractStats.payableCount} contas`}
+              />
+              <MetricCard
+                label="Saldo Líquido"
+                value={formatCurrency(contractStats.netBalance)}
+                icon={ArrowUpDown}
+                iconColor={contractStats.netBalance >= 0 ? 'text-emerald-500' : 'text-destructive'}
+                bgColor={contractStats.netBalance >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}
+                valueColor={contractStats.netBalance >= 0 ? 'text-emerald-500' : 'text-destructive'}
+                subtitle="Receitas - Despesas"
+              />
+              <MetricCard
+                label="Valor Total"
+                value={formatCurrency(contractStats.totalContracts)}
+                icon={DollarSign}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
+            </div>
+
+            {/* Secondary Metrics - Overdue */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Em Atraso (Receber)"
+                value={formatCurrency(contractStats.overdueReceivableAmount)}
+                icon={Clock}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
+                subtitle={`${contractStats.overdueReceivablesCount} contratos`}
+              />
+              <MetricCard
+                label="Em Atraso (Pagar)"
+                value={formatCurrency(contractStats.overduePayableAmount)}
+                icon={XCircle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+                subtitle={`${contractStats.overduePayablesCount} contas`}
+              />
+              <MetricCard
+                label="Contratos Ativos"
+                value={contractStats.activeReceivablesCount}
+                icon={FileText}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+                subtitle="A receber"
+              />
+              <MetricCard
+                label="Contas Ativas"
+                value={contractStats.activePayablesCount}
+                icon={FileText}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
+                subtitle="A pagar"
+              />
+            </div>
+
+            {/* Tertiary Metrics - Status */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Contratos Quitados"
+                value={contractStats.paidReceivablesCount}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+                subtitle="Receitas recebidas"
+              />
+              <MetricCard
+                label="Contas Pagas"
+                value={contractStats.paidPayablesCount}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+                subtitle="Despesas quitadas"
+              />
+              <MetricCard
+                label="Total Contratos"
+                value={contractStats.receivableCount}
+                icon={FileText}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+                subtitle="Receitas"
+              />
+              <MetricCard
+                label="Total Contas"
+                value={contractStats.payableCount}
+                icon={FileText}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+                subtitle="Despesas"
+              />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
@@ -564,90 +897,106 @@ export default function Reports() {
 
           {/* VEHICLES TAB */}
           <TabsContent value="vehicles" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/10 shrink-0">
-                      <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Custo Total</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(vehicleStats.totalCost)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-amber-500/10 shrink-0">
-                      <Car className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Vendido</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(vehicleStats.totalSold)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 sm:p-3 rounded-xl shrink-0 ${vehicleStats.totalProfit >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
-                      <TrendingUp className={`w-5 h-5 sm:w-6 sm:h-6 ${vehicleStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Lucro Total</p>
-                      <p className={`text-lg sm:text-2xl font-bold truncate ${vehicleStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                        {formatCurrency(vehicleStats.totalProfit)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-success/10 shrink-0">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Recebido</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(vehicleStats.totalReceived)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Primary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total Vendido"
+                value={formatCurrency(vehicleStats.totalSold)}
+                icon={Car}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
+              <MetricCard
+                label="Custo Total"
+                value={formatCurrency(vehicleStats.totalCost)}
+                icon={DollarSign}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+              />
+              <MetricCard
+                label="Lucro Bruto"
+                value={formatCurrency(vehicleStats.totalProfit)}
+                icon={TrendingUp}
+                iconColor={vehicleStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
+                bgColor={vehicleStats.totalProfit >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}
+                valueColor={vehicleStats.totalProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}
+              />
+              <MetricCard
+                label="Lucro Realizado"
+                value={formatCurrency(vehicleStats.realizedProfit)}
+                icon={Target}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+                valueColor="text-emerald-500"
+                subtitle="Proporcional ao recebido"
+              />
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-warning/10 shrink-0">
-                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-warning" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Pendente</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(vehicleStats.totalPending)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-soft">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10 shrink-0">
-                      <Car className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Veículos</p>
-                      <p className="text-lg sm:text-2xl font-bold truncate">{vehicles.length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Secondary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Total Recebido"
+                value={formatCurrency(vehicleStats.totalReceived)}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+              />
+              <MetricCard
+                label="Total Pendente"
+                value={formatCurrency(vehicleStats.totalPending)}
+                icon={Clock}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
+              />
+              <MetricCard
+                label="Em Atraso"
+                value={formatCurrency(vehicleStats.totalOverdueAmount)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                valueColor="text-destructive"
+                subtitle={`${vehicleStats.overdueVehicles.length} veículos`}
+              />
+              <MetricCard
+                label="Margem de Lucro"
+                value={`${vehicleStats.profitMargin.toFixed(1)}%`}
+                icon={Percent}
+                iconColor={vehicleStats.profitMargin >= 20 ? 'text-emerald-500' : vehicleStats.profitMargin >= 10 ? 'text-amber-500' : 'text-destructive'}
+                bgColor={vehicleStats.profitMargin >= 20 ? 'bg-emerald-500/10' : vehicleStats.profitMargin >= 10 ? 'bg-amber-500/10' : 'bg-destructive/10'}
+              />
+            </div>
+
+            {/* Tertiary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+              <MetricCard
+                label="Ticket Médio"
+                value={formatCurrency(vehicleStats.averageTicket)}
+                icon={ArrowUpDown}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+              />
+              <MetricCard
+                label="% Inadimplência"
+                value={`${vehicleStats.delinquencyRate.toFixed(1)}%`}
+                icon={XCircle}
+                iconColor={vehicleStats.delinquencyRate > 20 ? 'text-destructive' : vehicleStats.delinquencyRate > 10 ? 'text-amber-500' : 'text-success'}
+                bgColor={vehicleStats.delinquencyRate > 20 ? 'bg-destructive/10' : vehicleStats.delinquencyRate > 10 ? 'bg-amber-500/10' : 'bg-success/10'}
+              />
+              <MetricCard
+                label="Veículos Quitados"
+                value={vehicleStats.paidVehiclesCount}
+                icon={CheckCircle}
+                iconColor="text-success"
+                bgColor="bg-success/10"
+                subtitle={`de ${vehicleStats.totalVehicles} total`}
+              />
+              <MetricCard
+                label="Total Veículos"
+                value={vehicleStats.totalVehicles}
+                icon={Car}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+              />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
@@ -691,7 +1040,7 @@ export default function Reports() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="text-xs">Cliente</TableHead>
+                          <TableHead className="text-xs">Comprador</TableHead>
                           <TableHead className="text-xs hidden sm:table-cell">Veículo</TableHead>
                           <TableHead className="text-xs">Saldo</TableHead>
                         </TableRow>
@@ -699,7 +1048,7 @@ export default function Reports() {
                       <TableBody>
                         {vehicleStats.overdueVehicles.map((vehicle) => (
                           <TableRow key={vehicle.id}>
-                            <TableCell className="font-medium text-xs sm:text-sm">{vehicle.buyer_name || vehicle.seller_name}</TableCell>
+                            <TableCell className="font-medium text-xs sm:text-sm">{vehicle.buyer_name || 'N/A'}</TableCell>
                             <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{vehicle.brand} {vehicle.model}</TableCell>
                             <TableCell className="font-semibold text-destructive text-xs sm:text-sm">{formatCurrency(vehicle.remaining_balance)}</TableCell>
                           </TableRow>
