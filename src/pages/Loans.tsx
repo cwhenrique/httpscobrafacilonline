@@ -673,30 +673,30 @@ export default function Loans() {
     if (renegotiateData.interest_only_paid && renegotiateData.interest_amount_paid) {
       const interestPaid = parseFloat(renegotiateData.interest_amount_paid);
 
-      // Recalcular cenário atual do contrato
+      // Recalcular cenário atual do contrato (apenas para preencher default caso o campo esteja vazio)
       const numInstallments = loan.installments || 1;
       const baseTotalInterest = loan.interest_mode === 'on_total'
         ? loan.principal_amount * (loan.interest_rate / 100)
         : loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-      const interestPerInstallment = baseTotalInterest / numInstallments;
       const totalToReceive = loan.principal_amount + baseTotalInterest;
       const totalPaidBefore = loan.total_paid || 0;
       const originalRemaining = totalToReceive - totalPaidBefore;
 
-      // Parte que realmente abate principal: somente o que for acima do juro da parcela
-      const extraOverInterest = Math.max(interestPaid - interestPerInstallment, 0);
-      const newRemaining = extraOverInterest > 0
-        ? Math.max(originalRemaining - extraOverInterest, 0)
+      // O valor que falta NUNCA deve descer automaticamente em pagamento só de juros.
+      // Usamos sempre o que o usuário digitou (editável) ou, se vazio, o original.
+      const manualRemaining = renegotiateData.remaining_amount
+        ? parseFloat(renegotiateData.remaining_amount.replace(',', '.'))
         : originalRemaining;
+      const safeRemaining = isNaN(manualRemaining) ? originalRemaining : manualRemaining;
 
       // Registrar pagamento apenas dos juros (principal_pago continua 0)
       await registerPayment({
         loan_id: selectedLoanId,
         amount: interestPaid,
-        principal_paid: 0, // Não paga nada do principal por padrão
+        principal_paid: 0, // Nunca reduz principal neste fluxo
         interest_paid: interestPaid,
         payment_date: new Date().toISOString().split('T')[0],
-        notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${newRemaining.toFixed(2)}`,
+        notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
       });
       
       // Atualizar notas e nova data de vencimento
@@ -706,7 +706,7 @@ export default function Loans() {
         notesText = `[INTEREST_ONLY_PAYMENT]\n${notesText}`;
       }
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
-      notesText += `\nValor que falta: R$ ${newRemaining.toFixed(2)}`;
+      notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
       // Manter número de parcelas original, mas empurrar as datas para o próximo mês
       const currentInstallments = loan.installments || 1;
