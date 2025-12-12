@@ -45,6 +45,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
+import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
 export default function ProductSales() {
   // Product Sales hooks
@@ -111,6 +112,10 @@ export default function ProductSales() {
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
   const [receiptPreviewData, setReceiptPreviewData] = useState<ContractReceiptData | null>(null);
+
+  // Payment receipt prompt states
+  const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
+  const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
 
   // Forms
   const [formData, setFormData] = useState<CreateProductSaleData>({
@@ -324,10 +329,32 @@ export default function ProductSales() {
   };
 
   const handleMarkSalePaymentAsPaid = async (paymentId: string) => {
+    const payment = allSalePayments.find(p => p.id === paymentId);
+    const sale = payment ? sales.find(s => s.id === payment.product_sale_id) : null;
+    
     await markSalePaymentAsPaid.mutateAsync({
       paymentId,
       paidDate: format(new Date(), 'yyyy-MM-dd'),
     });
+    
+    // Show payment receipt prompt
+    if (payment && sale) {
+      const newRemainingBalance = Math.max(0, sale.remaining_balance - payment.amount);
+      setPaymentReceiptData({
+        type: 'product',
+        contractId: sale.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        clientName: sale.client_name,
+        installmentNumber: payment.installment_number,
+        totalInstallments: sale.installments,
+        amountPaid: payment.amount,
+        paymentDate: format(new Date(), 'yyyy-MM-dd'),
+        remainingBalance: newRemainingBalance,
+        totalPaid: (sale.total_paid || 0) + payment.amount,
+      });
+      setIsPaymentReceiptOpen(true);
+    }
+    
     setPaymentDialogOpen(false);
     setSelectedPayment(null);
     setPaymentAmount(0);
@@ -343,6 +370,65 @@ export default function ProductSales() {
     setPaymentAmount(payment.amount);
     setPaymentDialogOpen(true);
   };
+
+  // Wrapper for vehicle payment with receipt prompt
+  const handleMarkVehiclePaymentAsPaid = async (paymentId: string, vehicleId: string) => {
+    const payment = vehiclePaymentsList.find(p => p.id === paymentId);
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    
+    await markVehiclePaymentAsPaid.mutateAsync({ paymentId, vehicleId });
+    
+    // Show payment receipt prompt
+    if (payment && vehicle) {
+      const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
+      setPaymentReceiptData({
+        type: 'vehicle',
+        contractId: vehicle.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        clientName: vehicle.buyer_name || vehicle.seller_name,
+        installmentNumber: payment.installment_number,
+        totalInstallments: vehicle.installments,
+        amountPaid: payment.amount,
+        paymentDate: format(new Date(), 'yyyy-MM-dd'),
+        remainingBalance: newRemainingBalance,
+        totalPaid: (vehicle.total_paid || 0) + payment.amount,
+      });
+      setIsPaymentReceiptOpen(true);
+    }
+  };
+
+  // Wrapper for contract payment with receipt prompt
+  const handleMarkContractPaymentAsPaid = async (paymentId: string, contract: Contract) => {
+    const payments = contractPayments[contract.id] || [];
+    const payment = payments.find(p => p.id === paymentId);
+    
+    await markPaymentAsPaid.mutateAsync(paymentId);
+    
+    // Show payment receipt prompt
+    if (payment) {
+      const paidPayments = payments.filter(p => p.status === 'paid').length;
+      const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+      const newRemainingBalance = Math.max(0, contract.amount_to_receive - paidAmount - payment.amount);
+      setPaymentReceiptData({
+        type: 'contract',
+        contractId: contract.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        clientName: contract.client_name,
+        installmentNumber: payment.installment_number,
+        totalInstallments: contract.installments,
+        amountPaid: payment.amount,
+        paymentDate: format(new Date(), 'yyyy-MM-dd'),
+        remainingBalance: newRemainingBalance,
+        totalPaid: paidAmount + payment.amount,
+      });
+      setIsPaymentReceiptOpen(true);
+    }
+    
+    // Refresh contract payments
+    const updatedPayments = await getContractPayments(contract.id);
+    setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
+  };
+
 
   // Contract handlers
   const handleCreateContract = async () => {
@@ -1393,7 +1479,7 @@ export default function ProductSales() {
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold">{formatCurrency(payment.amount)}</span>
                                 {payment.status !== 'paid' ? (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markPaymentAsPaid.mutateAsync(payment.id)}>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkContractPaymentAsPaid(payment.id, contract)}>
                                     <Check className="w-3 h-3" />
                                   </Button>
                                 ) : (
@@ -1537,7 +1623,7 @@ export default function ProductSales() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold">{formatCurrency(payment.amount)}</span>
                                   {payment.status !== 'paid' ? (
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markVehiclePaymentAsPaid.mutateAsync({ paymentId: payment.id, vehicleId: vehicle.id })}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkVehiclePaymentAsPaid(payment.id, vehicle.id)}>
                                       <Check className="w-3 h-3" />
                                     </Button>
                                   ) : (
@@ -1898,6 +1984,13 @@ export default function ProductSales() {
           open={isReceiptPreviewOpen} 
           onOpenChange={setIsReceiptPreviewOpen} 
           data={receiptPreviewData} 
+        />
+
+        {/* Payment Receipt Prompt */}
+        <PaymentReceiptPrompt 
+          open={isPaymentReceiptOpen} 
+          onOpenChange={setIsPaymentReceiptOpen} 
+          data={paymentReceiptData} 
         />
       </div>
     </DashboardLayout>

@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
+import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
 export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans } = useLoans();
@@ -61,6 +62,10 @@ export default function Loans() {
   // Receipt preview state
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
   const [receiptPreviewData, setReceiptPreviewData] = useState<ContractReceiptData | null>(null);
+
+  // Payment receipt prompt state
+  const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
+  const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
 
   // Edit loan state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -726,6 +731,10 @@ export default function Loans() {
         : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`
       : '';
     
+    const installmentNumber = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
+      ? paymentData.selected_installments[0] + 1
+      : Math.floor((selectedLoan.total_paid || 0) / totalPerInstallment) + 1;
+    
     await registerPayment({
       loan_id: selectedLoanId,
       amount: amount,
@@ -734,6 +743,25 @@ export default function Loans() {
       payment_date: paymentData.payment_date,
       notes: installmentNote,
     });
+    
+    // Calculate new remaining balance after payment
+    const newRemainingBalance = remainingToReceive - amount;
+    
+    // Show payment receipt prompt
+    setPaymentReceiptData({
+      type: 'loan',
+      contractId: selectedLoan.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      clientName: selectedLoan.client?.full_name || 'Cliente',
+      installmentNumber: installmentNumber,
+      totalInstallments: numInstallments,
+      amountPaid: amount,
+      paymentDate: paymentData.payment_date,
+      remainingBalance: Math.max(0, newRemainingBalance),
+      totalPaid: (selectedLoan.total_paid || 0) + amount,
+    });
+    setIsPaymentReceiptOpen(true);
+    
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
     setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [] });
@@ -2644,6 +2672,13 @@ export default function Loans() {
           open={isReceiptPreviewOpen} 
           onOpenChange={setIsReceiptPreviewOpen} 
           data={receiptPreviewData} 
+        />
+
+        {/* Payment Receipt Prompt */}
+        <PaymentReceiptPrompt 
+          open={isPaymentReceiptOpen} 
+          onOpenChange={setIsPaymentReceiptOpen} 
+          data={paymentReceiptData} 
         />
       </div>
     </DashboardLayout>
