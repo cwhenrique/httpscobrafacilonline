@@ -2465,8 +2465,21 @@ export default function Loans() {
               const selectedLoan = loans.find(l => l.id === selectedLoanId);
               if (!selectedLoan) return null;
               
+              // Calcular valor de cada parcela
+              const numInstallments = selectedLoan.installments || 1;
+              const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+              const totalInterest = selectedLoan.total_interest || 0;
+              const interestPerInstallmentCalc = totalInterest / numInstallments;
+              const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
+              const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
+              
+              // Estado para controlar qual opção está ativa
+              const activeOption = renegotiateData.interest_only_paid ? 'interest' : 
+                                   renegotiateData.renewal_fee_enabled ? 'fee' : null;
+              
               return (
                 <form onSubmit={handleRenegotiateSubmit} className="space-y-4">
+                  {/* Header com info do cliente */}
                   <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-12 w-12">
@@ -2480,118 +2493,139 @@ export default function Loans() {
                         <p className="text-sm text-muted-foreground">
                           Saldo devedor: {formatCurrency(selectedLoan.remaining_balance)}
                         </p>
+                        {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
+                          <p className="text-xs text-muted-foreground">
+                            Valor por parcela: {formatCurrency(installmentValue)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="space-y-4 border-2 border-primary rounded-lg p-4 bg-slate-900">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="interest_only" 
-                        checked={renegotiateData.interest_only_paid}
-                        onCheckedChange={(checked) => {
-                          const isChecked = checked as boolean;
-                          
-                          // Quando marca "só juros", usar o valor original (total do contrato)
-                          // que foi salvo ao abrir o modal
+                  {/* Seleção de opções - Cards clicáveis */}
+                  {!activeOption && (
+                    <div className="grid grid-cols-1 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
                           setRenegotiateData({ 
                             ...renegotiateData, 
-                            interest_only_paid: isChecked,
-                            remaining_amount: isChecked 
-                              ? interestOnlyOriginalRemaining.toFixed(2) 
-                              : renegotiateData.remaining_amount
+                            interest_only_paid: true,
+                            renewal_fee_enabled: false,
+                            remaining_amount: interestOnlyOriginalRemaining.toFixed(2)
                           });
                         }}
-                      />
-                      <Label htmlFor="interest_only" className="text-sm font-medium cursor-pointer text-primary">
-                        Cliente pagou só os juros da parcela
-                      </Label>
+                        className="p-4 rounded-lg border-2 border-primary bg-primary/10 hover:bg-primary/20 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-full bg-primary/20">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-primary">Cliente pagou só os juros</p>
+                            <p className="text-sm text-muted-foreground">Registrar pagamento apenas dos juros da parcela</p>
+                          </div>
+                        </div>
+                      </button>
+                      
+                      {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const percentage = 20;
+                            const feeAmount = installmentValue * (percentage / 100);
+                            const newTotal = remaining + feeAmount;
+                            setRenegotiateData({ 
+                              ...renegotiateData, 
+                              interest_only_paid: false,
+                              renewal_fee_enabled: true,
+                              renewal_fee_percentage: '20',
+                              renewal_fee_amount: feeAmount.toFixed(2),
+                              new_remaining_with_fee: newTotal.toFixed(2)
+                            });
+                          }}
+                          className="p-4 rounded-lg border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-amber-500/20">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-amber-500">Aplicar juros extra em uma parcela</p>
+                              <p className="text-sm text-muted-foreground">Adicionar taxa de renovação em parcela específica</p>
+                            </div>
+                          </div>
+                        </button>
+                      )}
                     </div>
-                    
-                    {renegotiateData.interest_only_paid && (
-                      <>
-                        <div className="bg-primary/20 rounded-lg p-3 text-sm border border-primary">
-                          <p className="text-white">
-                            <strong>Resumo:</strong> Cliente paga <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
-                          </p>
-                          <p className="text-gray-300 mt-1">
-                            {selectedLoan.payment_type === 'weekly' 
-                              ? <>Na próxima <strong>semana</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
-                              : <>No próximo <strong>mês</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
-                            }
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Valor Pago (Juros) (R$) *</Label>
-                            <Input 
-                              type="number" 
-                              step="0.01" 
-                              value={renegotiateData.interest_amount_paid} 
-                              onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
-                              placeholder="Ex: 100,00"
-                              required={renegotiateData.interest_only_paid}
-                              className="bg-slate-800 text-white border-primary font-bold"
-                            />
-                            <p className="text-xs text-gray-500">Valor calculado automaticamente, editável</p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Valor Total que Falta (R$)</Label>
-                            <Input 
-                              type="number" 
-                              step="0.01" 
-                              value={renegotiateData.remaining_amount} 
-                              onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
-                              placeholder="Valor restante"
-                              className="bg-slate-800 text-white border-primary font-bold"
-                            />
-                            <p className="text-xs text-gray-500">Só diminui se pagar mais que o juros</p>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  )}
                   
-                  {!renegotiateData.interest_only_paid && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Valor que Falta (R$)</Label>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          value={renegotiateData.remaining_amount} 
-                          onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
-                          placeholder="Calculado automaticamente"
-                        />
-                        <p className="text-xs text-muted-foreground">Valor calculado automaticamente, mas você pode editar</p>
+                  {/* Opção 1: Cliente pagou só os juros */}
+                  {activeOption === 'interest' && (
+                    <div className="space-y-4 border-2 border-primary rounded-lg p-4 bg-slate-900">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                          </svg>
+                          <span className="font-semibold text-primary">Cliente pagou só os juros</span>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setRenegotiateData({ ...renegotiateData, interest_only_paid: false })}
+                          className="text-muted-foreground hover:text-white"
+                        >
+                          ← Voltar
+                        </Button>
+                      </div>
+                      
+                      <div className="bg-primary/20 rounded-lg p-3 text-sm border border-primary">
+                        <p className="text-white">
+                          <strong>Resumo:</strong> Cliente paga <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.interest_amount_paid) || 0)}</strong> de juros agora.
+                        </p>
+                        <p className="text-gray-300 mt-1">
+                          {selectedLoan.payment_type === 'weekly' 
+                            ? <>Na próxima <strong>semana</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                            : <>No próximo <strong>mês</strong>, o valor a cobrar será: <strong className="text-primary">{formatCurrency(parseFloat(renegotiateData.remaining_amount) || 0)}</strong></>
+                          }
+                        </p>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Valor Prometido (R$)</Label>
+                          <Label className="text-gray-400 text-xs">Valor Pago (Juros) (R$) *</Label>
                           <Input 
                             type="number" 
                             step="0.01" 
-                            value={renegotiateData.promised_amount} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_amount: e.target.value })} 
-                            placeholder="Ex: 500,00"
+                            value={renegotiateData.interest_amount_paid} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_amount_paid: e.target.value })} 
+                            placeholder="Ex: 100,00"
+                            required
+                            className="bg-slate-800 text-white border-primary font-bold"
                           />
+                          <p className="text-xs text-gray-500">Valor calculado automaticamente, editável</p>
                         </div>
                         <div className="space-y-2">
-                          <Label>Data do Pagamento *</Label>
+                          <Label className="text-gray-400 text-xs">Valor Total que Falta (R$)</Label>
                           <Input 
-                            type="date" 
-                            value={renegotiateData.promised_date} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
-                            required 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.remaining_amount} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, remaining_amount: e.target.value })} 
+                            placeholder="Valor restante"
+                            className="bg-slate-800 text-white border-primary font-bold"
                           />
+                          <p className="text-xs text-gray-500">Só diminui se pagar mais que o juros</p>
                         </div>
                       </div>
-                    </>
-                  )}
-                  
-                  {renegotiateData.interest_only_paid && (
-                    <>
+                      
                       <div className="space-y-2">
                         <Label>Nova Data de Vencimento *</Label>
                         <Input 
@@ -2613,171 +2647,147 @@ export default function Loans() {
                           Receber notificação WhatsApp deste pagamento
                         </Label>
                       </div>
-                    </>
+                    </div>
                   )}
                   
-                  {/* Seção de Juros Extra em Parcela Específica - Sempre visível para empréstimos parcelados */}
-                  {selectedLoan && (selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (() => {
-                    // Calcular valor de cada parcela para uso nos cálculos de juros extra
-                    const numInstallments = selectedLoan.installments || 1;
-                    const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-                    const totalInterest = selectedLoan.total_interest || 0;
-                    const interestPerInstallmentCalc = totalInterest / numInstallments;
-                    const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
-                    const remaining = parseFloat(renegotiateData.remaining_amount) || 0;
-                    
-                    return (
-                    <div className="border-t border-primary/30 pt-4 mt-2">
-                      <div className="flex items-center space-x-2 mb-3">
-                        <Checkbox 
-                          id="renewal_fee" 
-                          checked={renegotiateData.renewal_fee_enabled}
-                          onCheckedChange={(checked) => {
-                            const isChecked = checked as boolean;
-                            const percentage = parseFloat(renegotiateData.renewal_fee_percentage) || 20;
-                            // Calcular taxa sobre o valor da PARCELA, não do saldo total
-                            const feeAmount = installmentValue * (percentage / 100);
-                            const newTotal = remaining + feeAmount;
-                            
-                            setRenegotiateData({ 
-                              ...renegotiateData, 
-                              renewal_fee_enabled: isChecked,
-                              renewal_fee_percentage: isChecked ? '20' : '',
-                              renewal_fee_amount: isChecked ? feeAmount.toFixed(2) : '',
-                              new_remaining_with_fee: isChecked ? newTotal.toFixed(2) : renegotiateData.remaining_amount
-                            });
-                          }}
-                        />
-                        <Label htmlFor="renewal_fee" className="text-sm font-medium cursor-pointer text-amber-400">
-                          💰 Aplicar juros extra em uma parcela específica
-                        </Label>
+                  {/* Opção 2: Aplicar juros extra em parcela específica */}
+                  {activeOption === 'fee' && (
+                    <div className="space-y-4 border-2 border-amber-500 rounded-lg p-4 bg-amber-950/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                          </svg>
+                          <span className="font-semibold text-amber-500">Juros Extra em Parcela</span>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setRenegotiateData({ ...renegotiateData, renewal_fee_enabled: false })}
+                          className="text-muted-foreground hover:text-white"
+                        >
+                          ← Voltar
+                        </Button>
                       </div>
                       
-                      {renegotiateData.renewal_fee_enabled && (
-                        <div className="bg-amber-950/50 rounded-lg p-4 space-y-4 border-2 border-amber-500">
-                          <div className="flex items-center gap-2 text-amber-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
-                            </svg>
-                            <span className="font-semibold text-sm uppercase tracking-wide">Juros Extra / Taxa de Renovação</span>
-                          </div>
-                          
-                          <p className="text-xs text-amber-300/70">
-                            Aplique um acréscimo em uma parcela específica (base: {formatCurrency(installmentValue)} por parcela). As demais parcelas manterão o valor original.
-                          </p>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-amber-300 text-xs">Taxa (%):</Label>
-                              <Input 
-                                type="number" 
-                                step="0.01" 
-                                value={renegotiateData.renewal_fee_percentage} 
-                                onChange={(e) => {
-                                  const percentage = parseFloat(e.target.value) || 0;
-                                  // Calcular taxa sobre o valor da PARCELA
-                                  const feeAmount = installmentValue * (percentage / 100);
-                                  const newTotal = remaining + feeAmount;
-                                  
-                                  setRenegotiateData({ 
-                                    ...renegotiateData, 
-                                    renewal_fee_percentage: e.target.value,
-                                    renewal_fee_amount: feeAmount.toFixed(2),
-                                    new_remaining_with_fee: newTotal.toFixed(2)
-                                  });
-                                }} 
-                                placeholder="20"
-                                className="bg-amber-950 text-white border-amber-500 font-bold"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-amber-300 text-xs">Acréscimo (R$):</Label>
-                              <Input 
-                                type="number" 
-                                step="0.01"
-                                value={renegotiateData.renewal_fee_amount} 
-                                onChange={(e) => {
-                                  const feeAmount = parseFloat(e.target.value) || 0;
-                                  // Calcular porcentagem com base no valor da PARCELA
-                                  const percentage = installmentValue > 0 ? (feeAmount / installmentValue) * 100 : 0;
-                                  const newTotal = remaining + feeAmount;
-                                  
-                                  setRenegotiateData({ 
-                                    ...renegotiateData, 
-                                    renewal_fee_amount: e.target.value,
-                                    renewal_fee_percentage: percentage.toFixed(2),
-                                    new_remaining_with_fee: newTotal.toFixed(2)
-                                  });
-                                }}
-                                placeholder="50,00"
-                                className="bg-amber-950 text-white border-amber-500 font-bold"
-                              />
-                            </div>
-                          </div>
-                          
-                          {/* Seletor de parcela para aplicar a taxa */}
-                          <div className="space-y-2">
-                            <Label className="text-amber-300 text-xs">Aplicar em qual parcela?</Label>
-                            <Select 
-                              value={renegotiateData.renewal_fee_installment} 
-                              onValueChange={(v) => setRenegotiateData({ ...renegotiateData, renewal_fee_installment: v })}
-                            >
-                              <SelectTrigger className="bg-amber-950 text-white border-amber-500">
-                                <SelectValue placeholder="Selecione a parcela" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="next">Próxima parcela em aberto</SelectItem>
-                                {(() => {
-                                  const dates = (selectedLoan.installment_dates as string[]) || [];
-                                  const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / installmentValue);
-                                  return dates.map((date, index) => {
-                                    if (index < paidInstallments) return null;
-                                    return (
-                                      <SelectItem key={index} value={index.toString()}>
-                                        Parcela {index + 1} - {formatDate(date)} - {formatCurrency(installmentValue)}
-                                      </SelectItem>
-                                    );
-                                  });
-                                })()}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
-                            <div className="flex justify-between items-center">
-                              <span className="text-amber-300 font-medium text-sm">Novo valor da parcela:</span>
-                              <span className="text-lg font-bold text-white">
-                                {formatCurrency(installmentValue + (parseFloat(renegotiateData.renewal_fee_amount) || 0))}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
-                              <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
-                              <span className="text-xl font-bold text-amber-400">
-                                {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
-                              </span>
-                            </div>
-                          </div>
+                      <p className="text-xs text-amber-300/70">
+                        Aplique um acréscimo em uma parcela específica (base: {formatCurrency(installmentValue)} por parcela). As demais parcelas manterão o valor original.
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-amber-300 text-xs">Taxa (%):</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.renewal_fee_percentage} 
+                            onChange={(e) => {
+                              const percentage = parseFloat(e.target.value) || 0;
+                              const feeAmount = installmentValue * (percentage / 100);
+                              const newTotal = remaining + feeAmount;
+                              
+                              setRenegotiateData({ 
+                                ...renegotiateData, 
+                                renewal_fee_percentage: e.target.value,
+                                renewal_fee_amount: feeAmount.toFixed(2),
+                                new_remaining_with_fee: newTotal.toFixed(2)
+                              });
+                            }} 
+                            placeholder="20"
+                            className="bg-amber-950 text-white border-amber-500 font-bold"
+                          />
                         </div>
-                      )}
+                        <div className="space-y-2">
+                          <Label className="text-amber-300 text-xs">Acréscimo (R$):</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={renegotiateData.renewal_fee_amount} 
+                            onChange={(e) => {
+                              const feeAmount = parseFloat(e.target.value) || 0;
+                              const percentage = installmentValue > 0 ? (feeAmount / installmentValue) * 100 : 0;
+                              const newTotal = remaining + feeAmount;
+                              
+                              setRenegotiateData({ 
+                                ...renegotiateData, 
+                                renewal_fee_amount: e.target.value,
+                                renewal_fee_percentage: percentage.toFixed(2),
+                                new_remaining_with_fee: newTotal.toFixed(2)
+                              });
+                            }}
+                            placeholder="50,00"
+                            className="bg-amber-950 text-white border-amber-500 font-bold"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-amber-300 text-xs">Aplicar em qual parcela?</Label>
+                        <Select 
+                          value={renegotiateData.renewal_fee_installment} 
+                          onValueChange={(v) => setRenegotiateData({ ...renegotiateData, renewal_fee_installment: v })}
+                        >
+                          <SelectTrigger className="bg-amber-950 text-white border-amber-500">
+                            <SelectValue placeholder="Selecione a parcela" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="next">Próxima parcela em aberto</SelectItem>
+                            {(() => {
+                              const dates = (selectedLoan.installment_dates as string[]) || [];
+                              const paidInstallments = Math.floor((selectedLoan.total_paid || 0) / installmentValue);
+                              return dates.map((date, index) => {
+                                if (index < paidInstallments) return null;
+                                return (
+                                  <SelectItem key={index} value={index.toString()}>
+                                    Parcela {index + 1} - {formatDate(date)} - {formatCurrency(installmentValue)}
+                                  </SelectItem>
+                                );
+                              });
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
+                        <div className="flex justify-between items-center">
+                          <span className="text-amber-300 font-medium text-sm">Novo valor da parcela:</span>
+                          <span className="text-lg font-bold text-white">
+                            {formatCurrency(installmentValue + (parseFloat(renegotiateData.renewal_fee_amount) || 0))}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
+                          <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
+                          <span className="text-xl font-bold text-amber-400">
+                            {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    );
-                  })()}
+                  )}
                   
-                  <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea 
-                      value={renegotiateData.notes} 
-                      onChange={(e) => setRenegotiateData({ ...renegotiateData, notes: e.target.value })} 
-                      rows={2}
-                      placeholder="Motivo da renegociação..."
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setIsRenegotiateDialogOpen(false)}>Cancelar</Button>
-                    <Button type="submit">{renegotiateData.interest_only_paid ? 'Registrar Pagamento de Juros' : 'Renegociar'}</Button>
-                  </div>
+                  {/* Observações - só aparece quando uma opção está selecionada */}
+                  {activeOption && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Observações</Label>
+                        <Textarea 
+                          value={renegotiateData.notes} 
+                          onChange={(e) => setRenegotiateData({ ...renegotiateData, notes: e.target.value })} 
+                          rows={2}
+                          placeholder="Motivo da renegociação..."
+                        />
+                      </div>
+                      
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="outline" onClick={() => setIsRenegotiateDialogOpen(false)}>Cancelar</Button>
+                        <Button type="submit">
+                          {activeOption === 'interest' ? 'Registrar Pagamento de Juros' : 'Aplicar Taxa'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </form>
               );
             })()}
