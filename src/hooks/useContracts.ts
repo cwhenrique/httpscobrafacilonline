@@ -58,6 +58,7 @@ export interface CreateContractData {
   first_payment_date: string;
   payment_method?: string;
   notes?: string;
+  send_creation_notification?: boolean;
 }
 
 export interface UpdateContractData {

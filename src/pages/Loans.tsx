@@ -144,6 +144,7 @@ export default function Loans() {
     daily_amount: '',
     daily_period: '15',
     is_historical_contract: false, // Contract being registered retroactively
+    send_creation_notification: true, // Send WhatsApp notification on creation
   });
   
   // Check if any dates are in the past
@@ -497,6 +498,7 @@ export default function Loans() {
         ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
         : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`,
       installment_dates: installmentDates,
+      send_creation_notification: formData.send_creation_notification,
     };
     
     console.log('loanData being passed to createLoan:', loanData);
@@ -640,6 +642,7 @@ export default function Loans() {
       remaining_balance: principal,
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
       notes: notes || undefined,
+      send_creation_notification: formData.send_creation_notification,
     });
     
     // If historical contract with past installments, register them as paid automatically
@@ -732,7 +735,7 @@ export default function Loans() {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       interest_mode: 'per_installment', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
-      daily_amount: '', daily_period: '15', is_historical_contract: false,
+      daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: true,
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -1461,6 +1464,24 @@ export default function Loans() {
                     )}
                   </div>
                 )}
+                
+                {/* WhatsApp Notification Option */}
+                <div className="flex items-start gap-2 p-3 rounded-lg border border-border/50 bg-muted/30">
+                  <Checkbox
+                    id="send_creation_notification"
+                    checked={formData.send_creation_notification}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, send_creation_notification: !!checked }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="send_creation_notification" className="text-sm font-medium cursor-pointer">
+                      Receber notificação WhatsApp deste contrato
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Alertas de atraso e relatórios continuam sendo enviados normalmente
+                    </p>
+                  </div>
+                </div>
                 
                 <div className="flex justify-end gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
