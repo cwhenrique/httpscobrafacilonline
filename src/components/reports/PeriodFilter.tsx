@@ -8,7 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 
-export type PeriodType = 'thisMonth' | '3months' | '6months' | 'thisYear' | 'custom';
+export type PeriodType = 'custom';
 
 interface PeriodFilterProps {
   period: PeriodType;
@@ -21,7 +21,6 @@ interface PeriodFilterProps {
 }
 
 export function PeriodFilter({
-  period,
   startDate,
   endDate,
   onPeriodChange,
@@ -30,118 +29,54 @@ export function PeriodFilter({
   lastUpdated,
 }: PeriodFilterProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
-
-  const periods: { label: string; value: PeriodType }[] = [
-    { label: 'Este Mês', value: 'thisMonth' },
-    { label: '3 Meses', value: '3months' },
-    { label: '6 Meses', value: '6months' },
-    { label: 'Este Ano', value: 'thisYear' },
-  ];
-
-  const handlePeriodClick = (newPeriod: PeriodType) => {
-    const now = new Date();
-    let newStart: Date;
-    let newEnd: Date;
-
-    const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-    const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-    const subMonths = (d: Date, months: number) => {
-      const result = new Date(d);
-      result.setMonth(result.getMonth() - months);
-      return result;
-    };
-    const startOfYear = (d: Date) => new Date(d.getFullYear(), 0, 1);
-    const endOfYear = (d: Date) => new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999);
-
-    switch (newPeriod) {
-      case 'thisMonth':
-        newStart = startOfMonth(now);
-        newEnd = endOfMonth(now);
-        break;
-      case '3months':
-        newStart = startOfMonth(subMonths(now, 2));
-        newEnd = endOfMonth(now);
-        break;
-      case '6months':
-        newStart = startOfMonth(subMonths(now, 5));
-        newEnd = endOfMonth(now);
-        break;
-      case 'thisYear':
-        newStart = startOfYear(now);
-        newEnd = endOfYear(now);
-        break;
-      default:
-        newStart = startOfMonth(now);
-        newEnd = endOfMonth(now);
-    }
-
-    onPeriodChange(newPeriod, newStart, newEnd);
-  };
+  const [tempRange, setTempRange] = useState<DateRange | undefined>({ from: startDate, to: endDate });
 
   const handleRangeSelect = (range: DateRange | undefined) => {
-    if (range?.from) {
-      const newStart = range.from;
-      const newEnd = range.to || range.from;
-      onPeriodChange('custom', newStart, newEnd);
-      
-      // Close calendar when both dates are selected
-      if (range.from && range.to) {
-        setCalendarOpen(false);
-      }
+    setTempRange(range);
+    
+    if (range?.from && range?.to) {
+      onPeriodChange('custom', range.from, range.to);
+      setCalendarOpen(false);
+    }
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setCalendarOpen(open);
+    if (open) {
+      // Reset temp range when opening to allow fresh selection
+      setTempRange(undefined);
     }
   };
 
   return (
     <div className="flex flex-col gap-3 p-3 sm:p-4 bg-card rounded-lg border shadow-soft">
       <div className="flex flex-wrap items-center gap-2">
-        <CalendarIcon className="w-4 h-4 text-primary hidden sm:block" />
-        <span className="text-sm font-medium hidden sm:block">Período:</span>
-        
-        <div className="flex flex-wrap gap-1.5">
-          {periods.map((p) => (
-            <Button
-              key={p.value}
-              variant={period === p.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handlePeriodClick(p.value)}
-              className={cn(
-                "text-xs h-7 px-2 sm:px-3",
-                period === p.value && "shadow-glow-sm"
-              )}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
+        <CalendarIcon className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium">Período:</span>
 
-        {/* Date Range Picker - Always visible */}
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+        {/* Date Range Picker */}
+        <Popover open={calendarOpen} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <Button 
-              variant={period === 'custom' ? 'default' : 'outline'} 
+              variant="outline"
               size="sm" 
-              className={cn(
-                "text-xs h-7 gap-1",
-                period === 'custom' && "shadow-glow-sm"
-              )}
+              className="text-xs h-8 gap-2 min-w-[180px] justify-start"
             >
-              <CalendarIcon className="w-3 h-3" />
-              <span className="hidden xs:inline">
-                {format(startDate, 'dd/MM/yy', { locale: ptBR })}
-              </span>
-              <span>-</span>
-              <span className="hidden xs:inline">
-                {format(endDate, 'dd/MM/yy', { locale: ptBR })}
-              </span>
-              <span className="xs:hidden">
-                {format(startDate, 'dd/MM', { locale: ptBR })} - {format(endDate, 'dd/MM', { locale: ptBR })}
+              <CalendarIcon className="w-4 h-4" />
+              <span>
+                {format(startDate, 'dd/MM/yyyy', { locale: ptBR })} - {format(endDate, 'dd/MM/yyyy', { locale: ptBR })}
               </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
+            <div className="p-3 border-b">
+              <p className="text-sm text-muted-foreground">
+                {!tempRange?.from ? 'Selecione a data inicial' : !tempRange?.to ? 'Selecione a data final' : 'Período selecionado'}
+              </p>
+            </div>
             <Calendar
               mode="range"
-              selected={{ from: startDate, to: endDate }}
+              selected={tempRange}
               onSelect={handleRangeSelect}
               numberOfMonths={2}
               initialFocus
