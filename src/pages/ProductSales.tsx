@@ -135,7 +135,7 @@ export default function ProductSales() {
     installment_value: 0,
     first_due_date: '',
     notes: '',
-    send_creation_notification: true,
+    send_creation_notification: false,
   });
 
   const [contractForm, setContractForm] = useState<CreateContractData>({
@@ -206,7 +206,7 @@ export default function ProductSales() {
       installment_value: 0,
       first_due_date: '',
       notes: '',
-      send_creation_notification: true,
+      send_creation_notification: false,
     });
     setInstallmentDates([]);
   };

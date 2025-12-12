@@ -232,6 +232,7 @@ export function useLoans() {
     interest_paid: number;
     payment_date: string;
     notes?: string;
+    send_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -290,31 +291,33 @@ export function useLoans() {
         client_id: loan.client_id,
       });
       
-      // Send WhatsApp notification for payment received
-      const phone = await getUserPhone(user.id);
-      if (phone) {
-        let message: string;
-        
-        if (isPaidOff) {
-          message = `🎉 *Empréstimo Quitado!*\n\n`;
-          message += `👤 Cliente: *${clientName}*\n`;
-          message += `💰 Último pagamento: *${formatCurrency(payment.amount)}*\n`;
-          message += `📅 Data: *${formatDate(payment.payment_date)}*\n`;
-          message += `✅ Total recebido: *${formatCurrency(newTotalPaid)}*\n\n`;
-          message += `Parabéns! Empréstimo totalmente quitado! 🙌\n\n`;
-          message += `_CobraFácil - Confirmação automática_`;
-        } else {
-          message = `💵 *Pagamento Recebido*\n\n`;
-          message += `👤 Cliente: *${clientName}*\n`;
-          message += `💰 Valor: *${formatCurrency(payment.amount)}*\n`;
-          message += `📅 Data: *${formatDate(payment.payment_date)}*\n\n`;
-          message += `📊 *Situação atual:*\n`;
-          message += `- Pago: ${formatCurrency(newTotalPaid)}\n`;
-          message += `- Restante: ${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}\n\n`;
-          message += `_CobraFácil - Confirmação automática_`;
+      // Send WhatsApp notification for payment received - only if enabled
+      if (payment.send_notification) {
+        const phone = await getUserPhone(user.id);
+        if (phone) {
+          let message: string;
+          
+          if (isPaidOff) {
+            message = `🎉 *Empréstimo Quitado!*\n\n`;
+            message += `👤 Cliente: *${clientName}*\n`;
+            message += `💰 Último pagamento: *${formatCurrency(payment.amount)}*\n`;
+            message += `📅 Data: *${formatDate(payment.payment_date)}*\n`;
+            message += `✅ Total recebido: *${formatCurrency(newTotalPaid)}*\n\n`;
+            message += `Parabéns! Empréstimo totalmente quitado! 🙌\n\n`;
+            message += `_CobraFácil - Confirmação automática_`;
+          } else {
+            message = `💵 *Pagamento Recebido*\n\n`;
+            message += `👤 Cliente: *${clientName}*\n`;
+            message += `💰 Valor: *${formatCurrency(payment.amount)}*\n`;
+            message += `📅 Data: *${formatDate(payment.payment_date)}*\n\n`;
+            message += `📊 *Situação atual:*\n`;
+            message += `- Pago: ${formatCurrency(newTotalPaid)}\n`;
+            message += `- Restante: ${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}\n\n`;
+            message += `_CobraFácil - Confirmação automática_`;
+          }
+          
+          await sendWhatsAppNotification(phone, message);
         }
-        
-        await sendWhatsAppNotification(phone, message);
       }
     }
     
@@ -360,6 +363,7 @@ export function useLoans() {
     due_date: string;
     notes?: string;
     remaining_balance?: number;
+    send_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -413,23 +417,26 @@ export function useLoans() {
       const totalPaid = loanData.total_paid || 0;
       const remainingToReceive = totalToReceive - totalPaid;
       
-      const phone = await getUserPhone(user.id);
-      if (phone) {
-        let message = `🔄 *Empréstimo Renegociado*\n\n`;
-        message += `👤 Cliente: *${clientName}*\n`;
-        message += `💰 Valor original: *${formatCurrency(loanData.principal_amount)}*\n`;
-        message += `📊 Nova taxa: *${data.interest_rate}% por parcela*\n`;
-        message += `📅 Novas parcelas: *${numInstallments}x*\n`;
-        if (data.installment_dates && data.installment_dates.length > 0) {
-          message += `⏰ Próximo vencimento: *${formatDate(data.installment_dates[0])}*\n`;
+      // Send WhatsApp notification for renegotiation - only if enabled
+      if (data.send_notification) {
+        const phone = await getUserPhone(user.id);
+        if (phone) {
+          let message = `🔄 *Empréstimo Renegociado*\n\n`;
+          message += `👤 Cliente: *${clientName}*\n`;
+          message += `💰 Valor original: *${formatCurrency(loanData.principal_amount)}*\n`;
+          message += `📊 Nova taxa: *${data.interest_rate}% por parcela*\n`;
+          message += `📅 Novas parcelas: *${numInstallments}x*\n`;
+          if (data.installment_dates && data.installment_dates.length > 0) {
+            message += `⏰ Próximo vencimento: *${formatDate(data.installment_dates[0])}*\n`;
+          }
+          message += `💵 Total a receber: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
+          if (data.notes) {
+            message += `📝 Obs: ${data.notes}\n`;
+          }
+          message += `\n_CobraFácil - Renegociação registrada_`;
+          
+          await sendWhatsAppNotification(phone, message);
         }
-        message += `💵 Total a receber: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
-        if (data.notes) {
-          message += `📝 Obs: ${data.notes}\n`;
-        }
-        message += `\n_CobraFácil - Renegociação registrada_`;
-        
-        await sendWhatsAppNotification(phone, message);
       }
     }
     
@@ -451,6 +458,7 @@ export function useLoans() {
     installment_dates?: string[];
     remaining_balance?: number;
     total_interest?: number;
+    send_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -496,8 +504,8 @@ export function useLoans() {
       .eq('id', id)
       .single();
 
-    // Send WhatsApp notification for loan update
-    if (newLoanData) {
+    // Send WhatsApp notification for loan update - only if enabled
+    if (newLoanData && data.send_notification) {
       const clientName = (newLoanData.clients as any)?.full_name || 'Cliente';
       const numInstallments = data.installments || 1;
       

@@ -42,7 +42,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     installment_value: 0,
     first_due_date: '',
     notes: '',
-    send_creation_notification: true,
+    send_creation_notification: false,
   });
 
   // Generate installment dates when relevant fields change

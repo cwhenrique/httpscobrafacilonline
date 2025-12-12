@@ -368,7 +368,7 @@ export function useVehiclePayments(vehicleId?: string) {
   });
 
   const markAsPaid = useMutation({
-    mutationFn: async ({ paymentId, vehicleId }: { paymentId: string; vehicleId: string }) => {
+    mutationFn: async ({ paymentId, vehicleId, send_notification }: { paymentId: string; vehicleId: string; send_notification?: boolean }) => {
       // Update payment
       const { data: payment, error: paymentError } = await supabase
         .from('vehicle_payments')
@@ -405,26 +405,28 @@ export function useVehiclePayments(vehicleId?: string) {
 
       if (updateError) throw updateError;
 
-      // Send WhatsApp notification
-      const userPhone = await getUserPhone(vehicle.user_id);
-      if (userPhone) {
-        const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
-        const clientName = vehicle.buyer_name || vehicle.seller_name;
-        const today = new Date().toISOString().split('T')[0];
-        
-        const message = `💵 *Pagamento de Veículo Recebido*\n\n` +
-          `🚗 *Veículo:* ${vehicleName}\n` +
-          `${vehicle.plate ? `🔖 *Placa:* ${vehicle.plate}\n` : ''}` +
-          `👤 *Cliente:* ${clientName}\n` +
-          `💰 *Valor:* ${formatCurrency(payment.amount)}\n` +
-          `📅 *Parcela:* ${payment.installment_number}ª\n` +
-          `📅 *Data:* ${formatDate(today)}\n\n` +
-          `📊 *Situação atual:*\n` +
-          `- Recebido: ${formatCurrency(newTotalPaid)}\n` +
-          `- Falta: ${formatCurrency(newRemainingBalance)}\n\n` +
-          `_CobraFácil - Confirmação automática_`;
+      // Send WhatsApp notification - only if enabled
+      if (send_notification) {
+        const userPhone = await getUserPhone(vehicle.user_id);
+        if (userPhone) {
+          const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
+          const clientName = vehicle.buyer_name || vehicle.seller_name;
+          const today = new Date().toISOString().split('T')[0];
+          
+          const message = `💵 *Pagamento de Veículo Recebido*\n\n` +
+            `🚗 *Veículo:* ${vehicleName}\n` +
+            `${vehicle.plate ? `🔖 *Placa:* ${vehicle.plate}\n` : ''}` +
+            `👤 *Cliente:* ${clientName}\n` +
+            `💰 *Valor:* ${formatCurrency(payment.amount)}\n` +
+            `📅 *Parcela:* ${payment.installment_number}ª\n` +
+            `📅 *Data:* ${formatDate(today)}\n\n` +
+            `📊 *Situação atual:*\n` +
+            `- Recebido: ${formatCurrency(newTotalPaid)}\n` +
+            `- Falta: ${formatCurrency(newRemainingBalance)}\n\n` +
+            `_CobraFácil - Confirmação automática_`;
 
-        await sendWhatsAppNotification(userPhone, message);
+          await sendWhatsAppNotification(userPhone, message);
+        }
       }
 
       return payment;
