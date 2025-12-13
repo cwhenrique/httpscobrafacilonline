@@ -28,6 +28,8 @@ import {
   Calculator,
   Award,
   ShoppingBag,
+  Car,
+  TrendingUp,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -42,8 +44,10 @@ const navigation = [
   { name: 'Score de Clientes', href: '/scores', icon: Award },
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
   { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
+  { name: 'Veículos', href: '/vehicles', icon: Car },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
-  { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Relatório Operacional', href: '/reports', icon: BarChart3 },
+  { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
   { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];

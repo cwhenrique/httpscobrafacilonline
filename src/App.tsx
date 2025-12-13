@@ -16,7 +16,9 @@ import Loans from "./pages/Loans";
 import Bills from "./pages/Bills";
 import ProductSales from "./pages/ProductSales";
 import CalendarView from "./pages/CalendarView";
-import Reports from "./pages/Reports";
+import ReportsLoans from "./pages/ReportsLoans";
+import ReportsSales from "./pages/ReportsSales";
+import Vehicles from "./pages/Vehicles";
 import Simulator from "./pages/Simulator";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -43,8 +45,10 @@ const App = () => (
             <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
             <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
             <Route path="/product-sales" element={<ProtectedRoute><ProductSales /></ProtectedRoute>} />
+            <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><ReportsLoans /></ProtectedRoute>} />
+            <Route path="/reports-sales" element={<ProtectedRoute><ReportsSales /></ProtectedRoute>} />
             <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
