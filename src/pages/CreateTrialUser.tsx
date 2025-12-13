@@ -81,6 +81,46 @@ export default function CreateTrialUser() {
     }
   };
 
+  const handleSendTestWhatsApp = async () => {
+    if (!formData.phone) {
+      toast({
+        title: 'Informe o telefone',
+        description: 'Preencha o campo de telefone para enviar o teste',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          phone: formData.phone,
+          message:
+            '🔔 *Teste de WhatsApp CobraFácil*\n\nEsta é uma mensagem de teste para confirmar que sua integração com o WhatsApp está funcionando corretamente. Se você recebeu esta mensagem, está tudo certo! ✅',
+        },
+      });
+
+      if (error) throw error;
+      if (data && (data as any).error) throw new Error((data as any).error);
+
+      toast({
+        title: 'Mensagem de teste enviada!',
+        description: 'Verifique seu WhatsApp para confirmar o recebimento.',
+      });
+    } catch (error: any) {
+      console.error('Error sending test WhatsApp:', error);
+      toast({
+        title: 'Erro ao enviar mensagem de teste',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md border-primary">
@@ -145,23 +185,33 @@ export default function CreateTrialUser() {
                 disabled={loading}
               />
             </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Criando...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Criar Usuário Trial
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+ 
+             <Button type="submit" className="w-full" disabled={loading}>
+               {loading ? (
+                 <>
+                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                   Processando...
+                 </>
+               ) : (
+                 <>
+                   <UserPlus className="w-4 h-4 mr-2" />
+                   Criar Usuário Trial
+                 </>
+               )}
+             </Button>
+ 
+             <Button
+               type="button"
+               variant="outline"
+               className="w-full mt-2"
+               onClick={handleSendTestWhatsApp}
+               disabled={loading}
+             >
+               Enviar mensagem de teste por WhatsApp
+             </Button>
+           </form>
+         </CardContent>
+       </Card>
+     </div>
+   );
+ }
