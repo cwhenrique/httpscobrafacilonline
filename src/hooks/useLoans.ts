@@ -153,7 +153,7 @@ export function useLoans() {
       user_id: user.id,
       remaining_balance: (loan.remaining_balance !== undefined && loan.remaining_balance !== null) 
         ? loan.remaining_balance 
-        : loan.principal_amount,
+        : (loan.principal_amount + (loan.total_interest || 0)),
       total_interest: (loan.total_interest !== undefined && loan.total_interest !== null) 
         ? loan.total_interest 
         : 0,

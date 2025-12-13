@@ -803,7 +803,7 @@ export default function Loans() {
       interest_rate: rate,
       installments: numInstallments,
       total_interest: totalInterest,
-      remaining_balance: principal,
+      remaining_balance: principal + totalInterest,
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
       notes: notes || undefined,
       send_creation_notification: formData.send_creation_notification,
