@@ -318,7 +318,7 @@ export default function ReportsLoans() {
         </Card>
 
         {/* Main Stats Grid - Real-time */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
           {stats.loading ? (
             <>
               <StatCardSkeleton />
@@ -331,34 +331,25 @@ export default function ReportsLoans() {
           ) : (
             <>
               <StatCard
-                label="💰 Total Emprestado"
-                value={formatCurrency(stats.totalLentAllTime)}
-                icon={PiggyBank}
-                iconColor="text-indigo-500"
-                bgColor="bg-indigo-500/10"
-                subtitle="Todo o período"
-                compact
-              />
-              <StatCard
                 label="💵 Capital na Rua"
                 value={formatCurrency(stats.totalOnStreet)}
                 icon={Wallet}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`Só o principal • ${stats.activeLoansCount} contratos`}
+                subtitle={`${stats.activeLoansCount} contratos ativos`}
                 compact
               />
               <StatCard
-                label="📈 Na Rua + Juros"
-                value={formatCurrency(stats.totalToReceiveActive)}
+                label="💰 Juros a Receber"
+                value={formatCurrency(stats.pendingInterest)}
                 icon={TrendingUp}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
-                subtitle="Total a receber dos ativos"
+                subtitle="Lucro pendente"
                 compact
               />
               <StatCard
-                label="✅ Recebido"
+                label="✅ Total Recebido"
                 value={formatCurrency(stats.totalReceivedAllTime)}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
@@ -367,12 +358,12 @@ export default function ReportsLoans() {
                 compact
               />
               <StatCard
-                label="⏳ Pendente"
+                label="⏳ Falta Receber"
                 value={formatCurrency(stats.pendingAmount)}
                 icon={Clock}
                 iconColor="text-yellow-500"
                 bgColor="bg-yellow-500/10"
-                subtitle="Falta cobrar"
+                subtitle="remaining_balance"
                 compact
               />
               <StatCard
@@ -385,12 +376,12 @@ export default function ReportsLoans() {
                 compact
               />
               <StatCard
-                label="📊 Lucro"
+                label="📊 Lucro Realizado"
                 value={formatCurrency(stats.realizedProfit)}
                 icon={Percent}
                 iconColor="text-purple-500"
                 bgColor="bg-purple-500/10"
-                subtitle="Juros recebidos"
+                subtitle="Juros já recebidos"
                 compact
               />
             </>
