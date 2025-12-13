@@ -205,7 +205,7 @@ export default function ReportsLoans() {
                 icon={Wallet}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`${stats.activeLoansCount} contratos`}
+                subtitle={`Capital emprestado • ${stats.activeLoansCount} contratos`}
               />
               <StatCard
                 label="✅ Total Recebido"
