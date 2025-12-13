@@ -158,9 +158,10 @@ export default function Loans() {
   // Tutorial state - interactive guided tutorial
   const [tutorialRun, setTutorialRun] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(-1);
+  const [showTutorialConfirmation, setShowTutorialConfirmation] = useState(false);
   const { user } = useAuth();
 
-  // Check if user has seen tutorial on mount
+  // Check if user has seen tutorial on mount - show confirmation modal
   useEffect(() => {
     const checkTutorialStatus = async () => {
       if (!user?.id) return;
@@ -171,15 +172,44 @@ export default function Loans() {
         .eq('id', user.id)
         .single();
       
-      // Show tutorial if user hasn't seen it yet
+      // Show confirmation modal if user hasn't seen tutorial
       if (profile && !profile.has_seen_loans_tutorial) {
-        setTutorialRun(true);
-        setTutorialStep(0);
+        setShowTutorialConfirmation(true);
       }
     };
     
     checkTutorialStatus();
   }, [user?.id]);
+
+  const handleStartTutorial = () => {
+    setShowTutorialConfirmation(false);
+    setTutorialRun(true);
+    setTutorialStep(0);
+  };
+
+  const handleDeclineTutorial = async () => {
+    setShowTutorialConfirmation(false);
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ has_seen_loans_tutorial: true })
+        .eq('id', user.id);
+    }
+  };
+
+  const handleExitTutorial = async () => {
+    setTutorialRun(false);
+    setTutorialStep(-1);
+    setIsDialogOpen(false);
+    
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ has_seen_loans_tutorial: true })
+        .eq('id', user.id);
+    }
+    toast.info('Tutorial encerrado');
+  };
 
   const handleTutorialFinish = async () => {
     setTutorialRun(false);
@@ -192,6 +222,7 @@ export default function Loans() {
         .update({ has_seen_loans_tutorial: true })
         .eq('id', user.id);
     }
+    toast.success('Tutorial concluído! 🎉');
   };
 
   // Advance tutorial when user performs actions
@@ -1629,12 +1660,57 @@ export default function Loans() {
 
   return (
     <DashboardLayout>
-<LoansTutorial 
-          run={tutorialRun} 
-          onFinish={handleTutorialFinish}
-          stepIndex={tutorialStep}
-          onStepChange={setTutorialStep}
-        />
+      {/* Tutorial Confirmation Modal */}
+      <AlertDialog open={showTutorialConfirmation} onOpenChange={setShowTutorialConfirmation}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg flex items-center gap-2">
+              🎓 Bem-vindo aos Empréstimos!
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              Deseja fazer o tutorial interativo para aprender a usar o sistema de empréstimos? 
+              É rápido e você aprenderá todas as funcionalidades.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel 
+              onClick={handleDeclineTutorial}
+              className="bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/30"
+            >
+              Não, já sei usar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleStartTutorial}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Sim, quero aprender
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <LoansTutorial 
+        run={tutorialRun} 
+        onFinish={handleTutorialFinish}
+        onExit={handleExitTutorial}
+        stepIndex={tutorialStep}
+        onStepChange={setTutorialStep}
+      />
+
+      {/* Fixed Tutorial Exit Bar */}
+      {tutorialRun && (
+        <div className="fixed bottom-0 left-0 right-0 bg-destructive text-destructive-foreground p-3 z-[10002] flex items-center justify-center gap-4 shadow-lg">
+          <span className="text-sm font-medium">📚 Você está no tutorial guiado</span>
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="bg-white text-destructive hover:bg-destructive-foreground border-white font-medium"
+            onClick={handleExitTutorial}
+          >
+            ❌ Sair do Tutorial
+          </Button>
+        </div>
+      )}
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>

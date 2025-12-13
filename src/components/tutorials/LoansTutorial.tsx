@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 interface LoansTutorialProps {
   run: boolean;
   onFinish: () => void;
+  onExit: () => void; // Explicit exit function
   stepIndex: number;
   onStepChange: (index: number) => void;
 }
@@ -99,7 +100,7 @@ const TUTORIAL_STEPS: Step[] = [
   },
 ];
 
-export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }: LoansTutorialProps) {
+export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStepChange }: LoansTutorialProps) {
   // Reset step index when tutorial starts
   useEffect(() => {
     if (run && stepIndex === -1) {
@@ -109,9 +110,15 @@ export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, action, index, type } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
+    
+    // BLOCK all external close attempts - only explicit exit button can close
+    if (action === ACTIONS.SKIP || action === ACTIONS.CLOSE) {
+      // Ignore - only the red exit button can close the tutorial
+      return;
+    }
 
-    if (finishedStatuses.includes(status)) {
+    // Only finish when truly completed all steps
+    if (status === STATUS.FINISHED) {
       onFinish();
       return;
     }
@@ -142,7 +149,7 @@ export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }
       stepIndex={stepIndex}
       scrollToFirstStep
       showProgress
-      showSkipButton
+      showSkipButton={false}
       steps={TUTORIAL_STEPS}
       disableOverlayClose
       disableCloseOnEsc
@@ -157,7 +164,7 @@ export default function LoansTutorial({ run, onFinish, stepIndex, onStepChange }
         last: 'Finalizar',
         next: 'Próximo',
         open: 'Abrir',
-        skip: 'Pular Tutorial',
+        skip: '',
       }}
       styles={{
         options: {
