@@ -108,28 +108,6 @@ export function useOperationalStats() {
       const principal = Number(loan.principal_amount);
       const totalPaid = Number(loan.total_paid || 0);
       const remainingBalance = Number(loan.remaining_balance);
-      const isDaily = loan.payment_type === 'daily';
-      
-      // Calcular total a receber do empréstimo
-      let loanTotalToReceive = 0;
-      
-      if (isDaily) {
-        // Para diários: remaining_balance + total_paid = total a receber original
-        loanTotalToReceive = remainingBalance + totalPaid;
-      } else {
-        const rate = Number(loan.interest_rate);
-        const numInstallments = Number(loan.installments) || 1;
-        const interestMode = loan.interest_mode || 'per_installment';
-        
-        let totalInterest = 0;
-        if (interestMode === 'per_installment') {
-          totalInterest = principal * (rate / 100) * numInstallments;
-        } else {
-          totalInterest = principal * (rate / 100);
-        }
-        
-        loanTotalToReceive = principal + totalInterest;
-      }
 
       // Total recebido de TODOS empréstimos (histórico)
       totalReceivedAllTime += totalPaid;
@@ -142,7 +120,8 @@ export function useOperationalStats() {
         // Empréstimo ativo (não quitado)
         activeLoansCount++;
         totalOnStreet += principal;
-        totalToReceiveActive += loanTotalToReceive;
+        // A Receber = remaining_balance (decresce conforme pagamentos)
+        totalToReceiveActive += remainingBalance;
         
         const loanWithClient = loan as LoanWithClient;
         activeLoans.push(loanWithClient);
@@ -155,9 +134,8 @@ export function useOperationalStats() {
       }
     });
 
-    // Pendente = total a receber de ativos - total já pago desses ativos
-    const totalPaidFromActive = activeLoans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
-    const pendingAmount = totalToReceiveActive - totalPaidFromActive;
+    // Pendente = remaining_balance de ativos (já é totalToReceiveActive)
+    const pendingAmount = totalToReceiveActive;
 
     // Lucro realizado = Total recebido - Principal dos empréstimos pagos
     // (juros já recebidos)
