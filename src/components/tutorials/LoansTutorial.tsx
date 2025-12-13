@@ -1,5 +1,4 @@
 import Joyride, { CallBackProps, STATUS, Step, ACTIONS, EVENTS } from 'react-joyride';
-import { useEffect } from 'react';
 
 interface LoansTutorialProps {
   run: boolean;
@@ -140,12 +139,6 @@ const TUTORIAL_STEPS: Step[] = [
 ];
 
 export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStepChange }: LoansTutorialProps) {
-  useEffect(() => {
-    if (run && stepIndex === -1) {
-      onStepChange(0);
-    }
-  }, [run, stepIndex, onStepChange]);
-
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, action, index, type } = data;
     
@@ -169,7 +162,8 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
     }
   };
 
-  if (stepIndex < 0 || !run) return null;
+  // Only render when tutorial is running
+  if (!run) return null;
 
   return (
     <Joyride
