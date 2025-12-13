@@ -1856,7 +1856,7 @@ export default function Loans() {
                       </Select>
                     </div>
                   ) : (
-                    <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                    <div key="new-client-form" className="space-y-3 p-3 border rounded-lg bg-muted/30">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-primary">Novo Cliente</span>
                         <Button 
@@ -1872,6 +1872,7 @@ export default function Loans() {
                       <div className="space-y-2 tutorial-client-name">
                         <Label className="text-xs">Nome completo *</Label>
                         <Input 
+                          autoFocus
                           value={newClientData.full_name}
                           onChange={(e) => setNewClientData({ ...newClientData, full_name: e.target.value })}
                           placeholder="Nome do cliente"
