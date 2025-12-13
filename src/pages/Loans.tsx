@@ -1367,26 +1367,18 @@ export default function Loans() {
       const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
       const newInstallmentValue = remainingOnTarget + feeAmount;
       
-      // Recalcular o saldo restante real com base no contrato (principal + juros já registrados)
-      const storedTotalInterest = loan.total_interest || 0;
-      const totalToReceiveBase = loan.principal_amount + storedTotalInterest;
+      // CORREÇÃO: Usar o remaining_balance atual do banco de dados como base
+      const currentRemaining = loan.remaining_balance || 0;
       
-      // IMPORTANTE: Se já existia uma taxa anterior, precisamos SUBTRAIR ela do remaining_balance antes de adicionar a nova
-      // Para obter o saldo "limpo" sem taxas anteriores
+      // Se já existia uma taxa anterior, subtrair ela antes de adicionar a nova (para não acumular)
       const existingFeeMatchNew = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+:([0-9.]+)\]/);
-      const existingFeeMatchOld = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)\]/);
       let existingFeeAmount = 0;
       if (existingFeeMatchNew) {
         existingFeeAmount = parseFloat(existingFeeMatchNew[1]);
-      } else if (existingFeeMatchOld) {
-        // Formato antigo - calcular diferença entre novo valor e valor original
-        const oldNewValue = parseFloat(existingFeeMatchOld[2]);
-        existingFeeAmount = Math.max(0, oldNewValue - originalInstallmentValue);
       }
       
-      // Calcular o saldo sem a taxa anterior
-      const cleanRemaining = totalToReceiveBase - (loan.total_paid || 0) - existingFeeAmount;
-      const newRemaining = cleanRemaining + feeAmount;
+      // Novo saldo = atual - taxa antiga + taxa nova
+      const newRemaining = currentRemaining - existingFeeAmount + feeAmount;
       
       // Atualizar notas com tag de renovação
       let notesText = loan.notes || '';
