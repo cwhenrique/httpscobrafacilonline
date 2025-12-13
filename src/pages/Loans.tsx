@@ -195,7 +195,7 @@ export default function Loans() {
     if (tutorialStep >= 4 && tutorialStep <= 13 && !isDialogOpen) {
       timeoutId = setTimeout(() => {
         setIsDialogOpen(true);
-      }, 300);
+      }, 100); // Reduced delay - waitForElement handles sync
     }
     // Close dialog when on main page steps (0-3) or after tutorial
     else if ((tutorialStep < 4 || tutorialStep > 13) && isDialogOpen) {

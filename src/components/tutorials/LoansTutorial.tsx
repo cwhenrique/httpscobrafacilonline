@@ -147,7 +147,26 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
     // Handle navigation
     if (type === EVENTS.STEP_AFTER) {
       if (action === ACTIONS.NEXT) {
-        onStepChange(index + 1);
+        const nextStepIndex = index + 1;
+        const nextStep = TUTORIAL_STEPS[nextStepIndex];
+        
+        if (nextStep && nextStepIndex >= 5) {
+          // Dialog steps - wait for element to exist before advancing
+          const waitForElement = () => {
+            const element = document.querySelector(nextStep.target as string);
+            if (element) {
+              onStepChange(nextStepIndex);
+            } else {
+              // Retry after 100ms (dialog may still be opening)
+              setTimeout(waitForElement, 100);
+            }
+          };
+          // Start waiting after small delay for dialog to begin opening
+          setTimeout(waitForElement, 200);
+        } else {
+          // Main page steps - advance immediately
+          onStepChange(nextStepIndex);
+        }
       } else if (action === ACTIONS.PREV) {
         onStepChange(Math.max(0, index - 1));
       }
