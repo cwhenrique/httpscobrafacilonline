@@ -1,22 +1,59 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface TrialUser {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  phone: string | null;
+  temp_password: string | null;
+  trial_expires_at: string | null;
+  is_active: boolean;
+}
 
 export default function CreateTrialUser() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [trialUsers, setTrialUsers] = useState<TrialUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
     password: ''
   });
+
+  const fetchTrialUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active')
+        .not('trial_expires_at', 'is', null)
+        .order('trial_expires_at', { ascending: false });
+
+      if (error) throw error;
+      setTrialUsers((data as TrialUser[]) || []);
+    } catch (error) {
+      console.error('Error fetching trial users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTrialUsers();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +105,9 @@ export default function CreateTrialUser() {
         phone: '',
         password: ''
       });
+
+      // Refresh the list
+      fetchTrialUsers();
 
     } catch (error: any) {
       console.error('Error creating trial user:', error);
@@ -121,97 +161,213 @@ export default function CreateTrialUser() {
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: 'Copiado!',
+      description: 'Texto copiado para a área de transferência',
+    });
+  };
+
+  const isExpired = (expiresAt: string | null) => {
+    if (!expiresAt) return false;
+    return new Date(expiresAt) < new Date();
+  };
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-primary">
-        <CardHeader className="text-center">
-          <Link to="/" className="absolute top-4 left-4 text-muted-foreground hover:text-primary">
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link to="/" className="text-muted-foreground hover:text-primary">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
-            <UserPlus className="w-6 h-6 text-primary" />
-          </div>
-          <CardTitle className="text-2xl">Criar Acesso Trial</CardTitle>
-          <CardDescription>
-            O usuário terá acesso por 24 horas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Nome Completo</Label>
-              <Input
-                id="full_name"
-                type="text"
-                placeholder="Nome do usuário"
-                value={formData.full_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
+          <h1 className="text-2xl font-bold">Gerenciamento de Usuários Trial</h1>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="email@exemplo.com"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Create Form */}
+          <Card className="border-primary">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+                <UserPlus className="w-6 h-6 text-primary" />
+              </div>
+              <CardTitle className="text-2xl">Criar Acesso Trial</CardTitle>
+              <CardDescription>
+                O usuário terá acesso por 24 horas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Nome Completo</Label>
+                  <Input
+                    id="full_name"
+                    type="text"
+                    placeholder="Nome do usuário"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                    disabled={loading}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefone (WhatsApp)</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="17999999999"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    disabled={loading}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
- 
-             <Button type="submit" className="w-full" disabled={loading}>
-               {loading ? (
-                 <>
-                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                   Processando...
-                 </>
-               ) : (
-                 <>
-                   <UserPlus className="w-4 h-4 mr-2" />
-                   Criar Usuário Trial
-                 </>
-               )}
-             </Button>
- 
-             <Button
-               type="button"
-               variant="outline"
-               className="w-full mt-2"
-               onClick={handleSendTestWhatsApp}
-               disabled={loading}
-             >
-               Enviar mensagem de teste por WhatsApp
-             </Button>
-           </form>
-         </CardContent>
-       </Card>
-     </div>
-   );
- }
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefone (WhatsApp)</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="17999999999"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="text"
+                    placeholder="Mínimo 6 caracteres"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    disabled={loading}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Criar Usuário Trial
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSendTestWhatsApp}
+                  disabled={loading}
+                >
+                  Enviar mensagem de teste por WhatsApp
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Trial Users List */}
+          <Card className="border-primary">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Usuários em Período Trial</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchTrialUsers}
+                  disabled={loadingUsers}
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingUsers ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingUsers ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : trialUsers.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhum usuário trial encontrado
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Senha</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {trialUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            {user.full_name || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{user.email || '-'}</span>
+                              {user.email && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => copyToClipboard(user.email!)}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <code className="bg-muted px-2 py-1 rounded text-sm">
+                                {user.temp_password || '-'}
+                              </code>
+                              {user.temp_password && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => copyToClipboard(user.temp_password!)}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {isExpired(user.trial_expires_at) || !user.is_active ? (
+                              <span className="text-xs bg-destructive/20 text-destructive px-2 py-1 rounded">
+                                Expirado
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">
+                                Ativo até {user.trial_expires_at && format(new Date(user.trial_expires_at), "dd/MM HH:mm", { locale: ptBR })}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
