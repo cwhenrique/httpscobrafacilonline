@@ -2439,12 +2439,19 @@ export default function Loans() {
                   totalToReceive += renewalFeeAmount;
                 }
                 
-                // Calcular juros extra: só aparece quando o remaining_balance foi AUMENTADO
-                // além do valor original do contrato (principal + juros original)
+                // Calcular juros extra: aparece quando:
+                // 1. Foi pagamento só de juros com remaining_balance aumentado, OU
+                // 2. Há taxa de renovação aplicada em uma parcela
                 const originalRemainingBalance = loan.principal_amount + effectiveTotalInterest;
-                const extraInterest = isInterestOnlyPayment 
-                  ? Math.max(0, loan.remaining_balance - originalRemainingBalance) 
-                  : 0;
+                
+                let extraInterest = 0;
+                if (isInterestOnlyPayment) {
+                  // Para pagamentos só de juros, calcular diferença do remaining_balance
+                  extraInterest = Math.max(0, loan.remaining_balance - originalRemainingBalance);
+                } else if (hasRenewalFee && renewalFeeAmount > 0) {
+                  // Para taxa de renovação direta, usar o valor extraído das notas
+                  extraInterest = renewalFeeAmount;
+                }
                 
                 // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
                 // usamos o valor do banco. Nos demais, calculamos normalmente.
