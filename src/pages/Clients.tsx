@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useClients } from '@/hooks/useClients';
 import { Client, ClientType } from '@/types/database';
@@ -42,10 +42,9 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
-import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard } from 'lucide-react';
 import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 import { ClientDocuments } from '@/components/ClientDocuments';
 import { toast } from 'sonner';
@@ -64,6 +63,9 @@ interface FormData {
   phone: string;
   notes: string;
   client_type: ClientType;
+  cpf: string;
+  rg: string;
+  email: string;
   cep: string;
   street: string;
   number: string;
@@ -72,6 +74,23 @@ interface FormData {
   city: string;
   state: string;
 }
+
+const initialFormData: FormData = {
+  full_name: '',
+  phone: '',
+  notes: '',
+  client_type: 'loan',
+  cpf: '',
+  rg: '',
+  email: '',
+  cep: '',
+  street: '',
+  number: '',
+  complement: '',
+  neighborhood: '',
+  city: '',
+  state: '',
+};
 
 export default function Clients() {
   const { clients, loading, createClient, updateClient, deleteClient, uploadAvatar } = useClients();
@@ -85,25 +104,25 @@ export default function Clients() {
   const [searchingCep, setSearchingCep] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  
-  const [formData, setFormData] = useState<FormData>({
-    full_name: '',
-    phone: '',
-    notes: '',
-    client_type: 'loan' as ClientType,
-    cep: '',
-    street: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-  });
+  const [formData, setFormData] = useState<FormData>(initialFormData);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    client.phone?.toLowerCase().includes(search.toLowerCase())
+    client.phone?.toLowerCase().includes(search.toLowerCase()) ||
+    client.cpf?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const formatCpf = (value: string) => {
+    const numbers = value.replace(/\D/g, '').slice(0, 11);
+    if (numbers.length > 9) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9)}`;
+    } else if (numbers.length > 6) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    } else if (numbers.length > 3) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    }
+    return numbers;
+  };
 
   const formatCep = (value: string) => {
     const numbers = value.replace(/\D/g, '').slice(0, 8);
@@ -198,11 +217,9 @@ export default function Clients() {
       });
       
       if (result.data) {
-        // Upload avatar if selected
         if (avatarFile) {
           await uploadAvatar(result.data.id, avatarFile);
         }
-        // Store created client info for documents tab
         setCreatedClientId(result.data.id);
         setCreatedClientName(result.data.full_name);
         setActiveTab('documentos');
@@ -217,6 +234,9 @@ export default function Clients() {
       phone: client.phone || '',
       notes: client.notes || '',
       client_type: client.client_type,
+      cpf: client.cpf || '',
+      rg: client.rg || '',
+      email: client.email || '',
       cep: client.cep || '',
       street: client.street || '',
       number: client.number || '',
@@ -251,19 +271,7 @@ export default function Clients() {
     setActiveTab('dados');
     setAvatarFile(null);
     setAvatarPreview(null);
-    setFormData({
-      full_name: '',
-      phone: '',
-      notes: '',
-      client_type: 'loan',
-      cep: '',
-      street: '',
-      number: '',
-      complement: '',
-      neighborhood: '',
-      city: '',
-      state: '',
-    });
+    setFormData(initialFormData);
   };
 
   const getClientTypeBadgeColor = (type: ClientType) => {
@@ -287,7 +295,6 @@ export default function Clients() {
     .toUpperCase() || 'CL';
 
   const currentClientForDocs = editingClient || (createdClientId ? { id: createdClientId, full_name: createdClientName } : null);
-  const isNewClientWithDocs = !editingClient && createdClientId;
 
   return (
     <DashboardLayout>
@@ -312,14 +319,25 @@ export default function Clients() {
               </DialogHeader>
               
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="dados" disabled={!!isNewClientWithDocs}>Dados</TabsTrigger>
-                  <TabsTrigger value="documentos" className="gap-2" disabled={!editingClient && !createdClientId}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="dados" className="gap-2">
+                    <User className="w-4 h-4" />
+                    <span className="hidden sm:inline">Dados Pessoais</span>
+                    <span className="sm:hidden">Dados</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="endereco" className="gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span className="hidden sm:inline">Endereço</span>
+                    <span className="sm:hidden">End.</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="documentos" className="gap-2">
                     <FileText className="w-4 h-4" />
-                    Documentos
+                    <span className="hidden sm:inline">Documentos</span>
+                    <span className="sm:hidden">Docs</span>
                   </TabsTrigger>
                 </TabsList>
                 
+                {/* Tab 1: Dados Pessoais */}
                 <TabsContent value="dados" className="mt-4">
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Avatar Section */}
@@ -348,8 +366,6 @@ export default function Clients() {
                       </label>
                     </div>
 
-                    <Separator />
-
                     {/* Basic Info */}
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -361,7 +377,46 @@ export default function Clients() {
                           required
                         />
                       </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="cpf" className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4" />
+                            CPF
+                          </Label>
+                          <Input
+                            id="cpf"
+                            value={formData.cpf}
+                            onChange={(e) => setFormData({ ...formData, cpf: formatCpf(e.target.value) })}
+                            placeholder="000.000.000-00"
+                            maxLength={14}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rg">RG</Label>
+                          <Input
+                            id="rg"
+                            value={formData.rg}
+                            onChange={(e) => setFormData({ ...formData, rg: e.target.value })}
+                            placeholder="00.000.000-0"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="email" className="flex items-center gap-2">
+                            <Mail className="w-4 h-4" />
+                            E-mail
+                          </Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="cliente@email.com"
+                          />
+                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="phone">Telefone</Label>
                           <Input
@@ -371,34 +426,56 @@ export default function Clients() {
                             placeholder="(00) 00000-0000"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="client_type">Tipo de Cliente *</Label>
-                          <Select
-                            value={formData.client_type}
-                            onValueChange={(value: ClientType) => setFormData({ ...formData, client_type: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="loan">Empréstimo</SelectItem>
-                              <SelectItem value="monthly">Mensalidade</SelectItem>
-                              <SelectItem value="both">Ambos</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="client_type">Tipo de Cliente *</Label>
+                        <Select
+                          value={formData.client_type}
+                          onValueChange={(value: ClientType) => setFormData({ ...formData, client_type: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="loan">Empréstimo</SelectItem>
+                            <SelectItem value="monthly">Mensalidade</SelectItem>
+                            <SelectItem value="both">Ambos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="notes">Observações</Label>
+                        <Textarea
+                          id="notes"
+                          value={formData.notes}
+                          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                          rows={3}
+                        />
                       </div>
                     </div>
 
-                    <Separator />
-
-                    {/* Address Section */}
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                        <MapPin className="w-4 h-4" />
-                        ENDEREÇO
+                    <div className="flex justify-between gap-2">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                        Cancelar
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" onClick={() => setActiveTab('endereco')}>
+                          Próximo: Endereço →
+                        </Button>
+                        <Button type="submit">
+                          {editingClient ? 'Salvar' : 'Criar Cliente'}
+                        </Button>
                       </div>
-                      
+                    </div>
+                  </form>
+                </TabsContent>
+
+                {/* Tab 2: Endereço */}
+                <TabsContent value="endereco" className="mt-4">
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-4">
                       <div className="flex gap-2">
                         <div className="flex-1 space-y-2">
                           <Label htmlFor="cep">CEP</Label>
@@ -492,29 +569,23 @@ export default function Clients() {
                       </div>
                     </div>
 
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Observações</Label>
-                      <Textarea
-                        id="notes"
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                        Cancelar
+                    <div className="flex justify-between gap-2">
+                      <Button type="button" variant="outline" onClick={() => setActiveTab('dados')}>
+                        ← Voltar
                       </Button>
-                      <Button type="submit">
-                        {editingClient ? 'Salvar' : 'Criar e Continuar'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" onClick={() => setActiveTab('documentos')}>
+                          Próximo: Documentos →
+                        </Button>
+                        <Button type="submit">
+                          {editingClient ? 'Salvar' : 'Criar Cliente'}
+                        </Button>
+                      </div>
                     </div>
                   </form>
                 </TabsContent>
                 
+                {/* Tab 3: Documentos */}
                 <TabsContent value="documentos" className="mt-4">
                   {currentClientForDocs ? (
                     <div className="space-y-4">
@@ -522,16 +593,30 @@ export default function Clients() {
                         clientId={currentClientForDocs.id} 
                         clientName={currentClientForDocs.full_name} 
                       />
-                      <div className="flex justify-end">
+                      <div className="flex justify-between">
+                        <Button type="button" variant="outline" onClick={() => setActiveTab('endereco')}>
+                          ← Voltar
+                        </Button>
                         <Button onClick={() => setIsDialogOpen(false)}>
                           Concluir
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Salve o cliente primeiro para adicionar documentos</p>
+                    <div className="space-y-4">
+                      <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-muted rounded-lg">
+                        <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p className="font-medium">Salve o cliente primeiro</p>
+                        <p className="text-sm">Para adicionar documentos, crie o cliente nas abas anteriores</p>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <Button type="button" variant="outline" onClick={() => setActiveTab('endereco')}>
+                          ← Voltar
+                        </Button>
+                        <Button onClick={handleSubmit}>
+                          Criar Cliente
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </TabsContent>
@@ -598,7 +683,10 @@ export default function Clients() {
                                   {clientInitials}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="font-medium">{client.full_name}</span>
+                              <div>
+                                <span className="font-medium block">{client.full_name}</span>
+                                {client.cpf && <span className="text-xs text-muted-foreground">{client.cpf}</span>}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>{client.phone || '-'}</TableCell>
