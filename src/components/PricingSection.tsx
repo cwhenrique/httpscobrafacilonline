@@ -129,6 +129,10 @@ const PricingSection = ({
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                     <span className="text-muted-foreground text-sm">Taxas de renovação</span>
                   </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Venda de veículos ou produtos</span>
+                  </li>
                 </ul>
                 <a href={monthlyLink} target="_blank" rel="noopener noreferrer" className="block">
                   <Button variant="outline" size="lg" className="w-full h-12">

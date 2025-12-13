@@ -290,8 +290,8 @@ const Affiliate = () => {
               onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <Zap className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-              <span className="hidden sm:inline">QUERO ORGANIZAR MINHAS COBRANÇAS</span>
-              <span className="sm:hidden">ORGANIZAR COBRANÇAS</span>
+              <span className="hidden sm:inline">QUERO ORGANIZAR MEUS EMPRÉSTIMOS</span>
+              <span className="sm:hidden">ORGANIZAR EMPRÉSTIMOS</span>
             </Button>
           </motion.div>
 
