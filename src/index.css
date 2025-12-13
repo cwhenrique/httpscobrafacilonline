@@ -127,6 +127,30 @@
   input[type="date"]::-webkit-calendar-picker-indicator:hover {
     filter: invert(62%) sepia(89%) saturate(421%) hue-rotate(88deg) brightness(96%) contrast(92%);
   }
+
+  /* Scroll horizontal para telas com zoom alto */
+  main {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+  }
+
+  main::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  main::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  main::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border-radius: 4px;
+  }
+
+  main::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+  }
 }
 
 @layer utilities {

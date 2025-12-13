@@ -197,8 +197,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <main className="lg:pl-72">
-        <div className="min-h-screen pt-16 lg:pt-0">
+      <main className="lg:pl-72 overflow-x-auto">
+        <div className="min-h-screen pt-16 lg:pt-0 min-w-fit">
           {/* Desktop Header */}
           <header className="hidden lg:flex items-center justify-between px-8 py-4 border-b border-border bg-card">
             <div>
