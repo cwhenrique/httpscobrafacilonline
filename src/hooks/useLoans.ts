@@ -123,6 +123,7 @@ export function useLoans() {
     interest_mode?: 'per_installment' | 'on_total';
     payment_type: LoanPaymentType;
     installments?: number;
+    contract_date?: string;
     start_date: string;
     due_date: string;
     notes?: string;
@@ -147,6 +148,7 @@ export function useLoans() {
       interest_mode: loan.interest_mode || 'on_total',
       payment_type: loan.payment_type,
       installments: loan.installments || 1,
+      contract_date: loan.contract_date || new Date().toISOString().split('T')[0],
       start_date: loan.start_date,
       due_date: loan.due_date,
       notes: loan.notes || null,
@@ -482,6 +484,7 @@ export function useLoans() {
     interest_mode?: 'per_installment' | 'on_total';
     payment_type: LoanPaymentType;
     installments?: number;
+    contract_date?: string;
     start_date: string;
     due_date: string;
     notes?: string;
@@ -507,6 +510,7 @@ export function useLoans() {
       interest_mode: data.interest_mode || 'on_total',
       payment_type: data.payment_type,
       installments: data.installments || 1,
+      contract_date: data.contract_date || null,
       start_date: data.start_date,
       due_date: data.due_date,
       notes: data.notes || null,
