@@ -44,9 +44,10 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
-import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, ImageIcon } from 'lucide-react';
 import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 import { ClientDocuments } from '@/components/ClientDocuments';
+import { AvatarSelector } from '@/components/AvatarSelector';
 import { toast } from 'sonner';
 
 interface AddressData {
@@ -104,6 +105,8 @@ export default function Clients() {
   const [searchingCep, setSearchingCep] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState<string | null>(null);
+  const [avatarMode, setAvatarMode] = useState<'upload' | 'select'>('upload');
   const [formData, setFormData] = useState<FormData>(initialFormData);
 
   const filteredClients = clients.filter(client =>
@@ -199,13 +202,15 @@ export default function Clients() {
     e.preventDefault();
     
     const fullAddress = buildFullAddress();
+    const avatarUrlToUse = avatarMode === 'select' ? selectedAvatarUrl : null;
     
     if (editingClient) {
       await updateClient(editingClient.id, {
         ...formData,
         address: fullAddress,
+        avatar_url: avatarUrlToUse || editingClient.avatar_url,
       });
-      if (avatarFile) {
+      if (avatarFile && avatarMode === 'upload') {
         await uploadAvatar(editingClient.id, avatarFile);
       }
       setIsDialogOpen(false);
@@ -214,10 +219,11 @@ export default function Clients() {
       const result = await createClient({
         ...formData,
         address: fullAddress,
+        avatar_url: avatarUrlToUse || undefined,
       });
       
       if (result.data) {
-        if (avatarFile) {
+        if (avatarFile && avatarMode === 'upload') {
           await uploadAvatar(result.data.id, avatarFile);
         }
         setCreatedClientId(result.data.id);
@@ -245,7 +251,15 @@ export default function Clients() {
       city: client.city || '',
       state: client.state || '',
     });
-    setAvatarPreview(client.avatar_url || null);
+    setAvatarPreview(null);
+    // Check if avatar is a preset avatar
+    if (client.avatar_url?.includes('dicebear.com')) {
+      setSelectedAvatarUrl(client.avatar_url);
+      setAvatarMode('select');
+    } else {
+      setSelectedAvatarUrl(null);
+      setAvatarMode('upload');
+    }
     setActiveTab('dados');
     setIsDialogOpen(true);
   };
@@ -271,6 +285,8 @@ export default function Clients() {
     setActiveTab('dados');
     setAvatarFile(null);
     setAvatarPreview(null);
+    setSelectedAvatarUrl(null);
+    setAvatarMode('upload');
     setFormData(initialFormData);
   };
 
@@ -341,29 +357,68 @@ export default function Clients() {
                 <TabsContent value="dados" className="mt-4">
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Avatar Section */}
-                    <div className="flex flex-col items-center gap-3 pb-4">
-                      <div className="relative">
-                        <Avatar className="w-24 h-24 border-2 border-primary/20">
-                          <AvatarImage src={avatarPreview || editingClient?.avatar_url || undefined} />
-                          <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                      <label className="cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleAvatarSelect}
-                          className="hidden"
-                        />
-                        <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
-                          <span>
+                    <div className="space-y-4 pb-4">
+                      {/* Avatar Mode Tabs */}
+                      <div className="flex justify-center">
+                        <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
+                          <button
+                            type="button"
+                            onClick={() => setAvatarMode('upload')}
+                            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                              avatarMode === 'upload'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
                             <Camera className="w-4 h-4" />
-                            {avatarPreview || editingClient?.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
-                          </span>
-                        </Button>
-                      </label>
+                            Enviar Foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAvatarMode('select')}
+                            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                              avatarMode === 'select'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Escolher Avatar
+                          </button>
+                        </div>
+                      </div>
+
+                      {avatarMode === 'upload' ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="relative">
+                            <Avatar className="w-24 h-24 border-2 border-primary/20">
+                              <AvatarImage src={avatarPreview || (editingClient?.avatar_url && !editingClient.avatar_url.includes('dicebear.com') ? editingClient.avatar_url : undefined)} />
+                              <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                          <label className="cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleAvatarSelect}
+                              className="hidden"
+                            />
+                            <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
+                              <span>
+                                <Camera className="w-4 h-4" />
+                                {avatarPreview ? 'Trocar foto' : 'Selecionar foto'}
+                              </span>
+                            </Button>
+                          </label>
+                        </div>
+                      ) : (
+                        <AvatarSelector
+                          selectedAvatar={selectedAvatarUrl}
+                          onSelect={(url) => setSelectedAvatarUrl(url)}
+                        />
+                      )}
                     </div>
 
                     {/* Basic Info */}
