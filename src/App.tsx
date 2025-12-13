@@ -39,7 +39,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/aff" element={<Affiliate />} />
             <Route path="/affid" element={<AffiliateId />} />
-            <Route path="/cria_acesso" element={<CreateTrialUser />} />
+            <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />

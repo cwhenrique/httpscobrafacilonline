@@ -47,13 +47,14 @@ serve(async (req) => {
       );
     }
 
-    // Update profile with phone and trial expiration
+    // Update profile with phone, trial expiration and temp password
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         full_name,
         phone,
-        trial_expires_at: trialExpiresAt.toISOString()
+        trial_expires_at: trialExpiresAt.toISOString(),
+        temp_password: password
       })
       .eq('id', userData.user.id);
 
