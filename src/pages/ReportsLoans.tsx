@@ -340,12 +340,21 @@ export default function ReportsLoans() {
                 compact
               />
               <StatCard
-                label="💵 Na Rua (Ativo)"
+                label="💵 Capital na Rua"
                 value={formatCurrency(stats.totalOnStreet)}
                 icon={Wallet}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`Capital • ${stats.activeLoansCount} contratos`}
+                subtitle={`Só o principal • ${stats.activeLoansCount} contratos`}
+                compact
+              />
+              <StatCard
+                label="📈 Na Rua + Juros"
+                value={formatCurrency(stats.totalToReceiveActive)}
+                icon={TrendingUp}
+                iconColor="text-primary"
+                bgColor="bg-primary/10"
+                subtitle="Total a receber dos ativos"
                 compact
               />
               <StatCard
@@ -355,15 +364,6 @@ export default function ReportsLoans() {
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
                 subtitle="Histórico"
-                compact
-              />
-              <StatCard
-                label="📈 A Receber"
-                value={formatCurrency(stats.totalToReceiveActive)}
-                icon={TrendingUp}
-                iconColor="text-primary"
-                bgColor="bg-primary/10"
-                subtitle="Ativos"
                 compact
               />
               <StatCard
