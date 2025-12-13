@@ -79,12 +79,13 @@ export function useOperationalStats() {
   const fetchStats = async () => {
     if (!user) return;
 
-    // Fetch all loans with client info
+    // Fetch all loans with client info AND their payments
     const { data: loans } = await supabase
       .from('loans')
       .select(`
         *,
-        client:clients(full_name, phone)
+        client:clients(full_name, phone),
+        payments:loan_payments(amount, interest_paid, principal_paid)
       `)
       .order('created_at', { ascending: false });
 
@@ -114,43 +115,18 @@ export function useOperationalStats() {
       
       // Total emprestado histórico (todos os empréstimos)
       totalLentAllTime += principal;
-      const isDaily = loan.payment_type === 'daily';
       
-      // Verificar se é empréstimo com pagamento só de juros
-      const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
-
-      // Calcular total do contrato (principal + juros)
-      let totalContract = 0;
+      // Calcular lucro realizado usando os pagamentos individuais
+      // Isso é mais preciso porque:
+      // - Pagamento só de juros: interest_paid = amount (100% lucro)
+      // - Pagamento de parcela: interest_paid = porção de juros (lucro proporcional)
+      const payments = loan.payments || [];
+      const totalInterestReceived = payments.reduce(
+        (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
+        0
+      );
       
-      if (isDaily) {
-        // Para diários: remaining_balance + total_paid = total original
-        totalContract = remainingBalance + totalPaid;
-      } else {
-        const rate = Number(loan.interest_rate);
-        const numInstallments = Number(loan.installments) || 1;
-        const interestMode = loan.interest_mode || 'per_installment';
-        
-        let totalInterest = 0;
-        if (interestMode === 'per_installment') {
-          totalInterest = principal * (rate / 100) * numInstallments;
-        } else {
-          totalInterest = principal * (rate / 100);
-        }
-        totalContract = principal + totalInterest;
-      }
-
-      // Calcular lucro realizado
-      if (isInterestOnlyPayment) {
-        // Para pagamentos só de juros: TODO o valor pago é lucro (juros puro)
-        totalProfitRealized += totalPaid;
-      } else {
-        // Para pagamentos normais: lucro proporcional
-        const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
-        const interestPortion = totalContract - principal;
-        const interestReceived = interestPortion * paidRatio;
-        totalProfitRealized += interestReceived;
-      }
-      
+      totalProfitRealized += totalInterestReceived;
       totalReceivedAllTime += totalPaid;
 
       if (loan.status === 'paid') {
