@@ -2459,13 +2459,11 @@ export default function Loans() {
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
-                } else if (isInterestOnlyPayment || hasRenewalFee) {
-                  // Usar remaining_balance do banco que já foi atualizado corretamente
-                  remainingToReceive = Math.max(0, loan.remaining_balance);
+                } else if (isDaily) {
+                  remainingToReceive = Math.max(0, (loan.remaining_balance || 0) - (loan.total_paid || 0));
                 } else {
-                  remainingToReceive = isDaily 
-                    ? Math.max(0, (loan.remaining_balance || 0) - (loan.total_paid || 0))
-                    : Math.max(0, totalToReceive - (loan.total_paid || 0));
+                  // SEMPRE usar remaining_balance do banco como fonte de verdade
+                  remainingToReceive = Math.max(0, loan.remaining_balance);
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
