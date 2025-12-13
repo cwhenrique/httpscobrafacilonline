@@ -232,48 +232,24 @@ export default function Loans() {
     }
   };
 
-  // Tutorial action handlers
+  // Tutorial action handlers - only for steps that require real clicks
   const handleTutorialDialogOpen = (open: boolean) => {
     setIsDialogOpen(open);
     if (open && tutorialRun && tutorialStep === 0) {
-      // Advance to step 1 when dialog opens
+      // Advance to step 1 when dialog opens (click "Cadastrar novo cliente")
       setTimeout(() => advanceTutorialStep(0), 300);
     }
   };
 
-  const handleTutorialClientSelect = (clientId: string) => {
-    setFormData(prev => ({ ...prev, client_id: clientId }));
-    advanceTutorialStep(1);
-  };
-
-  const handleTutorialValueBlur = () => {
-    if (formData.principal_amount && parseFloat(formData.principal_amount) > 0) {
-      advanceTutorialStep(2);
+  const handleTutorialNewClientClick = () => {
+    setShowNewClientForm(true);
+    if (tutorialRun && tutorialStep === 1) {
+      // Advance to step 2 (fill client name)
+      setTimeout(() => advanceTutorialStep(1), 300);
     }
   };
 
-  const handleTutorialInterestBlur = () => {
-    if (formData.interest_rate && parseFloat(formData.interest_rate) >= 0) {
-      advanceTutorialStep(3);
-    }
-  };
-
-  const handleTutorialInterestModeChange = (value: 'per_installment' | 'on_total') => {
-    setFormData(prev => ({ ...prev, interest_mode: value }));
-    advanceTutorialStep(4);
-  };
-
-  const handleTutorialPaymentTypeChange = (value: LoanPaymentType) => {
-    setFormData(prev => ({ ...prev, payment_type: value }));
-    advanceTutorialStep(5);
-  };
-
-  const handleTutorialStartDateChange = (value: string) => {
-    setFormData(prev => ({ ...prev, start_date: value }));
-    advanceTutorialStep(6);
-  };
-
-  const handleCreateClientInline = async () => {
+  const handleTutorialCreateClient = async () => {
     if (!newClientData.full_name.trim()) {
       toast.error('Nome é obrigatório');
       return;
@@ -293,9 +269,15 @@ export default function Loans() {
       setShowNewClientForm(false);
       setNewClientData({ full_name: '', phone: '', address: '', notes: '' });
       await fetchClients();
+      
+      // Advance to step 5 (fill loan value) after client is created
+      if (tutorialRun && tutorialStep === 4) {
+        setTimeout(() => advanceTutorialStep(4), 300);
+      }
     }
     setCreatingClient(false);
   };
+
 
   const handleAvatarUpload = async (clientId: string, file: File) => {
     if (!file) return;
@@ -1860,13 +1842,13 @@ export default function Loans() {
                       <Button 
                         type="button" 
                         variant="outline" 
-                        className="w-full border-dashed border-primary text-primary hover:bg-primary/10"
-                        onClick={() => setShowNewClientForm(true)}
+                        className="tutorial-new-client-btn w-full border-dashed border-primary text-primary hover:bg-primary/10"
+                        onClick={handleTutorialNewClientClick}
                       >
                         <Plus className="w-4 h-4 mr-2" />
                         Cadastrar novo cliente
                       </Button>
-                      <Select value={formData.client_id} onValueChange={handleTutorialClientSelect}>
+                      <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
                         <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
@@ -1887,7 +1869,7 @@ export default function Loans() {
                           Cancelar
                         </Button>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 tutorial-client-name">
                         <Label className="text-xs">Nome completo *</Label>
                         <Input 
                           value={newClientData.full_name}
@@ -1895,7 +1877,7 @@ export default function Loans() {
                           placeholder="Nome do cliente"
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 tutorial-client-phone">
                         <Label className="text-xs">Telefone</Label>
                         <Input 
                           value={newClientData.phone}
@@ -1923,8 +1905,8 @@ export default function Loans() {
                       <Button 
                         type="button" 
                         size="sm" 
-                        className="w-full"
-                        onClick={handleCreateClientInline}
+                        className="tutorial-create-client-btn w-full"
+                        onClick={handleTutorialCreateClient}
                         disabled={creatingClient}
                       >
                         {creatingClient ? 'Criando...' : 'Criar Cliente'}
@@ -1936,11 +1918,11 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-value">
                       <Label className="text-xs sm:text-sm">Valor *</Label>
-                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} onBlur={handleTutorialValueBlur} required className="h-9 sm:h-10 text-sm" />
+                      <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest">
                       <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
-                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} onBlur={handleTutorialInterestBlur} required className="h-9 sm:h-10 text-sm" />
+                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
                   </div>
                 )}
@@ -1948,7 +1930,7 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
-                      <Select value={formData.interest_mode} onValueChange={handleTutorialInterestModeChange}>
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
@@ -1958,7 +1940,7 @@ export default function Loans() {
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-payment-type">
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
-                      <Select value={formData.payment_type} onValueChange={handleTutorialPaymentTypeChange}>
+                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
@@ -2062,7 +2044,7 @@ export default function Loans() {
                 <div className={`grid gap-2 sm:gap-4 tutorial-form-dates ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Data Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => handleTutorialStartDateChange(e.target.value)} required className="h-9 sm:h-10 text-sm" />
+                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                   </div>
                   {formData.payment_type === 'single' && (
                     <div className="space-y-1 sm:space-y-2">
