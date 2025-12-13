@@ -183,18 +183,29 @@ export default function Loans() {
 
   // Auto-open/close dialog based on tutorial step (demonstrative mode)
   useEffect(() => {
-    if (tutorialRun) {
-      // Open dialog when reaching form field steps (4-12)
-      if (tutorialStep === 4 && !isDialogOpen) {
+    if (!tutorialRun) return;
+    
+    let timeoutId: ReturnType<typeof setTimeout>;
+    
+    // Open dialog when reaching form field steps (4-12)
+    if (tutorialStep === 4 && !isDialogOpen) {
+      // Small delay to let Joyride finish its transition
+      timeoutId = setTimeout(() => {
         setIsDialogOpen(true);
-      }
-      // Close dialog when tutorial finishes or goes back to main page steps
-      if ((tutorialStep === 13 || tutorialStep < 4) && isDialogOpen) {
+      }, 100);
+    }
+    // Close dialog when tutorial finishes or goes back to main page steps
+    else if ((tutorialStep === 13 || tutorialStep < 4) && isDialogOpen) {
+      timeoutId = setTimeout(() => {
         setIsDialogOpen(false);
         setShowNewClientForm(false);
-      }
+      }, 100);
     }
-  }, [tutorialStep, tutorialRun]);
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [tutorialStep, tutorialRun, isDialogOpen]);
 
   const handleStartTutorial = () => {
     setShowTutorialConfirmation(false);
