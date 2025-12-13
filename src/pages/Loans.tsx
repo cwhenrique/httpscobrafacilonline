@@ -1679,15 +1679,42 @@ export default function Loans() {
       {/* Tutorial CSS - Block all clicks outside spotlight */}
       {tutorialRun && (
         <style>{`
+          body * {
+            pointer-events: none !important;
+          }
           .react-joyride__overlay {
             pointer-events: auto !important;
           }
           .react-joyride__spotlight,
           .react-joyride__spotlight *,
           .react-joyride__tooltip,
-          .react-joyride__tooltip *,
+          .react-joyride__tooltip * {
+            pointer-events: auto !important;
+          }
           .tutorial-exit-bar,
           .tutorial-exit-bar * {
+            pointer-events: auto !important;
+          }
+          .tutorial-new-loan,
+          .tutorial-new-client-btn,
+          .tutorial-client-name,
+          .tutorial-client-name input,
+          .tutorial-client-phone,
+          .tutorial-client-phone input,
+          .tutorial-create-client-btn,
+          .tutorial-form-value,
+          .tutorial-form-value input,
+          .tutorial-form-interest,
+          .tutorial-form-interest input,
+          .tutorial-form-interest-mode,
+          .tutorial-form-payment-type,
+          .tutorial-form-dates,
+          .tutorial-form-notes,
+          .tutorial-form-notes textarea,
+          .tutorial-form-submit,
+          .tutorial-search,
+          .tutorial-search input,
+          .tutorial-filters {
             pointer-events: auto !important;
           }
         `}</style>
