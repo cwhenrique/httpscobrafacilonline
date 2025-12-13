@@ -36,14 +36,12 @@ export default function CreateTrialUser() {
   const fetchTrialUsers = async () => {
     setLoadingUsers(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active')
-        .not('trial_expires_at', 'is', null)
-        .order('trial_expires_at', { ascending: false });
+      const { data, error } = await supabase.functions.invoke('list-trial-users');
 
       if (error) throw error;
-      setTrialUsers((data as TrialUser[]) || []);
+      if (data?.error) throw new Error(data.error);
+      
+      setTrialUsers(data?.users || []);
     } catch (error) {
       console.error('Error fetching trial users:', error);
     } finally {
