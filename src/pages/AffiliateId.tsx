@@ -417,8 +417,8 @@ const AffiliateId = () => {
                   Garantia Incondicional de 7 Dias
                 </h3>
                 <p className="text-muted-foreground max-w-xl text-lg">
-                  Teste o CobraFácil por 7 dias. Se por qualquer motivo você não gostar, 
-                  devolvemos <strong className="text-primary">100% do seu dinheiro</strong>. Sem perguntas.
+                  Compre o CobraFácil e teste por 7 dias. Se não gostar, 
+                  devolvemos <strong className="text-primary">100% do seu dinheiro</strong>. Sem perguntas, sem burocracia.
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center md:justify-start gap-3">
                   <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2">
