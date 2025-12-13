@@ -197,6 +197,63 @@ serve(async (req) => {
       }
     }
 
+    // Create example client for tutorial
+    const { data: exampleClient, error: clientError } = await supabase
+      .from('clients')
+      .insert({
+        user_id: newUser.user.id,
+        full_name: 'Cliente Exemplo',
+        phone: '(00) 00000-0000',
+        address: 'Endereço de Exemplo, 123',
+        notes: '⚠️ Este é um cliente de exemplo para você conhecer o sistema. Você pode editá-lo ou excluí-lo a qualquer momento.',
+        client_type: 'loan',
+      })
+      .select()
+      .single();
+
+    if (clientError) {
+      console.error('Error creating example client:', clientError);
+    } else {
+      console.log('Example client created:', exampleClient.id);
+      
+      // Create example loan for tutorial
+      const today = new Date();
+      const dueDate = new Date(today);
+      dueDate.setMonth(dueDate.getMonth() + 1);
+      
+      const principalAmount = 1000;
+      const interestRate = 10;
+      const totalInterest = principalAmount * (interestRate / 100);
+      const remainingBalance = principalAmount + totalInterest;
+      
+      const { error: loanError } = await supabase
+        .from('loans')
+        .insert({
+          user_id: newUser.user.id,
+          client_id: exampleClient.id,
+          principal_amount: principalAmount,
+          interest_rate: interestRate,
+          interest_type: 'simple',
+          interest_mode: 'on_total',
+          payment_type: 'single',
+          installments: 1,
+          installment_dates: [],
+          start_date: today.toISOString().split('T')[0],
+          due_date: dueDate.toISOString().split('T')[0],
+          total_interest: totalInterest,
+          total_paid: 0,
+          remaining_balance: remainingBalance,
+          status: 'pending',
+          notes: '📚 Este é um empréstimo de exemplo para você conhecer o sistema. Teste os botões de Pagar e Pagar Juros!',
+        });
+
+      if (loanError) {
+        console.error('Error creating example loan:', loanError);
+      } else {
+        console.log('Example loan created successfully');
+      }
+    }
+
     // Send credentials via WhatsApp if phone is available
     if (customerPhone) {
       const welcomeMessage = `🎉 *Bem-vindo ao CobraFácil!*
