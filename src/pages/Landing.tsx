@@ -297,7 +297,7 @@ const Landing = () => {
             className="mt-6 px-2"
           >
             <a 
-              href="https://wa.me/5517992147232?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
+              href="https://wa.me/5517992147232?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente. [LP]" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
@@ -1110,7 +1110,7 @@ const Landing = () => {
             </p>
             
             <a 
-              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e tenho uma dúvida." 
+              href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e tenho uma dúvida. [LP]" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-block w-full sm:w-auto"
@@ -1246,7 +1246,7 @@ const Landing = () => {
       >
         <div className="container mx-auto flex items-center justify-center gap-3">
           <a 
-            href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e gostaria de tirar uma dúvida." 
+            href="https://wa.me/5517992147232?text=Olá! Vim do site do CobraFácil e gostaria de tirar uma dúvida. [LP]" 
             target="_blank" 
             rel="noopener noreferrer"
             className="w-full sm:w-auto"
