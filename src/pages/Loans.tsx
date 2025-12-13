@@ -3238,9 +3238,14 @@ export default function Loans() {
               const totalInterest = selectedLoan.total_interest || 0;
               const interestPerInstallmentCalc = totalInterest / numInstallments;
               const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
-              // Calcular o valor que realmente falta (principal + juros total - total pago)
+              // Calcular o valor que realmente falta
+              const isInterestOnly = selectedLoan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
               const totalToReceive = selectedLoan.principal_amount + totalInterest;
-              const actualRemaining = totalToReceive - (selectedLoan.total_paid || 0);
+              // Para empréstimos "Só Juros", usar o remaining_balance do banco (que é o saldo real que falta)
+              // Para outros, calcular normalmente
+              const actualRemaining = isInterestOnly 
+                ? selectedLoan.remaining_balance 
+                : totalToReceive - (selectedLoan.total_paid || 0);
               
               // Função helper para extrair pagamentos parciais do notes
               const getPartialPayments = (notes: string | null): Record<number, number> => {
