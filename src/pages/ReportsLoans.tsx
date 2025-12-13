@@ -289,29 +289,29 @@ export default function ReportsLoans() {
           </div>
         </div>
 
-        {/* Period Stats - Filtered */}
+        {/* Period Stats - Filtered - Compact */}
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarIcon className="w-4 h-4 text-primary" />
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">
-                Período: {dateRange?.from && dateRange?.to ? (
-                  `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
+          <CardContent className="p-2 sm:p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
+                {dateRange?.from && dateRange?.to ? (
+                  `${format(dateRange.from, "dd/MM", { locale: ptBR })} - ${format(dateRange.to, "dd/MM", { locale: ptBR })}`
                 ) : 'Todo o período'}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-3 gap-2">
               <div className="text-center">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Emprestado</p>
-                <p className="text-sm sm:text-lg font-bold text-blue-500">{formatCurrency(filteredStats.totalLent)}</p>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Emprestado</p>
+                <p className="text-xs sm:text-sm font-bold text-blue-500">{formatCurrency(filteredStats.totalLent)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Recebido</p>
-                <p className="text-sm sm:text-lg font-bold text-emerald-500">{formatCurrency(filteredStats.totalReceived)}</p>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Recebido</p>
+                <p className="text-xs sm:text-sm font-bold text-emerald-500">{formatCurrency(filteredStats.totalReceived)}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Lucro</p>
-                <p className="text-sm sm:text-lg font-bold text-purple-500">{formatCurrency(filteredStats.totalProfit)}</p>
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro</p>
+                <p className="text-xs sm:text-sm font-bold text-purple-500">{formatCurrency(filteredStats.totalProfit)}</p>
               </div>
             </div>
           </CardContent>
@@ -398,42 +398,46 @@ export default function ReportsLoans() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           {/* Evolution Chart */}
           <Card className="border-primary/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
+            <CardHeader className="p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-sm sm:text-lg flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 Evolução Mensal
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
+            <CardContent className="p-2 sm:p-4 pt-0">
+              <div className="h-[200px] sm:h-[250px] lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyEvolution}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={10} tick={{ fontSize: 10 }} />
                     <YAxis 
                       stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12}
-                      tickFormatter={(value) => `R$${(value/1000).toFixed(0)}k`}
+                      fontSize={10}
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                      width={35}
+                      className="hidden sm:block"
                     />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: 'hsl(var(--card))', 
                         border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
+                        borderRadius: '8px',
+                        fontSize: '12px'
                       }}
                       formatter={(value: number) => [formatCurrency(value), '']}
                     />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
                     <Line 
                       type="monotone" 
                       dataKey="naRua" 
                       name="Na Rua" 
                       stroke="hsl(var(--chart-1))" 
                       strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--chart-1))' }}
+                      dot={{ fill: 'hsl(var(--chart-1))', r: 2 }}
                     />
                     <Line 
                       type="monotone" 
@@ -441,7 +445,7 @@ export default function ReportsLoans() {
                       name="Recebido" 
                       stroke="hsl(var(--chart-2))" 
                       strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--chart-2))' }}
+                      dot={{ fill: 'hsl(var(--chart-2))', r: 2 }}
                     />
                     <Line 
                       type="monotone" 
@@ -449,7 +453,7 @@ export default function ReportsLoans() {
                       name="Lucro" 
                       stroke="hsl(var(--chart-4))" 
                       strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--chart-4))' }}
+                      dot={{ fill: 'hsl(var(--chart-4))', r: 2 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -459,33 +463,37 @@ export default function ReportsLoans() {
 
           {/* Summary Stats Chart */}
           <Card className="border-primary/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Banknote className="w-5 h-5 text-primary" />
-                Distribuição de Contratos
+            <CardHeader className="p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-sm sm:text-lg flex items-center gap-2">
+                <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                Distribuição
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
+            <CardContent className="p-2 sm:p-4 pt-0">
+              <div className="h-[200px] sm:h-[250px] lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
                     { name: 'Na Rua', value: stats.totalOnStreet, fill: 'hsl(var(--chart-1))' },
                     { name: 'Recebido', value: stats.totalReceivedAllTime, fill: 'hsl(var(--chart-2))' },
                     { name: 'Pendente', value: stats.pendingAmount, fill: 'hsl(var(--chart-3))' },
-                    { name: 'Em Atraso', value: stats.overdueAmount, fill: 'hsl(var(--destructive))' },
+                    { name: 'Atraso', value: stats.overdueAmount, fill: 'hsl(var(--destructive))' },
                   ]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tick={{ fontSize: 9 }} />
                     <YAxis 
                       stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12}
-                      tickFormatter={(value) => `R$${(value/1000).toFixed(0)}k`}
+                      fontSize={10}
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(value) => `${(value/1000).toFixed(0)}k`}
+                      width={35}
+                      className="hidden sm:block"
                     />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: 'hsl(var(--card))', 
                         border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
+                        borderRadius: '8px',
+                        fontSize: '12px'
                       }}
                       formatter={(value: number) => [formatCurrency(value), '']}
                     />
@@ -499,56 +507,57 @@ export default function ReportsLoans() {
 
         {/* Active Loans Table */}
         <Card className="border-primary/30">
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 sm:p-4 pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
-                Contratos Ativos (Na Rua)
+              <CardTitle className="text-sm sm:text-lg flex items-center gap-2">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                <span className="hidden sm:inline">Contratos Ativos (Na Rua)</span>
+                <span className="sm:hidden">Ativos</span>
               </CardTitle>
-              <Badge variant="outline" className="text-primary border-primary">
-                {stats.activeLoansCount} contratos
+              <Badge variant="outline" className="text-primary border-primary text-[10px] sm:text-xs">
+                {stats.activeLoansCount}
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+          <CardContent className="p-2 sm:p-4 pt-0">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Emprestado</TableHead>
-                    <TableHead className="text-right">Pago</TableHead>
-                    <TableHead className="text-right">Falta</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Vencimento</TableHead>
+                    <TableHead className="text-xs">Cliente</TableHead>
+                    <TableHead className="text-right text-xs hidden sm:table-cell">Emprestado</TableHead>
+                    <TableHead className="text-right text-xs hidden md:table-cell">Pago</TableHead>
+                    <TableHead className="text-right text-xs">Falta</TableHead>
+                    <TableHead className="text-center text-xs">Status</TableHead>
+                    <TableHead className="text-right text-xs hidden lg:table-cell">Vencimento</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {stats.activeLoans.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Nenhum contrato ativo encontrado
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-6 text-xs sm:text-sm">
+                        Nenhum contrato ativo
                       </TableCell>
                     </TableRow>
                   ) : (
                     stats.activeLoans.slice(0, 10).map((loan) => (
                       <TableRow key={loan.id}>
-                        <TableCell className="font-medium">
-                          {loan.client?.full_name || 'Cliente não encontrado'}
+                        <TableCell className="font-medium text-xs sm:text-sm max-w-[100px] sm:max-w-none truncate">
+                          {loan.client?.full_name || 'N/A'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-xs sm:text-sm hidden sm:table-cell">
                           {formatCurrency(loan.principal_amount)}
                         </TableCell>
-                        <TableCell className="text-right text-emerald-500">
+                        <TableCell className="text-right text-emerald-500 text-xs sm:text-sm hidden md:table-cell">
                           {formatCurrency(loan.total_paid || 0)}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right font-medium text-xs sm:text-sm">
                           {formatCurrency(loan.remaining_balance)}
                         </TableCell>
                         <TableCell className="text-center">
                           {getStatusBadge(loan.status)}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="text-right text-muted-foreground text-xs sm:text-sm hidden lg:table-cell">
                           {formatDate(loan.due_date)}
                         </TableCell>
                       </TableRow>
@@ -557,8 +566,8 @@ export default function ReportsLoans() {
                 </TableBody>
               </Table>
               {stats.activeLoans.length > 10 && (
-                <p className="text-center text-sm text-muted-foreground py-4">
-                  Mostrando 10 de {stats.activeLoans.length} contratos ativos
+                <p className="text-center text-[10px] sm:text-sm text-muted-foreground py-3">
+                  +{stats.activeLoans.length - 10} contratos
                 </p>
               )}
             </div>
@@ -568,45 +577,46 @@ export default function ReportsLoans() {
         {/* Overdue Loans Table */}
         {stats.overdueLoans.length > 0 && (
           <Card className="border-destructive/30 bg-destructive/5">
-            <CardHeader className="pb-2">
+            <CardHeader className="p-3 sm:p-4 pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2 text-destructive">
-                  <AlertTriangle className="w-5 h-5" />
-                  Contratos em Atraso
+                <CardTitle className="text-sm sm:text-lg flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Contratos em Atraso</span>
+                  <span className="sm:hidden">Em Atraso</span>
                 </CardTitle>
-                <Badge className="bg-destructive text-destructive-foreground">
-                  {stats.overdueCount} contratos
+                <Badge className="bg-destructive text-destructive-foreground text-[10px] sm:text-xs">
+                  {stats.overdueCount}
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
+            <CardContent className="p-2 sm:p-4 pt-0">
+              <div className="overflow-x-auto -mx-2 sm:mx-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead className="text-right">Valor em Atraso</TableHead>
-                      <TableHead className="text-right">Total Emprestado</TableHead>
-                      <TableHead className="text-right">Vencimento</TableHead>
-                      <TableHead>Telefone</TableHead>
+                      <TableHead className="text-xs">Cliente</TableHead>
+                      <TableHead className="text-right text-xs">Atraso</TableHead>
+                      <TableHead className="text-right text-xs hidden sm:table-cell">Emprestado</TableHead>
+                      <TableHead className="text-right text-xs hidden md:table-cell">Vencimento</TableHead>
+                      <TableHead className="text-xs hidden lg:table-cell">Telefone</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {stats.overdueLoans.map((loan) => (
                       <TableRow key={loan.id}>
-                        <TableCell className="font-medium">
-                          {loan.client?.full_name || 'Cliente não encontrado'}
+                        <TableCell className="font-medium text-xs sm:text-sm max-w-[100px] sm:max-w-none truncate">
+                          {loan.client?.full_name || 'N/A'}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-destructive">
+                        <TableCell className="text-right font-bold text-destructive text-xs sm:text-sm">
                           {formatCurrency(loan.remaining_balance)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-xs sm:text-sm hidden sm:table-cell">
                           {formatCurrency(loan.principal_amount)}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="text-right text-muted-foreground text-xs sm:text-sm hidden md:table-cell">
                           {formatDate(loan.due_date)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-muted-foreground text-xs sm:text-sm hidden lg:table-cell">
                           {loan.client?.phone || '-'}
                         </TableCell>
                       </TableRow>
