@@ -7,11 +7,10 @@ export interface OperationalStats {
   // Empréstimos Ativos (Na Rua)
   activeLoansCount: number;
   totalOnStreet: number;           // Principal em contratos ativos
-  totalToReceiveActive: number;    // Principal + Juros de ativos
-  pendingAmount: number;           // Falta cobrar de ativos
+  pendingAmount: number;           // Falta cobrar de ativos (remaining_balance)
+  pendingInterest: number;         // Juros pendentes a receber
   
   // Histórico Total
-  totalLentAllTime: number;        // Σ principal de TODOS empréstimos
   totalReceivedAllTime: number;    // Σ total_paid de TODOS empréstimos
   realizedProfit: number;          // Juros já recebidos (recebido - principal recebido)
   
@@ -61,9 +60,8 @@ export function useOperationalStats() {
   const [stats, setStats] = useState<OperationalStats>({
     activeLoansCount: 0,
     totalOnStreet: 0,
-    totalToReceiveActive: 0,
     pendingAmount: 0,
-    totalLentAllTime: 0,
+    pendingInterest: 0,
     totalReceivedAllTime: 0,
     realizedProfit: 0,
     overdueCount: 0,
@@ -97,8 +95,7 @@ export function useOperationalStats() {
     // Calculate stats
     let activeLoansCount = 0;
     let totalOnStreet = 0;
-    let totalToReceiveActive = 0;
-    let totalLentAllTime = 0;
+    let pendingInterest = 0;
     let totalReceivedAllTime = 0;
     let totalProfitRealized = 0;
     let overdueCount = 0;
@@ -112,14 +109,12 @@ export function useOperationalStats() {
       const principal = Number(loan.principal_amount);
       const totalPaid = Number(loan.total_paid || 0);
       const remainingBalance = Number(loan.remaining_balance);
-      
-      // Total emprestado histórico (todos os empréstimos)
-      totalLentAllTime += principal;
+      const rate = Number(loan.interest_rate);
+      const installments = Number(loan.installments) || 1;
+      const interestMode = loan.interest_mode || 'per_installment';
+      const isDaily = loan.payment_type === 'daily';
       
       // Calcular lucro realizado usando os pagamentos individuais
-      // Isso é mais preciso porque:
-      // - Pagamento só de juros: interest_paid = amount (100% lucro)
-      // - Pagamento de parcela: interest_paid = porção de juros (lucro proporcional)
       const payments = loan.payments || [];
       const totalInterestReceived = payments.reduce(
         (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
@@ -135,8 +130,19 @@ export function useOperationalStats() {
         // Empréstimo ativo (não quitado)
         activeLoansCount++;
         totalOnStreet += principal;
-        // A Receber = remaining_balance (decresce conforme pagamentos)
-        totalToReceiveActive += remainingBalance;
+        
+        // Calcular juros pendentes para contratos ativos
+        let totalInterest = 0;
+        if (isDaily) {
+          // Para diários, juros está embutido no remaining_balance inicial
+          totalInterest = remainingBalance + totalPaid - principal;
+        } else {
+          totalInterest = interestMode === 'per_installment' 
+            ? principal * (rate / 100) * installments 
+            : principal * (rate / 100);
+        }
+        const interestPending = Math.max(0, totalInterest - totalInterestReceived);
+        pendingInterest += interestPending;
         
         const loanWithClient = loan as LoanWithClient;
         activeLoans.push(loanWithClient);
@@ -149,8 +155,8 @@ export function useOperationalStats() {
       }
     });
 
-    // Pendente = remaining_balance de ativos (já é totalToReceiveActive)
-    const pendingAmount = totalToReceiveActive;
+    // Pendente = soma de remaining_balance dos ativos
+    const pendingAmount = activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance), 0);
 
     // Lucro realizado = juros proporcionalmente recebidos
     const realizedProfit = totalProfitRealized;
@@ -158,9 +164,8 @@ export function useOperationalStats() {
     setStats({
       activeLoansCount,
       totalOnStreet,
-      totalToReceiveActive,
       pendingAmount,
-      totalLentAllTime,
+      pendingInterest,
       totalReceivedAllTime,
       realizedProfit,
       overdueCount,
