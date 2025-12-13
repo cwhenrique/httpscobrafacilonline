@@ -5,27 +5,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Avatar URLs using DiceBear API for consistent cartoon-style avatars
+// Avatar URLs using DiceBear API - Professional styles (notionists & personas)
 const maleAvatars = [
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=John&backgroundColor=c0aede',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Mike&backgroundColor=d1d4f9',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Carlos&backgroundColor=ffd5dc',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Pedro&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Lucas&backgroundColor=c1e1c1',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Bruno&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Diego&backgroundColor=c0aede',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Roberto&backgroundColor=f5f5f5',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Carlos&backgroundColor=e8f5e9',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Fernando&backgroundColor=e3f2fd',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Marcos&backgroundColor=fff3e0',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Jose&backgroundColor=f5f5f5',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Antonio&backgroundColor=e8f5e9',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Paulo&backgroundColor=e3f2fd',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Ricardo&backgroundColor=fff3e0',
 ];
 
 const femaleAvatars = [
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Maria&backgroundColor=ffd5dc',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Ana&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Julia&backgroundColor=c0aede',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Carla&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Paula&backgroundColor=d1d4f9',
-  'https://api.dicebear.com/7.x/adventurer/svg?seed=Lucia&backgroundColor=c1e1c1',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Sofia&backgroundColor=ffd5dc',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Laura&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Patricia&backgroundColor=fce4ec',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Sandra&backgroundColor=f3e5f5',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Claudia&backgroundColor=e8f5e9',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=Fernanda&backgroundColor=e3f2fd',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Lucia&backgroundColor=fce4ec',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Mariana&backgroundColor=f3e5f5',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Beatriz&backgroundColor=e8f5e9',
+  'https://api.dicebear.com/9.x/personas/svg?seed=Carolina&backgroundColor=e3f2fd',
 ];
 
 interface AvatarSelectorProps {
