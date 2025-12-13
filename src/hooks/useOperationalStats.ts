@@ -96,7 +96,7 @@ export function useOperationalStats() {
     let totalOnStreet = 0;
     let totalToReceiveActive = 0;
     let totalReceivedAllTime = 0;
-    let totalPrincipalReceived = 0;
+    let totalProfitRealized = 0;
     let overdueCount = 0;
     let overdueAmount = 0;
     let paidLoansCount = 0;
@@ -108,14 +108,40 @@ export function useOperationalStats() {
       const principal = Number(loan.principal_amount);
       const totalPaid = Number(loan.total_paid || 0);
       const remainingBalance = Number(loan.remaining_balance);
+      const isDaily = loan.payment_type === 'daily';
 
-      // Total recebido de TODOS empréstimos (histórico)
+      // Calcular total do contrato (principal + juros)
+      let totalContract = 0;
+      
+      if (isDaily) {
+        // Para diários: remaining_balance + total_paid = total original
+        totalContract = remainingBalance + totalPaid;
+      } else {
+        const rate = Number(loan.interest_rate);
+        const numInstallments = Number(loan.installments) || 1;
+        const interestMode = loan.interest_mode || 'per_installment';
+        
+        let totalInterest = 0;
+        if (interestMode === 'per_installment') {
+          totalInterest = principal * (rate / 100) * numInstallments;
+        } else {
+          totalInterest = principal * (rate / 100);
+        }
+        totalContract = principal + totalInterest;
+      }
+
+      // Proporção paga do contrato
+      const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
+      
+      // Juros recebidos proporcionalmente
+      const interestPortion = totalContract - principal;
+      const interestReceived = interestPortion * paidRatio;
+      
+      totalProfitRealized += interestReceived;
       totalReceivedAllTime += totalPaid;
 
       if (loan.status === 'paid') {
         paidLoansCount++;
-        // Principal recebido dos empréstimos pagos
-        totalPrincipalReceived += principal;
       } else {
         // Empréstimo ativo (não quitado)
         activeLoansCount++;
@@ -137,9 +163,8 @@ export function useOperationalStats() {
     // Pendente = remaining_balance de ativos (já é totalToReceiveActive)
     const pendingAmount = totalToReceiveActive;
 
-    // Lucro realizado = Total recebido - Principal dos empréstimos pagos
-    // (juros já recebidos)
-    const realizedProfit = totalReceivedAllTime - totalPrincipalReceived;
+    // Lucro realizado = juros proporcionalmente recebidos
+    const realizedProfit = totalProfitRealized;
 
     setStats({
       activeLoansCount,
