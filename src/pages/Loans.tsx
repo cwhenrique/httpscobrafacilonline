@@ -155,9 +155,9 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
-  // Tutorial state - interactive guided tutorial
+  // Tutorial state - demonstrative guided tutorial
   const [tutorialRun, setTutorialRun] = useState(false);
-  const [tutorialStep, setTutorialStep] = useState(-1);
+  const [tutorialStep, setTutorialStep] = useState(0);
   const [showTutorialConfirmation, setShowTutorialConfirmation] = useState(false);
   const { user } = useAuth();
 
@@ -181,6 +181,21 @@ export default function Loans() {
     checkTutorialStatus();
   }, [user?.id]);
 
+  // Auto-open/close dialog based on tutorial step (demonstrative mode)
+  useEffect(() => {
+    if (tutorialRun) {
+      // Open dialog when reaching form field steps (4-12)
+      if (tutorialStep === 4 && !isDialogOpen) {
+        setIsDialogOpen(true);
+      }
+      // Close dialog when tutorial finishes or goes back to main page steps
+      if ((tutorialStep === 13 || tutorialStep < 4) && isDialogOpen) {
+        setIsDialogOpen(false);
+        setShowNewClientForm(false);
+      }
+    }
+  }, [tutorialStep, tutorialRun]);
+
   const handleStartTutorial = () => {
     setShowTutorialConfirmation(false);
     setTutorialRun(true);
@@ -199,8 +214,9 @@ export default function Loans() {
 
   const handleExitTutorial = async () => {
     setTutorialRun(false);
-    setTutorialStep(-1);
+    setTutorialStep(0);
     setIsDialogOpen(false);
+    setShowNewClientForm(false);
     
     if (user?.id) {
       await supabase
@@ -213,8 +229,9 @@ export default function Loans() {
 
   const handleTutorialFinish = async () => {
     setTutorialRun(false);
-    setTutorialStep(-1);
+    setTutorialStep(0);
     setIsDialogOpen(false);
+    setShowNewClientForm(false);
     
     if (user?.id) {
       await supabase
@@ -225,28 +242,20 @@ export default function Loans() {
     toast.success('Tutorial concluído! 🎉');
   };
 
-  // Advance tutorial when user performs actions
-  const advanceTutorialStep = (fromStep: number) => {
-    if (tutorialRun && tutorialStep === fromStep) {
-      setTutorialStep(fromStep + 1);
+  // Dialog open handler (for normal use, tutorial auto-opens via useEffect)
+  const handleDialogOpen = (open: boolean) => {
+    // During tutorial, don't allow manual closing when showing form fields
+    if (tutorialRun && tutorialStep >= 4 && tutorialStep <= 12 && !open) {
+      return; // Prevent closing during form field steps
     }
-  };
-
-  // Tutorial action handlers - only for steps that require real clicks
-  const handleTutorialDialogOpen = (open: boolean) => {
     setIsDialogOpen(open);
-    if (open && tutorialRun && tutorialStep === 0) {
-      // Auto-open client form and advance to step 1 (fill client name)
-      setShowNewClientForm(true);
-      setTimeout(() => setTutorialStep(1), 400);
-    }
   };
 
-  const handleTutorialNewClientClick = () => {
+  const handleNewClientClick = () => {
     setShowNewClientForm(true);
   };
 
-  const handleTutorialCreateClient = async () => {
+  const handleCreateClient = async () => {
     if (!newClientData.full_name.trim()) {
       toast.error('Nome é obrigatório');
       return;
@@ -266,11 +275,6 @@ export default function Loans() {
       setShowNewClientForm(false);
       setNewClientData({ full_name: '', phone: '', address: '', notes: '' });
       await fetchClients();
-      
-      // Advance to step 4 (fill loan value) after client is created
-      if (tutorialRun && tutorialStep === 3) {
-        setTimeout(() => setTutorialStep(4), 400);
-      }
     }
     setCreatingClient(false);
   };
@@ -1676,73 +1680,6 @@ export default function Loans() {
         onStepChange={setTutorialStep}
       />
 
-      {/* Tutorial Overlay - Blocks clicks outside tutorial elements */}
-      {tutorialRun && (
-        <div 
-          className="fixed inset-0 z-[9998] bg-transparent"
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
-      )}
-
-      {/* Tutorial CSS - Ensure tutorial elements are above overlay */}
-      {tutorialRun && (
-        <style>{`
-          /* Joyride components above overlay */
-          .react-joyride__overlay {
-            z-index: 9999 !important;
-          }
-          .react-joyride__spotlight {
-            z-index: 10000 !important;
-          }
-          .react-joyride__tooltip {
-            z-index: 10001 !important;
-          }
-          
-          /* Tutorial exit bar at top */
-          .tutorial-exit-bar {
-            z-index: 10002 !important;
-          }
-          
-          /* Tutorial target elements above overlay */
-          .tutorial-new-loan,
-          .tutorial-new-daily,
-          .tutorial-new-client-btn,
-          .tutorial-client-name,
-          .tutorial-client-phone,
-          .tutorial-create-client-btn,
-          .tutorial-form-value,
-          .tutorial-form-interest,
-          .tutorial-form-interest-mode,
-          .tutorial-form-payment-type,
-          .tutorial-form-dates,
-          .tutorial-form-notes,
-          .tutorial-form-submit,
-          .tutorial-search,
-          .tutorial-filters {
-            position: relative !important;
-            z-index: 10001 !important;
-            pointer-events: auto !important;
-          }
-          
-          /* Ensure inputs inside tutorial elements are clickable */
-          .tutorial-client-name input,
-          .tutorial-client-phone input,
-          .tutorial-form-value input,
-          .tutorial-form-interest input,
-          .tutorial-form-notes textarea,
-          .tutorial-search input {
-            pointer-events: auto !important;
-          }
-          
-          /* Dialog triggers need to be clickable */
-          [data-state="closed"].tutorial-new-loan,
-          button.tutorial-new-loan {
-            z-index: 10001 !important;
-            pointer-events: auto !important;
-          }
-        `}</style>
-      )}
 
       {/* Fixed Tutorial Exit Bar */}
       {tutorialRun && (
@@ -1892,7 +1829,7 @@ export default function Loans() {
                 </form>
               </DialogContent>
             </Dialog>
-            <Dialog open={isDialogOpen} onOpenChange={handleTutorialDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
               </DialogTrigger>
@@ -1908,17 +1845,19 @@ export default function Loans() {
                         type="button" 
                         variant="outline" 
                         className="tutorial-new-client-btn w-full border-dashed border-primary text-primary hover:bg-primary/10"
-                        onClick={handleTutorialNewClientClick}
+                        onClick={handleNewClientClick}
                       >
                         <Plus className="w-4 h-4 mr-2" />
                         Cadastrar novo cliente
                       </Button>
-                      <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                        <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                        <SelectContent className="z-[10001]">
-                          {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
+                      <div className="tutorial-client-select">
+                        <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
+                          <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                          <SelectContent className="z-[10001]">
+                            {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   ) : (
                     <div key="new-client-form" className="space-y-3 p-3 border rounded-lg bg-muted/30">
@@ -1972,7 +1911,7 @@ export default function Loans() {
                         type="button" 
                         size="sm" 
                         className="tutorial-create-client-btn w-full"
-                        onClick={handleTutorialCreateClient}
+                        onClick={handleCreateClient}
                         disabled={creatingClient}
                       >
                         {creatingClient ? 'Criando...' : 'Criar Cliente'}
