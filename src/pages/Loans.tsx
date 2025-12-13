@@ -1676,45 +1676,69 @@ export default function Loans() {
         onStepChange={setTutorialStep}
       />
 
-      {/* Tutorial CSS - Block all clicks outside spotlight */}
+      {/* Tutorial Overlay - Blocks clicks outside tutorial elements */}
+      {tutorialRun && (
+        <div 
+          className="fixed inset-0 z-[9998] bg-transparent"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      )}
+
+      {/* Tutorial CSS - Ensure tutorial elements are above overlay */}
       {tutorialRun && (
         <style>{`
-          body * {
-            pointer-events: none !important;
-          }
+          /* Joyride components above overlay */
           .react-joyride__overlay {
-            pointer-events: auto !important;
+            z-index: 9999 !important;
           }
-          .react-joyride__spotlight,
-          .react-joyride__spotlight *,
-          .react-joyride__tooltip,
-          .react-joyride__tooltip * {
-            pointer-events: auto !important;
+          .react-joyride__spotlight {
+            z-index: 10000 !important;
           }
-          .tutorial-exit-bar,
-          .tutorial-exit-bar * {
-            pointer-events: auto !important;
+          .react-joyride__tooltip {
+            z-index: 10001 !important;
           }
+          
+          /* Tutorial exit bar at top */
+          .tutorial-exit-bar {
+            z-index: 10002 !important;
+          }
+          
+          /* Tutorial target elements above overlay */
           .tutorial-new-loan,
+          .tutorial-new-daily,
           .tutorial-new-client-btn,
           .tutorial-client-name,
-          .tutorial-client-name input,
           .tutorial-client-phone,
-          .tutorial-client-phone input,
           .tutorial-create-client-btn,
           .tutorial-form-value,
-          .tutorial-form-value input,
           .tutorial-form-interest,
-          .tutorial-form-interest input,
           .tutorial-form-interest-mode,
           .tutorial-form-payment-type,
           .tutorial-form-dates,
           .tutorial-form-notes,
-          .tutorial-form-notes textarea,
           .tutorial-form-submit,
           .tutorial-search,
-          .tutorial-search input,
           .tutorial-filters {
+            position: relative !important;
+            z-index: 10001 !important;
+            pointer-events: auto !important;
+          }
+          
+          /* Ensure inputs inside tutorial elements are clickable */
+          .tutorial-client-name input,
+          .tutorial-client-phone input,
+          .tutorial-form-value input,
+          .tutorial-form-interest input,
+          .tutorial-form-notes textarea,
+          .tutorial-search input {
+            pointer-events: auto !important;
+          }
+          
+          /* Dialog triggers need to be clickable */
+          [data-state="closed"].tutorial-new-loan,
+          button.tutorial-new-loan {
+            z-index: 10001 !important;
             pointer-events: auto !important;
           }
         `}</style>
