@@ -130,37 +130,26 @@ export default function ReportsLoans() {
     });
   }, [stats.allLoans, dateRange]);
 
-  // Calculate filtered stats
+  // Calculate filtered stats using actual payment data
   const filteredStats = useMemo(() => {
     let totalLent = 0;
     let totalReceived = 0;
     let totalProfit = 0;
 
-    filteredLoans.forEach(loan => {
+    filteredLoans.forEach((loan: any) => {
       const principal = Number(loan.principal_amount);
       const totalPaid = Number(loan.total_paid || 0);
-      const isDaily = loan.payment_type === 'daily';
-      const remainingBalance = Number(loan.remaining_balance);
 
       totalLent += principal;
       totalReceived += totalPaid;
 
-      // Calculate proportional profit
-      let totalContract = 0;
-      if (isDaily) {
-        totalContract = remainingBalance + totalPaid;
-      } else {
-        const rate = Number(loan.interest_rate);
-        const numInstallments = Number(loan.installments) || 1;
-        const interestMode = loan.interest_mode || 'per_installment';
-        let totalInterest = interestMode === 'per_installment' 
-          ? principal * (rate / 100) * numInstallments 
-          : principal * (rate / 100);
-        totalContract = principal + totalInterest;
-      }
-      const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
-      const interestPortion = totalContract - principal;
-      totalProfit += interestPortion * paidRatio;
+      // Usar interest_paid real dos pagamentos (igual ao useOperationalStats)
+      const payments = loan.payments || [];
+      const totalInterestReceived = payments.reduce(
+        (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
+        0
+      );
+      totalProfit += totalInterestReceived;
     });
 
     return { totalLent, totalReceived, totalProfit };
