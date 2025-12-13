@@ -119,7 +119,7 @@ const PricingSection = ({
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Relatório de clientes</span>
+                    <span className="text-muted-foreground text-sm">Relatórios da operação</span>
                   </li>
                 </ul>
                 <a href={monthlyLink} target="_blank" rel="noopener noreferrer" className="block">
