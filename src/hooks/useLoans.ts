@@ -262,10 +262,13 @@ export function useLoans() {
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
+    // Extract send_notification before inserting (not a DB column)
+    const { send_notification, ...paymentData } = payment;
+
     const { data, error } = await supabase
       .from('loan_payments')
       .insert({
-        ...payment,
+        ...paymentData,
         user_id: user.id,
       })
       .select()
@@ -318,7 +321,7 @@ export function useLoans() {
       });
       
       // Send WhatsApp notification for payment received - only if enabled
-      if (payment.send_notification) {
+      if (send_notification) {
         const phone = await getUserPhone(user.id);
         if (phone) {
           let message: string;

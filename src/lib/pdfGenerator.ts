@@ -117,6 +117,7 @@ export interface PaymentReceiptData {
   paymentDate: string;
   remainingBalance: number;
   totalPaid?: number;
+  totalContract?: number;
 }
 
 export const generateContractReceipt = async (data: ContractReceiptData): Promise<void> => {
@@ -591,6 +592,26 @@ export const generatePaymentReceipt = async (data: PaymentReceiptData): Promise<
   doc.text(formatCurrency(data.amountPaid), col1X + 32, payY);
 
   payY += 14;
+
+  // Total do contrato (principal + juros)
+  if (data.totalContract) {
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total do Contrato:', col1X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatCurrency(data.totalContract), col1X + 48, payY);
+    payY += 10;
+  }
+
+  // Total pago até agora
+  if (data.totalPaid) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Pago:', col1X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatCurrency(data.totalPaid), col1X + 30, payY);
+    payY += 10;
+  }
 
   // Remaining balance
   doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);

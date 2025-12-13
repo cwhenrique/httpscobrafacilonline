@@ -1019,6 +1019,15 @@ export default function Loans() {
     // Calculate new remaining balance after payment - usar remaining_balance do banco
     const newRemainingBalance = selectedLoan.remaining_balance - amount;
     
+    // Calculate total contract value (principal + interest)
+    let totalInterestForReceipt = 0;
+    if (selectedLoan.interest_mode === 'on_total') {
+      totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+    } else {
+      totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+    }
+    const totalContractValue = selectedLoan.principal_amount + totalInterestForReceipt;
+
     // Show payment receipt prompt
     setPaymentReceiptData({
       type: 'loan',
@@ -1031,6 +1040,7 @@ export default function Loans() {
       paymentDate: paymentData.payment_date,
       remainingBalance: Math.max(0, newRemainingBalance),
       totalPaid: (selectedLoan.total_paid || 0) + amount,
+      totalContract: totalContractValue,
     });
     setIsPaymentReceiptOpen(true);
     
