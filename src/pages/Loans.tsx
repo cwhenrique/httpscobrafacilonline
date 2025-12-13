@@ -1684,36 +1684,58 @@ export default function Loans() {
             <h1 className="text-xl sm:text-2xl font-display font-bold">Empréstimos</h1>
             <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus empréstimos</p>
           </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="gap-1.5 text-xs sm:text-sm"
-              onClick={() => {
-                setPageTutorialRun(true);
-                setPageTutorialStep(0);
-              }}
-            >
-              <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Tutorial</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="tutorial-download-report gap-1.5 sm:gap-2 text-xs sm:text-sm"
-              onClick={handleGenerateOperationsReport}
-              disabled={loans.length === 0}
-            >
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Baixar Relatório</span>
-              <span className="sm:hidden">Relatório</span>
-            </Button>
-            <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
-                </Button>
-              </DialogTrigger>
+          <TooltipProvider delayDuration={300}>
+            <div className="flex gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="gap-1.5 text-xs sm:text-sm"
+                    onClick={() => {
+                      setPageTutorialRun(true);
+                      setPageTutorialStep(0);
+                    }}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Tutorial</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Inicie o tour guiado para aprender a usar a página</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="tutorial-download-report gap-1.5 sm:gap-2 text-xs sm:text-sm"
+                    onClick={handleGenerateOperationsReport}
+                    disabled={loans.length === 0}
+                  >
+                    <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Baixar Relatório</span>
+                    <span className="sm:hidden">Relatório</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Baixe um PDF completo com todos seus empréstimos</p>
+                </TooltipContent>
+              </Tooltip>
+              <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
+                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
+                      </Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Crie empréstimo com cobrança diária</p>
+                  </TooltipContent>
+                </Tooltip>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
                 <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo Diário</DialogTitle></DialogHeader>
                 <form onSubmit={handleDailySubmit} className="space-y-3 sm:space-y-4">
@@ -1812,11 +1834,18 @@ export default function Loans() {
                 </form>
               </DialogContent>
             </Dialog>
-            <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
+              <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Crie empréstimo parcelado, semanal ou pagamento único</p>
+                  </TooltipContent>
+                </Tooltip>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 <div className="space-y-2 tutorial-form-client">
@@ -2171,8 +2200,9 @@ export default function Loans() {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
-          </div>
+              </Dialog>
+            </div>
+          </TooltipProvider>
         </div>
 
         <div className="space-y-3 sm:space-y-4">
