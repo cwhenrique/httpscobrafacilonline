@@ -521,6 +521,12 @@ export default function Loans() {
     const newDates = [...installmentDates];
     newDates[index] = date;
     setInstallmentDates(newDates);
+    
+    // Se alterou a primeira parcela no calendário, sincroniza com start_date
+    if (index === 0) {
+      setFormData(prev => ({ ...prev, start_date: date }));
+    }
+    
     // Update due_date to the last installment date
     if (index === newDates.length - 1) {
       setFormData(prev => ({ ...prev, due_date: date }));
