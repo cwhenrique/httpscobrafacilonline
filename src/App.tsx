@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import Affiliate from "./pages/Affiliate";
 import AffiliateId from "./pages/AffiliateId";
 import Auth from "./pages/Auth";
+import CreateTrialUser from "./pages/CreateTrialUser";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import ClientScores from "./pages/ClientScores";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/aff" element={<Affiliate />} />
             <Route path="/affid" element={<AffiliateId />} />
+            <Route path="/cria_acesso" element={<CreateTrialUser />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />

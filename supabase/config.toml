@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.broadcast-whatsapp]
 verify_jwt = false
+
+[functions.create-trial-user]
+verify_jwt = false
+
+[functions.check-expired-trials]
+verify_jwt = false
