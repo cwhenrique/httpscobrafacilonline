@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.check-expired-trials]
 verify_jwt = false
+
+[functions.list-trial-users]
+verify_jwt = false
