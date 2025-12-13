@@ -88,7 +88,7 @@ const PricingSection = ({
                   </div>
                   <Badge variant="outline" className="mb-4 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
                   <div className="text-4xl font-bold text-foreground mb-1">
-                    R$ 39<span className="text-2xl">,90</span>
+                    R$ 47<span className="text-2xl">,90</span>
                   </div>
                   <p className="text-sm text-muted-foreground">por mês</p>
                 </div>
@@ -144,13 +144,13 @@ const PricingSection = ({
                   </div>
                   <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
                   <div className="text-lg text-muted-foreground line-through mb-1">
-                    De R$ 549,90
+                    De R$ 599,00
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
-                    R$ 199<span className="text-xl sm:text-2xl">,90</span>
+                    R$ 299<span className="text-xl sm:text-2xl">,00</span>
                   </div>
                   <p className="text-sm text-muted-foreground">à vista</p>
-                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 23,24</p>
+                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 34,76</p>
                   <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 sm:px-4 py-2">
                     <Star className="w-4 h-4 text-primary fill-primary" />
                     <span className="text-xs sm:text-sm font-semibold text-primary">Acesso para sempre!</span>
@@ -213,12 +213,12 @@ const PricingSection = ({
                   </div>
                   <Badge variant="outline" className="mb-4 border-primary/50 text-primary">Anual</Badge>
                   <div className="text-4xl font-bold text-foreground mb-1">
-                    R$ 147<span className="text-2xl">,90</span>
+                    R$ 299<span className="text-2xl">,00</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">à vista</p>
-                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 17,20</p>
+                  <p className="text-sm text-muted-foreground">por ano</p>
+                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 34,76</p>
                   <div className="mt-2 text-xs text-primary font-semibold bg-primary/10 rounded-full px-3 py-1 inline-block">
-                    Economia de R$ 330/ano
+                    Economia de R$ 275/ano
                   </div>
                 </div>
                 <ul className="space-y-4 mb-8">
