@@ -39,15 +39,19 @@ interface DashboardLayoutProps {
 }
 
 const navigation = [
+  // Geral
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clientes', href: '/clients', icon: Users },
   { name: 'Score de Clientes', href: '/scores', icon: Award },
+  // Empréstimos
   { name: 'Empréstimos', href: '/loans', icon: DollarSign },
-  { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
-  { name: 'Veículos', href: '/vehicles', icon: Car },
+  { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3 },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
-  { name: 'Relatório Operacional', href: '/reports', icon: BarChart3 },
+  // Vendas e Veículos
+  { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
+  { name: 'Veículos Registrados', href: '/vehicles', icon: Car },
   { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
+  // Ferramentas
   { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
