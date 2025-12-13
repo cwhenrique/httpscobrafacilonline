@@ -2447,8 +2447,10 @@ export default function Loans() {
                   totalToReceive += renewalFeeAmount;
                 }
                 
-                // Calcular juros extra (valor excedente ao contrato original)
-                const extraInterest = isInterestOnlyPayment ? Math.max(0, totalToReceive - originalTotal) : 0;
+                // Calcular juros extra (valor excedente ao contrato original, descontando o juros da parcela que já é exibido)
+                const extraInterest = isInterestOnlyPayment 
+                  ? Math.max(0, totalToReceive - originalTotal - calculatedInterestPerInstallment) 
+                  : 0;
                 
                 // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
                 // usamos o valor do banco. Nos demais, calculamos normalmente.
