@@ -297,13 +297,13 @@ const Landing = () => {
             className="mt-6 px-2"
           >
             <a 
-              href="https://wa.me/5511999999999?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
+              href="https://wa.me/5517992147232?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
             >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm flex-shrink-0">
-                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-500/30 flex-shrink-0">
+                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="text-left">
                 <div className="font-bold text-primary text-sm sm:text-lg">TESTE GRÁTIS POR 1 DIA</div>
