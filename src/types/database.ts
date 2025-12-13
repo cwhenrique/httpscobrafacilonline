@@ -30,6 +30,14 @@ export interface Client {
   score_updated_at: string;
   created_at: string;
   updated_at: string;
+  // Structured address fields
+  cep: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 export type InterestMode = 'per_installment' | 'on_total';

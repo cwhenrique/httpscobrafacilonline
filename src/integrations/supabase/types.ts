@@ -104,16 +104,23 @@ export type Database = {
         Row: {
           address: string | null
           avatar_url: string | null
+          cep: string | null
+          city: string | null
           client_type: Database["public"]["Enums"]["client_type"]
+          complement: string | null
           created_at: string
           full_name: string
           id: string
           late_payments: number | null
+          neighborhood: string | null
           notes: string | null
+          number: string | null
           on_time_payments: number | null
           phone: string | null
           score: number | null
           score_updated_at: string | null
+          state: string | null
+          street: string | null
           total_loans: number | null
           total_paid: number | null
           updated_at: string
@@ -122,16 +129,23 @@ export type Database = {
         Insert: {
           address?: string | null
           avatar_url?: string | null
+          cep?: string | null
+          city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
+          complement?: string | null
           created_at?: string
           full_name: string
           id?: string
           late_payments?: number | null
+          neighborhood?: string | null
           notes?: string | null
+          number?: string | null
           on_time_payments?: number | null
           phone?: string | null
           score?: number | null
           score_updated_at?: string | null
+          state?: string | null
+          street?: string | null
           total_loans?: number | null
           total_paid?: number | null
           updated_at?: string
@@ -140,16 +154,23 @@ export type Database = {
         Update: {
           address?: string | null
           avatar_url?: string | null
+          cep?: string | null
+          city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
+          complement?: string | null
           created_at?: string
           full_name?: string
           id?: string
           late_payments?: number | null
+          neighborhood?: string | null
           notes?: string | null
+          number?: string | null
           on_time_payments?: number | null
           phone?: string | null
           score?: number | null
           score_updated_at?: string | null
+          state?: string | null
+          street?: string | null
           total_loans?: number | null
           total_paid?: number | null
           updated_at?: string

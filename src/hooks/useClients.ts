@@ -33,6 +33,14 @@ export function useClients() {
     address?: string;
     notes?: string;
     client_type: ClientType;
+    cep?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    avatar_url?: string;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -53,6 +61,39 @@ export function useClients() {
     toast.success('Cliente criado com sucesso!');
     await fetchClients();
     return { data: data as Client };
+  };
+
+  const uploadAvatar = async (clientId: string, file: File) => {
+    if (!user) return { error: new Error('Usuário não autenticado') };
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${clientId}-${Date.now()}.${fileExt}`;
+      const filePath = `${clientId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('client-avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('client-avatars')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('clients')
+        .update({ avatar_url: publicUrl })
+        .eq('id', clientId);
+
+      if (updateError) throw updateError;
+
+      await fetchClients();
+      return { url: publicUrl };
+    } catch (error) {
+      toast.error('Erro ao enviar foto');
+      return { error };
+    }
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
@@ -98,5 +139,6 @@ export function useClients() {
     createClient,
     updateClient,
     deleteClient,
+    uploadAvatar,
   };
 }
