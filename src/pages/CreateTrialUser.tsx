@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -21,8 +21,14 @@ interface TrialUser {
   is_active: boolean;
 }
 
+const ADMIN_USER = 'Clauclau';
+const ADMIN_PASS = '33251675';
+
 export default function CreateTrialUser() {
   const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [trialUsers, setTrialUsers] = useState<TrialUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -32,6 +38,33 @@ export default function CreateTrialUser() {
     phone: '',
     password: ''
   });
+
+  useEffect(() => {
+    const authStatus = sessionStorage.getItem('trial_admin_auth');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+
+    setTimeout(() => {
+      if (loginData.username === ADMIN_USER && loginData.password === ADMIN_PASS) {
+        sessionStorage.setItem('trial_admin_auth', 'true');
+        setIsAuthenticated(true);
+        toast({ title: 'Acesso autorizado!' });
+      } else {
+        toast({
+          title: 'Credenciais inválidas',
+          description: 'Usuário ou senha incorretos',
+          variant: 'destructive'
+        });
+      }
+      setLoginLoading(false);
+    }, 500);
+  };
 
   const fetchTrialUsers = async () => {
     setLoadingUsers(true);
@@ -171,6 +204,64 @@ export default function CreateTrialUser() {
     if (!expiresAt) return false;
     return new Date(expiresAt) < new Date();
   };
+
+  // Login screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-sm border-primary">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+              <Lock className="w-6 h-6 text-primary" />
+            </div>
+            <CardTitle>Acesso Restrito</CardTitle>
+            <CardDescription>
+              Digite suas credenciais para continuar
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Usuário</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Digite o usuário"
+                  value={loginData.username}
+                  onChange={(e) => setLoginData(prev => ({ ...prev, username: e.target.value }))}
+                  disabled={loginLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login_password">Senha</Label>
+                <Input
+                  id="login_password"
+                  type="password"
+                  placeholder="Digite a senha"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
+                  disabled={loginLoading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loginLoading}>
+                {loginLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 mr-2" />
+                    Entrar
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4">
