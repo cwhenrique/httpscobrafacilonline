@@ -247,6 +247,7 @@ export type Database = {
           client_name: string
           client_phone: string | null
           client_rg: string | null
+          contract_date: string | null
           contract_type: string
           created_at: string
           first_payment_date: string
@@ -269,6 +270,7 @@ export type Database = {
           client_name: string
           client_phone?: string | null
           client_rg?: string | null
+          contract_date?: string | null
           contract_type?: string
           created_at?: string
           first_payment_date: string
@@ -291,6 +293,7 @@ export type Database = {
           client_name?: string
           client_phone?: string | null
           client_rg?: string | null
+          contract_date?: string | null
           contract_type?: string
           created_at?: string
           first_payment_date?: string

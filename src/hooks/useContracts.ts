@@ -20,6 +20,7 @@ export interface Contract {
   amount_to_receive: number;
   frequency: string;
   installments: number;
+  contract_date: string | null;
   first_payment_date: string;
   payment_method: string | null;
   notes: string | null;
@@ -55,6 +56,7 @@ export interface CreateContractData {
   amount_to_receive: number;
   frequency: string;
   installments: number;
+  contract_date?: string;
   first_payment_date: string;
   payment_method?: string;
   notes?: string;
@@ -71,6 +73,7 @@ export interface UpdateContractData {
   contract_type?: string;
   total_amount?: number;
   amount_to_receive?: number;
+  contract_date?: string;
   notes?: string;
 }
 
