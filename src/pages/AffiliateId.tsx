@@ -303,23 +303,20 @@ const AffiliateId = () => {
             transition={{ duration: 0.6, delay: 0.35 }}
             className="mt-6 px-2"
           >
-            <div className="inline-flex items-center justify-center gap-2 sm:gap-3 badge-premium badge-glow rounded-xl sm:rounded-2xl px-4 py-2.5 sm:px-8 sm:py-4 text-sm sm:text-lg">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm flex-shrink-0">
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
+            <a 
+              href="https://wa.me/5511999999999?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
+            >
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow-sm flex-shrink-0">
+                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
               </div>
               <div className="text-left">
-                <div className="font-bold text-primary text-xs sm:text-base">PAGAMENTO ÚNICO</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Pague uma vez, use para sempre</div>
-                <a 
-                  href="https://wa.me/5511999999999?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline mt-1 inline-block"
-                >
-                  📱 Teste por 1 dia grátis pelo WhatsApp
-                </a>
+                <div className="font-bold text-primary text-sm sm:text-lg">TESTE GRÁTIS POR 1 DIA</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Solicite pelo WhatsApp agora mesmo</div>
               </div>
-            </div>
+            </a>
           </motion.div>
 
           {/* Video Section */}
