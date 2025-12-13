@@ -9,7 +9,12 @@ interface LoansTutorialProps {
 }
 
 // Demonstrative tutorial - user just clicks "Next" to see each field explained
+// Steps 0-3: Main page elements
+// Step 4: Transition step (dialog opens)
+// Steps 5-12: Dialog elements
+// Step 13: Final summary (dialog closes)
 const TUTORIAL_STEPS: Step[] = [
+  // === MAIN PAGE STEPS (0-3) ===
   // Step 0: New Loan button
   {
     target: '.tutorial-new-loan',
@@ -42,7 +47,16 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'bottom',
     disableBeacon: true,
   },
-  // Step 4: Client select (dialog opens automatically)
+  // === TRANSITION STEP (4) - Dialog opens here ===
+  {
+    target: '.tutorial-new-loan',
+    content: 'Agora vamos ver o formulário de criação de empréstimo. Aguarde o formulário abrir...',
+    title: '📋 Abrindo Formulário',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  // === DIALOG STEPS (5-12) ===
+  // Step 5: Client select
   {
     target: '.tutorial-client-select',
     content: 'Selecione um cliente já cadastrado no sistema para vincular ao empréstimo.',
@@ -50,7 +64,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 5: New client button
+  // Step 6: New client button
   {
     target: '.tutorial-new-client-btn',
     content: 'Se o cliente não existir, clique aqui para cadastrar um novo cliente sem sair do formulário.',
@@ -58,7 +72,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 6: Loan value
+  // Step 7: Loan value
   {
     target: '.tutorial-form-value',
     content: 'Digite o valor principal que será emprestado ao cliente (sem juros).',
@@ -66,7 +80,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 7: Interest rate
+  // Step 8: Interest rate
   {
     target: '.tutorial-form-interest',
     content: 'Defina a taxa de juros em percentual. Exemplo: 10% ao mês.',
@@ -74,7 +88,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 8: Interest mode
+  // Step 9: Interest mode
   {
     target: '.tutorial-form-interest-mode',
     content: 'Por Parcela: juros multiplicado pelo número de parcelas. Sobre o Total: juros aplicado uma única vez.',
@@ -82,7 +96,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 9: Payment type
+  // Step 10: Payment type
   {
     target: '.tutorial-form-payment-type',
     content: 'Escolha a modalidade: Parcelado (várias parcelas), Semanal, ou Pagamento Único.',
@@ -90,7 +104,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 10: Dates
+  // Step 11: Dates
   {
     target: '.tutorial-form-dates',
     content: 'Defina a data de início do empréstimo. O vencimento é calculado automaticamente.',
@@ -98,7 +112,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     disableBeacon: true,
   },
-  // Step 11: Notes
+  // Step 12: Notes
   {
     target: '.tutorial-form-notes',
     content: 'Adicione observações opcionais sobre o empréstimo ou acordos especiais.',
@@ -106,20 +120,12 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'top',
     disableBeacon: true,
   },
-  // Step 12: Submit button
+  // === FINAL STEP (13) - Dialog closes, back to main ===
   {
     target: '.tutorial-form-submit',
-    content: 'Quando tudo estiver preenchido, clique aqui para salvar o empréstimo no sistema.',
-    title: '✅ Criar Empréstimo',
-    placement: 'top',
-    disableBeacon: true,
-  },
-  // Step 13: Final summary (back to main page)
-  {
-    target: '.tutorial-new-loan',
-    content: 'Parabéns! Você conheceu todas as funcionalidades básicas da página de empréstimos. Agora você pode começar a gerenciar seus empréstimos!',
+    content: 'Parabéns! Você conheceu todas as funcionalidades do formulário de empréstimos. Clique aqui para salvar quando estiver pronto!',
     title: '🎉 Tutorial Concluído!',
-    placement: 'bottom',
+    placement: 'top',
     disableBeacon: true,
   },
 ];
