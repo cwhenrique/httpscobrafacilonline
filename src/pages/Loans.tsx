@@ -18,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,7 +85,7 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
 };
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
@@ -156,6 +156,13 @@ export default function Loans() {
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
+  
+  // Payment history state
+  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
+  const [paymentHistoryLoanId, setPaymentHistoryLoanId] = useState<string | null>(null);
+  const [paymentHistoryData, setPaymentHistoryData] = useState<any[]>([]);
+  const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
+  const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null);
   
   // Tutorial states - Single page tutorial (8 steps)
   const [pageTutorialRun, setPageTutorialRun] = useState(false);
@@ -291,6 +298,33 @@ export default function Loans() {
     await fetchLoans();
     setUploadingClientId(null);
     toast.success('Foto atualizada!');
+  };
+  
+  // Open payment history dialog
+  const openPaymentHistory = async (loanId: string) => {
+    setPaymentHistoryLoanId(loanId);
+    setLoadingPaymentHistory(true);
+    setIsPaymentHistoryOpen(true);
+    
+    const result = await getLoanPayments(loanId);
+    if (result.data) {
+      setPaymentHistoryData(result.data);
+    }
+    setLoadingPaymentHistory(false);
+  };
+  
+  // Handle delete payment confirmation
+  const handleDeletePayment = async () => {
+    if (!deletePaymentId || !paymentHistoryLoanId) return;
+    
+    await deletePayment(deletePaymentId, paymentHistoryLoanId);
+    setDeletePaymentId(null);
+    
+    // Refresh payment history
+    const result = await getLoanPayments(paymentHistoryLoanId);
+    if (result.data) {
+      setPaymentHistoryData(result.data);
+    }
   };
   
   const [formData, setFormData] = useState({
@@ -2872,6 +2906,21 @@ export default function Loans() {
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
                                   className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => openPaymentHistory(loan.id)}
+                                >
+                                  <History className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Ver histórico de pagamentos (pode excluir pagamentos errados)</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="icon" 
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => openEditDialog(loan.id)}
                                 >
                                   <Pencil className="w-3 h-3" />
@@ -4066,6 +4115,89 @@ export default function Loans() {
           onOpenChange={setIsPaymentReceiptOpen} 
           data={paymentReceiptData} 
         />
+
+        {/* Payment History Dialog */}
+        <Dialog open={isPaymentHistoryOpen} onOpenChange={setIsPaymentHistoryOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Histórico de Pagamentos</DialogTitle>
+            </DialogHeader>
+            {loadingPaymentHistory ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : paymentHistoryData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum pagamento registrado
+              </div>
+            ) : (
+              <ScrollArea className="max-h-[400px]">
+                <div className="space-y-2">
+                  {paymentHistoryData.map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm">{formatDate(payment.payment_date)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <DollarSign className="w-4 h-4 text-primary" />
+                          <span className="font-semibold text-primary">{formatCurrency(payment.amount)}</span>
+                        </div>
+                        {payment.notes && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">{payment.notes}</p>
+                        )}
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeletePaymentId(payment.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Excluir este pagamento</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Payment Confirmation */}
+        <AlertDialog open={!!deletePaymentId} onOpenChange={(open) => !open && setDeletePaymentId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Pagamento?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                {(() => {
+                  const payment = paymentHistoryData.find(p => p.id === deletePaymentId);
+                  if (!payment) return null;
+                  return (
+                    <>
+                      <p><strong>Valor:</strong> {formatCurrency(payment.amount)}</p>
+                      <p><strong>Data:</strong> {formatDate(payment.payment_date)}</p>
+                      <p className="text-amber-500 font-medium mt-3">
+                        O saldo do empréstimo será restaurado automaticamente.
+                      </p>
+                    </>
+                  );
+                })()}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeletePayment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Confirmar Exclusão
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
