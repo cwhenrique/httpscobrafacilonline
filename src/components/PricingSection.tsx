@@ -80,7 +80,7 @@ const PricingSection = ({
             viewport={{ once: true }}
             variants={fadeInUp}
           >
-            <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
+            <Card className="bg-gradient-to-b from-card to-muted/30 border border-primary/50 h-full backdrop-blur-sm">
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
@@ -221,7 +221,7 @@ const PricingSection = ({
             variants={fadeInUp}
             transition={{ delay: 0.2 }}
           >
-            <Card className="bg-gradient-to-b from-card to-muted/30 border-border/50 h-full backdrop-blur-sm">
+            <Card className="bg-gradient-to-b from-card to-muted/30 border border-primary/50 h-full backdrop-blur-sm">
               <CardContent className="p-8">
                 <div className="text-center mb-8">
                   <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
