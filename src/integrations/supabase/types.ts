@@ -356,6 +356,7 @@ export type Database = {
       loans: {
         Row: {
           client_id: string
+          contract_date: string | null
           created_at: string
           due_date: string
           id: string
@@ -377,6 +378,7 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          contract_date?: string | null
           created_at?: string
           due_date: string
           id?: string
@@ -398,6 +400,7 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          contract_date?: string | null
           created_at?: string
           due_date?: string
           id?: string

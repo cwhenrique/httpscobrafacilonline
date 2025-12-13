@@ -57,6 +57,7 @@ export interface Loan {
   payment_type: LoanPaymentType;
   installments: number;
   installment_dates: string[];
+  contract_date: string | null;
   start_date: string;
   due_date: string;
   total_interest: number;

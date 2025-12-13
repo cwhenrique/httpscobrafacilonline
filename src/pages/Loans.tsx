@@ -144,6 +144,7 @@ export default function Loans() {
     interest_mode: 'per_installment' as 'per_installment' | 'on_total',
     payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
+    contract_date: '',
     start_date: '',
     due_date: '',
     notes: '',
@@ -300,6 +301,7 @@ export default function Loans() {
     interest_mode: 'per_installment' as 'per_installment' | 'on_total',
     payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
+    contract_date: new Date().toISOString().split('T')[0],
     start_date: new Date().toISOString().split('T')[0],
     due_date: '',
     notes: '',
@@ -655,6 +657,7 @@ export default function Loans() {
       interest_mode: 'per_installment' as const,
       payment_type: 'daily' as const,
       installments: numDays,
+      contract_date: formData.contract_date,
       start_date: formData.start_date,
       due_date: installmentDates[installmentDates.length - 1],
       remaining_balance: totalToReceive,
@@ -666,8 +669,6 @@ export default function Loans() {
           : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
-      is_historical_contract: formData.is_historical_contract,
-      historical_payments: formData.is_historical_contract ? pastInstallmentsData : undefined,
     };
     
     console.log('loanData being passed to createLoan:', loanData);
@@ -775,7 +776,16 @@ export default function Loans() {
       toast.error('Informe a taxa de juros');
       return;
     }
-    if (!formData.due_date) {
+    // For single payment, due_date comes from start_date (first payment date)
+    // For installments, due_date comes from the last installment date
+    let finalDueDate = formData.due_date;
+    if (formData.payment_type === 'single') {
+      finalDueDate = formData.start_date;
+    } else if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0) {
+      finalDueDate = installmentDates[installmentDates.length - 1];
+    }
+    
+    if (!finalDueDate) {
       toast.error('Informe a data de vencimento');
       return;
     }
@@ -817,6 +827,7 @@ export default function Loans() {
       installments: numInstallments,
       total_interest: totalInterest,
       remaining_balance: principal + totalInterest,
+      due_date: finalDueDate,
       installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
       notes: notes || undefined,
       send_creation_notification: formData.send_creation_notification,
@@ -1065,7 +1076,9 @@ export default function Loans() {
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
-      interest_mode: 'per_installment', payment_type: 'single', installments: '1', start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
+      interest_mode: 'per_installment', payment_type: 'single', installments: '1', 
+      contract_date: new Date().toISOString().split('T')[0],
+      start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
       daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: false,
     });
     setInstallmentDates([]);
@@ -1485,6 +1498,7 @@ export default function Loans() {
       interest_mode: loan.interest_mode || 'per_installment',
       payment_type: loan.payment_type,
       installments: (loan.installments || 1).toString(),
+      contract_date: loan.contract_date || loan.start_date,
       start_date: loan.start_date,
       due_date: loan.due_date,
       notes: cleanNotes,
@@ -1529,6 +1543,15 @@ export default function Loans() {
     // Remove any existing overdue config from notes
     let cleanNotes = (editFormData.notes || '').replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '').trim();
     
+    // For single payment, due_date comes from start_date (first payment date)
+    // For installments, due_date comes from the last installment date
+    let finalDueDate = editFormData.due_date;
+    if (editFormData.payment_type === 'single') {
+      finalDueDate = editFormData.start_date;
+    } else if (editFormData.payment_type === 'installment' && editInstallmentDates.length > 0) {
+      finalDueDate = editInstallmentDates[editInstallmentDates.length - 1];
+    }
+    
     let updateData: any = {
       client_id: editFormData.client_id,
       principal_amount: principalAmount,
@@ -1537,8 +1560,9 @@ export default function Loans() {
       interest_mode: editFormData.interest_mode,
       payment_type: editFormData.payment_type,
       installments: numInstallments,
+      contract_date: editFormData.contract_date,
       start_date: editFormData.start_date,
-      due_date: editFormData.due_date,
+      due_date: finalDueDate,
       notes: overdueConfigNote ? `${overdueConfigNote}\n${cleanNotes}`.trim() : cleanNotes,
       installment_dates: editInstallmentDates,
     };
@@ -1814,9 +1838,17 @@ export default function Loans() {
                       </p>
                     </div>
                   )}
-                  <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Data de Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="h-9 sm:h-10 text-sm" />
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Data do Contrato</Label>
+                      <Input type="date" value={formData.contract_date} onChange={(e) => setFormData({ ...formData, contract_date: e.target.value })} className="h-9 sm:h-10 text-sm" />
+                      <p className="text-[10px] text-muted-foreground">Quando foi fechado</p>
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">1ª Cobrança</Label>
+                      <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="h-9 sm:h-10 text-sm" />
+                      <p className="text-[10px] text-muted-foreground">Quando começa</p>
+                    </div>
                   </div>
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Datas de Cobrança ({installmentDates.length} dias)</Label>
@@ -2143,17 +2175,19 @@ export default function Loans() {
                     </div>
                   </>
                 )}
-                <div className={`grid gap-2 sm:gap-4 tutorial-form-dates ${formData.payment_type === 'single' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div className="grid grid-cols-2 gap-2 sm:gap-4 tutorial-form-dates">
                   <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Data Início</Label>
-                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                    <Label className="text-xs sm:text-sm">Data do Contrato</Label>
+                    <Input type="date" value={formData.contract_date} onChange={(e) => setFormData({ ...formData, contract_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                    <p className="text-[10px] text-muted-foreground">Quando foi fechado</p>
                   </div>
-                  {formData.payment_type === 'single' && (
-                    <div className="space-y-1 sm:space-y-2">
-                      <Label className="text-xs sm:text-sm">Data Vencimento *</Label>
-                      <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
-                    </div>
-                  )}
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">
+                      {formData.payment_type === 'single' ? 'Data Vencimento *' : formData.payment_type === 'weekly' ? '1ª Semana *' : '1ª Parcela *'}
+                    </Label>
+                    <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                    <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
+                  </div>
                 </div>
                 {(formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0 && (
                   <div className="space-y-1 sm:space-y-2">
@@ -3873,23 +3907,26 @@ export default function Loans() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
-                      <Label className="text-xs sm:text-sm">Data de Início</Label>
+                      <Label className="text-xs sm:text-sm">Data do Contrato</Label>
+                      <Input 
+                        type="date" 
+                        value={editFormData.contract_date} 
+                        onChange={(e) => setEditFormData({ ...editFormData, contract_date: e.target.value })} 
+                        className="h-9 sm:h-10 text-sm"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Quando foi fechado</p>
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">
+                        {editFormData.payment_type === 'single' ? 'Data Vencimento *' : '1ª Parcela *'}
+                      </Label>
                       <Input 
                         type="date" 
                         value={editFormData.start_date} 
                         onChange={(e) => setEditFormData({ ...editFormData, start_date: e.target.value })} 
                         className="h-9 sm:h-10 text-sm"
                       />
-                    </div>
-                    <div className="space-y-1 sm:space-y-2">
-                      <Label className="text-xs sm:text-sm">Vencimento *</Label>
-                      <Input 
-                        type="date" 
-                        value={editFormData.due_date} 
-                        onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })} 
-                        required 
-                        className="h-9 sm:h-10 text-sm"
-                      />
+                      <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
                     </div>
                   </div>
                   {editFormData.payment_type === 'installment' && (
