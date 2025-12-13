@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -2589,44 +2590,72 @@ export default function Loans() {
                       )}
                       
                       <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
-                        <div className="flex gap-1.5 sm:gap-2">
-                          <Button 
-                            variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                            size="sm" 
-                            className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
-                            onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
-                          >
-                            <CreditCard className="w-3 h-3 mr-1" />
-                            Pagar
-                          </Button>
-                          <Button 
-                            variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                            size="sm" 
-                            className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                            onClick={() => openRenegotiateDialog(loan.id)}
-                          >
-                            <DollarSign className="w-3 h-3 mr-1" />
-                            Pagar Juros
-                          </Button>
-                          <Button 
-                            variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                            size="icon" 
-                            className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                            onClick={() => openEditDialog(loan.id)}
-                            title="Editar"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="icon" 
-                            className="h-7 w-7 sm:h-8 sm:w-8"
-                            onClick={() => setDeleteId(loan.id)}
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
+                        <TooltipProvider delayDuration={300}>
+                          <div className="flex gap-1.5 sm:gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                  onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
+                                >
+                                  <CreditCard className="w-3 h-3 mr-1" />
+                                  Pagar
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Registre pagamentos: parcela, valor parcial ou quitação total</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => openRenegotiateDialog(loan.id)}
+                                >
+                                  <DollarSign className="w-3 h-3 mr-1" />
+                                  Pagar Juros
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Cliente pagou só os juros ou aplicar taxa extra de renovação</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="icon" 
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => openEditDialog(loan.id)}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Alterar dados do empréstimo, datas e valores</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="destructive" 
+                                  size="icon" 
+                                  className="h-7 w-7 sm:h-8 sm:w-8"
+                                  onClick={() => setDeleteId(loan.id)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Excluir este empréstimo permanentemente</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
                       </div>
                     </CardContent>
                   </Card>
