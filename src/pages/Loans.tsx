@@ -236,17 +236,14 @@ export default function Loans() {
   const handleTutorialDialogOpen = (open: boolean) => {
     setIsDialogOpen(open);
     if (open && tutorialRun && tutorialStep === 0) {
-      // Advance to step 1 when dialog opens (click "Cadastrar novo cliente")
-      setTimeout(() => advanceTutorialStep(0), 300);
+      // Auto-open client form and advance to step 1 (fill client name)
+      setShowNewClientForm(true);
+      setTimeout(() => setTutorialStep(1), 400);
     }
   };
 
   const handleTutorialNewClientClick = () => {
     setShowNewClientForm(true);
-    if (tutorialRun && tutorialStep === 1) {
-      // Advance to step 2 (fill client name)
-      setTimeout(() => advanceTutorialStep(1), 300);
-    }
   };
 
   const handleTutorialCreateClient = async () => {
@@ -270,9 +267,9 @@ export default function Loans() {
       setNewClientData({ full_name: '', phone: '', address: '', notes: '' });
       await fetchClients();
       
-      // Advance to step 5 (fill loan value) after client is created
-      if (tutorialRun && tutorialStep === 4) {
-        setTimeout(() => advanceTutorialStep(4), 300);
+      // Advance to step 4 (fill loan value) after client is created
+      if (tutorialRun && tutorialStep === 3) {
+        setTimeout(() => setTutorialStep(4), 400);
       }
     }
     setCreatingClient(false);
@@ -1679,9 +1676,26 @@ export default function Loans() {
         onStepChange={setTutorialStep}
       />
 
+      {/* Tutorial CSS - Block all clicks outside spotlight */}
+      {tutorialRun && (
+        <style>{`
+          .react-joyride__overlay {
+            pointer-events: auto !important;
+          }
+          .react-joyride__spotlight,
+          .react-joyride__spotlight *,
+          .react-joyride__tooltip,
+          .react-joyride__tooltip *,
+          .tutorial-exit-bar,
+          .tutorial-exit-bar * {
+            pointer-events: auto !important;
+          }
+        `}</style>
+      )}
+
       {/* Fixed Tutorial Exit Bar */}
       {tutorialRun && (
-        <div className="fixed bottom-0 left-0 right-0 bg-destructive text-destructive-foreground p-3 z-[10002] flex items-center justify-center gap-4 shadow-lg">
+        <div className="tutorial-exit-bar fixed bottom-0 left-0 right-0 bg-destructive text-destructive-foreground p-3 z-[10002] flex items-center justify-center gap-4 shadow-lg">
           <span className="text-sm font-medium">📚 Você está no tutorial guiado</span>
           <Button 
             variant="outline" 
