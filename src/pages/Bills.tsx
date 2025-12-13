@@ -101,6 +101,7 @@ export default function Bills() {
     amount_to_receive: 0,
     frequency: 'monthly',
     installments: 12,
+    contract_date: new Date().toISOString().split('T')[0],
     first_payment_date: '',
     payment_method: 'all_days',
     notes: '',
@@ -265,6 +266,7 @@ export default function Bills() {
       amount_to_receive: 0,
       frequency: 'monthly',
       installments: 12,
+      contract_date: new Date().toISOString().split('T')[0],
       first_payment_date: '',
       payment_method: 'all_days',
       notes: '',
@@ -502,29 +504,40 @@ export default function Bills() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Primeiro vencimento *</Label>
+          <Label>Data do Contrato *</Label>
+          <Input
+            type="date"
+            value={contractForm.contract_date || ''}
+            onChange={(e) => setContractForm({ ...contractForm, contract_date: e.target.value })}
+          />
+          <p className="text-[10px] text-muted-foreground">Quando foi fechado/assinado</p>
+        </div>
+        <div className="space-y-2">
+          <Label>1ª Parcela *</Label>
           <Input
             type="date"
             value={contractForm.first_payment_date}
             onChange={(e) => setContractForm({ ...contractForm, first_payment_date: e.target.value })}
           />
+          <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
         </div>
-        <div className="space-y-2">
-          <Label>Frequência</Label>
-          <Select
-            value={contractForm.frequency}
-            onValueChange={(value) => setContractForm({ ...contractForm, frequency: value })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Mensal</SelectItem>
-              <SelectItem value="biweekly">Quinzenal</SelectItem>
-              <SelectItem value="weekly">Semanal</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Frequência</Label>
+        <Select
+          value={contractForm.frequency}
+          onValueChange={(value) => setContractForm({ ...contractForm, frequency: value })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="monthly">Mensal</SelectItem>
+            <SelectItem value="biweekly">Quinzenal</SelectItem>
+            <SelectItem value="weekly">Semanal</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">
@@ -575,6 +588,12 @@ export default function Bills() {
             </div>
 
             <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
+              {contract.contract_date && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Data do contrato</span>
+                  <span className="text-xs sm:text-sm">{format(parseISO(contract.contract_date), "dd/MM/yyyy")}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-xs sm:text-sm text-muted-foreground">Valor mensal</span>
                 <span className="font-bold text-sm sm:text-base">R$ {contract.total_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
