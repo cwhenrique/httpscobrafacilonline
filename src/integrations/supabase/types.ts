@@ -676,6 +676,7 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string | null
+          has_seen_loan_form_tutorial: boolean | null
           has_seen_loans_tutorial: boolean | null
           id: string
           is_active: boolean
@@ -687,6 +688,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
           id: string
           is_active?: boolean
@@ -698,6 +700,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
           id?: string
           is_active?: boolean
