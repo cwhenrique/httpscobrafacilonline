@@ -36,8 +36,9 @@ const TUTORIAL_STEPS: Step[] = [
     content: '📝 Digite o nome completo do cliente no campo destacado. Depois clique em "Próxima Etapa".',
     title: '✏️ Passo 3: Nome do Cliente',
     placement: 'right',
-    hideFooter: false, // Show "Próxima Etapa" button
+    hideFooter: false,
     spotlightClicks: true,
+    disableBeacon: true,
   },
   // Step 3: Fill client phone (optional)
   {
@@ -47,6 +48,7 @@ const TUTORIAL_STEPS: Step[] = [
     placement: 'right',
     hideFooter: false,
     spotlightClicks: true,
+    disableBeacon: true,
   },
   // Step 4: Click "Criar Cliente" button
   {
@@ -187,6 +189,8 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
       steps={TUTORIAL_STEPS}
       disableOverlayClose
       disableCloseOnEsc
+      disableScrolling
+      disableScrollParentFix
       floaterProps={{
         disableAnimation: true,
         offset: 15,
