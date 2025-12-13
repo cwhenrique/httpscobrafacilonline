@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.check-overdue-vehicles]
 verify_jwt = false
+
+[functions.broadcast-whatsapp]
+verify_jwt = false
