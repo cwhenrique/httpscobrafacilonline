@@ -873,9 +873,22 @@ export default function Loans() {
     let principal_paid: number;
     
     if (paymentData.payment_type === 'total') {
-      // Usar o remaining_balance real do banco
+      // Usar o remaining_balance real do banco (inclui principal + juros restantes)
       amount = selectedLoan.remaining_balance;
-      interest_paid = Math.min(amount, interestPerInstallment);
+      
+      // Calcular juros restantes: total_interest menos juros já pagos
+      const totalInterestFromLoan = selectedLoan.total_interest || 0;
+      const totalPaidSoFar = selectedLoan.total_paid || 0;
+      
+      // Calcular quanto do principal já foi pago
+      const paidInstallmentsCount = Math.floor(totalPaidSoFar / baseInstallmentValue);
+      const interestAlreadyPaid = paidInstallmentsCount * interestPerInstallment;
+      
+      // Juros restantes = total de juros - juros já pagos
+      const remainingInterest = Math.max(0, totalInterestFromLoan - interestAlreadyPaid);
+      
+      // No pagamento total, paga todos os juros restantes + principal restante
+      interest_paid = Math.min(amount, remainingInterest);
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
       // Paying selected installments - somar valor real de cada parcela (incluindo taxa extra se aplicável)
