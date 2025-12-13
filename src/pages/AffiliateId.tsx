@@ -310,6 +310,14 @@ const AffiliateId = () => {
               <div className="text-left">
                 <div className="font-bold text-primary text-xs sm:text-base">PAGAMENTO ÚNICO</div>
                 <div className="text-xs sm:text-sm text-muted-foreground">Pague uma vez, use para sempre</div>
+                <a 
+                  href="https://wa.me/5511999999999?text=Olá! Gostaria de testar o CobraFácil por 1 dia gratuitamente." 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline mt-1 inline-block"
+                >
+                  📱 Teste por 1 dia grátis pelo WhatsApp
+                </a>
               </div>
             </div>
           </motion.div>
