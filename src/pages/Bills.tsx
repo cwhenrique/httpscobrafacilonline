@@ -82,6 +82,7 @@ export default function Bills() {
     contract_type: '',
     total_amount: 0,
     amount_to_receive: 0,
+    contract_date: '',
     notes: '',
   });
 
@@ -329,6 +330,7 @@ export default function Bills() {
       contract_type: contract.contract_type,
       total_amount: contract.total_amount,
       amount_to_receive: contract.amount_to_receive,
+      contract_date: contract.contract_date || '',
       notes: contract.notes || '',
     });
     setIsEditContractOpen(true);
@@ -1341,6 +1343,16 @@ export default function Bills() {
                     <SelectItem value="parcelado">Parcelado</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data do Contrato</Label>
+                <Input
+                  type="date"
+                  value={editContractForm.contract_date || ''}
+                  onChange={(e) => setEditContractForm({ ...editContractForm, contract_date: e.target.value })}
+                />
+                <p className="text-[10px] text-muted-foreground">Quando foi fechado/assinado</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
