@@ -182,24 +182,23 @@ export default function Loans() {
   }, [user?.id]);
 
   // Auto-open/close dialog based on tutorial step (demonstrative mode)
-  // Step 4 = transition step (dialog opens with delay)
-  // Steps 5-13 = dialog steps
-  // Steps 0-3 = main page steps
+  // Tutorial dialog control:
+  // Steps 0-3 = main page steps (dialog closed)
+  // Steps 4-13 = dialog steps (dialog open)
   useEffect(() => {
     if (!tutorialRun) return;
     
     let timeoutId: ReturnType<typeof setTimeout>;
     
-    // Open dialog when user clicks "Next" on step 4 (transition step)
-    // The dialog opens DURING step 4, so step 5 will find elements inside
-    if (tutorialStep === 4 && !isDialogOpen) {
-      // 500ms delay to ensure Joyride has fully transitioned before DOM changes
+    // Open dialog for ALL dialog-related steps (4-13)
+    // Step 4 is transition, steps 5-13 show form fields
+    if (tutorialStep >= 4 && tutorialStep <= 13 && !isDialogOpen) {
       timeoutId = setTimeout(() => {
         setIsDialogOpen(true);
-      }, 500);
+      }, 300);
     }
-    // Close dialog when going back to main page steps (0-3)
-    else if (tutorialStep < 4 && isDialogOpen) {
+    // Close dialog when on main page steps (0-3) or after tutorial
+    else if ((tutorialStep < 4 || tutorialStep > 13) && isDialogOpen) {
       timeoutId = setTimeout(() => {
         setIsDialogOpen(false);
         setShowNewClientForm(false);
@@ -260,7 +259,7 @@ export default function Loans() {
   // Dialog open handler (for normal use, tutorial auto-opens via useEffect)
   const handleDialogOpen = (open: boolean) => {
     // During tutorial, don't allow manual closing when showing form fields
-    if (tutorialRun && tutorialStep >= 4 && tutorialStep <= 12 && !open) {
+    if (tutorialRun && tutorialStep >= 4 && tutorialStep <= 13 && !open) {
       return; // Prevent closing during form field steps
     }
     setIsDialogOpen(open);
