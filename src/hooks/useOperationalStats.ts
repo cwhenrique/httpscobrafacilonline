@@ -115,6 +115,9 @@ export function useOperationalStats() {
       // Total emprestado histórico (todos os empréstimos)
       totalLentAllTime += principal;
       const isDaily = loan.payment_type === 'daily';
+      
+      // Verificar se é empréstimo com pagamento só de juros
+      const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
 
       // Calcular total do contrato (principal + juros)
       let totalContract = 0;
@@ -136,14 +139,18 @@ export function useOperationalStats() {
         totalContract = principal + totalInterest;
       }
 
-      // Proporção paga do contrato
-      const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
+      // Calcular lucro realizado
+      if (isInterestOnlyPayment) {
+        // Para pagamentos só de juros: TODO o valor pago é lucro (juros puro)
+        totalProfitRealized += totalPaid;
+      } else {
+        // Para pagamentos normais: lucro proporcional
+        const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
+        const interestPortion = totalContract - principal;
+        const interestReceived = interestPortion * paidRatio;
+        totalProfitRealized += interestReceived;
+      }
       
-      // Juros recebidos proporcionalmente
-      const interestPortion = totalContract - principal;
-      const interestReceived = interestPortion * paidRatio;
-      
-      totalProfitRealized += interestReceived;
       totalReceivedAllTime += totalPaid;
 
       if (loan.status === 'paid') {
