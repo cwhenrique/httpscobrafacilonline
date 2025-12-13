@@ -26,7 +26,6 @@ import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
-import LoanFormTutorial from '@/components/tutorials/LoanFormTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -156,25 +155,20 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
-  // Tutorial states - TWO separate tutorials
-  // Page tutorial: shows main page elements (4 steps)
-  // Form tutorial: shows form fields when dialog opens (9 steps)
+  // Tutorial states - Single page tutorial (8 steps)
   const [pageTutorialRun, setPageTutorialRun] = useState(false);
   const [pageTutorialStep, setPageTutorialStep] = useState(0);
-  const [formTutorialRun, setFormTutorialRun] = useState(false);
-  const [formTutorialStep, setFormTutorialStep] = useState(0);
   const [showTutorialConfirmation, setShowTutorialConfirmation] = useState(false);
-  const [hasSeenFormTutorial, setHasSeenFormTutorial] = useState(true);
   const { user } = useAuth();
 
-  // Check if user has seen tutorials on mount
+  // Check if user has seen tutorial on mount
   useEffect(() => {
     const checkTutorialStatus = async () => {
       if (!user?.id) return;
       
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('has_seen_loans_tutorial, has_seen_loan_form_tutorial')
+        .select('has_seen_loans_tutorial')
         .eq('id', user.id)
         .single();
       
@@ -183,8 +177,6 @@ export default function Loans() {
         if (!profileData.has_seen_loans_tutorial) {
           setShowTutorialConfirmation(true);
         }
-        // Track form tutorial status
-        setHasSeenFormTutorial(profileData.has_seen_loan_form_tutorial ?? false);
       }
     };
     
@@ -234,54 +226,12 @@ export default function Loans() {
         .update({ has_seen_loans_tutorial: true })
         .eq('id', user.id);
     }
-    toast.success('Tutorial da página concluído! 🎉');
+    toast.success('Tutorial concluído! 🎉');
   };
 
-  // Exit form tutorial
-  const handleExitFormTutorial = async () => {
-    setFormTutorialRun(false);
-    setFormTutorialStep(0);
-    
-    if (user?.id) {
-      await supabase
-        .from('profiles')
-        .update({ has_seen_loan_form_tutorial: true })
-        .eq('id', user.id);
-    }
-    setHasSeenFormTutorial(true);
-    toast.info('Tutorial do formulário encerrado');
-  };
-
-  // Finish form tutorial
-  const handleFormTutorialFinish = async () => {
-    setFormTutorialRun(false);
-    setFormTutorialStep(0);
-    
-    if (user?.id) {
-      await supabase
-        .from('profiles')
-        .update({ has_seen_loan_form_tutorial: true })
-        .eq('id', user.id);
-    }
-    setHasSeenFormTutorial(true);
-    toast.success('Tutorial do formulário concluído! 🎉');
-  };
-
-  // Dialog open handler - triggers form tutorial when dialog opens
+  // Dialog open handler - simplified (no form tutorial)
   const handleDialogOpen = (open: boolean) => {
-    // During form tutorial, don't allow manual closing
-    if (formTutorialRun && !open) {
-      return;
-    }
     setIsDialogOpen(open);
-    
-    // Start form tutorial when dialog opens for first time
-    if (open && !hasSeenFormTutorial && !formTutorialRun) {
-      setTimeout(() => {
-        setFormTutorialRun(true);
-        setFormTutorialStep(0);
-      }, 300);
-    }
   };
 
   const handleNewClientClick = () => {
@@ -1713,23 +1663,15 @@ export default function Loans() {
         onStepChange={setPageTutorialStep}
       />
 
-      {/* Form Tutorial (dialog form elements) */}
-      <LoanFormTutorial 
-        run={formTutorialRun} 
-        onFinish={handleFormTutorialFinish}
-        stepIndex={formTutorialStep}
-        onStepChange={setFormTutorialStep}
-      />
-
-      {/* Fixed Tutorial Exit Bar - shows for either tutorial */}
-      {(pageTutorialRun || formTutorialRun) && (
+      {/* Fixed Tutorial Exit Bar */}
+      {pageTutorialRun && (
         <div className="tutorial-exit-bar fixed bottom-0 left-0 right-0 bg-destructive text-destructive-foreground p-3 z-[10002] flex items-center justify-center gap-4 shadow-lg">
           <span className="text-sm font-medium">📚 Você está no tutorial guiado</span>
           <Button 
             variant="outline" 
             size="sm"
             className="bg-white text-destructive hover:bg-destructive-foreground border-white font-medium"
-            onClick={pageTutorialRun ? handleExitPageTutorial : handleExitFormTutorial}
+            onClick={handleExitPageTutorial}
           >
             ❌ Sair do Tutorial
           </Button>
@@ -2318,7 +2260,7 @@ export default function Loans() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {filteredLoans.map((loan) => {
+              {filteredLoans.map((loan, loanIndex) => {
                 const isDaily = loan.payment_type === 'daily';
                 const isWeekly = loan.payment_type === 'weekly';
                 const numInstallments = loan.installments || 1;
@@ -2492,7 +2434,7 @@ export default function Loans() {
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
-                  <Card key={loan.id} className={`tutorial-loan-card shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                  <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
                       <div className="flex items-start gap-3 sm:gap-4">
                         <div className="relative group flex-shrink-0">
@@ -2651,7 +2593,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`tutorial-loan-payment flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                            className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                             onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
                           >
                             <CreditCard className="w-3 h-3 mr-1" />
@@ -2660,7 +2602,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`tutorial-loan-interest flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => openRenegotiateDialog(loan.id)}
                           >
                             <DollarSign className="w-3 h-3 mr-1" />
@@ -2669,7 +2611,7 @@ export default function Loans() {
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="icon" 
-                            className={`tutorial-loan-edit h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => openEditDialog(loan.id)}
                             title="Editar"
                           >
