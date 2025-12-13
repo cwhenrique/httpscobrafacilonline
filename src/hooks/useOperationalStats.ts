@@ -11,6 +11,7 @@ export interface OperationalStats {
   pendingAmount: number;           // Falta cobrar de ativos
   
   // Histórico Total
+  totalLentAllTime: number;        // Σ principal de TODOS empréstimos
   totalReceivedAllTime: number;    // Σ total_paid de TODOS empréstimos
   realizedProfit: number;          // Juros já recebidos (recebido - principal recebido)
   
@@ -62,6 +63,7 @@ export function useOperationalStats() {
     totalOnStreet: 0,
     totalToReceiveActive: 0,
     pendingAmount: 0,
+    totalLentAllTime: 0,
     totalReceivedAllTime: 0,
     realizedProfit: 0,
     overdueCount: 0,
@@ -95,6 +97,7 @@ export function useOperationalStats() {
     let activeLoansCount = 0;
     let totalOnStreet = 0;
     let totalToReceiveActive = 0;
+    let totalLentAllTime = 0;
     let totalReceivedAllTime = 0;
     let totalProfitRealized = 0;
     let overdueCount = 0;
@@ -108,6 +111,9 @@ export function useOperationalStats() {
       const principal = Number(loan.principal_amount);
       const totalPaid = Number(loan.total_paid || 0);
       const remainingBalance = Number(loan.remaining_balance);
+      
+      // Total emprestado histórico (todos os empréstimos)
+      totalLentAllTime += principal;
       const isDaily = loan.payment_type === 'daily';
 
       // Calcular total do contrato (principal + juros)
@@ -171,6 +177,7 @@ export function useOperationalStats() {
       totalOnStreet,
       totalToReceiveActive,
       pendingAmount,
+      totalLentAllTime,
       totalReceivedAllTime,
       realizedProfit,
       overdueCount,
