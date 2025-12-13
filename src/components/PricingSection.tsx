@@ -146,11 +146,11 @@ const PricingSection = ({
                 <span className="sm:hidden">🔥 MAIS VENDIDO</span>
               </div>
               <div className="absolute top-10 sm:top-12 left-0 right-0 flex justify-center gap-2 px-4">
-                <span className="bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
-                  ⏰ TEMPO LIMITADO
+                <span className="bg-yellow-500 text-yellow-950 text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full animate-pulse">
+                  🔥 APENAS 20 VAGAS
                 </span>
                 <span className="bg-red-500 text-white text-[10px] sm:text-xs font-bold py-1 px-3 rounded-full">
-                  💰 ECONOMIZE
+                  💰 ECONOMIZE 50%
                 </span>
               </div>
               <CardContent className="p-6 sm:p-8 pt-20 sm:pt-24">
