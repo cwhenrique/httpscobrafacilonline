@@ -66,6 +66,7 @@ serve(async (req) => {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
     const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    const adminPhone = Deno.env.get('ADMIN_PHONE_NUMBER');
 
     if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
       const formattedPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
@@ -86,10 +87,11 @@ Aproveite para conhecer todas as funcionalidades do sistema!
 
 ⏰ Seu acesso expira em 24 horas.`;
 
-      try {
-        const cleanUrl = evolutionApiUrl.replace(/\/+$/, '').replace(/\/message\/sendText$/, '');
-        const apiUrl = `${cleanUrl}/message/sendText/${evolutionInstance}`;
+      const cleanUrl = evolutionApiUrl.replace(/\/+$/, '').replace(/\/message\/sendText$/, '');
+      const apiUrl = `${cleanUrl}/message/sendText/${evolutionInstance}`;
 
+      // Send to user
+      try {
         await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -101,10 +103,41 @@ Aproveite para conhecer todas as funcionalidades do sistema!
             text: message,
           }),
         });
-
-        console.log('Welcome WhatsApp sent to:', phoneWithCountry);
+        console.log('Welcome WhatsApp sent to user:', phoneWithCountry);
       } catch (whatsappError) {
-        console.error('Error sending WhatsApp:', whatsappError);
+        console.error('Error sending WhatsApp to user:', whatsappError);
+      }
+
+      // Send copy to admin
+      if (adminPhone) {
+        const formattedAdminPhone = adminPhone.replace(/\D/g, '').replace(/^0+/, '');
+        const adminPhoneWithCountry = formattedAdminPhone.startsWith('55') ? formattedAdminPhone : `55${formattedAdminPhone}`;
+        
+        const adminMessage = `📋 *Novo usuário trial criado!*
+
+👤 *Nome:* ${full_name}
+📧 *Email:* ${email}
+📱 *Telefone:* ${phone}
+🔑 *Senha:* ${password}
+
+⏰ Expira em: 24 horas`;
+
+        try {
+          await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify({
+              number: adminPhoneWithCountry,
+              text: adminMessage,
+            }),
+          });
+          console.log('Admin notification sent to:', adminPhoneWithCountry);
+        } catch (whatsappError) {
+          console.error('Error sending WhatsApp to admin:', whatsappError);
+        }
       }
     }
 
