@@ -121,6 +121,14 @@ const PricingSection = ({
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                     <span className="text-muted-foreground text-sm">Relatórios da operação</span>
                   </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Comprovantes em PDF</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Taxas de renovação</span>
+                  </li>
                 </ul>
                 <a href={monthlyLink} target="_blank" rel="noopener noreferrer" className="block">
                   <Button variant="outline" size="lg" className="w-full h-12">
@@ -191,6 +199,14 @@ const PricingSection = ({
                   </li>
                   <li className="flex items-center gap-2 sm:gap-3">
                     <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                    <span className="text-foreground text-xs sm:text-sm font-medium">Comprovantes em PDF</span>
+                  </li>
+                  <li className="flex items-center gap-2 sm:gap-3">
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                    <span className="text-foreground text-xs sm:text-sm font-medium">Taxas de renovação</span>
+                  </li>
+                  <li className="flex items-center gap-2 sm:gap-3">
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     <span className="text-foreground text-xs sm:text-sm font-medium">Atualizações gratuitas</span>
                   </li>
                   <li className="flex items-center gap-2 sm:gap-3">
@@ -248,7 +264,19 @@ const PricingSection = ({
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Suporte prioritário</span>
+                    <span className="text-muted-foreground text-sm">Suporte via WhatsApp</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Comprovantes em PDF</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Taxas de renovação</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Atualizações gratuitas</span>
                   </li>
                 </ul>
                 <a href={annualLink} target="_blank" rel="noopener noreferrer" className="block">
