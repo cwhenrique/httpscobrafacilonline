@@ -314,7 +314,8 @@ export default function Loans() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    if (formData.payment_type === 'installment' && installmentDates.length > 0) {
+    // Check installmentDates for installment, weekly, and daily payment types
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
       return installmentDates.some(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
@@ -658,11 +659,15 @@ export default function Loans() {
       due_date: installmentDates[installmentDates.length - 1],
       remaining_balance: totalToReceive,
       total_interest: dailyAmount,
-      notes: formData.notes 
-        ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
-        : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`,
+      notes: formData.is_historical_contract 
+        ? `[HISTORICAL_CONTRACT]\n${formData.notes ? formData.notes + '\n' : ''}Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`
+        : (formData.notes 
+          ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
+          : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
+      is_historical_contract: formData.is_historical_contract,
+      historical_payments: formData.is_historical_contract ? pastInstallmentsData : undefined,
     };
     
     console.log('loanData being passed to createLoan:', loanData);
@@ -683,7 +688,7 @@ export default function Loans() {
     const principal = parseFloat(formData.principal_amount) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
       const pastDates = installmentDates.filter(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
@@ -694,7 +699,15 @@ export default function Loans() {
       let principalPerInstallment: number;
       let interestPerInstallment: number;
       
-      if (installmentValue && parseFloat(installmentValue) > 0) {
+      // For daily loans, use daily_amount directly
+      if (formData.payment_type === 'daily' && formData.daily_amount) {
+        const dailyAmount = parseFloat(formData.daily_amount);
+        const totalToReceive = dailyAmount * numInstallments;
+        const profit = totalToReceive - principal;
+        valuePerInstallment = dailyAmount;
+        principalPerInstallment = principal / numInstallments;
+        interestPerInstallment = profit / numInstallments;
+      } else if (installmentValue && parseFloat(installmentValue) > 0) {
         // User edited/rounded the installment value - use it directly
         valuePerInstallment = parseFloat(installmentValue);
         principalPerInstallment = principal / numInstallments;
@@ -1842,6 +1855,63 @@ export default function Loans() {
                     <Label className="text-xs sm:text-sm">Observações</Label>
                     <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                   </div>
+                  
+                  {/* Historical contract option when dates are in the past - Daily loans */}
+                  {hasPastDates && (
+                    <div className="p-3 rounded-lg bg-yellow-500/20 border border-yellow-400/30 space-y-2">
+                      <p className="text-sm text-yellow-300 font-medium">
+                        ⚠️ Este contrato possui datas anteriores à data atual
+                      </p>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="is_historical_contract_daily"
+                          checked={formData.is_historical_contract}
+                          onCheckedChange={(checked) => setFormData({ ...formData, is_historical_contract: !!checked })}
+                          className="mt-0.5 border-yellow-400 data-[state=checked]:bg-yellow-500"
+                        />
+                        <div className="space-y-1">
+                          <Label htmlFor="is_historical_contract_daily" className="text-sm text-yellow-200 cursor-pointer">
+                            Este é um contrato antigo que estou registrando
+                          </Label>
+                          <p className="text-xs text-yellow-300/70">
+                            Se marcado, o contrato só ficará em atraso após a próxima data futura vencer
+                          </p>
+                        </div>
+                      </div>
+                      {!formData.is_historical_contract && (
+                        <p className="text-xs text-red-300 mt-1">
+                          Se não marcar, o contrato será considerado em atraso imediatamente
+                        </p>
+                      )}
+                      {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
+                        <div className="p-2 rounded bg-green-500/20 border border-green-400/30 mt-2">
+                          <p className="text-xs text-green-300">
+                            ✓ <strong>{pastInstallmentsData.count}</strong> parcela(s) passada(s) serão automaticamente registradas como já recebidas 
+                            ({formatCurrency(pastInstallmentsData.totalValue)})
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* WhatsApp Notification Option - Daily loans */}
+                  <div className="flex items-start gap-2 p-3 rounded-lg border border-border/50 bg-muted/30">
+                    <Checkbox
+                      id="send_creation_notification_daily"
+                      checked={formData.send_creation_notification}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, send_creation_notification: !!checked }))}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="send_creation_notification_daily" className="text-sm font-medium cursor-pointer">
+                        Receber notificação WhatsApp deste contrato
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Alertas de atraso e relatórios serão enviados normalmente mesmo que você não marque essa opção
+                      </p>
+                    </div>
+                  </div>
+                  
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); resetForm(); }} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
                     <Button type="submit" className="bg-sky-500 hover:bg-sky-600 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar Diário</Button>
