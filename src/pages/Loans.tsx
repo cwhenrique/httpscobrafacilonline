@@ -25,7 +25,8 @@ import { generateContractReceipt, generatePaymentReceipt, generateOperationsRepo
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
-import LoansTutorial from '@/components/tutorials/LoansTutorial';
+import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
+import LoanFormTutorial from '@/components/tutorials/LoanFormTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -155,67 +156,49 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
-  // Tutorial state - demonstrative guided tutorial
-  const [tutorialRun, setTutorialRun] = useState(false);
-  const [tutorialStep, setTutorialStep] = useState(0);
+  // Tutorial states - TWO separate tutorials
+  // Page tutorial: shows main page elements (4 steps)
+  // Form tutorial: shows form fields when dialog opens (9 steps)
+  const [pageTutorialRun, setPageTutorialRun] = useState(false);
+  const [pageTutorialStep, setPageTutorialStep] = useState(0);
+  const [formTutorialRun, setFormTutorialRun] = useState(false);
+  const [formTutorialStep, setFormTutorialStep] = useState(0);
   const [showTutorialConfirmation, setShowTutorialConfirmation] = useState(false);
+  const [hasSeenFormTutorial, setHasSeenFormTutorial] = useState(true);
   const { user } = useAuth();
 
-  // Check if user has seen tutorial on mount - show confirmation modal
+  // Check if user has seen tutorials on mount
   useEffect(() => {
     const checkTutorialStatus = async () => {
       if (!user?.id) return;
       
-      const { data: profile } = await supabase
+      const { data: profileData } = await supabase
         .from('profiles')
-        .select('has_seen_loans_tutorial')
+        .select('has_seen_loans_tutorial, has_seen_loan_form_tutorial')
         .eq('id', user.id)
         .single();
       
-      // Show confirmation modal if user hasn't seen tutorial
-      if (profile && !profile.has_seen_loans_tutorial) {
-        setShowTutorialConfirmation(true);
+      if (profileData) {
+        // Show page tutorial confirmation if not seen
+        if (!profileData.has_seen_loans_tutorial) {
+          setShowTutorialConfirmation(true);
+        }
+        // Track form tutorial status
+        setHasSeenFormTutorial(profileData.has_seen_loan_form_tutorial ?? false);
       }
     };
     
     checkTutorialStatus();
   }, [user?.id]);
 
-  // Auto-open/close dialog based on tutorial step (demonstrative mode)
-  // Tutorial dialog control:
-  // Steps 0-3 = main page steps (dialog closed)
-  // Steps 4-13 = dialog steps (dialog open)
-  useEffect(() => {
-    if (!tutorialRun) return;
-    
-    let timeoutId: ReturnType<typeof setTimeout>;
-    
-    // Open dialog for ALL dialog-related steps (4-13)
-    // Step 4 is transition, steps 5-13 show form fields
-    if (tutorialStep >= 4 && tutorialStep <= 13 && !isDialogOpen) {
-      timeoutId = setTimeout(() => {
-        setIsDialogOpen(true);
-      }, 100); // Reduced delay - waitForElement handles sync
-    }
-    // Close dialog when on main page steps (0-3) or after tutorial
-    else if ((tutorialStep < 4 || tutorialStep > 13) && isDialogOpen) {
-      timeoutId = setTimeout(() => {
-        setIsDialogOpen(false);
-        setShowNewClientForm(false);
-      }, 100);
-    }
-    
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [tutorialStep, tutorialRun, isDialogOpen]);
-
+  // Start page tutorial
   const handleStartTutorial = () => {
     setShowTutorialConfirmation(false);
-    setTutorialRun(true);
-    setTutorialStep(0);
+    setPageTutorialRun(true);
+    setPageTutorialStep(0);
   };
 
+  // Decline page tutorial
   const handleDeclineTutorial = async () => {
     setShowTutorialConfirmation(false);
     if (user?.id) {
@@ -226,11 +209,10 @@ export default function Loans() {
     }
   };
 
-  const handleExitTutorial = async () => {
-    setTutorialRun(false);
-    setTutorialStep(0);
-    setIsDialogOpen(false);
-    setShowNewClientForm(false);
+  // Exit page tutorial
+  const handleExitPageTutorial = async () => {
+    setPageTutorialRun(false);
+    setPageTutorialStep(0);
     
     if (user?.id) {
       await supabase
@@ -241,11 +223,10 @@ export default function Loans() {
     toast.info('Tutorial encerrado');
   };
 
-  const handleTutorialFinish = async () => {
-    setTutorialRun(false);
-    setTutorialStep(0);
-    setIsDialogOpen(false);
-    setShowNewClientForm(false);
+  // Finish page tutorial
+  const handlePageTutorialFinish = async () => {
+    setPageTutorialRun(false);
+    setPageTutorialStep(0);
     
     if (user?.id) {
       await supabase
@@ -253,16 +234,54 @@ export default function Loans() {
         .update({ has_seen_loans_tutorial: true })
         .eq('id', user.id);
     }
-    toast.success('Tutorial concluído! 🎉');
+    toast.success('Tutorial da página concluído! 🎉');
   };
 
-  // Dialog open handler (for normal use, tutorial auto-opens via useEffect)
+  // Exit form tutorial
+  const handleExitFormTutorial = async () => {
+    setFormTutorialRun(false);
+    setFormTutorialStep(0);
+    
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ has_seen_loan_form_tutorial: true })
+        .eq('id', user.id);
+    }
+    setHasSeenFormTutorial(true);
+    toast.info('Tutorial do formulário encerrado');
+  };
+
+  // Finish form tutorial
+  const handleFormTutorialFinish = async () => {
+    setFormTutorialRun(false);
+    setFormTutorialStep(0);
+    
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ has_seen_loan_form_tutorial: true })
+        .eq('id', user.id);
+    }
+    setHasSeenFormTutorial(true);
+    toast.success('Tutorial do formulário concluído! 🎉');
+  };
+
+  // Dialog open handler - triggers form tutorial when dialog opens
   const handleDialogOpen = (open: boolean) => {
-    // During tutorial, don't allow manual closing when showing form fields
-    if (tutorialRun && tutorialStep >= 4 && tutorialStep <= 13 && !open) {
-      return; // Prevent closing during form field steps
+    // During form tutorial, don't allow manual closing
+    if (formTutorialRun && !open) {
+      return;
     }
     setIsDialogOpen(open);
+    
+    // Start form tutorial when dialog opens for first time
+    if (open && !hasSeenFormTutorial && !formTutorialRun) {
+      setTimeout(() => {
+        setFormTutorialRun(true);
+        setFormTutorialStep(0);
+      }, 300);
+    }
   };
 
   const handleNewClientClick = () => {
@@ -1686,24 +1705,31 @@ export default function Loans() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <LoansTutorial 
-        run={tutorialRun} 
-        onFinish={handleTutorialFinish}
-        onExit={handleExitTutorial}
-        stepIndex={tutorialStep}
-        onStepChange={setTutorialStep}
+      {/* Page Tutorial (main page elements) */}
+      <LoansPageTutorial 
+        run={pageTutorialRun} 
+        onFinish={handlePageTutorialFinish}
+        stepIndex={pageTutorialStep}
+        onStepChange={setPageTutorialStep}
       />
 
+      {/* Form Tutorial (dialog form elements) */}
+      <LoanFormTutorial 
+        run={formTutorialRun} 
+        onFinish={handleFormTutorialFinish}
+        stepIndex={formTutorialStep}
+        onStepChange={setFormTutorialStep}
+      />
 
-      {/* Fixed Tutorial Exit Bar */}
-      {tutorialRun && (
+      {/* Fixed Tutorial Exit Bar - shows for either tutorial */}
+      {(pageTutorialRun || formTutorialRun) && (
         <div className="tutorial-exit-bar fixed bottom-0 left-0 right-0 bg-destructive text-destructive-foreground p-3 z-[10002] flex items-center justify-center gap-4 shadow-lg">
           <span className="text-sm font-medium">📚 Você está no tutorial guiado</span>
           <Button 
             variant="outline" 
             size="sm"
             className="bg-white text-destructive hover:bg-destructive-foreground border-white font-medium"
-            onClick={handleExitTutorial}
+            onClick={pageTutorialRun ? handleExitPageTutorial : handleExitFormTutorial}
           >
             ❌ Sair do Tutorial
           </Button>
@@ -1721,8 +1747,8 @@ export default function Loans() {
               size="sm" 
               className="gap-1.5 text-xs sm:text-sm"
               onClick={() => {
-                setTutorialRun(true);
-                setTutorialStep(0);
+                setPageTutorialRun(true);
+                setPageTutorialStep(0);
               }}
             >
               <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
