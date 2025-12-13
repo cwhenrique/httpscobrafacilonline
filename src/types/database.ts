@@ -30,6 +30,10 @@ export interface Client {
   score_updated_at: string;
   created_at: string;
   updated_at: string;
+  // Personal documents
+  cpf: string | null;
+  rg: string | null;
+  email: string | null;
   // Structured address fields
   cep: string | null;
   street: string | null;

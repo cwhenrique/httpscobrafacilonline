@@ -33,6 +33,9 @@ export function useClients() {
     address?: string;
     notes?: string;
     client_type: ClientType;
+    cpf?: string;
+    rg?: string;
+    email?: string;
     cep?: string;
     street?: string;
     number?: string;

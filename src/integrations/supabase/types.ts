@@ -108,7 +108,9 @@ export type Database = {
           city: string | null
           client_type: Database["public"]["Enums"]["client_type"]
           complement: string | null
+          cpf: string | null
           created_at: string
+          email: string | null
           full_name: string
           id: string
           late_payments: number | null
@@ -117,6 +119,7 @@ export type Database = {
           number: string | null
           on_time_payments: number | null
           phone: string | null
+          rg: string | null
           score: number | null
           score_updated_at: string | null
           state: string | null
@@ -133,7 +136,9 @@ export type Database = {
           city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           complement?: string | null
+          cpf?: string | null
           created_at?: string
+          email?: string | null
           full_name: string
           id?: string
           late_payments?: number | null
@@ -142,6 +147,7 @@ export type Database = {
           number?: string | null
           on_time_payments?: number | null
           phone?: string | null
+          rg?: string | null
           score?: number | null
           score_updated_at?: string | null
           state?: string | null
@@ -158,7 +164,9 @@ export type Database = {
           city?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           complement?: string | null
+          cpf?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           late_payments?: number | null
@@ -167,6 +175,7 @@ export type Database = {
           number?: string | null
           on_time_payments?: number | null
           phone?: string | null
+          rg?: string | null
           score?: number | null
           score_updated_at?: string | null
           state?: string | null
