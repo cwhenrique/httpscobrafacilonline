@@ -8,132 +8,118 @@ interface LoansTutorialProps {
   onStepChange: (index: number) => void;
 }
 
-// Simplified tutorial steps - client form auto-opens
+// Demonstrative tutorial - user just clicks "Next" to see each field explained
 const TUTORIAL_STEPS: Step[] = [
-  // Step 0: Click "Novo Empréstimo" button
+  // Step 0: New Loan button
   {
     target: '.tutorial-new-loan',
-    content: '👆 Clique neste botão para começar a criar um empréstimo!',
-    title: '🆕 Passo 1: Novo Empréstimo',
-    disableBeacon: true,
+    content: 'Este botão abre o formulário para criar um novo empréstimo parcelado, semanal ou pagamento único.',
+    title: '➕ Novo Empréstimo',
     placement: 'bottom',
-    hideFooter: true,
-    spotlightClicks: true,
-  },
-  // Step 1: Fill client name (form auto-opened)
-  {
-    target: '.tutorial-client-name',
-    content: '📝 Digite o nome completo do cliente no campo destacado.',
-    title: '✏️ Passo 2: Nome do Cliente',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
     disableBeacon: true,
   },
-  // Step 2: Fill client phone (optional)
+  // Step 1: New Daily button
   {
-    target: '.tutorial-client-phone',
-    content: '📱 Digite o telefone do cliente (opcional).',
-    title: '📞 Passo 3: Telefone',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
+    target: '.tutorial-new-daily',
+    content: 'Botão específico para criar empréstimos com cobrança diária. Você escolhe as datas de cobrança manualmente.',
+    title: '📅 Novo Diário',
+    placement: 'bottom',
     disableBeacon: true,
   },
-  // Step 3: Click "Criar Cliente" button
-  {
-    target: '.tutorial-create-client-btn',
-    content: '👆 Clique neste botão para criar o cliente!',
-    title: '✅ Passo 4: Criar Cliente',
-    placement: 'top',
-    hideFooter: true,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 4: Fill loan value
-  {
-    target: '.tutorial-form-value',
-    content: '💰 Digite o valor que será emprestado ao cliente.',
-    title: '💵 Passo 5: Valor do Empréstimo',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 5: Fill interest rate
-  {
-    target: '.tutorial-form-interest',
-    content: '📊 Defina a taxa de juros em percentual (ex: 10%).',
-    title: '📈 Passo 6: Taxa de Juros',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 6: Select interest mode
-  {
-    target: '.tutorial-form-interest-mode',
-    content: '⚙️ Escolha como os juros serão aplicados.',
-    title: '🔧 Passo 7: Modo de Juros',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 7: Select payment type
-  {
-    target: '.tutorial-form-payment-type',
-    content: '📋 Selecione a modalidade de pagamento.',
-    title: '💳 Passo 8: Modalidade',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 8: Fill dates
-  {
-    target: '.tutorial-form-dates',
-    content: '📅 Defina a data de início do empréstimo.',
-    title: '🗓️ Passo 9: Datas',
-    placement: 'right',
-    hideFooter: false,
-    spotlightClicks: true,
-    disableBeacon: true,
-  },
-  // Step 9: Notes (optional)
-  {
-    target: '.tutorial-form-notes',
-    content: '📝 Adicione observações opcionais sobre o empréstimo.',
-    title: '📋 Passo 10: Observações',
-    placement: 'top',
-    hideFooter: false,
-    disableBeacon: true,
-  },
-  // Step 10: Submit button
-  {
-    target: '.tutorial-form-submit',
-    content: '✅ Quando terminar, clique em "Criar" para salvar! (Você pode cancelar se for teste)',
-    title: '🎉 Passo 11: Criar Empréstimo',
-    placement: 'top',
-    hideFooter: false,
-    disableBeacon: true,
-  },
-  // Step 11: Search field
+  // Step 2: Search field
   {
     target: '.tutorial-search',
-    content: '🔍 Pesquise rapidamente por nome do cliente ou valor.',
-    title: '🔎 Buscar Empréstimos',
+    content: 'Campo de busca para encontrar empréstimos pelo nome do cliente ou valor.',
+    title: '🔍 Buscar Empréstimos',
     placement: 'bottom',
-    hideFooter: false,
     disableBeacon: true,
   },
-  // Step 12: Filters
+  // Step 3: Filters
   {
     target: '.tutorial-filters',
-    content: '📋 Filtre por status: Em Dia, Pagos, Atraso, etc.',
+    content: 'Filtre empréstimos por status: Em Dia, Pagos, Em Atraso, Renegociados, etc.',
     title: '🏷️ Filtros de Status',
     placement: 'bottom',
-    hideFooter: false,
+    disableBeacon: true,
+  },
+  // Step 4: Client select (dialog opens automatically)
+  {
+    target: '.tutorial-client-select',
+    content: 'Selecione um cliente já cadastrado no sistema para vincular ao empréstimo.',
+    title: '👤 Selecionar Cliente',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 5: New client button
+  {
+    target: '.tutorial-new-client-btn',
+    content: 'Se o cliente não existir, clique aqui para cadastrar um novo cliente sem sair do formulário.',
+    title: '➕ Cadastrar Novo Cliente',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 6: Loan value
+  {
+    target: '.tutorial-form-value',
+    content: 'Digite o valor principal que será emprestado ao cliente (sem juros).',
+    title: '💰 Valor do Empréstimo',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 7: Interest rate
+  {
+    target: '.tutorial-form-interest',
+    content: 'Defina a taxa de juros em percentual. Exemplo: 10% ao mês.',
+    title: '📊 Taxa de Juros',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 8: Interest mode
+  {
+    target: '.tutorial-form-interest-mode',
+    content: 'Por Parcela: juros multiplicado pelo número de parcelas. Sobre o Total: juros aplicado uma única vez.',
+    title: '⚙️ Modo de Juros',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 9: Payment type
+  {
+    target: '.tutorial-form-payment-type',
+    content: 'Escolha a modalidade: Parcelado (várias parcelas), Semanal, ou Pagamento Único.',
+    title: '💳 Modalidade de Pagamento',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 10: Dates
+  {
+    target: '.tutorial-form-dates',
+    content: 'Defina a data de início do empréstimo. O vencimento é calculado automaticamente.',
+    title: '📅 Datas do Contrato',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  // Step 11: Notes
+  {
+    target: '.tutorial-form-notes',
+    content: 'Adicione observações opcionais sobre o empréstimo ou acordos especiais.',
+    title: '📝 Observações',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  // Step 12: Submit button
+  {
+    target: '.tutorial-form-submit',
+    content: 'Quando tudo estiver preenchido, clique aqui para salvar o empréstimo no sistema.',
+    title: '✅ Criar Empréstimo',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  // Step 13: Final summary (back to main page)
+  {
+    target: '.tutorial-new-loan',
+    content: 'Parabéns! Você conheceu todas as funcionalidades básicas da página de empréstimos. Agora você pode começar a gerenciar seus empréstimos!',
+    title: '🎉 Tutorial Concluído!',
+    placement: 'bottom',
     disableBeacon: true,
   },
 ];
@@ -142,7 +128,7 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, action, index, type } = data;
     
-    // Block all external close attempts
+    // Block skip/close attempts
     if (action === ACTIONS.SKIP || action === ACTIONS.CLOSE) {
       return;
     }
@@ -162,7 +148,6 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
     }
   };
 
-  // Only render when tutorial is running
   if (!run) return null;
 
   return (
@@ -178,8 +163,7 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
       steps={TUTORIAL_STEPS}
       disableOverlayClose
       disableCloseOnEsc
-      disableScrolling
-      disableScrollParentFix
+      spotlightClicks={false}
       floaterProps={{
         disableAnimation: true,
         offset: 15,
@@ -189,7 +173,7 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
         back: '← Voltar',
         close: 'Fechar',
         last: '🎉 Finalizar Tutorial',
-        next: '✓ Próxima Etapa',
+        next: 'Próxima Etapa →',
         open: 'Abrir',
         skip: '',
       }}
@@ -204,35 +188,31 @@ export default function LoansTutorial({ run, onFinish, onExit, stepIndex, onStep
         },
         tooltip: {
           borderRadius: 12,
-          padding: 16,
+          padding: 20,
         },
         tooltipContainer: {
           textAlign: 'left',
         },
         tooltipTitle: {
-          fontSize: 16,
+          fontSize: 18,
           fontWeight: 600,
-          marginBottom: 8,
+          marginBottom: 10,
         },
         tooltipContent: {
-          fontSize: 14,
-          lineHeight: 1.5,
+          fontSize: 15,
+          lineHeight: 1.6,
         },
         buttonNext: {
           backgroundColor: '#22c55e',
           borderRadius: 8,
-          padding: '8px 16px',
+          padding: '10px 20px',
           fontSize: 14,
           fontWeight: 500,
         },
         buttonBack: {
           color: '#94a3b8',
-          marginRight: 8,
+          marginRight: 10,
           fontSize: 14,
-        },
-        buttonSkip: {
-          color: '#64748b',
-          fontSize: 13,
         },
         spotlight: {
           borderRadius: 12,
