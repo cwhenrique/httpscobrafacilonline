@@ -92,18 +92,30 @@ const PricingSection = ({
                   </div>
                   <p className="text-sm text-muted-foreground">por mês</p>
                 </div>
-                <ul className="space-y-4 mb-8">
+                <ul className="space-y-3 mb-8">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Todas as funcionalidades</span>
+                    <span className="text-muted-foreground text-sm">Clientes ilimitados</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Suporte por email</span>
+                    <span className="text-muted-foreground text-sm">Empréstimos ilimitados</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Ideal para testar</span>
+                    <span className="text-muted-foreground text-sm">Cálculo automático de juros</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Calendário de cobranças</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Score de clientes</span>
                   </li>
                 </ul>
                 <a href={monthlyLink} target="_blank" rel="noopener noreferrer" className="block">
