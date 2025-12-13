@@ -2430,14 +2430,25 @@ export default function Loans() {
                   renewalFeeAmount = renewalFeeNewInstallmentValue > 0 ? renewalFeeNewInstallmentValue - totalPerInstallment : 0;
                 }
                 
+                // Check if this is an interest-only payment
+                const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+                
+                // Total original do contrato (antes de qualquer renegociação)
+                const originalTotal = loan.principal_amount + effectiveTotalInterest;
+                
                 // Total a Receber base + taxa extra se existir
-                let totalToReceive = isDaily ? dailyTotalToReceive : loan.principal_amount + effectiveTotalInterest;
-                if (hasRenewalFee && renewalFeeAmount > 0) {
+                let totalToReceive = isDaily ? dailyTotalToReceive : originalTotal;
+                
+                // Para pagamentos "só juros", o totalToReceive deve refletir o remaining + total_paid
+                // porque o usuário pode ter adicionado juros extras
+                if (isInterestOnlyPayment) {
+                  totalToReceive = loan.remaining_balance + (loan.total_paid || 0);
+                } else if (hasRenewalFee && renewalFeeAmount > 0) {
                   totalToReceive += renewalFeeAmount;
                 }
                 
-                // Check if this is an interest-only payment
-                const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+                // Calcular juros extra (valor excedente ao contrato original)
+                const extraInterest = isInterestOnlyPayment ? Math.max(0, totalToReceive - originalTotal) : 0;
                 
                 // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
                 // usamos o valor do banco. Nos demais, calculamos normalmente.
@@ -2658,6 +2669,14 @@ export default function Loans() {
                               {formatCurrency(calculatedInterestPerInstallment)}
                             </span>
                           </div>
+                          {extraInterest > 0 && (
+                            <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-purple-400/30">
+                              <span className={hasSpecialStyle ? 'text-white/80' : 'text-orange-300'}>Juros Extra Adicionado:</span>
+                              <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-orange-400'}`}>
+                                +{formatCurrency(extraInterest)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                       
