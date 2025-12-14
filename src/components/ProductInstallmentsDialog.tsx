@@ -63,18 +63,35 @@ export default function ProductInstallmentsDialog({
         </DialogHeader>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-2 p-4 border-b">
-          <div className="text-center p-2 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">Total</p>
-            <p className="font-bold text-sm">{formatCurrency(sale.total_amount)}</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-primary/10">
-            <p className="text-xs text-muted-foreground">Pago</p>
-            <p className="font-bold text-sm text-primary">{formatCurrency(sale.total_paid || 0)}</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-orange-500/10">
-            <p className="text-xs text-muted-foreground">Falta</p>
-            <p className="font-bold text-sm text-orange-500">{formatCurrency(sale.remaining_balance)}</p>
+        <div className="p-4 border-b space-y-2">
+          {/* Custo e Lucro (se tiver custo) */}
+          {(sale.cost_value || 0) > 0 && (
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="text-center p-2 rounded-lg bg-muted/30">
+                <p className="text-xs text-muted-foreground">Custo</p>
+                <p className="font-bold text-sm">{formatCurrency(sale.cost_value || 0)}</p>
+              </div>
+              <div className={`text-center p-2 rounded-lg ${(sale.total_amount - (sale.cost_value || 0)) >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'}`}>
+                <p className="text-xs text-muted-foreground">Lucro</p>
+                <p className={`font-bold text-sm ${(sale.total_amount - (sale.cost_value || 0)) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                  {formatCurrency(sale.total_amount - (sale.cost_value || 0))}
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-2 rounded-lg bg-muted/50">
+              <p className="text-xs text-muted-foreground">Venda</p>
+              <p className="font-bold text-sm">{formatCurrency(sale.total_amount)}</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-primary/10">
+              <p className="text-xs text-muted-foreground">Pago</p>
+              <p className="font-bold text-sm text-primary">{formatCurrency(sale.total_paid || 0)}</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-orange-500/10">
+              <p className="text-xs text-muted-foreground">Falta</p>
+              <p className="font-bold text-sm text-orange-500">{formatCurrency(sale.remaining_balance)}</p>
+            </div>
           </div>
         </div>
 
