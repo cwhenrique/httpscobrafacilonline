@@ -1324,6 +1324,7 @@ export default function Loans() {
         interest_paid: interestPaid,
         payment_date: renegotiateData.interest_payment_date || new Date().toISOString().split('T')[0],
         notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
+        send_notification: renegotiateData.send_interest_notification,
       });
       
       // Atualizar notas e nova data de vencimento
