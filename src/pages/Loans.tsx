@@ -1072,6 +1072,33 @@ export default function Loans() {
       await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
     }
     
+    // CORREÇÃO: Se o usuário informou uma nova data de vencimento, atualizar ANTES do registerPayment
+    // para que o fetchLoans() interno do registerPayment pegue a data correta
+    if (paymentData.new_due_date) {
+      const currentDates = (selectedLoan.installment_dates as string[]) || [];
+      let updatedDates = [...currentDates];
+      
+      // Se for parcelado, atualizar a próxima parcela em aberto
+      if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && currentDates.length > 0) {
+        // Usar o updatedNotes que já foi salvo no banco, não o notes antigo do selectedLoan
+        const loanWithUpdatedNotes = { 
+          ...selectedLoan, 
+          notes: updatedNotes 
+        };
+        const paidInstallmentsCount = getPaidInstallmentsCount(loanWithUpdatedNotes);
+        // Atualiza a data da próxima parcela em aberto
+        if (paidInstallmentsCount < currentDates.length) {
+          updatedDates[paidInstallmentsCount] = paymentData.new_due_date;
+        }
+      }
+      
+      // Atualizar o due_date e installment_dates ANTES de registerPayment
+      await supabase.from('loans').update({ 
+        due_date: paymentData.new_due_date,
+        installment_dates: updatedDates.length > 0 ? updatedDates : [paymentData.new_due_date]
+      }).eq('id', selectedLoanId);
+    }
+    
     await registerPayment({
       loan_id: selectedLoanId,
       amount: amount,
@@ -1109,32 +1136,6 @@ export default function Loans() {
       totalContract: totalContractValue,
     });
     setIsPaymentReceiptOpen(true);
-    
-    // Se o usuário informou uma nova data de vencimento, atualizar o empréstimo
-    if (paymentData.new_due_date) {
-      const currentDates = (selectedLoan.installment_dates as string[]) || [];
-      let updatedDates = [...currentDates];
-      
-      // Se for parcelado, atualizar a próxima parcela em aberto
-      if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && currentDates.length > 0) {
-        // CORREÇÃO: Usar o updatedNotes que já foi salvo no banco, não o notes antigo do selectedLoan
-        const loanWithUpdatedNotes = { 
-          ...selectedLoan, 
-          notes: updatedNotes 
-        };
-        const paidInstallmentsCount = getPaidInstallmentsCount(loanWithUpdatedNotes);
-        // Atualiza a data da próxima parcela em aberto
-        if (paidInstallmentsCount < currentDates.length) {
-          updatedDates[paidInstallmentsCount] = paymentData.new_due_date;
-        }
-      }
-      
-      // Atualizar o due_date também
-      await supabase.from('loans').update({ 
-        due_date: paymentData.new_due_date,
-        installment_dates: updatedDates.length > 0 ? updatedDates : [paymentData.new_due_date]
-      }).eq('id', selectedLoanId);
-    }
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
