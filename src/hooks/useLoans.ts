@@ -656,6 +656,24 @@ export function useLoans() {
     return { success: true };
   };
 
+  // Update payment date
+  const updatePaymentDate = async (paymentId: string, newDate: string) => {
+    if (!user) return { error: new Error('Usuário não autenticado') };
+
+    const { error } = await supabase
+      .from('loan_payments')
+      .update({ payment_date: newDate })
+      .eq('id', paymentId);
+
+    if (error) {
+      toast.error('Erro ao atualizar data do pagamento');
+      return { error };
+    }
+
+    toast.success('Data do pagamento atualizada!');
+    return { success: true };
+  };
+
   useEffect(() => {
     fetchLoans();
   }, [user]);
@@ -671,5 +689,6 @@ export function useLoans() {
     deletePayment,
     renegotiateLoan,
     updateLoan,
+    updatePaymentDate,
   };
 }
