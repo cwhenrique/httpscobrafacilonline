@@ -104,6 +104,7 @@ export default function Loans() {
     notes: '',
     interest_only_paid: false,
     interest_amount_paid: '',
+    interest_payment_date: new Date().toISOString().split('T')[0], // Data do pagamento de juros
     send_interest_notification: false,
     renewal_fee_enabled: false,
     renewal_fee_percentage: '20',
@@ -450,6 +451,7 @@ export default function Loans() {
   const [paymentData, setPaymentData] = useState({
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
+    new_due_date: '', // Nova data de vencimento (opcional)
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
     selected_installments: [] as number[],
     partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
@@ -1108,9 +1110,30 @@ export default function Loans() {
     });
     setIsPaymentReceiptOpen(true);
     
+    // Se o usuário informou uma nova data de vencimento, atualizar o empréstimo
+    if (paymentData.new_due_date) {
+      const currentDates = (selectedLoan.installment_dates as string[]) || [];
+      let updatedDates = [...currentDates];
+      
+      // Se for parcelado, atualizar a próxima parcela em aberto
+      if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && currentDates.length > 0) {
+        const paidInstallmentsCount = getPaidInstallmentsCount(selectedLoan);
+        // Atualiza a data da próxima parcela em aberto
+        if (paidInstallmentsCount < currentDates.length) {
+          updatedDates[paidInstallmentsCount] = paymentData.new_due_date;
+        }
+      }
+      
+      // Atualizar o due_date também
+      await supabase.from('loans').update({ 
+        due_date: paymentData.new_due_date,
+        installment_dates: updatedDates.length > 0 ? updatedDates : [paymentData.new_due_date]
+      }).eq('id', selectedLoanId);
+    }
+    
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
+    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
   };
 
   const resetForm = () => {
@@ -1181,6 +1204,7 @@ export default function Loans() {
       notes: loan.notes || '',
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
+      interest_payment_date: new Date().toISOString().split('T')[0], // Data do pagamento de juros
       send_interest_notification: true,
       renewal_fee_enabled: false,
       renewal_fee_percentage: '20',
@@ -1274,7 +1298,7 @@ export default function Loans() {
         amount: interestPaid,
         principal_paid: 0, // Nunca reduz principal neste fluxo
         interest_paid: interestPaid,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: renegotiateData.interest_payment_date || new Date().toISOString().split('T')[0],
         notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
       });
       
@@ -3339,6 +3363,18 @@ export default function Loans() {
                       value={paymentData.payment_date} 
                       onChange={(e) => setPaymentData({ ...paymentData, payment_date: e.target.value })} 
                     />
+                    <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Nova Data de Vencimento (opcional)</Label>
+                    <Input 
+                      type="date" 
+                      value={paymentData.new_due_date} 
+                      onChange={(e) => setPaymentData({ ...paymentData, new_due_date: e.target.value })} 
+                      placeholder="Deixe vazio para manter a data original"
+                    />
+                    <p className="text-xs text-muted-foreground">Deixe vazio para manter as datas do contrato</p>
                   </div>
                   
                   <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
@@ -3594,15 +3630,29 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label>Nova Data de Vencimento *</Label>
-                        <Input 
-                          type="date" 
-                          value={renegotiateData.promised_date} 
-                          onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
-                          required 
-                        />
-                        <p className="text-xs text-muted-foreground">Próxima data de cobrança do valor restante</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-gray-400 text-xs">Data do Pagamento *</Label>
+                          <Input 
+                            type="date" 
+                            value={renegotiateData.interest_payment_date} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, interest_payment_date: e.target.value })} 
+                            required
+                            className="bg-slate-800 text-white border-primary"
+                          />
+                          <p className="text-xs text-gray-500">Quando o cliente pagou os juros</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-gray-400 text-xs">Nova Data de Vencimento *</Label>
+                          <Input 
+                            type="date" 
+                            value={renegotiateData.promised_date} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, promised_date: e.target.value })} 
+                            required
+                            className="bg-slate-800 text-white border-primary"
+                          />
+                          <p className="text-xs text-gray-500">Próxima data de cobrança</p>
+                        </div>
                       </div>
                       
                       <div className="flex items-center space-x-2 p-3 rounded-lg border-2 border-primary bg-primary/5">
