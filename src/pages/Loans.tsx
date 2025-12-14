@@ -2917,7 +2917,36 @@ export default function Loans() {
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
                                   className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
-                                  onClick={() => { setSelectedLoanId(loan.id); setIsPaymentDialogOpen(true); }}
+                                  onClick={() => { 
+                                    setSelectedLoanId(loan.id);
+                                    
+                                    // Calcular próxima data de vencimento (próximo mês da parcela atual)
+                                    const dates = (loan.installment_dates as string[]) || [];
+                                    const paidCount = getPaidInstallmentsCount(loan);
+                                    let defaultNextDueDate = '';
+                                    
+                                    if (dates.length > 0 && paidCount < dates.length) {
+                                      const currentInstallmentDate = new Date(dates[paidCount] + 'T12:00:00');
+                                      currentInstallmentDate.setMonth(currentInstallmentDate.getMonth() + 1);
+                                      defaultNextDueDate = currentInstallmentDate.toISOString().split('T')[0];
+                                    } else if (loan.due_date) {
+                                      const dueDate = new Date(loan.due_date + 'T12:00:00');
+                                      dueDate.setMonth(dueDate.getMonth() + 1);
+                                      defaultNextDueDate = dueDate.toISOString().split('T')[0];
+                                    }
+                                    
+                                    setPaymentData({ 
+                                      amount: '', 
+                                      payment_date: new Date().toISOString().split('T')[0],
+                                      new_due_date: defaultNextDueDate,
+                                      payment_type: 'partial', 
+                                      selected_installments: [], 
+                                      partial_installment_index: null, 
+                                      send_notification: false 
+                                    });
+                                    
+                                    setIsPaymentDialogOpen(true); 
+                                  }}
                                 >
                                   <CreditCard className="w-3 h-3 mr-1" />
                                   Pagar
@@ -3380,14 +3409,13 @@ export default function Loans() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label>Nova Data de Vencimento (opcional)</Label>
+                    <Label>Nova Data de Vencimento</Label>
                     <Input 
                       type="date" 
                       value={paymentData.new_due_date} 
                       onChange={(e) => setPaymentData({ ...paymentData, new_due_date: e.target.value })} 
-                      placeholder="Deixe vazio para manter a data original"
                     />
-                    <p className="text-xs text-muted-foreground">Deixe vazio para manter as datas do contrato</p>
+                    <p className="text-xs text-muted-foreground">Pré-preenchido com próximo mês. Altere se necessário.</p>
                   </div>
                   
                   <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
