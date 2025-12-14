@@ -311,12 +311,19 @@ export function useLoans() {
       const remainingToReceive = totalToReceive - newTotalPaid;
       const isPaidOff = remainingToReceive <= 0;
       
+      // Detect interest-only payment
+      const isInterestOnlyPayment = payment.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+      
       // Create notification for payment received
       await createNotificationRecord(user.id, {
-        title: isPaidOff ? '✅ Empréstimo Quitado!' : '💰 Pagamento Recebido',
-        message: isPaidOff 
-          ? `${clientName} quitou o empréstimo de ${formatCurrency(payment.amount)}`
-          : `${clientName} realizou um pagamento de ${formatCurrency(payment.amount)}`,
+        title: isInterestOnlyPayment 
+          ? '💰 Pagamento de Juros' 
+          : (isPaidOff ? '✅ Empréstimo Quitado!' : '💰 Pagamento Recebido'),
+        message: isInterestOnlyPayment
+          ? `${clientName} pagou R$ ${formatCurrency(payment.amount)} de juros`
+          : (isPaidOff 
+              ? `${clientName} quitou o empréstimo de ${formatCurrency(payment.amount)}`
+              : `${clientName} realizou um pagamento de ${formatCurrency(payment.amount)}`),
         type: 'success',
         loan_id: payment.loan_id,
         client_id: loan.client_id,
