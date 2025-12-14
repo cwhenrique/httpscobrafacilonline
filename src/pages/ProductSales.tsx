@@ -172,6 +172,7 @@ export default function ProductSales() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; amount: number; installmentNumber: number; saleId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Contracts states
   const [isContractOpen, setIsContractOpen] = useState(false);
@@ -462,7 +463,7 @@ export default function ProductSales() {
     
     await markSalePaymentAsPaid.mutateAsync({
       paymentId,
-      paidDate: format(new Date(), 'yyyy-MM-dd'),
+      paidDate: paymentDate,
     });
     
     // Show payment receipt prompt
@@ -476,7 +477,7 @@ export default function ProductSales() {
         installmentNumber: payment.installment_number,
         totalInstallments: sale.installments,
         amountPaid: payment.amount,
-        paymentDate: format(new Date(), 'yyyy-MM-dd'),
+        paymentDate: paymentDate,
         remainingBalance: newRemainingBalance,
         totalPaid: (sale.total_paid || 0) + payment.amount,
       });
@@ -486,6 +487,7 @@ export default function ProductSales() {
     setPaymentDialogOpen(false);
     setSelectedPayment(null);
     setPaymentAmount(0);
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd'));
   };
 
   const openPaymentDialog = (payment: { id: string; amount: number; installment_number: number; product_sale_id: string }) => {
@@ -496,6 +498,7 @@ export default function ProductSales() {
       saleId: payment.product_sale_id,
     });
     setPaymentAmount(payment.amount);
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd'));
     setPaymentDialogOpen(true);
   };
 
@@ -2057,8 +2060,14 @@ export default function ProductSales() {
         </Dialog>
 
         {/* Payment Registration Dialog */}
-        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-          <DialogContent className="max-w-sm">
+        <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
+          setPaymentDialogOpen(open);
+          if (!open) {
+            setSelectedPayment(null);
+            setPaymentDate(format(new Date(), 'yyyy-MM-dd'));
+          }
+        }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
             {selectedPayment && (
               <div className="space-y-4">
@@ -2072,8 +2081,13 @@ export default function ProductSales() {
                   <Label>Valor Pago (R$)</Label>
                   <Input type="number" min="0" step="0.01" value={paymentAmount || ''} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} placeholder="0,00" />
                 </div>
+                <div className="space-y-2">
+                  <Label>Data do Pagamento</Label>
+                  <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
+                </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => { setPaymentDialogOpen(false); setSelectedPayment(null); }}>Cancelar</Button>
+                  <Button variant="outline" className="flex-1" onClick={() => { setPaymentDialogOpen(false); setSelectedPayment(null); setPaymentDate(format(new Date(), 'yyyy-MM-dd')); }}>Cancelar</Button>
                   <Button className="flex-1 gap-2" onClick={() => handleMarkSalePaymentAsPaid(selectedPayment.id)} disabled={markSalePaymentAsPaid.isPending || paymentAmount <= 0}>
                     <Check className="w-4 h-4" />
                     {markSalePaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar'}
