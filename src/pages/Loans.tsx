@@ -1117,7 +1117,12 @@ export default function Loans() {
       
       // Se for parcelado, atualizar a próxima parcela em aberto
       if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && currentDates.length > 0) {
-        const paidInstallmentsCount = getPaidInstallmentsCount(selectedLoan);
+        // CORREÇÃO: Usar o updatedNotes que já foi salvo no banco, não o notes antigo do selectedLoan
+        const loanWithUpdatedNotes = { 
+          ...selectedLoan, 
+          notes: updatedNotes 
+        };
+        const paidInstallmentsCount = getPaidInstallmentsCount(loanWithUpdatedNotes);
         // Atualiza a data da próxima parcela em aberto
         if (paidInstallmentsCount < currentDates.length) {
           updatedDates[paidInstallmentsCount] = paymentData.new_due_date;
