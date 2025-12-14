@@ -124,6 +124,9 @@ export default function Loans() {
   });
   const [creatingClient, setCreatingClient] = useState(false);
   
+  // State for historical contract installment selection
+  const [selectedPastInstallments, setSelectedPastInstallments] = useState<number[]>([]);
+  
   // Receipt preview state
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
   const [receiptPreviewData, setReceiptPreviewData] = useState<ContractReceiptData | null>(null);
@@ -765,6 +768,12 @@ export default function Loans() {
         valuePerInstallment = principalPerInstallment + interestPerInstallment;
       }
       
+      // Build list with indices
+      const pastInstallmentsList = pastDates.map((date, idx) => {
+        const originalIndex = installmentDates.indexOf(date);
+        return { date, value: valuePerInstallment, index: originalIndex >= 0 ? originalIndex : idx };
+      });
+      
       return {
         count: pastDates.length,
         totalValue: valuePerInstallment * pastDates.length,
@@ -772,6 +781,7 @@ export default function Loans() {
         valuePerInstallment,
         principalPerInstallment,
         interestPerInstallment,
+        pastInstallmentsList,
       };
     }
     
@@ -788,11 +798,12 @@ export default function Loans() {
           valuePerInstallment: principal + interestAmount,
           principalPerInstallment: principal,
           interestPerInstallment: interestAmount,
+          pastInstallmentsList: [{ date: formData.due_date, value: principal + interestAmount, index: 0 }],
         };
       }
     }
     
-    return { count: 0, totalValue: 0 };
+    return { count: 0, totalValue: 0, pastInstallmentsList: [] };
   })();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -875,21 +886,27 @@ export default function Loans() {
       send_creation_notification: formData.send_creation_notification,
     });
     
-    // If historical contract with past installments, register them as paid automatically
-    if (result?.data && formData.is_historical_contract && pastInstallmentsData.count > 0) {
+    // If historical contract with past installments, register selected ones as paid
+    if (result?.data && formData.is_historical_contract && selectedPastInstallments.length > 0) {
       const loanId = result.data.id;
+      const installmentsList = pastInstallmentsData.pastInstallmentsList || [];
       
-      // Register a single payment for all past installments
-      await registerPayment({
-        loan_id: loanId,
-        amount: pastInstallmentsData.totalValue,
-        principal_paid: (pastInstallmentsData.principalPerInstallment || 0) * pastInstallmentsData.count,
-        interest_paid: (pastInstallmentsData.interestPerInstallment || 0) * pastInstallmentsData.count,
-        payment_date: new Date().toISOString().split('T')[0],
-        notes: `[CONTRATO_ANTIGO] Pagamento automático de ${pastInstallmentsData.count} parcela(s) anterior(es) já recebida(s)`,
-      });
+      // Register each selected installment as a separate payment
+      for (const idx of selectedPastInstallments) {
+        const installment = installmentsList.find(i => i.index === idx);
+        if (!installment) continue;
+        
+        await registerPayment({
+          loan_id: loanId,
+          amount: installment.value,
+          principal_paid: pastInstallmentsData.principalPerInstallment || 0,
+          interest_paid: pastInstallmentsData.interestPerInstallment || 0,
+          payment_date: installment.date,
+          notes: `[CONTRATO_ANTIGO] Parcela ${idx + 1} - ${formatDate(installment.date)}`,
+        });
+      }
       
-      toast.success(`${pastInstallmentsData.count} parcela(s) passada(s) registrada(s) como já recebida(s)`);
+      toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
     }
     
     setIsDialogOpen(false);
@@ -1152,6 +1169,7 @@ export default function Loans() {
     });
     setInstallmentDates([]);
     setInstallmentValue('');
+    setSelectedPastInstallments([]);
   };
 
   const openRenegotiateDialog = (loanId: string) => {
@@ -1993,11 +2011,69 @@ export default function Loans() {
                         </p>
                       )}
                       {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
-                        <div className="p-2 rounded bg-green-500/20 border border-green-400/30 mt-2">
-                          <p className="text-xs text-green-300">
-                            ✓ <strong>{pastInstallmentsData.count}</strong> parcela(s) passada(s) serão automaticamente registradas como já recebidas 
-                            ({formatCurrency(pastInstallmentsData.totalValue)})
-                          </p>
+                        <div className="p-3 rounded bg-yellow-500/10 border border-yellow-400/30 mt-2">
+                          <div className="flex justify-between items-center mb-2">
+                            <Label className="text-sm text-yellow-200">Selecione as parcelas já recebidas:</Label>
+                            <div className="flex gap-2">
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 text-xs text-yellow-300"
+                                onClick={() => setSelectedPastInstallments((pastInstallmentsData.pastInstallmentsList || []).map(i => i.index))}
+                              >
+                                Todas
+                              </Button>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 text-xs text-yellow-300"
+                                onClick={() => setSelectedPastInstallments([])}
+                              >
+                                Nenhuma
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <ScrollArea className="h-32">
+                            <div className="space-y-1">
+                              {(pastInstallmentsData.pastInstallmentsList || []).map((installment) => (
+                                <div 
+                                  key={installment.index} 
+                                  className="flex items-center gap-2 p-2 rounded hover:bg-yellow-500/10 cursor-pointer"
+                                  onClick={() => {
+                                    if (selectedPastInstallments.includes(installment.index)) {
+                                      setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                    } else {
+                                      setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={selectedPastInstallments.includes(installment.index)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                      } else {
+                                        setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                      }
+                                    }}
+                                    className="border-yellow-400 data-[state=checked]:bg-yellow-500"
+                                  />
+                                  <span className="text-sm text-yellow-300">
+                                    Parcela {installment.index + 1} - {formatDate(installment.date)} - {formatCurrency(installment.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                          
+                          <div className="mt-2 pt-2 border-t border-yellow-400/20">
+                            <p className="text-xs text-green-300">
+                              ✓ {selectedPastInstallments.length} parcela(s) selecionada(s) = {formatCurrency(selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0))}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2362,11 +2438,69 @@ export default function Loans() {
                       </p>
                     )}
                     {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
-                      <div className="p-2 rounded bg-green-500/20 border border-green-400/30 mt-2">
-                        <p className="text-xs text-green-300">
-                          ✓ <strong>{pastInstallmentsData.count}</strong> parcela(s) passada(s) serão automaticamente registradas como já recebidas 
-                          ({formatCurrency(pastInstallmentsData.totalValue)})
-                        </p>
+                      <div className="p-3 rounded bg-yellow-500/10 border border-yellow-400/30 mt-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <Label className="text-sm text-yellow-200">Selecione as parcelas já recebidas:</Label>
+                          <div className="flex gap-2">
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 text-xs text-yellow-300"
+                              onClick={() => setSelectedPastInstallments((pastInstallmentsData.pastInstallmentsList || []).map(i => i.index))}
+                            >
+                              Todas
+                            </Button>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 text-xs text-yellow-300"
+                              onClick={() => setSelectedPastInstallments([])}
+                            >
+                              Nenhuma
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <ScrollArea className="h-32">
+                          <div className="space-y-1">
+                            {(pastInstallmentsData.pastInstallmentsList || []).map((installment) => (
+                              <div 
+                                key={installment.index} 
+                                className="flex items-center gap-2 p-2 rounded hover:bg-yellow-500/10 cursor-pointer"
+                                onClick={() => {
+                                  if (selectedPastInstallments.includes(installment.index)) {
+                                    setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                  } else {
+                                    setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                  }
+                                }}
+                              >
+                                <Checkbox
+                                  checked={selectedPastInstallments.includes(installment.index)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                    } else {
+                                      setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                    }
+                                  }}
+                                  className="border-yellow-400 data-[state=checked]:bg-yellow-500"
+                                />
+                                <span className="text-sm text-yellow-300">
+                                  Parcela {installment.index + 1} - {formatDate(installment.date)} - {formatCurrency(installment.value)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                        
+                        <div className="mt-2 pt-2 border-t border-yellow-400/20">
+                          <p className="text-xs text-green-300">
+                            ✓ {selectedPastInstallments.length} parcela(s) selecionada(s) = {formatCurrency(selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0))}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4230,36 +4364,48 @@ export default function Loans() {
             ) : (
               <ScrollArea className="max-h-[400px]">
                 <div className="space-y-2">
-                  {paymentHistoryData.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">{formatDate(payment.payment_date)}</span>
+                  {paymentHistoryData.map((payment) => {
+                    const isHistoricalPayment = payment.notes?.includes('[CONTRATO_ANTIGO]');
+                    // Extract installment info from notes like "[CONTRATO_ANTIGO] Parcela 1 - 15/10/2024"
+                    const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
+                    const installmentNumber = installmentMatch ? installmentMatch[1] : null;
+                    
+                    return (
+                      <div key={payment.id} className={`flex items-center justify-between p-3 rounded-lg border ${isHistoricalPayment ? 'bg-yellow-500/10 border-yellow-400/30' : 'bg-muted/30 border-border/50'}`}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm">{formatDate(payment.payment_date)}</span>
+                            {isHistoricalPayment && (
+                              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-400/30 text-xs">
+                                {installmentNumber ? `Histórico - Parcela ${installmentNumber}` : 'Histórico'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <DollarSign className="w-4 h-4 text-primary" />
+                            <span className="font-semibold text-primary">{formatCurrency(payment.amount)}</span>
+                          </div>
+                          {payment.notes && !isHistoricalPayment && (
+                            <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">{payment.notes}</p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <DollarSign className="w-4 h-4 text-primary" />
-                          <span className="font-semibold text-primary">{formatCurrency(payment.amount)}</span>
-                        </div>
-                        {payment.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">{payment.notes}</p>
-                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeletePaymentId(payment.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Excluir este pagamento</TooltipContent>
+                        </Tooltip>
                       </div>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeletePaymentId(payment.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Excluir este pagamento</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             )}
