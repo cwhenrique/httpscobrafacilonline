@@ -1337,20 +1337,27 @@ export default function Loans() {
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
-      // Manter número de parcelas original, mas empurrar as datas para o próximo mês
+      // Manter número de parcelas original
       const currentInstallments = loan.installments || 1;
       const currentDates = (loan.installment_dates as string[]) || [];
-      
-      // Empurrar todas as datas um mês para frente
-      const newInstallmentDates = currentDates.map(dateStr => {
-        const date = new Date(dateStr + 'T12:00:00');
-        date.setMonth(date.getMonth() + 1);
-        return date.toISOString().split('T')[0];
-      });
-      
-      // Se não tinha datas, usar a nova data prometida
-      const finalDates = newInstallmentDates.length > 0 ? newInstallmentDates : [renegotiateData.promised_date];
-      const finalDueDate = finalDates[finalDates.length - 1];
+      const paidInstallmentsCount = getPaidInstallmentsCount(loan);
+      let newInstallmentDates = [...currentDates];
+
+      // CORREÇÃO: Usar a data prometida pelo usuário para a próxima parcela em aberto,
+      // em vez de simplesmente empurrar todas as datas +1 mês
+      if (currentDates.length > 0 && renegotiateData.promised_date) {
+        if (paidInstallmentsCount < currentDates.length) {
+          newInstallmentDates[paidInstallmentsCount] = renegotiateData.promised_date;
+        }
+      } else if (currentDates.length === 0 && renegotiateData.promised_date) {
+        // Se não tinha datas, usar a nova data prometida como primeira parcela
+        newInstallmentDates = [renegotiateData.promised_date];
+      }
+
+      const finalDates = newInstallmentDates.length > 0 ? newInstallmentDates : currentDates;
+      const finalDueDate = paidInstallmentsCount < finalDates.length
+        ? finalDates[paidInstallmentsCount]
+        : finalDates[finalDates.length - 1];
       
       await renegotiateLoan(selectedLoanId, {
         interest_rate: loan.interest_rate,
