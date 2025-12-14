@@ -46,6 +46,8 @@ import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, P
 import { toast } from 'sonner';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+import ProductSaleCard from '@/components/ProductSaleCard';
+import ProductInstallmentsDialog from '@/components/ProductInstallmentsDialog';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -173,6 +175,10 @@ export default function ProductSales() {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; amount: number; installmentNumber: number; saleId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  
+  // Installments dialog state
+  const [installmentsDialogOpen, setInstallmentsDialogOpen] = useState(false);
+  const [selectedSaleForInstallments, setSelectedSaleForInstallments] = useState<ProductSale | null>(null);
 
   // Contracts states
   const [isContractOpen, setIsContractOpen] = useState(false);
@@ -1323,10 +1329,10 @@ export default function ProductSales() {
               </Dialog>
             </div>
 
-            {/* Sales List */}
-            <div className="space-y-3">
+            {/* Sales List - Grid Layout */}
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
               {filteredSales.length === 0 ? (
-                <Card>
+                <Card className="col-span-full">
                   <CardContent className="p-8 text-center">
                     <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhuma venda encontrada</h3>
@@ -1334,149 +1340,21 @@ export default function ProductSales() {
                   </CardContent>
                 </Card>
               ) : (
-                filteredSales.map((sale) => {
-                  const salePayments = getSalePayments(sale.id);
-                  const isExpanded = expandedSale === sale.id;
-                  const saleStatus = getSaleStatus(sale);
-                  const nextDuePayment = salePayments.find(p => p.status !== 'paid');
-
-                  return (
-                    <Card key={sale.id} className={cn("transition-all", getCardStyles(saleStatus))}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Package className="w-4 h-4 text-primary flex-shrink-0" />
-                                <h3 className="font-semibold truncate">{sale.product_name}</h3>
-                              </div>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="h-6 text-[10px] px-2"
-                                  onClick={() => handleGenerateProductReceipt(sale)}
-                                >
-                                  <FileText className="w-3 h-3 mr-1" />
-                                  Comprovante
-                                </Button>
-                                {getStatusBadge(saleStatus === 'paid' ? 'paid' : sale.status, nextDuePayment?.due_date)}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                              <User className="w-3.5 h-3.5" />
-                              <span>{sale.client_name}</span>
-                              {sale.client_phone && <span className="text-xs">• {sale.client_phone}</span>}
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-sm">
-                              {(sale as any).cost_value > 0 && (
-                                <div>
-                                  <span className="text-muted-foreground">Custo:</span>
-                                  <p className="font-medium">{formatCurrency((sale as any).cost_value || 0)}</p>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-muted-foreground">Venda:</span>
-                                <p className="font-medium">{formatCurrency(sale.total_amount)}</p>
-                              </div>
-                              {(sale as any).cost_value > 0 && (
-                                <div className={cn("rounded px-2 py-1", sale.total_amount - ((sale as any).cost_value || 0) >= 0 ? "bg-emerald-500/10" : "bg-destructive/10")}>
-                                  <span className="text-muted-foreground">Lucro:</span>
-                                  <p className={cn("font-bold", sale.total_amount - ((sale as any).cost_value || 0) >= 0 ? "text-emerald-500" : "text-destructive")}>
-                                    {formatCurrency(sale.total_amount - ((sale as any).cost_value || 0))}
-                                  </p>
-                                </div>
-                              )}
-                              <div className="bg-primary/10 rounded px-2 py-1">
-                                <span className="text-muted-foreground">Pago:</span>
-                                <p className="font-bold text-primary">{formatCurrency(sale.total_paid || 0)}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Restante:</span>
-                                <p className="font-medium">{formatCurrency(sale.remaining_balance)}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Parcelas:</span>
-                                <p className="font-medium">{sale.installments}x de {formatCurrency(sale.installment_value)}</p>
-                              </div>
-                              {nextDuePayment && (
-                                <div className={cn("rounded px-2 py-1", saleStatus === 'overdue' && "bg-destructive/10", saleStatus === 'due_today' && "bg-yellow-500/10")}>
-                                  <span className="text-muted-foreground">Próximo:</span>
-                                  <p className={cn("font-medium", saleStatus === 'overdue' && "text-destructive", saleStatus === 'due_today' && "text-yellow-600")}>
-                                    {format(parseISO(nextDuePayment.due_date), 'dd/MM/yyyy', { locale: ptBR })}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => openEditSaleDialog(sale)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(sale.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => setExpandedSale(isExpanded ? null : sale.id)}
-                        >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          {isExpanded ? 'Ocultar Parcelas' : `Ver Parcelas (${salePayments.length})`}
-                        </Button>
-
-                        {isExpanded && (
-                          <div className="mt-4 pt-4 border-t">
-                            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
-                              {salePayments.map((payment) => {
-                                const isPaid = payment.status === 'paid';
-                                const isOverdue = !isPaid && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date));
-                                const isDueToday = !isPaid && isToday(parseISO(payment.due_date));
-        
-                                return (
-                                  <div
-                                    key={payment.id}
-                                    className={cn(
-                                      "flex items-center justify-between p-3 rounded-lg",
-                                      isPaid && "bg-primary/10",
-                                      isOverdue && "bg-destructive/10",
-                                      isDueToday && "bg-yellow-500/10",
-                                      !isPaid && !isOverdue && !isDueToday && "bg-muted/50"
-                                    )}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <Badge variant="outline" className="text-xs">{payment.installment_number}/{sale.installments}</Badge>
-                                      <div>
-                                        <p className="font-medium text-sm">{formatCurrency(payment.amount)}</p>
-                                        <p className="text-xs text-muted-foreground">Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {getStatusBadge(payment.status, payment.due_date)}
-                                      {!isPaid && (
-                                        <Button size="sm" className="gap-1" onClick={() => openPaymentDialog(payment)} disabled={markSalePaymentAsPaid.isPending}>
-                                          <Banknote className="w-3 h-3" />
-                                          Registrar
-                                        </Button>
-                                      )}
-                                      {isPaid && payment.paid_date && (
-                                        <span className="text-xs text-muted-foreground">Pago em {format(parseISO(payment.paid_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })
+                filteredSales.map((sale) => (
+                  <ProductSaleCard
+                    key={sale.id}
+                    sale={sale}
+                    payments={getSalePayments(sale.id)}
+                    onEdit={openEditSaleDialog}
+                    onDelete={(id) => setDeleteId(id)}
+                    onViewInstallments={(s) => {
+                      setSelectedSaleForInstallments(s);
+                      setInstallmentsDialogOpen(true);
+                    }}
+                    onGenerateReceipt={handleGenerateProductReceipt}
+                    onPayNextInstallment={(payment) => openPaymentDialog(payment)}
+                  />
+                ))
               )}
             </div>
           </TabsContent>
@@ -2209,6 +2087,19 @@ export default function ProductSales() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Product Installments Dialog */}
+        <ProductInstallmentsDialog
+          open={installmentsDialogOpen}
+          onOpenChange={setInstallmentsDialogOpen}
+          sale={selectedSaleForInstallments}
+          payments={selectedSaleForInstallments ? getSalePayments(selectedSaleForInstallments.id) : []}
+          onPaymentClick={(payment) => {
+            setInstallmentsDialogOpen(false);
+            openPaymentDialog(payment);
+          }}
+          isPending={markSalePaymentAsPaid.isPending}
+        />
       </div>
     </DashboardLayout>
   );
