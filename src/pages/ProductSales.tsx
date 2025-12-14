@@ -1280,7 +1280,7 @@ export default function ProductSales() {
                       </div>
                     )}
                     
-                    {installmentDates.length > 1 && (
+                    {installmentDates.length >= 1 && (
                       <ProductInstallmentsList
                         installmentDates={installmentDates}
                         isHistorical={formData.is_historical || false}
@@ -1317,6 +1317,11 @@ export default function ProductSales() {
                       </div>
                     </div>
                     
+                    {(!formData.product_name || !formData.client_name || !formData.total_amount || !formData.first_due_date) && (
+                      <p className="text-xs text-destructive text-center">
+                        Preencha: {!formData.product_name && 'Produto, '}{!formData.client_name && 'Cliente, '}{!formData.total_amount && 'Valor Total, '}{!formData.first_due_date && '1º Vencimento'}
+                      </p>
+                    )}
                     <Button
                       onClick={handleCreateSale}
                       disabled={!formData.product_name || !formData.client_name || !formData.total_amount || !formData.first_due_date || createSale.isPending}
