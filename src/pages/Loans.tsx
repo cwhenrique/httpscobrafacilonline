@@ -3029,7 +3029,7 @@ export default function Loans() {
         </div>
 
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Registrar Pagamento</DialogTitle></DialogHeader>
             {selectedLoanId && (() => {
             const selectedLoan = loans.find(l => l.id === selectedLoanId);
