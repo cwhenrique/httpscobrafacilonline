@@ -295,20 +295,12 @@ export function useLoans() {
       
       const clientName = (loan.clients as any)?.full_name || 'Cliente';
       
-      // Calcular igual ao card: total a receber = principal + juros totais
-      const numInstallments = loan.installments || 1;
-      
-      // Calculate total interest based on interest_mode
-      let totalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-      } else {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-      }
-      
-      const totalToReceive = loan.principal_amount + totalInterest;
+      // USAR VALORES DO BANCO DE DADOS como fonte de verdade
+      // remaining_balance no DB já é atualizado pelo trigger update_loan_on_payment
       const newTotalPaid = loan.total_paid || 0;
-      const remainingToReceive = totalToReceive - newTotalPaid;
+      
+      // remaining_balance é a fonte de verdade - já inclui principal + juros - pagamentos
+      const remainingToReceive = loan.remaining_balance || 0;
       const isPaidOff = remainingToReceive <= 0;
       
       // Detect interest-only payment
