@@ -184,37 +184,37 @@ export default function Dashboard() {
                   <Calendar className="w-5 h-5 text-primary" />
                   <h2 className="font-display font-semibold text-lg">Resumo da Semana</h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-background/60 rounded-lg p-4 border border-primary/20">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-primary/20">
                     <div className="flex items-center gap-2 mb-1">
                       <FileText className="w-4 h-4 text-primary" />
                       <span className="text-xs text-muted-foreground">Contratos</span>
                     </div>
-                    <p className="text-2xl font-bold text-primary">{stats.contractsThisWeek}</p>
+                    <p className="text-lg sm:text-2xl font-bold text-primary">{stats.contractsThisWeek}</p>
                     <p className="text-xs text-muted-foreground">esta semana</p>
                   </div>
-                  <div className="bg-background/60 rounded-lg p-4 border border-success/20">
+                  <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-success/20">
                     <div className="flex items-center gap-2 mb-1">
                       <DollarSign className="w-4 h-4 text-success" />
                       <span className="text-xs text-muted-foreground">Recebido</span>
                     </div>
-                    <p className="text-2xl font-bold text-success">{formatCurrency(stats.receivedThisWeek)}</p>
+                    <p className="text-lg sm:text-2xl font-bold text-success truncate">{formatCurrency(stats.receivedThisWeek)}</p>
                     <p className="text-xs text-muted-foreground">esta semana</p>
                   </div>
-                  <div className="bg-background/60 rounded-lg p-4 border border-warning/20">
+                  <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-warning/20">
                     <div className="flex items-center gap-2 mb-1">
                       <CalendarCheck className="w-4 h-4 text-warning" />
                       <span className="text-xs text-muted-foreground">Vence Hoje</span>
                     </div>
-                    <p className="text-2xl font-bold text-warning">{stats.dueToday}</p>
+                    <p className="text-lg sm:text-2xl font-bold text-warning">{stats.dueToday}</p>
                     <p className="text-xs text-muted-foreground">cobranças</p>
                   </div>
-                  <div className="bg-background/60 rounded-lg p-4 border border-destructive/20">
+                  <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-destructive/20">
                     <div className="flex items-center gap-2 mb-1">
                       <AlertTriangle className="w-4 h-4 text-destructive" />
                       <span className="text-xs text-muted-foreground">Em Atraso</span>
                     </div>
-                    <p className="text-2xl font-bold text-destructive">{stats.overdueCount}</p>
+                    <p className="text-lg sm:text-2xl font-bold text-destructive">{stats.overdueCount}</p>
                     <p className="text-xs text-muted-foreground">total</p>
                   </div>
                 </div>
@@ -242,7 +242,7 @@ export default function Dashboard() {
                         </div>
                         <span className="text-sm font-medium">{card.title}</span>
                       </div>
-                      <p className="text-2xl font-bold">{card.total}</p>
+                      <p className="text-xl sm:text-2xl font-bold">{card.total}</p>
                       <p className="text-xs text-muted-foreground">
                         <span className="text-primary font-medium">+{card.thisWeek}</span> esta semana
                       </p>
@@ -272,7 +272,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">{stat.title}</p>
-                    <p className="text-lg font-semibold">{stat.value}</p>
+                    <p className="text-sm sm:text-lg font-semibold truncate">{stat.value}</p>
                     <p className="text-xs text-muted-foreground">{stat.subtitle}</p>
                   </>
                 )}
