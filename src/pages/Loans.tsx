@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useClients } from '@/hooks/useClients';
@@ -725,8 +725,8 @@ export default function Loans() {
 
   // Calculate past installments and their value for historical contracts
   // Uses the rounded installmentValue when available (user-edited)
-  const pastInstallmentsData = (() => {
-    if (!formData.is_historical_contract || !hasPastDates) return { count: 0, totalValue: 0 };
+  const pastInstallmentsData = useMemo(() => {
+    if (!formData.is_historical_contract || !hasPastDates) return { count: 0, totalValue: 0, pastInstallmentsList: [] as { date: string; value: number; index: number }[] };
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -803,8 +803,8 @@ export default function Loans() {
       }
     }
     
-    return { count: 0, totalValue: 0, pastInstallmentsList: [] };
-  })();
+    return { count: 0, totalValue: 0, pastInstallmentsList: [] as { date: string; value: number; index: number }[] };
+  }, [formData.is_historical_contract, hasPastDates, formData.principal_amount, formData.installments, formData.payment_type, formData.daily_amount, formData.interest_rate, formData.interest_mode, formData.due_date, installmentDates, installmentValue]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2038,25 +2038,18 @@ export default function Loans() {
                           
                           <ScrollArea className="h-32">
                             <div className="space-y-1">
-                              {(pastInstallmentsData.pastInstallmentsList || []).map((installment) => (
-                                <div 
+                              {pastInstallmentsData.pastInstallmentsList.map((installment) => (
+                                <label 
                                   key={installment.index} 
                                   className="flex items-center gap-2 p-2 rounded hover:bg-yellow-500/10 cursor-pointer"
-                                  onClick={() => {
-                                    if (selectedPastInstallments.includes(installment.index)) {
-                                      setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
-                                    } else {
-                                      setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
-                                    }
-                                  }}
                                 >
                                   <Checkbox
                                     checked={selectedPastInstallments.includes(installment.index)}
                                     onCheckedChange={(checked) => {
                                       if (checked) {
-                                        setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                        setSelectedPastInstallments(prev => [...prev, installment.index]);
                                       } else {
-                                        setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                        setSelectedPastInstallments(prev => prev.filter(i => i !== installment.index));
                                       }
                                     }}
                                     className="border-yellow-400 data-[state=checked]:bg-yellow-500"
@@ -2064,7 +2057,7 @@ export default function Loans() {
                                   <span className="text-sm text-yellow-300">
                                     Parcela {installment.index + 1} - {formatDate(installment.date)} - {formatCurrency(installment.value)}
                                   </span>
-                                </div>
+                                </label>
                               ))}
                             </div>
                           </ScrollArea>
@@ -2465,25 +2458,18 @@ export default function Loans() {
                         
                         <ScrollArea className="h-32">
                           <div className="space-y-1">
-                            {(pastInstallmentsData.pastInstallmentsList || []).map((installment) => (
-                              <div 
+                            {pastInstallmentsData.pastInstallmentsList.map((installment) => (
+                              <label 
                                 key={installment.index} 
                                 className="flex items-center gap-2 p-2 rounded hover:bg-yellow-500/10 cursor-pointer"
-                                onClick={() => {
-                                  if (selectedPastInstallments.includes(installment.index)) {
-                                    setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
-                                  } else {
-                                    setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
-                                  }
-                                }}
                               >
                                 <Checkbox
                                   checked={selectedPastInstallments.includes(installment.index)}
                                   onCheckedChange={(checked) => {
                                     if (checked) {
-                                      setSelectedPastInstallments([...selectedPastInstallments, installment.index]);
+                                      setSelectedPastInstallments(prev => [...prev, installment.index]);
                                     } else {
-                                      setSelectedPastInstallments(selectedPastInstallments.filter(i => i !== installment.index));
+                                      setSelectedPastInstallments(prev => prev.filter(i => i !== installment.index));
                                     }
                                   }}
                                   className="border-yellow-400 data-[state=checked]:bg-yellow-500"
@@ -2491,7 +2477,7 @@ export default function Loans() {
                                 <span className="text-sm text-yellow-300">
                                   Parcela {installment.index + 1} - {formatDate(installment.date)} - {formatCurrency(installment.value)}
                                 </span>
-                              </div>
+                              </label>
                             ))}
                           </div>
                         </ScrollArea>
