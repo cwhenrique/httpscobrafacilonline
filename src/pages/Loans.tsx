@@ -1872,7 +1872,7 @@ export default function Loans() {
                     <Label className="text-xs sm:text-sm">Cliente *</Label>
                     <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
                       <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[10001] bg-popover">
                         {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
                       </SelectContent>
                     </Select>
