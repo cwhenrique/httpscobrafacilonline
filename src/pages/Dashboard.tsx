@@ -15,6 +15,13 @@ import {
   Users,
   Clock,
   ArrowUpRight,
+  Calendar,
+  FileText,
+  Package,
+  Car,
+  Wallet,
+  CalendarCheck,
+  Receipt,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -61,31 +68,74 @@ export default function Dashboard() {
     }
   });
 
-  const statCards = [
+  const businessTypeCards = [
     {
-      title: 'Total Emprestado',
-      value: formatCurrency(stats.totalLoaned),
+      title: 'Empréstimos',
+      total: stats.loanCount,
+      thisWeek: stats.loansThisWeek,
       icon: DollarSign,
+      color: 'text-primary',
+      bg: 'bg-primary/10',
+      href: '/loans',
+    },
+    {
+      title: 'Produtos',
+      total: stats.productSalesCount,
+      thisWeek: stats.productSalesThisWeek,
+      icon: Package,
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
+      href: '/product-sales',
+    },
+    {
+      title: 'Veículos',
+      total: stats.vehiclesCount,
+      thisWeek: stats.vehiclesThisWeek,
+      icon: Car,
+      color: 'text-orange-500',
+      bg: 'bg-orange-500/10',
+      href: '/vehicles',
+    },
+    {
+      title: 'Contratos',
+      total: stats.contractsCount,
+      thisWeek: stats.contractsThisWeekCount,
+      icon: FileText,
+      color: 'text-purple-500',
+      bg: 'bg-purple-500/10',
+      href: '/bills',
+    },
+  ];
+
+  const financialCards = [
+    {
+      title: 'Na Rua',
+      value: formatCurrency(stats.totalLoaned),
+      subtitle: 'capital emprestado',
+      icon: Wallet,
       color: 'text-primary',
       bg: 'bg-primary/10',
     },
     {
-      title: 'Total a Receber',
+      title: 'A Receber',
       value: formatCurrency(stats.totalToReceive),
+      subtitle: 'com juros',
       icon: TrendingUp,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
     {
-      title: 'Total Recebido',
+      title: 'Recebido',
       value: formatCurrency(stats.totalReceived),
-      icon: TrendingUp,
+      subtitle: 'total histórico',
+      icon: Receipt,
       color: 'text-success',
       bg: 'bg-success/10',
     },
     {
       title: 'Pendente',
       value: formatCurrency(stats.totalPending),
+      subtitle: 'falta receber',
       icon: Clock,
       color: 'text-warning',
       bg: 'bg-warning/10',
@@ -93,13 +143,15 @@ export default function Dashboard() {
     {
       title: 'Atrasados',
       value: stats.overdueCount.toString(),
+      subtitle: 'contratos',
       icon: AlertTriangle,
       color: 'text-destructive',
       bg: 'bg-destructive/10',
     },
     {
-      title: 'Clientes Ativos',
+      title: 'Clientes',
       value: stats.activeClients.toString(),
+      subtitle: 'cadastrados',
       icon: Users,
       color: 'text-primary',
       bg: 'bg-primary/10',
@@ -108,7 +160,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-display font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Visão geral do seu sistema financeiro</p>
@@ -117,9 +169,94 @@ export default function Dashboard() {
         {/* PWA Install Banner */}
         <PWAInstallBanner variant="card" />
 
-        {/* Stats Cards */}
+        {/* Weekly Summary - Hero Card */}
+        <Card className="shadow-soft border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
+          <CardContent className="p-6">
+            {statsLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <Skeleton key={i} className="h-20" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <h2 className="font-display font-semibold text-lg">Resumo da Semana</h2>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-background/60 rounded-lg p-4 border border-primary/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText className="w-4 h-4 text-primary" />
+                      <span className="text-xs text-muted-foreground">Contratos</span>
+                    </div>
+                    <p className="text-2xl font-bold text-primary">{stats.contractsThisWeek}</p>
+                    <p className="text-xs text-muted-foreground">esta semana</p>
+                  </div>
+                  <div className="bg-background/60 rounded-lg p-4 border border-success/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-success" />
+                      <span className="text-xs text-muted-foreground">Recebido</span>
+                    </div>
+                    <p className="text-2xl font-bold text-success">{formatCurrency(stats.receivedThisWeek)}</p>
+                    <p className="text-xs text-muted-foreground">esta semana</p>
+                  </div>
+                  <div className="bg-background/60 rounded-lg p-4 border border-warning/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CalendarCheck className="w-4 h-4 text-warning" />
+                      <span className="text-xs text-muted-foreground">Vence Hoje</span>
+                    </div>
+                    <p className="text-2xl font-bold text-warning">{stats.dueToday}</p>
+                    <p className="text-xs text-muted-foreground">cobranças</p>
+                  </div>
+                  <div className="bg-background/60 rounded-lg p-4 border border-destructive/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="w-4 h-4 text-destructive" />
+                      <span className="text-xs text-muted-foreground">Em Atraso</span>
+                    </div>
+                    <p className="text-2xl font-bold text-destructive">{stats.overdueCount}</p>
+                    <p className="text-xs text-muted-foreground">total</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Business Type Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {businessTypeCards.map((card, index) => (
+            <Link key={index} to={card.href}>
+              <Card className="shadow-soft hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardContent className="p-4">
+                  {statsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-8 w-16" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`p-2 rounded-lg ${card.bg}`}>
+                          <card.icon className={`w-4 h-4 ${card.color}`} />
+                        </div>
+                        <span className="text-sm font-medium">{card.title}</span>
+                      </div>
+                      <p className="text-2xl font-bold">{card.total}</p>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="text-primary font-medium">+{card.thisWeek}</span> esta semana
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* Financial Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {statCards.map((stat, index) => (
+          {financialCards.map((stat, index) => (
             <Card key={index} className="shadow-soft">
               <CardContent className="p-4">
                 {statsLoading ? (
@@ -136,6 +273,7 @@ export default function Dashboard() {
                     </div>
                     <p className="text-xs text-muted-foreground">{stat.title}</p>
                     <p className="text-lg font-semibold">{stat.value}</p>
+                    <p className="text-xs text-muted-foreground">{stat.subtitle}</p>
                   </>
                 )}
               </CardContent>
