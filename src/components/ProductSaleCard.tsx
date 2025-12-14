@@ -107,35 +107,63 @@ export default function ProductSaleCard({
           </div>
         )}
 
-        {/* Values Grid - 2x2 for mobile */}
+        {/* Values Grid */}
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="p-2.5 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Venda</p>
-            <p className="font-bold text-base">{formatCurrency(sale.total_amount)}</p>
-          </div>
-          <div className="p-2.5 rounded-lg bg-primary/10">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Recebido</p>
-            <p className="font-bold text-base text-primary">{formatCurrency(sale.total_paid || 0)}</p>
-          </div>
-          <div className="p-2.5 rounded-lg bg-orange-500/10">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Falta</p>
-            <p className="font-bold text-base text-orange-500">{formatCurrency(sale.remaining_balance)}</p>
-          </div>
+          {/* Row 1: Custo e Venda (se tiver custo) ou Venda e Recebido */}
           {hasCost ? (
-            <div className={cn(
-              "p-2.5 rounded-lg",
-              profit >= 0 ? "bg-emerald-500/10" : "bg-destructive/10"
-            )}>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Lucro</p>
-              <p className={cn("font-bold text-base", profit >= 0 ? "text-emerald-500" : "text-destructive")}>
-                {formatCurrency(profit)}
-              </p>
-            </div>
+            <>
+              <div className="p-2.5 rounded-lg bg-muted/30">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo</p>
+                <p className="font-bold text-base">{formatCurrency(sale.cost_value || 0)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-muted/50">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Venda</p>
+                <p className="font-bold text-base">{formatCurrency(sale.total_amount)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-primary/10">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Recebido</p>
+                <p className="font-bold text-base text-primary">{formatCurrency(sale.total_paid || 0)}</p>
+              </div>
+              <div className={cn(
+                "p-2.5 rounded-lg",
+                profit >= 0 ? "bg-emerald-500/10" : "bg-destructive/10"
+              )}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Lucro</p>
+                <p className={cn("font-bold text-base", profit >= 0 ? "text-emerald-500" : "text-destructive")}>
+                  {formatCurrency(profit)}
+                  <span className="text-[10px] font-normal ml-1">
+                    ({sale.cost_value ? ((profit / sale.cost_value) * 100).toFixed(0) : 0}%)
+                  </span>
+                </p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-orange-500/10">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Falta</p>
+                <p className="font-bold text-base text-orange-500">{formatCurrency(sale.remaining_balance)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-muted/30">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Parcelas</p>
+                <p className="font-bold text-base">{paidCount}/{sale.installments}</p>
+              </div>
+            </>
           ) : (
-            <div className="p-2.5 rounded-lg bg-muted/30">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Parcelas</p>
-              <p className="font-bold text-base">{paidCount}/{sale.installments}</p>
-            </div>
+            <>
+              <div className="p-2.5 rounded-lg bg-muted/50">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Venda</p>
+                <p className="font-bold text-base">{formatCurrency(sale.total_amount)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-primary/10">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Recebido</p>
+                <p className="font-bold text-base text-primary">{formatCurrency(sale.total_paid || 0)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-orange-500/10">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Falta</p>
+                <p className="font-bold text-base text-orange-500">{formatCurrency(sale.remaining_balance)}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-muted/30">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Parcelas</p>
+                <p className="font-bold text-base">{paidCount}/{sale.installments}</p>
+              </div>
+            </>
           )}
         </div>
 
