@@ -18,7 +18,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,7 +86,7 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
 };
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
@@ -167,6 +168,8 @@ export default function Loans() {
   const [paymentHistoryData, setPaymentHistoryData] = useState<any[]>([]);
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPaymentDate, setEditingPaymentDate] = useState<Date | undefined>(undefined);
   
   // Tutorial states - Single page tutorial (8 steps)
   const [pageTutorialRun, setPageTutorialRun] = useState(false);
@@ -4356,13 +4359,33 @@ export default function Loans() {
                     // Extract installment info from notes like "[CONTRATO_ANTIGO] Parcela 1 - 15/10/2024"
                     const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
                     const installmentNumber = installmentMatch ? installmentMatch[1] : null;
+                    const isEditing = editingPaymentId === payment.id;
                     
                     return (
                       <div key={payment.id} className={`flex items-center justify-between p-3 rounded-lg border ${isHistoricalPayment ? 'bg-yellow-500/10 border-yellow-400/30' : 'bg-muted/30 border-border/50'}`}>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm">{formatDate(payment.payment_date)}</span>
+                            {isEditing ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                                    {editingPaymentDate ? formatDate(editingPaymentDate.toISOString().split('T')[0]) : formatDate(payment.payment_date)}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={editingPaymentDate}
+                                    onSelect={(date) => setEditingPaymentDate(date)}
+                                    initialFocus
+                                    className="pointer-events-auto"
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            ) : (
+                              <span className="text-sm">{formatDate(payment.payment_date)}</span>
+                            )}
                             {isHistoricalPayment && (
                               <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-400/30 text-xs">
                                 {installmentNumber ? `Histórico - Parcela ${installmentNumber}` : 'Histórico'}
@@ -4377,19 +4400,83 @@ export default function Loans() {
                             <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">{payment.notes}</p>
                           )}
                         </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeletePaymentId(payment.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Excluir este pagamento</TooltipContent>
-                        </Tooltip>
+                        <div className="flex items-center gap-1">
+                          {isEditing ? (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                    onClick={async () => {
+                                      if (editingPaymentDate && paymentHistoryLoanId) {
+                                        const dateStr = editingPaymentDate.toISOString().split('T')[0];
+                                        await updatePaymentDate(payment.id, dateStr);
+                                        setEditingPaymentId(null);
+                                        setEditingPaymentDate(undefined);
+                                        // Refresh payment history
+                                        const result = await getLoanPayments(paymentHistoryLoanId);
+                                        if (result.data) setPaymentHistoryData(result.data);
+                                      }
+                                    }}
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Confirmar</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    onClick={() => {
+                                      setEditingPaymentId(null);
+                                      setEditingPaymentDate(undefined);
+                                    }}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cancelar</TooltipContent>
+                              </Tooltip>
+                            </>
+                          ) : (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    onClick={() => {
+                                      setEditingPaymentId(payment.id);
+                                      setEditingPaymentDate(new Date(payment.payment_date + 'T12:00:00'));
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Editar data</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setDeletePaymentId(payment.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Excluir este pagamento</TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
