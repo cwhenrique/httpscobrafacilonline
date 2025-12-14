@@ -154,17 +154,23 @@ const handler = async (req: Request): Promise<Response> => {
         const installmentDates = (loan.installment_dates as string[]) || [];
         const numInstallments = loan.installments || 1;
         
-        // Calculate interest based on mode
-        let totalInterest = 0;
-        if (loan.interest_mode === 'on_total') {
-          totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-        } else {
-          totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+        // USE DATABASE VALUES AS SOURCE OF TRUTH
+        // total_interest from DB already includes user adjustments (rounding, renewal fees)
+        let totalInterest = loan.total_interest || 0;
+        if (totalInterest === 0) {
+          // Fallback: calculate only if not stored
+          if (loan.interest_mode === 'on_total') {
+            totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+          } else {
+            totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+          }
         }
         
-        const interestPerInstallment = totalInterest / numInstallments;
-        const principalPerInstallment = loan.principal_amount / numInstallments;
-        const totalPerInstallment = principalPerInstallment + interestPerInstallment;
+        // remaining_balance from DB is the source of truth
+        const remainingBalance = loan.remaining_balance;
+        const totalToReceive = remainingBalance + (loan.total_paid || 0);
+        
+        const totalPerInstallment = totalToReceive / numInstallments;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
         let nextDueDate: string | null = null;
@@ -175,7 +181,7 @@ const handler = async (req: Request): Promise<Response> => {
         } else {
           nextDueDate = loan.due_date;
           if (loan.payment_type === 'single') {
-            installmentAmount = loan.remaining_balance + (loan.principal_amount * (loan.interest_rate / 100));
+            installmentAmount = remainingBalance;
           }
         }
 
