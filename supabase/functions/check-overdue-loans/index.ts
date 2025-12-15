@@ -131,6 +131,12 @@ const handler = async (req: Request): Promise<Response> => {
     const overdueUpdates: string[] = [];
 
     for (const loan of loans || []) {
+      // Skip historical contracts - they should not trigger overdue alerts
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) {
+        console.log(`Skipping historical contract ${loan.id} - marked as old contract`);
+        continue;
+      }
+
       const client = loan.clients as { full_name: string; phone: string | null };
       
       const installmentDates = (loan.installment_dates as string[]) || [];
