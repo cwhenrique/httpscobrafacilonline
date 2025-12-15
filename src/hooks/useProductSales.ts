@@ -552,11 +552,8 @@ export function useProductSalePayments(saleId?: string) {
         const maxInstallment = existingPayments?.[0]?.installment_number || 0;
         newInstallmentNumber = maxInstallment + 1;
         
-        // Calculate new due date (next month from original due date)
-        const originalDueDate = new Date(payment.due_date + 'T12:00:00');
-        const newDueDate = addMonths(originalDueDate, 1);
-        
-        // Create new installment
+        // MANTER A MESMA DATA DE VENCIMENTO ORIGINAL para mostrar como atrasada (sub-parcela)
+        // Create new installment as sub-parcela with same due date
         const { error: insertError } = await supabase
           .from('product_sale_payments')
           .insert({
@@ -564,9 +561,9 @@ export function useProductSalePayments(saleId?: string) {
             product_sale_id: payment.product_sale_id,
             installment_number: newInstallmentNumber,
             amount: remainder,
-            due_date: format(newDueDate, 'yyyy-MM-dd'),
+            due_date: payment.due_date, // Mantém a data original para aparecer como atrasada
             status: 'pending',
-            notes: `[PARCELA_RESTANTE] Valor restante da parcela ${payment.installment_number}`,
+            notes: `[SUBPARCELA] Restante da parcela ${payment.installment_number} (R$ ${originalAmount.toFixed(2)} - pago R$ ${paidAmount.toFixed(2)})`,
           });
 
         if (insertError) throw insertError;
