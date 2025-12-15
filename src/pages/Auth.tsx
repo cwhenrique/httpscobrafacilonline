@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,7 +27,7 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error, data } = await signIn(email, password);
     
     if (error) {
       toast.error('Erro ao fazer login', {
@@ -34,11 +35,31 @@ export default function Auth() {
           ? 'Email ou senha incorretos' 
           : error.message,
       });
-    } else {
-      toast.success('Login realizado com sucesso!');
-      navigate('/dashboard');
+      setIsLoading(false);
+      return;
     }
-    
+
+    // Check if user is active
+    if (data?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profile && !profile.is_active) {
+        // User is inactive, sign them out
+        await supabase.auth.signOut();
+        toast.error('Conta inativa', {
+          description: 'Seu período de acesso expirou. Entre em contato para renovar.',
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    toast.success('Login realizado com sucesso!');
+    navigate('/dashboard');
     setIsLoading(false);
   };
 
