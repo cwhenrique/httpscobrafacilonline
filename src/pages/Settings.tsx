@@ -6,19 +6,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Settings() {
   const { user } = useAuth();
   const { profile, isProfileComplete, updateProfile } = useProfile();
   const [loading, setLoading] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
     company_name: '',
+  });
+  const [whatsappConfig, setWhatsappConfig] = useState({
+    evolution_api_url: '',
+    evolution_api_key: '',
+    evolution_instance_name: '',
+    whatsapp_to_clients_enabled: false,
   });
   const [errors, setErrors] = useState<{ full_name?: string; phone?: string }>({});
 
@@ -29,6 +38,12 @@ export default function Settings() {
         email: profile.email || user?.email || '',
         phone: formatPhone(profile.phone || ''),
         company_name: profile.company_name || '',
+      });
+      setWhatsappConfig({
+        evolution_api_url: profile.evolution_api_url || '',
+        evolution_api_key: profile.evolution_api_key || '',
+        evolution_instance_name: profile.evolution_instance_name || '',
+        whatsapp_to_clients_enabled: profile.whatsapp_to_clients_enabled || false,
       });
     }
   }, [profile, user]);
@@ -82,6 +97,62 @@ export default function Settings() {
     }
     setLoading(false);
   };
+
+  const handleSaveWhatsappConfig = async () => {
+    setLoading(true);
+    
+    const { error } = await updateProfile({
+      evolution_api_url: whatsappConfig.evolution_api_url.trim() || null,
+      evolution_api_key: whatsappConfig.evolution_api_key.trim() || null,
+      evolution_instance_name: whatsappConfig.evolution_instance_name.trim() || null,
+      whatsapp_to_clients_enabled: whatsappConfig.whatsapp_to_clients_enabled,
+    });
+
+    if (error) {
+      toast.error('Erro ao salvar configuração do WhatsApp');
+    } else {
+      toast.success('Configuração do WhatsApp salva!');
+    }
+    setLoading(false);
+  };
+
+  const handleTestConnection = async () => {
+    if (!whatsappConfig.evolution_api_url || !whatsappConfig.evolution_api_key || !whatsappConfig.evolution_instance_name) {
+      toast.error('Preencha todos os campos da API antes de testar');
+      return;
+    }
+
+    setTestingConnection(true);
+    try {
+      // Test by fetching instance status
+      const apiUrl = `${whatsappConfig.evolution_api_url}/instance/connectionState/${whatsappConfig.evolution_instance_name}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'apikey': whatsappConfig.evolution_api_key,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.instance?.state === 'open') {
+          toast.success('Conexão OK! WhatsApp conectado.');
+        } else {
+          toast.warning(`Instância encontrada, mas status: ${data?.instance?.state || 'desconhecido'}`);
+        }
+      } else {
+        toast.error('Erro ao conectar. Verifique as credenciais.');
+      }
+    } catch (error) {
+      console.error('Test connection error:', error);
+      toast.error('Erro ao testar conexão. Verifique a URL da API.');
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const isWhatsappConfigured = whatsappConfig.evolution_api_url && whatsappConfig.evolution_api_key && whatsappConfig.evolution_instance_name;
 
   return (
     <DashboardLayout>
@@ -210,6 +281,115 @@ export default function Settings() {
             )}
           </Button>
         </form>
+
+        {/* WhatsApp para Clientes */}
+        <Card className="shadow-soft border-primary/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/10">
+                  <MessageCircle className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <CardTitle>WhatsApp para Clientes</CardTitle>
+                  <CardDescription>
+                    Configure seu próprio WhatsApp para enviar mensagens diretamente aos seus clientes
+                  </CardDescription>
+                </div>
+              </div>
+              {isWhatsappConfigured ? (
+                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                  <Wifi className="w-3 h-3 mr-1" />
+                  Configurado
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-muted text-muted-foreground">
+                  <WifiOff className="w-3 h-3 mr-1" />
+                  Não Configurado
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div>
+                <p className="font-medium text-sm">Ativar envio para clientes</p>
+                <p className="text-xs text-muted-foreground">Permite enviar notificações e comprovantes para seus clientes</p>
+              </div>
+              <Switch
+                checked={whatsappConfig.whatsapp_to_clients_enabled}
+                onCheckedChange={(checked) => setWhatsappConfig({ ...whatsappConfig, whatsapp_to_clients_enabled: checked })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>URL da API Evolution</Label>
+              <Input 
+                value={whatsappConfig.evolution_api_url} 
+                onChange={(e) => setWhatsappConfig({ ...whatsappConfig, evolution_api_url: e.target.value })}
+                placeholder="https://sua-api.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>API Key</Label>
+              <Input 
+                type="password"
+                value={whatsappConfig.evolution_api_key} 
+                onChange={(e) => setWhatsappConfig({ ...whatsappConfig, evolution_api_key: e.target.value })}
+                placeholder="Sua chave de API"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nome da Instância</Label>
+              <Input 
+                value={whatsappConfig.evolution_instance_name} 
+                onChange={(e) => setWhatsappConfig({ ...whatsappConfig, evolution_instance_name: e.target.value })}
+                placeholder="Nome da instância no Evolution"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleTestConnection}
+                disabled={testingConnection || !isWhatsappConfigured}
+              >
+                {testingConnection ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Testando...
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-4 h-4 mr-2" />
+                    Testar Conexão
+                  </>
+                )}
+              </Button>
+              <Button 
+                type="button"
+                onClick={handleSaveWhatsappConfig}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Configuração'
+                )}
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Com o WhatsApp configurado, você poderá enviar notificações de cobrança e comprovantes diretamente para os telefones dos seus clientes.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

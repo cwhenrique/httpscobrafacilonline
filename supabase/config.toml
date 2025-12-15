@@ -3,6 +3,9 @@ project_id = "yulegybknvtanqkipsbj"
 [functions.send-whatsapp]
 verify_jwt = true
 
+[functions.send-whatsapp-to-client]
+verify_jwt = true
+
 [functions.check-loan-reminders]
 verify_jwt = false
 

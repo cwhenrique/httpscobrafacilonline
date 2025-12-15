@@ -11,6 +11,11 @@ export interface Profile {
   subscription_plan: string | null;
   subscription_expires_at: string | null;
   is_active: boolean;
+  // WhatsApp client notification configuration
+  evolution_api_url: string | null;
+  evolution_api_key: string | null;
+  evolution_instance_name: string | null;
+  whatsapp_to_clients_enabled: boolean;
 }
 
 export function useProfile() {
