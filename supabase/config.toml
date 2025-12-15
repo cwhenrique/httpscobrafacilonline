@@ -47,3 +47,15 @@ verify_jwt = false
 
 [functions.list-trial-users]
 verify_jwt = false
+
+[functions.whatsapp-create-instance]
+verify_jwt = true
+
+[functions.whatsapp-get-qrcode]
+verify_jwt = true
+
+[functions.whatsapp-check-status]
+verify_jwt = true
+
+[functions.whatsapp-disconnect]
+verify_jwt = true

@@ -725,6 +725,9 @@ export type Database = {
           temp_password: string | null
           trial_expires_at: string | null
           updated_at: string
+          whatsapp_connected_at: string | null
+          whatsapp_connected_phone: string | null
+          whatsapp_instance_id: string | null
           whatsapp_to_clients_enabled: boolean | null
         }
         Insert: {
@@ -745,6 +748,9 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          whatsapp_connected_at?: string | null
+          whatsapp_connected_phone?: string | null
+          whatsapp_instance_id?: string | null
           whatsapp_to_clients_enabled?: boolean | null
         }
         Update: {
@@ -765,6 +771,9 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          whatsapp_connected_at?: string | null
+          whatsapp_connected_phone?: string | null
+          whatsapp_instance_id?: string | null
           whatsapp_to_clients_enabled?: boolean | null
         }
         Relationships: []
