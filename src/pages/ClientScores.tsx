@@ -373,45 +373,51 @@ export default function ClientScores() {
                       const score = client.score || 100;
                       const { label, color } = calculateScoreLabel(score);
                       
+                      const profit = clientProfitMap.get(client.id);
+                      const profitPercentage = profit && profit.expectedProfit > 0 
+                        ? Math.round((profit.realizedProfit / profit.expectedProfit) * 100) 
+                        : 0;
+                      
                       return (
                         <div
                           key={client.id}
-                          className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
+                          className="p-3 sm:p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
                         >
-                          {/* Mobile: Top row with rank, avatar, name and score */}
-                          <div className="flex items-center gap-3 w-full sm:w-auto sm:flex-1">
+                          {/* Header: Rank + Avatar + Name + Score */}
+                          <div className="flex items-center gap-2 sm:gap-3">
                             {/* Rank */}
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold shrink-0">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center text-xs sm:text-sm font-bold shrink-0">
                               {index + 1}
                             </div>
 
                             {/* Avatar */}
-                            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-background shrink-0">
+                            <Avatar className="h-9 w-9 sm:h-12 sm:w-12 border-2 border-background shrink-0">
                               <AvatarImage src={client.avatar_url || undefined} alt={client.full_name} />
-                              <AvatarFallback className="text-base sm:text-lg">
+                              <AvatarFallback className="text-sm sm:text-lg">
                                 {client.full_name.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
 
-                            {/* Info */}
+                            {/* Name + Badge */}
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate text-sm sm:text-base">{client.full_name}</p>
-                              <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
-                                <span className="text-green-600">{client.on_time_payments || 0} em dia</span>
-                                <span className="text-red-600">{client.late_payments || 0} atrasados</span>
-                                <span>{client.total_loans || 0} empréstimos</span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Badge className={`${color} gap-1 text-[9px] sm:text-[10px] px-1.5 py-0`}>
+                                  {getScoreIcon(score)} {label}
+                                </Badge>
+                                {getTrendIcon(score)}
                               </div>
                             </div>
 
-                            {/* Score Circle - visible on mobile */}
-                            <div className="relative w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-                              <svg className="w-12 h-12 sm:w-16 sm:h-16 -rotate-90">
+                            {/* Score Circle */}
+                            <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0">
+                              <svg className="w-11 h-11 sm:w-14 sm:h-14 -rotate-90">
                                 <circle
                                   cx="50%"
                                   cy="50%"
                                   r="40%"
                                   stroke="currentColor"
-                                  strokeWidth="4"
+                                  strokeWidth="3"
                                   fill="none"
                                   className="text-muted"
                                 />
@@ -419,7 +425,7 @@ export default function ClientScores() {
                                   cx="50%"
                                   cy="50%"
                                   r="40%"
-                                  strokeWidth="4"
+                                  strokeWidth="3"
                                   fill="none"
                                   strokeDasharray={`${(score / 150) * 100} 100`}
                                   strokeLinecap="round"
@@ -428,63 +434,60 @@ export default function ClientScores() {
                                 />
                               </svg>
                               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-sm sm:text-lg font-bold">{score}</span>
+                                <span className="text-xs sm:text-base font-bold">{score}</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Badge - visible on all screens, inline on mobile */}
-                          <div className="flex items-center justify-between sm:flex-col sm:items-end gap-1 pl-10 sm:pl-0">
-                            <Badge className={`${color} gap-1 text-[10px] sm:text-xs`}>
-                              {getScoreIcon(score)} {label}
-                            </Badge>
-                            {getTrendIcon(score)}
+                          {/* Stats Row */}
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2 pl-8 sm:pl-11">
+                            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">
+                              ✓ {client.on_time_payments || 0} em dia
+                            </span>
+                            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-600">
+                              ✗ {client.late_payments || 0} atrasados
+                            </span>
+                            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                              {client.total_loans || 0} empréstimos
+                            </span>
                           </div>
 
-                          {/* Profit Section */}
-                          {(() => {
-                            const profit = clientProfitMap.get(client.id);
-                            if (!profit || profit.expectedProfit === 0) return null;
-                            
-                            const profitPercentage = profit.expectedProfit > 0 
-                              ? Math.round((profit.realizedProfit / profit.expectedProfit) * 100) 
-                              : 0;
-                            
-                            return (
-                              <div className="w-full flex items-center gap-4 mt-2 pt-2 border-t border-border/50 pl-10 sm:pl-0">
-                                <div className="flex-1">
-                                  <p className="text-[10px] text-muted-foreground">Principal</p>
-                                  <p className="text-sm font-medium">
+                          {/* Profit Section - 2x2 grid on mobile, inline on desktop */}
+                          {profit && profit.expectedProfit > 0 && (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                                <div className="bg-muted/30 rounded-lg p-2">
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Principal</p>
+                                  <p className="text-xs sm:text-sm font-semibold truncate">
                                     {formatCurrency(profit.totalPrincipal)}
                                   </p>
                                 </div>
-                                <div className="flex-1">
-                                  <p className="text-[10px] text-muted-foreground">Lucro Previsto</p>
-                                  <p className="text-sm font-medium text-blue-500">
+                                <div className="bg-blue-500/10 rounded-lg p-2">
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro Previsto</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-blue-500 truncate">
                                     {formatCurrency(profit.expectedProfit)}
                                   </p>
                                 </div>
-                                <div className="flex-1">
-                                  <p className="text-[10px] text-muted-foreground">Lucro Realizado</p>
+                                <div className="bg-emerald-500/10 rounded-lg p-2">
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro Realizado</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-emerald-500 truncate">
+                                    {formatCurrency(profit.realizedProfit)}
+                                  </p>
+                                </div>
+                                <div className="bg-primary/10 rounded-lg p-2 flex flex-col justify-center items-center">
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Progresso</p>
                                   <div className="flex items-center gap-1">
-                                    <p className="text-sm font-medium text-emerald-500">
-                                      {formatCurrency(profit.realizedProfit)}
-                                    </p>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={`text-[9px] px-1 py-0 ${
-                                        profitPercentage >= 100 
-                                          ? 'border-emerald-500 text-emerald-500' 
-                                          : 'border-muted-foreground'
-                                      }`}
-                                    >
+                                    <span className={`text-sm sm:text-lg font-bold ${
+                                      profitPercentage >= 100 ? 'text-emerald-500' : 'text-primary'
+                                    }`}>
                                       {profitPercentage}%
-                                    </Badge>
+                                    </span>
+                                    {profitPercentage >= 100 && <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />}
                                   </div>
                                 </div>
                               </div>
-                            );
-                          })()}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
