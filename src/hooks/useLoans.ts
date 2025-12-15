@@ -514,6 +514,7 @@ export function useLoans() {
     installment_dates?: string[];
     remaining_balance?: number;
     total_interest?: number;
+    total_paid?: number;
     send_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
@@ -540,6 +541,7 @@ export function useLoans() {
       installment_dates: data.installment_dates || [],
       remaining_balance: data.remaining_balance !== undefined ? data.remaining_balance : data.principal_amount,
       total_interest: data.total_interest !== undefined ? data.total_interest : 0,
+      ...(data.total_paid !== undefined && { total_paid: data.total_paid }),
     };
 
     const { error } = await supabase
