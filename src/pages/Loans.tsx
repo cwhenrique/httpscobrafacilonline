@@ -18,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,7 @@ import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -3337,6 +3338,26 @@ export default function Loans() {
                           <p className="text-[10px] text-red-300/60 mt-2">
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
+                          {/* Manual overdue notification button */}
+                          {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                            <SendOverdueNotification
+                              data={{
+                                clientName: loan.client?.full_name || 'Cliente',
+                                clientPhone: loan.client.phone,
+                                contractType: 'loan',
+                                installmentNumber: (() => {
+                                  const dates = (loan.installment_dates as string[]) || [];
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  return paidCount + 1;
+                                })(),
+                                totalInstallments: loan.installments || 1,
+                                amount: totalPerInstallment,
+                                dueDate: overdueDate,
+                                daysOverdue: daysOverdue,
+                              }}
+                              className="w-full mt-2"
+                            />
+                          )}
                         </div>
                       )}
                       

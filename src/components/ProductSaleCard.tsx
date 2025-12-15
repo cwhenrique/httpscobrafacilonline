@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { Package, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductSale, ProductSalePayment } from '@/hooks/useProductSales';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
 
 interface ProductSaleCardProps {
   sale: ProductSale;
@@ -200,6 +201,22 @@ export default function ProductSaleCard({
                 {formatCurrency(overduePayment.amount)}
               </span>
             </div>
+            {/* Manual overdue notification button */}
+            {sale.client_phone && (
+              <SendOverdueNotification
+                data={{
+                  clientName: sale.client_name,
+                  clientPhone: sale.client_phone,
+                  contractType: 'product',
+                  installmentNumber: overduePayment.installment_number,
+                  totalInstallments: sale.installments,
+                  amount: overduePayment.amount,
+                  dueDate: overduePayment.due_date,
+                  daysOverdue: daysOverdue,
+                }}
+                className="w-full mt-2"
+              />
+            )}
           </div>
         )}
 
