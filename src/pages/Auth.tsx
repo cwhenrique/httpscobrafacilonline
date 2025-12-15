@@ -18,49 +18,69 @@ export default function Auth() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+    let cancelled = false;
+
+    async function validateAndRedirect() {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('is_active')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        // Falhou validar perfil => por segurança, não permite acesso
+        if (error || !data) {
+          await supabase.auth.signOut();
+          toast.error('Não foi possível validar sua conta', {
+            description: 'Tente novamente em alguns instantes.',
+          });
+          return;
+        }
+
+        if (data.is_active === false) {
+          await supabase.auth.signOut();
+          toast.error('Conta inativa', {
+            description: 'Seu período de acesso expirou. Entre em contato para renovar.',
+          });
+          return;
+        }
+
+        navigate('/dashboard');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
-  }, [user, navigate]);
+
+    validateAndRedirect();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error, data } = await signIn(email, password);
-    
+    const { error } = await signIn(email, password);
+
     if (error) {
       toast.error('Erro ao fazer login', {
-        description: error.message === 'Invalid login credentials' 
-          ? 'Email ou senha incorretos' 
-          : error.message,
+        description:
+          error.message === 'Invalid login credentials'
+            ? 'Email ou senha incorretos'
+            : error.message,
       });
       setIsLoading(false);
       return;
     }
 
-    // Check if user is active
-    if (data?.user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_active')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profile && !profile.is_active) {
-        // User is inactive, sign them out
-        await supabase.auth.signOut();
-        toast.error('Conta inativa', {
-          description: 'Seu período de acesso expirou. Entre em contato para renovar.',
-        });
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    toast.success('Login realizado com sucesso!');
-    navigate('/dashboard');
-    setIsLoading(false);
+    // Não redireciona aqui: aguarda validação de is_active no useEffect.
+    // (Evita o caso de usuário inativo ser redirecionado antes da checagem.)
   };
 
   return (

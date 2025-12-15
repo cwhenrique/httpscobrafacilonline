@@ -29,7 +29,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       if (cancelled) return;
 
-      if (!error && data?.is_active === false) {
+      // Falhou validar perfil => por segurança, não permite acesso
+      if (error || !data || data.is_active === false) {
         toast.error('Conta inativa', {
           description: 'Seu período de acesso expirou. Entre em contato para renovar.',
         });
