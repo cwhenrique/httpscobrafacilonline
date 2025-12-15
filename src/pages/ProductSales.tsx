@@ -63,12 +63,16 @@ function ProductInstallmentsList({
   today,
   updateInstallmentDate,
   toggleInstallmentPaid,
+  onSelectAll,
+  onDeselectAll,
 }: {
   installmentDates: ProductInstallment[];
   isHistorical: boolean;
   today: Date;
   updateInstallmentDate: (index: number, date: string) => void;
   toggleInstallmentPaid: (index: number) => void;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const firstUnpaidRef = useRef<HTMLDivElement>(null);
@@ -86,7 +90,19 @@ function ProductInstallmentsList({
 
   return (
     <div className="space-y-2">
-      <Label>Datas das Parcelas</Label>
+      <div className="flex items-center justify-between">
+        <Label>Datas das Parcelas</Label>
+        {isHistorical && (
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={onSelectAll}>
+              Todas
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onDeselectAll}>
+              Nenhuma
+            </Button>
+          </div>
+        )}
+      </div>
       <div
         ref={scrollRef}
         className="h-[180px] overflow-y-auto rounded-md border p-3 space-y-2"
@@ -435,6 +451,36 @@ export default function ProductSales() {
   
   const paidHistoricalCount = installmentDates.filter(inst => inst.isPaid).length;
   const paidHistoricalAmount = paidHistoricalCount * formData.installment_value;
+
+  // Auto-select all past installments when is_historical is activated
+  useEffect(() => {
+    if (formData.is_historical && installmentDates.length > 0) {
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      setInstallmentDates(prev => prev.map(inst => {
+        const instDate = new Date(inst.date);
+        instDate.setHours(0, 0, 0, 0);
+        return instDate < todayDate ? { ...inst, isPaid: true } : inst;
+      }));
+    }
+  }, [formData.is_historical]);
+
+  // Select all past installments
+  const selectAllPastInstallments = () => {
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    setInstallmentDates(prev => prev.map(inst => {
+      const instDate = new Date(inst.date);
+      instDate.setHours(0, 0, 0, 0);
+      return instDate < todayDate ? { ...inst, isPaid: true } : inst;
+    }));
+  };
+
+  // Deselect all installments
+  const deselectAllInstallments = () => {
+    setInstallmentDates(prev => prev.map(inst => ({ ...inst, isPaid: false })));
+  };
 
   // Product Sales handlers
   const handleCreateSale = async () => {
@@ -1299,6 +1345,8 @@ export default function ProductSales() {
                         today={today}
                         updateInstallmentDate={updateInstallmentDate}
                         toggleInstallmentPaid={toggleInstallmentPaid}
+                        onSelectAll={selectAllPastInstallments}
+                        onDeselectAll={deselectAllInstallments}
                       />
                     )}
                     <div className="space-y-2">

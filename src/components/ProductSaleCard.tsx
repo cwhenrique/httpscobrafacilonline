@@ -36,6 +36,18 @@ const getStatus = (sale: ProductSale, payments: ProductSalePayment[]) => {
   return 'pending';
 };
 
+const getOverduePayment = (payments: ProductSalePayment[]) => {
+  return payments.find(p => 
+    p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date))
+  );
+};
+
+const getDaysOverdue = (dueDate: string) => {
+  const due = parseISO(dueDate);
+  const today = new Date();
+  return Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+};
+
 export default function ProductSaleCard({
   sale,
   payments,
@@ -46,6 +58,8 @@ export default function ProductSaleCard({
   onPayNextInstallment,
 }: ProductSaleCardProps) {
   const status = getStatus(sale, payments);
+  const overduePayment = status === 'overdue' ? getOverduePayment(payments) : null;
+  const daysOverdue = overduePayment ? getDaysOverdue(overduePayment.due_date) : 0;
   const nextDuePayment = payments.find(p => p.status !== 'paid');
   const paidCount = payments.filter(p => p.status === 'paid').length;
   const profit = sale.total_amount - (sale.cost_value || 0);
@@ -164,14 +178,35 @@ export default function ProductSaleCard({
                 <p className="font-bold text-base">{paidCount}/{sale.installments}</p>
               </div>
             </>
-          )}
+        )}
         </div>
 
-        {/* Next Due Date */}
-        {nextDuePayment && status !== 'paid' && (
+        {/* Overdue Installment Details */}
+        {status === 'overdue' && overduePayment && (
+          <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 mb-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-destructive">
+                Parcela {overduePayment.installment_number}/{sale.installments} em atraso
+              </span>
+              <Badge variant="destructive" className="text-xs">
+                {daysOverdue} dia{daysOverdue !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-muted-foreground">
+                Venceu: {format(parseISO(overduePayment.due_date), "dd/MM/yyyy")}
+              </span>
+              <span className="text-xs font-medium text-destructive">
+                {formatCurrency(overduePayment.amount)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Next Due Date (for non-overdue) */}
+        {nextDuePayment && status !== 'paid' && status !== 'overdue' && (
           <div className={cn(
             "flex items-center justify-between p-2.5 rounded-lg mb-3",
-            status === 'overdue' && "bg-destructive/10",
             status === 'due_today' && "bg-yellow-500/10",
             status === 'pending' && "bg-muted/50"
           )}>
@@ -184,7 +219,6 @@ export default function ProductSaleCard({
             <div className="text-right">
               <p className={cn(
                 "font-semibold text-sm",
-                status === 'overdue' && "text-destructive",
                 status === 'due_today' && "text-yellow-600"
               )}>
                 {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
