@@ -27,6 +27,7 @@ import { generateContractReceipt, generatePaymentReceipt, generateOperationsRepo
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+import LoanCreatedReceiptPrompt from '@/components/LoanCreatedReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
@@ -136,6 +137,25 @@ export default function Loans() {
   // Payment receipt prompt state
   const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
   const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
+  const [paymentClientPhone, setPaymentClientPhone] = useState<string | null>(null);
+
+  // Loan created receipt prompt state
+  const [isLoanCreatedOpen, setIsLoanCreatedOpen] = useState(false);
+  const [loanCreatedData, setLoanCreatedData] = useState<{
+    id: string;
+    clientName: string;
+    clientPhone?: string;
+    principalAmount: number;
+    interestRate: number;
+    totalInterest: number;
+    totalToReceive: number;
+    installments: number;
+    installmentValue: number;
+    startDate: string;
+    dueDate: string;
+    paymentType: string;
+  } | null>(null);
+  const [loanCreatedInstallmentDates, setLoanCreatedInstallmentDates] = useState<string[]>([]);
 
   // Edit loan state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -985,6 +1005,29 @@ export default function Loans() {
       toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
     }
     
+    // Show loan created receipt prompt
+    if (result?.data) {
+      const client = clients.find(c => c.id === formData.client_id);
+      const installmentValueNum = installmentValue ? parseFloat(installmentValue) : (principal + totalInterest) / numInstallments;
+      
+      setLoanCreatedData({
+        id: result.data.id,
+        clientName: client?.full_name || 'Cliente',
+        clientPhone: client?.phone || undefined,
+        principalAmount: principal,
+        interestRate: rate,
+        totalInterest: totalInterest,
+        totalToReceive: principal + totalInterest,
+        installments: numInstallments,
+        installmentValue: installmentValueNum,
+        startDate: formData.start_date,
+        dueDate: finalDueDate,
+        paymentType: formData.payment_type,
+      });
+      setLoanCreatedInstallmentDates(formData.payment_type === 'installment' ? installmentDates : []);
+      setIsLoanCreatedOpen(true);
+    }
+    
     setIsDialogOpen(false);
     resetForm();
   };
@@ -1214,6 +1257,9 @@ export default function Loans() {
     }
     const totalContractValue = selectedLoan.principal_amount + totalInterestForReceipt;
 
+    // Save client phone before resetting selectedLoan
+    setPaymentClientPhone(selectedLoan.client?.phone || null);
+    
     // Show payment receipt prompt
     setPaymentReceiptData({
       type: 'loan',
@@ -4792,7 +4838,18 @@ export default function Loans() {
         <PaymentReceiptPrompt 
           open={isPaymentReceiptOpen} 
           onOpenChange={setIsPaymentReceiptOpen} 
-          data={paymentReceiptData} 
+          data={paymentReceiptData}
+          clientPhone={paymentClientPhone || undefined}
+        />
+
+        {/* Loan Created Receipt Prompt */}
+        <LoanCreatedReceiptPrompt
+          open={isLoanCreatedOpen}
+          onOpenChange={setIsLoanCreatedOpen}
+          loan={loanCreatedData}
+          companyName={profile?.company_name || profile?.full_name || 'CobraFácil'}
+          userPhone={profile?.phone || undefined}
+          installmentDates={loanCreatedInstallmentDates}
         />
 
         {/* Payment History Dialog */}
