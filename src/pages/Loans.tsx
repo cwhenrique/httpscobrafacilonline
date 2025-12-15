@@ -2927,6 +2927,7 @@ export default function Loans() {
                         </div>
                       </div>
                       
+                      {/* Seção de Valores */}
                       <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
                           <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
@@ -2937,6 +2938,60 @@ export default function Loans() {
                           <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
+                      
+                      {/* Seção de Lucro - Previsto e Realizado */}
+                      {(() => {
+                        // Lucro previsto = total de juros do contrato
+                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
+                        
+                        // Lucro realizado = proporção do lucro conforme pagamentos recebidos
+                        // Se totalToReceive = R$ 1200, total_paid = R$ 600 (50%), lucro previsto = R$ 200
+                        // Então lucro realizado = R$ 200 × 50% = R$ 100
+                        const effectiveTotalToReceive = isDaily ? dailyTotalToReceive : totalToReceive;
+                        let realizedProfit = 0;
+                        
+                        if (isPaid) {
+                          // Se está pago, lucro realizado = lucro previsto (100%)
+                          realizedProfit = expectedProfit;
+                        } else if (effectiveTotalToReceive > 0 && (loan.total_paid || 0) > 0) {
+                          realizedProfit = expectedProfit * ((loan.total_paid || 0) / effectiveTotalToReceive);
+                        }
+                        
+                        // Porcentagem do lucro realizado
+                        const profitPercentage = expectedProfit > 0 
+                          ? Math.round((realizedProfit / expectedProfit) * 100) 
+                          : 0;
+                        
+                        return (
+                          <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-2 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                            <div>
+                              <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Previsto</p>
+                              <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                {formatCurrency(expectedProfit)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Realizado</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                  {formatCurrency(realizedProfit)}
+                                </p>
+                                {expectedProfit > 0 && (
+                                  <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
+                                    hasSpecialStyle 
+                                      ? 'bg-white/20 text-white' 
+                                      : profitPercentage >= 100 
+                                        ? 'bg-emerald-500/20 text-emerald-500' 
+                                        : 'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {profitPercentage}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       
                       <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm">
                         <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
