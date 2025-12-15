@@ -517,6 +517,7 @@ export function useLoans() {
     total_interest?: number;
     total_paid?: number;
     send_notification?: boolean;
+    is_renegotiation?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 
@@ -578,24 +579,52 @@ export function useLoans() {
       }
       
       const totalToReceive = data.principal_amount + totalInterest;
-      const totalPaid = newLoanData.total_paid || 0;
-      const remainingToReceive = totalToReceive - totalPaid;
+      const installmentValue = totalToReceive / numInstallments;
       
       const phone = await getUserPhone(user.id);
       if (phone) {
-        let message = `✏️ *Empréstimo Editado*\n\n`;
-        message += `👤 Cliente: *${clientName}*\n`;
-        message += `💰 Valor: *${formatCurrency(data.principal_amount)}*\n`;
-        message += `📊 Juros: *${data.interest_rate}%*\n`;
-        message += `📅 Parcelas: *${numInstallments}x*\n`;
-        message += `📅 Vencimento: *${formatDate(data.due_date)}*\n`;
-        message += `💵 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
-        message += `💵 Restante: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
-        const cleanedNotes = cleanNotesForMessage(data.notes || null);
-        if (cleanedNotes) {
-          message += `📝 Obs: ${cleanedNotes}\n`;
+        let message = '';
+        
+        if (data.is_renegotiation) {
+          // Mensagem específica de renegociação com lista de parcelas
+          const contractId = `EMP-${id.substring(0, 4).toUpperCase()}`;
+          
+          message = `⚠️ *CONTRATO RENEGOCIADO - ${contractId}*\n\n`;
+          message += `👤 Cliente: *${clientName}*\n\n`;
+          message += `💰 *Novo Contrato:*\n`;
+          message += `- Valor Principal: ${formatCurrency(data.principal_amount)}\n`;
+          message += `- Taxa de Juros: ${data.interest_rate}%\n`;
+          message += `- Total a Receber: ${formatCurrency(totalToReceive)}\n\n`;
+          
+          message += `📅 *Novas Parcelas:*\n`;
+          const installmentDates = data.installment_dates || [];
+          for (let i = 0; i < numInstallments; i++) {
+            const dueDate = installmentDates[i] || data.due_date;
+            message += `📌 Parcela ${i + 1}/${numInstallments}: ${formatCurrency(installmentValue)} - Venc: ${formatDate(dueDate)}\n`;
+          }
+          
+          message += `\n✅ O contrato anterior foi quitado.\n`;
+          message += `🔄 Este é um novo ciclo de pagamentos.\n`;
+          message += `\n_CobraFácil - Renegociação registrada_`;
+        } else {
+          // Mensagem padrão de edição
+          const totalPaid = newLoanData.total_paid || 0;
+          const remainingToReceive = totalToReceive - totalPaid;
+          
+          message = `✏️ *Empréstimo Editado*\n\n`;
+          message += `👤 Cliente: *${clientName}*\n`;
+          message += `💰 Valor: *${formatCurrency(data.principal_amount)}*\n`;
+          message += `📊 Juros: *${data.interest_rate}%*\n`;
+          message += `📅 Parcelas: *${numInstallments}x*\n`;
+          message += `📅 Vencimento: *${formatDate(data.due_date)}*\n`;
+          message += `💵 Total a receber: *${formatCurrency(totalToReceive)}*\n`;
+          message += `💵 Restante: *${formatCurrency(remainingToReceive > 0 ? remainingToReceive : 0)}*\n`;
+          const cleanedNotes = cleanNotesForMessage(data.notes || null);
+          if (cleanedNotes) {
+            message += `📝 Obs: ${cleanedNotes}\n`;
+          }
+          message += `\n_CobraFácil - Edição registrada_`;
         }
-        message += `\n_CobraFácil - Edição registrada_`;
         
         await sendWhatsAppNotification(phone, message);
       }
