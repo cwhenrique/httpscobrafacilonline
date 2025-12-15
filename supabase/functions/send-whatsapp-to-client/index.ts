@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -40,15 +39,27 @@ serve(async (req) => {
       });
     }
 
-    // Create Supabase client to fetch user's Evolution API configuration
+    // Get central Evolution API credentials from environment
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+
+    if (!evolutionApiUrl || !evolutionApiKey) {
+      console.error('Evolution API not configured in environment');
+      return new Response(JSON.stringify({ error: 'Evolution API não configurada no servidor' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create Supabase client to fetch user's instance
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch user's WhatsApp configuration from profiles
+    // Fetch user's WhatsApp instance from profiles
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('evolution_api_url, evolution_api_key, evolution_instance_name, whatsapp_to_clients_enabled, company_name')
+      .select('whatsapp_instance_id, whatsapp_to_clients_enabled, whatsapp_connected_phone, company_name')
       .eq('id', userId)
       .single();
 
@@ -77,10 +88,10 @@ serve(async (req) => {
       });
     }
 
-    // Check if Evolution API is configured
-    if (!profile.evolution_api_url || !profile.evolution_api_key || !profile.evolution_instance_name) {
-      console.error('Evolution API not configured for user:', userId);
-      return new Response(JSON.stringify({ error: 'Configure seu WhatsApp nas configurações para enviar mensagens aos clientes' }), {
+    // Check if user has a WhatsApp instance connected
+    if (!profile.whatsapp_instance_id) {
+      console.error('WhatsApp instance not configured for user:', userId);
+      return new Response(JSON.stringify({ error: 'Conecte seu WhatsApp nas configurações para enviar mensagens aos clientes' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -92,19 +103,18 @@ serve(async (req) => {
     // Add country code if not present
     const phoneWithCountryCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
 
-    console.log(`Sending WhatsApp to client via user's Evolution API`);
-    console.log(`API URL: ${profile.evolution_api_url}`);
-    console.log(`Instance: ${profile.evolution_instance_name}`);
+    console.log(`Sending WhatsApp to client via user's instance`);
+    console.log(`Instance: ${profile.whatsapp_instance_id}`);
     console.log(`Phone: ${phoneWithCountryCode}`);
 
-    // Send message via user's Evolution API
-    const apiUrl = `${profile.evolution_api_url}/message/sendText/${profile.evolution_instance_name}`;
+    // Send message via central Evolution API using user's instance
+    const apiUrl = `${evolutionApiUrl}/message/sendText/${profile.whatsapp_instance_id}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': profile.evolution_api_key,
+        'apikey': evolutionApiKey,
       },
       body: JSON.stringify({
         number: phoneWithCountryCode,
