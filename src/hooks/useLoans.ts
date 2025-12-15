@@ -246,6 +246,30 @@ export function useLoans() {
       message += `_CobraFácil - Registro automático_`;
       
       await sendWhatsAppNotification(phone, message);
+      
+      // Check if loan is already overdue (due_date in the past) and NOT a historical contract
+      const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
+      const firstDueDate = loan.installment_dates?.[0] || loan.due_date;
+      const dueDate = new Date(firstDueDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      dueDate.setHours(0, 0, 0, 0);
+
+      if (!isHistoricalContract && dueDate < today) {
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        let overdueMessage = `🚨 *ATENÇÃO - CONTRATO EM ATRASO*\n\n`;
+        overdueMessage += `👤 Cliente: *${clientName}*\n`;
+        overdueMessage += `📋 Contrato: ${contractId}\n`;
+        overdueMessage += `📅 Vencimento: ${formatDate(firstDueDate)}\n`;
+        overdueMessage += `⏰ Dias em atraso: *${daysOverdue} dia(s)*\n`;
+        overdueMessage += `💰 Valor: *${formatCurrency(totalPerInstallment)}*\n\n`;
+        overdueMessage += `⚠️ Este contrato foi registrado já em atraso.\n`;
+        overdueMessage += `Não deixe de cobrar!\n\n`;
+        overdueMessage += `_CobraFácil - Alerta automático_`;
+        
+        await sendWhatsAppNotification(phone, overdueMessage);
+      }
       }
     }
     
