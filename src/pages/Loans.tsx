@@ -141,6 +141,18 @@ export default function Loans() {
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [editLoanIsOverdue, setEditLoanIsOverdue] = useState(false);
   const [editOverdueDays, setEditOverdueDays] = useState(0);
+  const [editIsRenegotiation, setEditIsRenegotiation] = useState(false);
+  const [editHistoricalData, setEditHistoricalData] = useState<{
+    originalPrincipal: number;
+    originalRate: number;
+    originalInstallments: number;
+    originalInterestMode: string;
+    originalTotalInterest: number;
+    originalTotal: number;
+    totalPaid: number;
+    realizedProfit: number;
+    remainingBalance: number;
+  } | null>(null);
   const [editFormData, setEditFormData] = useState({
     client_id: '',
     principal_amount: '',
@@ -559,7 +571,7 @@ export default function Loans() {
     const totalPerInstallment = principalPerInstallment + interestPerInstallment;
     
     const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-    const isRenegotiated = loan.notes?.includes('Valor prometido');
+    const isRenegotiated = loan.notes?.includes('Valor prometido') || loan.notes?.includes('[RENEGOTIATED]');
     const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
     
     const today = new Date();
@@ -1577,28 +1589,78 @@ export default function Loans() {
       daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
     }
     
+    // Check if this is a renegotiation (loan has payments)
+    const totalPaid = loan.total_paid || 0;
+    const isRenegotiation = totalPaid > 0;
+    
+    // Calculate historical data for renegotiation
+    let historicalData: typeof editHistoricalData = null;
+    if (isRenegotiation) {
+      const numInstallments = loan.installments || 1;
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      const totalContract = loan.principal_amount + totalInterest;
+      
+      // Realized profit proportional to payments
+      const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
+      const realizedProfit = totalInterest * paidRatio;
+      
+      // Remaining balance
+      const remaining = loan.remaining_balance || (totalContract - totalPaid);
+      
+      historicalData = {
+        originalPrincipal: loan.principal_amount,
+        originalRate: loan.interest_rate,
+        originalInstallments: numInstallments,
+        originalInterestMode: loan.interest_mode || 'per_installment',
+        originalTotalInterest: totalInterest,
+        originalTotal: totalContract,
+        totalPaid: totalPaid,
+        realizedProfit: realizedProfit,
+        remainingBalance: remaining > 0 ? remaining : 0,
+      };
+    }
+    
     // Parse existing overdue config from notes
     const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
     const hasExistingOverdueConfig = !!overdueConfigMatch;
     const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
     const existingOverdueValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
     
-    // Clean notes for display (remove the config tag)
-    const cleanNotes = (loan.notes || '').replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '').trim();
+    // Clean notes for display (remove the config tag and renegotiation tags)
+    let cleanNotes = (loan.notes || '')
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[RENEGOTIATED\]\n?/g, '')
+      .replace(/\[ORIGINAL_PRINCIPAL:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_RATE:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_INSTALLMENTS:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_INTEREST_MODE:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_TOTAL:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_TOTAL_INTEREST:[^\]]+\]\n?/g, '')
+      .replace(/\[HISTORICAL_PAID:[^\]]+\]\n?/g, '')
+      .replace(/\[HISTORICAL_INTEREST_PAID:[^\]]+\]\n?/g, '')
+      .replace(/\[RENEGOTIATION_DATE:[^\]]+\]\n?/g, '')
+      .trim();
     
     setEditingLoanId(loanId);
     setEditLoanIsOverdue(isOverdue);
     setEditOverdueDays(daysOverdue);
+    setEditIsRenegotiation(isRenegotiation);
+    setEditHistoricalData(historicalData);
     setEditFormData({
       client_id: loan.client_id,
-      principal_amount: loan.principal_amount.toString(),
+      principal_amount: isRenegotiation && historicalData ? historicalData.remainingBalance.toString() : loan.principal_amount.toString(),
       interest_rate: loan.interest_rate.toString(),
       interest_type: loan.interest_type,
       interest_mode: loan.interest_mode || 'per_installment',
       payment_type: loan.payment_type,
       installments: (loan.installments || 1).toString(),
-      contract_date: loan.contract_date || loan.start_date,
-      start_date: loan.start_date,
+      contract_date: new Date().toISOString().split('T')[0], // New contract date for renegotiation
+      start_date: new Date().toISOString().split('T')[0],
       due_date: loan.due_date,
       notes: cleanNotes,
       daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
@@ -1612,7 +1674,22 @@ export default function Loans() {
       apply_overdue_penalty: hasExistingOverdueConfig,
       send_notification: false,
     });
-    setEditInstallmentDates((loan.installment_dates as string[]) || []);
+    
+    // For renegotiation, generate new installment dates starting from today
+    if (isRenegotiation) {
+      const numInst = loan.installments || 1;
+      const startDate = new Date();
+      const newDates: string[] = [];
+      for (let i = 0; i < numInst; i++) {
+        const date = new Date(startDate);
+        date.setMonth(date.getMonth() + i);
+        newDates.push(date.toISOString().split('T')[0]);
+      }
+      setEditInstallmentDates(newDates);
+    } else {
+      setEditInstallmentDates((loan.installment_dates as string[]) || []);
+    }
+    
     setIsEditDialogOpen(true);
   };
 
@@ -1651,6 +1728,27 @@ export default function Loans() {
       finalDueDate = editInstallmentDates[editInstallmentDates.length - 1];
     }
     
+    // Build notes with renegotiation tags if this is a renegotiation
+    let finalNotes = cleanNotes;
+    if (editIsRenegotiation && editHistoricalData) {
+      const renegotiationTags = `[RENEGOTIATED]
+[ORIGINAL_PRINCIPAL:${editHistoricalData.originalPrincipal.toFixed(2)}]
+[ORIGINAL_RATE:${editHistoricalData.originalRate}]
+[ORIGINAL_INSTALLMENTS:${editHistoricalData.originalInstallments}]
+[ORIGINAL_INTEREST_MODE:${editHistoricalData.originalInterestMode}]
+[ORIGINAL_TOTAL:${editHistoricalData.originalTotal.toFixed(2)}]
+[ORIGINAL_TOTAL_INTEREST:${editHistoricalData.originalTotalInterest.toFixed(2)}]
+[HISTORICAL_PAID:${editHistoricalData.totalPaid.toFixed(2)}]
+[HISTORICAL_INTEREST_PAID:${editHistoricalData.realizedProfit.toFixed(2)}]
+[RENEGOTIATION_DATE:${new Date().toISOString().split('T')[0]}]`;
+      
+      finalNotes = `${renegotiationTags}\n${cleanNotes}`.trim();
+    }
+    
+    if (overdueConfigNote) {
+      finalNotes = `${overdueConfigNote}\n${finalNotes}`.trim();
+    }
+    
     let updateData: any = {
       client_id: editFormData.client_id,
       principal_amount: principalAmount,
@@ -1662,7 +1760,7 @@ export default function Loans() {
       contract_date: editFormData.contract_date,
       start_date: editFormData.start_date,
       due_date: finalDueDate,
-      notes: overdueConfigNote ? `${overdueConfigNote}\n${cleanNotes}`.trim() : cleanNotes,
+      notes: finalNotes,
       installment_dates: editInstallmentDates,
     };
     
@@ -1678,14 +1776,27 @@ export default function Loans() {
       const totalInterest = editFormData.interest_mode === 'per_installment'
         ? principalAmount * (interestRate / 100) * numInstallments
         : principalAmount * (interestRate / 100);
-      const totalPaid = loan.total_paid || 0;
-      updateData.remaining_balance = principalAmount - totalPaid;
+      // For renegotiation, reset total_paid to 0 as it's a new contract
+      if (editIsRenegotiation) {
+        updateData.total_paid = 0;
+        updateData.remaining_balance = principalAmount + totalInterest;
+      } else {
+        const totalPaid = loan.total_paid || 0;
+        updateData.remaining_balance = principalAmount + totalInterest - totalPaid;
+      }
       updateData.total_interest = totalInterest;
     }
     
     await updateLoan(editingLoanId, updateData);
+    
+    if (editIsRenegotiation) {
+      toast.success('Contrato renegociado com sucesso!');
+    }
+    
     setIsEditDialogOpen(false);
     setEditingLoanId(null);
+    setEditIsRenegotiation(false);
+    setEditHistoricalData(null);
   };
 
   const handleGenerateOperationsReport = async () => {
@@ -2777,8 +2888,36 @@ export default function Loans() {
                 const hasAppliedOverduePenalty = !isDaily && storedTotalInterest > calculatedTotalInterest;
                 
                 const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-                const isRenegotiated = loan.notes?.includes('Valor prometido') && !isInterestOnlyPayment;
+                const isRenegotiated = (loan.notes?.includes('Valor prometido') || loan.notes?.includes('[RENEGOTIATED]')) && !isInterestOnlyPayment;
                 const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
+                
+                // Parse renegotiation historical data from notes
+                const renegotiatedHistorical = loan.notes?.includes('[RENEGOTIATED]') ? (() => {
+                  const origPrincipal = loan.notes?.match(/\[ORIGINAL_PRINCIPAL:([0-9.]+)\]/);
+                  const origRate = loan.notes?.match(/\[ORIGINAL_RATE:([0-9.]+)\]/);
+                  const origInstallments = loan.notes?.match(/\[ORIGINAL_INSTALLMENTS:(\d+)\]/);
+                  const origInterestMode = loan.notes?.match(/\[ORIGINAL_INTEREST_MODE:([^\]]+)\]/);
+                  const origTotal = loan.notes?.match(/\[ORIGINAL_TOTAL:([0-9.]+)\]/);
+                  const origTotalInterest = loan.notes?.match(/\[ORIGINAL_TOTAL_INTEREST:([0-9.]+)\]/);
+                  const histPaid = loan.notes?.match(/\[HISTORICAL_PAID:([0-9.]+)\]/);
+                  const histInterestPaid = loan.notes?.match(/\[HISTORICAL_INTEREST_PAID:([0-9.]+)\]/);
+                  const renegDate = loan.notes?.match(/\[RENEGOTIATION_DATE:([^\]]+)\]/);
+                  
+                  if (origPrincipal && histPaid) {
+                    return {
+                      originalPrincipal: parseFloat(origPrincipal[1]),
+                      originalRate: origRate ? parseFloat(origRate[1]) : 0,
+                      originalInstallments: origInstallments ? parseInt(origInstallments[1]) : 1,
+                      originalInterestMode: origInterestMode ? origInterestMode[1] : 'per_installment',
+                      originalTotal: origTotal ? parseFloat(origTotal[1]) : 0,
+                      originalTotalInterest: origTotalInterest ? parseFloat(origTotalInterest[1]) : 0,
+                      historicalPaid: parseFloat(histPaid[1]),
+                      historicalInterestPaid: histInterestPaid ? parseFloat(histInterestPaid[1]) : 0,
+                      renegotiationDate: renegDate ? renegDate[1] : null,
+                    };
+                  }
+                  return null;
+                })() : null;
                 
                 // Check if overdue based on installment dates
                 const today = new Date();
@@ -2938,6 +3077,49 @@ export default function Loans() {
                           <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
+                      
+                      {/* Seção de Histórico do Contrato Anterior (para renegociações) */}
+                      {renegotiatedHistorical && (
+                        <div className="mt-2 p-2 sm:p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                          <p className="text-[10px] sm:text-xs font-medium text-yellow-400 mb-2 flex items-center gap-1">
+                            📜 Contrato Anterior
+                          </p>
+                          <div className="grid grid-cols-2 gap-2 text-[10px] sm:text-xs">
+                            <div>
+                              <p className="text-muted-foreground">Emprestado:</p>
+                              <p className="font-semibold">{formatCurrency(renegotiatedHistorical.originalPrincipal)}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Taxa:</p>
+                              <p className="font-semibold">{renegotiatedHistorical.originalRate}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Total Previsto:</p>
+                              <p className="font-semibold">{formatCurrency(renegotiatedHistorical.originalTotal)}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Parcelas:</p>
+                              <p className="font-semibold">{renegotiatedHistorical.originalInstallments}x</p>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-yellow-500/30 space-y-1">
+                            <div className="flex justify-between text-[10px] sm:text-xs">
+                              <span className="text-muted-foreground">Total recebido:</span>
+                              <span className="font-semibold text-green-400">{formatCurrency(renegotiatedHistorical.historicalPaid)}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] sm:text-xs">
+                              <span className="text-muted-foreground">Lucro realizado:</span>
+                              <span className="font-semibold text-green-400">{formatCurrency(renegotiatedHistorical.historicalInterestPaid)} ✅</span>
+                            </div>
+                            {renegotiatedHistorical.renegotiationDate && (
+                              <div className="flex justify-between text-[10px] sm:text-xs">
+                                <span className="text-muted-foreground">Renegociado em:</span>
+                                <span className="font-semibold text-yellow-400">{formatDate(renegotiatedHistorical.renegotiationDate)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Seção de Lucro - Previsto e Realizado */}
                       {(() => {
@@ -4100,11 +4282,75 @@ export default function Loans() {
         {/* Edit Loan Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
-            <DialogHeader><DialogTitle className="text-base sm:text-xl">Editar Empréstimo</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-xl">
+                {editIsRenegotiation ? '⚠️ Renegociação de Contrato' : 'Editar Empréstimo'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {/* Renegotiation Warning and Historical Data */}
+            {editIsRenegotiation && editHistoricalData && (
+              <div className="space-y-3 mb-4">
+                <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-sm">
+                  <p className="text-yellow-300 font-medium">
+                    Este contrato já possui pagamentos registrados. Ao salvar, você estará criando uma <strong>RENEGOCIAÇÃO</strong> baseada no saldo devedor atual.
+                  </p>
+                </div>
+                
+                {/* Historical Contract Section */}
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-yellow-400 flex items-center gap-1.5">
+                    📜 CONTRATO ANTERIOR
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Emprestado:</p>
+                      <p className="font-semibold">{formatCurrency(editHistoricalData.originalPrincipal)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Taxa:</p>
+                      <p className="font-semibold">{editHistoricalData.originalRate}% ({editHistoricalData.originalInterestMode === 'per_installment' ? 'Por Parcela' : 'Sobre Total'})</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Parcelas:</p>
+                      <p className="font-semibold">{editHistoricalData.originalInstallments}x</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total Previsto:</p>
+                      <p className="font-semibold">{formatCurrency(editHistoricalData.originalTotal)}</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-yellow-500/30 pt-2 mt-2 space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Total já recebido:</span>
+                      <span className="font-semibold text-green-400">{formatCurrency(editHistoricalData.totalPaid)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Lucro já realizado:</span>
+                      <span className="font-semibold text-green-400">{formatCurrency(editHistoricalData.realizedProfit)} ✅</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Saldo devedor atual:</span>
+                      <span className="font-semibold text-yellow-400">{formatCurrency(editHistoricalData.remainingBalance)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
+                  <p className="text-xs font-medium text-primary flex items-center gap-1.5">
+                    📊 NOVO CONTRATO
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Configure abaixo os novos termos. O valor base é o saldo devedor de {formatCurrency(editHistoricalData.remainingBalance)}.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             <form onSubmit={handleEditSubmit} className="space-y-3 sm:space-y-4">
               <div className="space-y-1 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">Cliente *</Label>
-                <Select value={editFormData.client_id} onValueChange={(v) => setEditFormData({ ...editFormData, client_id: v })}>
+                <Select value={editFormData.client_id} onValueChange={(v) => setEditFormData({ ...editFormData, client_id: v })} disabled={editIsRenegotiation}>
                   <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
                   <SelectContent>
                     {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
@@ -4370,8 +4616,8 @@ export default function Loans() {
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">
                   Cancelar
                 </Button>
-                <Button type="submit" className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">
-                  Salvar Alterações
+                <Button type="submit" className={`h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4 ${editIsRenegotiation ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : ''}`}>
+                  {editIsRenegotiation ? 'Salvar Renegociação' : 'Salvar Alterações'}
                 </Button>
               </div>
             </form>
