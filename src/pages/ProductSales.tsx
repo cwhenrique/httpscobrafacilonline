@@ -241,6 +241,7 @@ export default function ProductSales() {
 
   // Payment receipt prompt states
   const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
+  const [paymentClientPhone, setPaymentClientPhone] = useState<string | null>(null);
   const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
 
   // Sale created receipt prompt states
@@ -537,6 +538,7 @@ export default function ProductSales() {
     
     // Show payment receipt prompt
     if (sale) {
+      setPaymentClientPhone(sale.client_phone || null);
       setPaymentReceiptData({
         type: 'product',
         contractId: sale.id,
@@ -589,6 +591,7 @@ export default function ProductSales() {
     
     // Show payment receipt prompt
     const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
+    setPaymentClientPhone(vehicle.buyer_phone || null);
     setPaymentReceiptData({
       type: 'vehicle',
       contractId: vehicle.id,
@@ -616,6 +619,7 @@ export default function ProductSales() {
       const paidPayments = payments.filter(p => p.status === 'paid').length;
       const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
       const newRemainingBalance = Math.max(0, contract.amount_to_receive - paidAmount - payment.amount);
+      setPaymentClientPhone(contract.client_phone || null);
       setPaymentReceiptData({
         type: 'contract',
         contractId: contract.id,
@@ -2140,7 +2144,8 @@ export default function ProductSales() {
         <PaymentReceiptPrompt 
           open={isPaymentReceiptOpen} 
           onOpenChange={setIsPaymentReceiptOpen} 
-          data={paymentReceiptData} 
+          data={paymentReceiptData}
+          clientPhone={paymentClientPhone || undefined}
         />
 
         {/* Vehicle Payment Confirmation Dialog */}
