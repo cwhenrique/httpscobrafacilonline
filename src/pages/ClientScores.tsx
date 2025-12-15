@@ -22,7 +22,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   DollarSign,
-  Wallet
+  Wallet,
+  Sparkles
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
@@ -34,22 +35,29 @@ export default function ClientScores() {
 
   // Calcular lucro por cliente
   const clientProfitMap = useMemo(() => {
-    const map = new Map<string, { expectedProfit: number; realizedProfit: number; totalPrincipal: number }>();
+    const map = new Map<string, { expectedProfit: number; realizedProfit: number; extraProfit: number; totalPrincipal: number }>();
     
     loans.forEach(loan => {
-      const existing = map.get(loan.client_id) || { expectedProfit: 0, realizedProfit: 0, totalPrincipal: 0 };
+      const existing = map.get(loan.client_id) || { expectedProfit: 0, realizedProfit: 0, extraProfit: 0, totalPrincipal: 0 };
       
       // Lucro previsto = total de juros
       const expectedProfit = loan.total_interest || 0;
       
-      // Lucro realizado = proporção do lucro conforme pagamentos
+      // Lucro realizado bruto = proporção do lucro conforme pagamentos
       const totalContract = loan.principal_amount + (loan.total_interest || 0);
       const paidRatio = totalContract > 0 ? (loan.total_paid || 0) / totalContract : 0;
-      const realizedProfit = expectedProfit * paidRatio;
+      const rawRealizedProfit = expectedProfit * paidRatio;
+      
+      // Lucro realizado limitado ao previsto (máximo 100%)
+      const realizedProfit = Math.min(rawRealizedProfit, expectedProfit);
+      
+      // Lucro EXTRA = o que passou do previsto (multas, penalidades)
+      const extraProfit = Math.max(0, rawRealizedProfit - expectedProfit);
       
       map.set(loan.client_id, {
         expectedProfit: existing.expectedProfit + expectedProfit,
         realizedProfit: existing.realizedProfit + realizedProfit,
+        extraProfit: existing.extraProfit + extraProfit,
         totalPrincipal: existing.totalPrincipal + loan.principal_amount,
       });
     });
@@ -71,10 +79,12 @@ export default function ClientScores() {
     // Lucro total de todos os clientes
     let totalExpectedProfit = 0;
     let totalRealizedProfit = 0;
+    let totalExtraProfit = 0;
     
-    clientProfitMap.forEach(({ expectedProfit, realizedProfit }) => {
+    clientProfitMap.forEach(({ expectedProfit, realizedProfit, extraProfit }) => {
       totalExpectedProfit += expectedProfit;
       totalRealizedProfit += realizedProfit;
+      totalExtraProfit += extraProfit;
     });
 
     return {
@@ -88,6 +98,7 @@ export default function ClientScores() {
       total: clients.length,
       totalExpectedProfit,
       totalRealizedProfit,
+      totalExtraProfit,
     };
   }, [clients, clientProfitMap]);
 
@@ -208,19 +219,19 @@ export default function ClientScores() {
             </div>
 
             {/* Profit Stats */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className={`grid gap-4 ${stats.totalExtraProfit > 0 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
               <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Lucro Previsto Total</p>
-                      <p className="text-3xl font-bold text-blue-600">{formatCurrency(stats.totalExpectedProfit)}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-blue-600">{formatCurrency(stats.totalExpectedProfit)}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Soma de juros de todos os contratos
                       </p>
                     </div>
-                    <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <Wallet className="w-7 h-7 text-blue-500" />
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500" />
                     </div>
                   </div>
                 </CardContent>
@@ -231,19 +242,38 @@ export default function ClientScores() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Lucro Realizado Total</p>
-                      <p className="text-3xl font-bold text-emerald-600">{formatCurrency(stats.totalRealizedProfit)}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-emerald-600">{formatCurrency(stats.totalRealizedProfit)}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {stats.totalExpectedProfit > 0 
                           ? `${Math.round((stats.totalRealizedProfit / stats.totalExpectedProfit) * 100)}% do previsto`
                           : 'Nenhum lucro previsto'}
                       </p>
                     </div>
-                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                      <DollarSign className="w-7 h-7 text-emerald-500" />
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-500" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {stats.totalExtraProfit > 0 && (
+                <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/5 to-purple-500/10">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Lucro Extra</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-purple-500">+{formatCurrency(stats.totalExtraProfit)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Multas e penalidades
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-purple-500/20 flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-purple-500" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Payment Stats */}
@@ -452,10 +482,10 @@ export default function ClientScores() {
                             </span>
                           </div>
 
-                          {/* Profit Section - 2x2 grid on mobile, inline on desktop */}
+                          {/* Profit Section - responsive grid */}
                           {profit && profit.expectedProfit > 0 && (
                             <div className="mt-3 pt-3 border-t border-border/50">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                              <div className={`grid gap-2 sm:gap-3 ${profit.extraProfit > 0 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
                                 <div className="bg-muted/30 rounded-lg p-2">
                                   <p className="text-[9px] sm:text-[10px] text-muted-foreground">Principal</p>
                                   <p className="text-xs sm:text-sm font-semibold truncate">
@@ -474,6 +504,14 @@ export default function ClientScores() {
                                     {formatCurrency(profit.realizedProfit)}
                                   </p>
                                 </div>
+                                {profit.extraProfit > 0 && (
+                                  <div className="bg-purple-500/10 rounded-lg p-2">
+                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro Extra</p>
+                                    <p className="text-xs sm:text-sm font-semibold text-purple-500 truncate">
+                                      +{formatCurrency(profit.extraProfit)}
+                                    </p>
+                                  </div>
+                                )}
                                 <div className="bg-primary/10 rounded-lg p-2 flex flex-col justify-center items-center">
                                   <p className="text-[9px] sm:text-[10px] text-muted-foreground">Progresso</p>
                                   <div className="flex items-center gap-1">
@@ -483,6 +521,7 @@ export default function ClientScores() {
                                       {profitPercentage}%
                                     </span>
                                     {profitPercentage >= 100 && <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />}
+                                    {profit.extraProfit > 0 && <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500" />}
                                   </div>
                                 </div>
                               </div>
