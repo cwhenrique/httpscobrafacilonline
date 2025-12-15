@@ -29,7 +29,11 @@ import {
   Send,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Crown,
+  Clock,
+  Infinity,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -430,6 +434,86 @@ export default function Profile() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Subscription Card */}
+        <Card className="shadow-soft border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Crown className="w-4 h-4 text-amber-500" />
+              Assinatura
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10">
+                <Crown className="w-4 h-4 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Plano Atual</p>
+                <p className="font-bold text-lg capitalize">
+                  {profile?.subscription_plan === 'lifetime' && 'Vitalício'}
+                  {profile?.subscription_plan === 'annual' && 'Anual'}
+                  {profile?.subscription_plan === 'monthly' && 'Mensal'}
+                  {profile?.subscription_plan === 'trial' && 'Trial'}
+                  {!profile?.subscription_plan && 'Não definido'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                profile?.subscription_plan === 'lifetime' 
+                  ? 'bg-green-500/10' 
+                  : profile?.subscription_expires_at && new Date(profile.subscription_expires_at) < new Date()
+                    ? 'bg-red-500/10'
+                    : 'bg-blue-500/10'
+              }`}>
+                {profile?.subscription_plan === 'lifetime' ? (
+                  <Infinity className="w-4 h-4 text-green-500" />
+                ) : profile?.subscription_expires_at && new Date(profile.subscription_expires_at) < new Date() ? (
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                ) : (
+                  <Clock className="w-4 h-4 text-blue-500" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Válido até</p>
+                <p className={`font-bold text-lg ${
+                  profile?.subscription_expires_at && new Date(profile.subscription_expires_at) < new Date()
+                    ? 'text-red-500'
+                    : ''
+                }`}>
+                  {profile?.subscription_plan === 'lifetime' ? (
+                    <span className="text-green-500">♾️ Acesso Vitalício</span>
+                  ) : profile?.subscription_expires_at ? (
+                    formatDate(profile.subscription_expires_at)
+                  ) : (
+                    'N/A'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {profile?.subscription_expires_at && 
+             new Date(profile.subscription_expires_at) < new Date() && 
+             profile?.subscription_plan !== 'lifetime' && (
+              <div className="pt-2 border-t border-border">
+                <p className="text-sm text-red-500 mb-3">
+                  Sua assinatura expirou. Renove para continuar usando o sistema.
+                </p>
+                <Button 
+                  asChild
+                  className="gap-2 bg-amber-500 hover:bg-amber-600"
+                >
+                  <a href="https://pay.cakto.com.br/fhwfptb" target="_blank" rel="noopener noreferrer">
+                    <Crown className="w-4 h-4" />
+                    Renovar Assinatura
+                  </a>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* WhatsApp Test Card */}
         <Card className="shadow-soft">

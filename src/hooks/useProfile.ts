@@ -8,6 +8,9 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   company_name: string | null;
+  subscription_plan: string | null;
+  subscription_expires_at: string | null;
+  is_active: boolean;
 }
 
 export function useProfile() {
