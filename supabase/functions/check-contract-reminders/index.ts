@@ -103,10 +103,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Checking contract reminders for TODAY:", todayStr);
 
-    // Get all users with phone configured
+    // Get all ACTIVE users with phone configured
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('id, phone, full_name')
+      .eq('is_active', true)
       .not('phone', 'is', null);
 
     if (profilesError) {

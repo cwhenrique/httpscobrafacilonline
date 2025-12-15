@@ -134,9 +134,15 @@ const handler = async (req: Request): Promise<Response> => {
     for (const [userId, userBills] of userBillsMap) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('phone, full_name')
+        .select('phone, full_name, is_active')
         .eq('id', userId)
         .single();
+
+      // Skip inactive users
+      if (profileError || !profile?.phone || profile.is_active === false) {
+        console.log(`User ${userId} is inactive or has no phone, skipping`);
+        continue;
+      }
 
       if (profileError || !profile?.phone) {
         console.log(`User ${userId} has no phone configured, skipping WhatsApp`);
