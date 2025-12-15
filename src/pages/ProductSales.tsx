@@ -2117,6 +2117,16 @@ export default function ProductSales() {
           }}
           isPending={markSalePaymentAsPaid.isPending}
         />
+
+        {/* Sale Created Receipt Prompt */}
+        <SaleCreatedReceiptPrompt
+          open={isSaleReceiptPromptOpen}
+          onOpenChange={setIsSaleReceiptPromptOpen}
+          sale={newCreatedSale}
+          companyName={profile?.company_name || profile?.full_name || 'CobraFácil'}
+          userPhone={profile?.phone || undefined}
+          installmentDates={newSaleInstallmentDates}
+        />
       </div>
     </DashboardLayout>
   );
