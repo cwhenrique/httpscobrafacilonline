@@ -21,15 +21,20 @@ serve(async (req) => {
       });
     }
 
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
 
-    if (!evolutionApiUrl || !evolutionApiKey) {
+    if (!rawEvolutionApiUrl || !evolutionApiKey) {
       return new Response(JSON.stringify({ error: 'Evolution API não configurada' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Clean the URL - extract just the base URL (protocol + host)
+    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
+    console.log('Using Evolution API base URL:', evolutionApiUrl);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
