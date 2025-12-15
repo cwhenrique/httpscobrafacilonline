@@ -1787,7 +1787,11 @@ export default function Loans() {
       updateData.total_interest = totalInterest;
     }
     
-    await updateLoan(editingLoanId, updateData);
+    await updateLoan(editingLoanId, {
+      ...updateData,
+      send_notification: editIsRenegotiation,
+      is_renegotiation: editIsRenegotiation,
+    });
     
     if (editIsRenegotiation) {
       toast.success('Contrato renegociado com sucesso!');
