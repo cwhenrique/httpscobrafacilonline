@@ -66,7 +66,7 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error, data } = await signIn(email, password);
 
     if (error) {
       toast.error('Erro ao fazer login', {
@@ -79,8 +79,37 @@ export default function Auth() {
       return;
     }
 
-    // Não redireciona aqui: aguarda validação de is_active no useEffect.
-    // (Evita o caso de usuário inativo ser redirecionado antes da checagem.)
+    // Verificar is_active IMEDIATAMENTE após login bem-sucedido
+    if (data?.user) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        toast.error('Não foi possível validar sua conta', {
+          description: 'Tente novamente em alguns instantes.',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (profile.is_active === false) {
+        await supabase.auth.signOut();
+        toast.error('Conta inativa', {
+          description: 'Seu período de acesso expirou. Entre em contato para renovar.',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      toast.success('Login realizado com sucesso!');
+      navigate('/dashboard');
+    }
+
+    setIsLoading(false);
   };
 
   return (
