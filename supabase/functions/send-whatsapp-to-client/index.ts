@@ -105,6 +105,15 @@ serve(async (req) => {
     // Format phone number (remove non-digits)
     const formattedPhone = clientPhone.replace(/\D/g, '');
     
+    // Validate phone has actual digits (not just empty or whitespace)
+    if (!formattedPhone || formattedPhone.length < 8) {
+      console.error('Invalid phone number after formatting:', formattedPhone);
+      return new Response(JSON.stringify({ error: 'Número de telefone do cliente inválido ou não cadastrado' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     // Add country code if not present
     const phoneWithCountryCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
 
