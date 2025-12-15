@@ -1566,11 +1566,21 @@ export default function Loans() {
       setIsRenegotiateDialogOpen(false);
       setSelectedLoanId(null);
       
-      // Abrir comprovante após pagamento de juros
-      handleGenerateLoanReceipt(loan, {
+      // Abrir comprovante após pagamento de juros com opção de enviar ao cliente
+      setPaymentClientPhone(loan.client?.phone || null);
+      setPaymentReceiptData({
+        type: 'loan',
+        contractId: loan.id,
+        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+        clientName: loan.client?.full_name || 'Cliente',
+        installmentNumber: getPaidInstallmentsCount(loan) + 1,
+        totalInstallments: loan.installments || 1,
         amountPaid: interestPaid,
+        paymentDate: renegotiateData.interest_payment_date || new Date().toISOString().split('T')[0],
         remainingBalance: safeRemaining,
+        totalPaid: (loan.total_paid || 0) + interestPaid,
       });
+      setIsPaymentReceiptOpen(true);
       
       return; // Sair da função aqui, não executar o else
     } else if (renegotiateData.renewal_fee_enabled) {
