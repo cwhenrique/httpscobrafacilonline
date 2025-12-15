@@ -40,16 +40,21 @@ serve(async (req) => {
     }
 
     // Get central Evolution API credentials from environment
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
 
-    if (!evolutionApiUrl || !evolutionApiKey) {
+    if (!rawEvolutionApiUrl || !evolutionApiKey) {
       console.error('Evolution API not configured in environment');
       return new Response(JSON.stringify({ error: 'Evolution API não configurada no servidor' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Clean the URL - extract just the base URL (protocol + host)
+    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
+    console.log('Using Evolution API base URL:', evolutionApiUrl);
 
     // Create Supabase client to fetch user's instance
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
