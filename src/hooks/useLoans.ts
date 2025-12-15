@@ -102,7 +102,8 @@ export function useLoans() {
       .from('loans')
       .select(`
         *,
-        client:clients(*)
+        client:clients(*),
+        loan_payments(interest_paid)
       `)
       .order('created_at', { ascending: false });
 

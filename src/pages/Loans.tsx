@@ -3126,18 +3126,11 @@ export default function Loans() {
                         // Lucro previsto = total de juros do contrato
                         const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
                         
-                        // Lucro realizado = proporção do lucro conforme pagamentos recebidos
-                        // Se totalToReceive = R$ 1200, total_paid = R$ 600 (50%), lucro previsto = R$ 200
-                        // Então lucro realizado = R$ 200 × 50% = R$ 100
-                        const effectiveTotalToReceive = isDaily ? dailyTotalToReceive : totalToReceive;
-                        let realizedProfit = 0;
-                        
-                        if (isPaid) {
-                          // Se está pago, lucro realizado = lucro previsto (100%)
-                          realizedProfit = expectedProfit;
-                        } else if (effectiveTotalToReceive > 0 && (loan.total_paid || 0) > 0) {
-                          realizedProfit = expectedProfit * ((loan.total_paid || 0) / effectiveTotalToReceive);
-                        }
+                        // Lucro realizado = soma dos interest_paid de todos os pagamentos
+                        // Fonte de verdade: loan_payments.interest_paid registrado em cada pagamento
+                        const payments = (loan as any).loan_payments || [];
+                        let realizedProfit = payments.reduce((sum: number, p: any) => 
+                          sum + Number(p.interest_paid || 0), 0);
                         
                         // Porcentagem do lucro realizado
                         const profitPercentage = expectedProfit > 0 
