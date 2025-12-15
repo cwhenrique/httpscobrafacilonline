@@ -1058,3 +1058,278 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
   const fileName = `relatorio-operacoes-${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 };
+
+// Interface for client-facing sale receipt (WITHOUT cost/profit)
+export interface ClientSaleReceiptData {
+  contractId: string;
+  companyName: string;
+  client: {
+    name: string;
+    phone?: string;
+    cpf?: string;
+    rg?: string;
+    email?: string;
+    address?: string;
+  };
+  product: {
+    name: string;
+    description?: string;
+  };
+  sale: {
+    totalAmount: number;
+    downPayment: number;
+    installments: number;
+    installmentValue: number;
+    saleDate: string;
+  };
+  dueDates: string[];
+}
+
+// Generate client-facing sale receipt PDF (WITHOUT cost/profit info)
+export const generateClientSaleReceipt = async (data: ClientSaleReceiptData): Promise<void> => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let currentY = 0;
+
+  // Load logo
+  let logoBase64 = '';
+  try {
+    logoBase64 = await loadLogoAsBase64();
+  } catch (e) {
+    console.warn('Could not load logo:', e);
+  }
+
+  // === HEADER BAR ===
+  doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.rect(0, 0, pageWidth, 35, 'F');
+
+  // Logo
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', margin, 5, 40, 25);
+  } else {
+    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CobraFácil', margin, 22);
+  }
+
+  // Company name on the right
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (data.companyName) {
+    doc.text(data.companyName, pageWidth - margin, 15, { align: 'right' });
+  }
+
+  currentY = 45;
+
+  // === DOCUMENT TITLE ===
+  doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 18, 3, 3, 'F');
+  
+  doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COMPROVANTE DE VENDA', pageWidth / 2, currentY + 8, { align: 'center' });
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const contractNumber = `Nº: PRD-${data.contractId.substring(0, 8).toUpperCase()}`;
+  doc.text(contractNumber, pageWidth / 2, currentY + 14, { align: 'center' });
+
+  currentY += 25;
+
+  // === CLIENT DATA SECTION ===
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 45, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DADOS DO CLIENTE', margin + 5, currentY + 8);
+
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+
+  let clientY = currentY + 15;
+  const col1X = margin + 5;
+  const col2X = pageWidth / 2 + 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nome:', col1X, clientY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.client.name || '-', col1X + 20, clientY);
+
+  if (data.client.phone) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Telefone:', col2X, clientY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.client.phone, col2X + 25, clientY);
+  }
+
+  clientY += 8;
+
+  if (data.client.cpf) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('CPF:', col1X, clientY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.client.cpf, col1X + 15, clientY);
+  }
+
+  if (data.client.rg) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('RG:', col2X, clientY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.client.rg, col2X + 12, clientY);
+  }
+
+  clientY += 8;
+
+  if (data.client.email) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('E-mail:', col1X, clientY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.client.email, col1X + 20, clientY);
+  }
+
+  clientY += 8;
+
+  if (data.client.address) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Endereço:', col1X, clientY);
+    doc.setFont('helvetica', 'normal');
+    const maxWidth = pageWidth - 2 * margin - 35;
+    const addressLines = doc.splitTextToSize(data.client.address, maxWidth);
+    doc.text(addressLines[0] || '-', col1X + 28, clientY);
+  }
+
+  currentY += 52;
+
+  // === PRODUCT INFO ===
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 20, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PRODUTO', margin + 5, currentY + 8);
+
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.product.name, margin + 5, currentY + 15);
+
+  currentY += 26;
+
+  // === SALE DATA (WITHOUT cost/profit) ===
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 40, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DADOS DA VENDA', margin + 5, currentY + 8);
+
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(9);
+
+  let saleY = currentY + 16;
+
+  // First row - Total value
+  doc.setFont('helvetica', 'bold');
+  doc.text('Valor Total:', col1X, saleY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(formatCurrency(data.sale.totalAmount), col1X + 32, saleY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Data da Venda:', col2X, saleY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(formatDate(data.sale.saleDate), col2X + 42, saleY);
+
+  saleY += 8;
+
+  // Second row - Installments
+  doc.setFont('helvetica', 'bold');
+  doc.text('Parcelas:', col1X, saleY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${data.sale.installments}x de ${formatCurrency(data.sale.installmentValue)}`, col1X + 25, saleY);
+
+  if (data.sale.downPayment > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Entrada:', col2X, saleY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatCurrency(data.sale.downPayment), col2X + 22, saleY);
+  }
+
+  currentY += 48;
+
+  // === DUE DATES ===
+  if (data.dueDates.length > 0) {
+    const datesBoxHeight = Math.min(Math.ceil(data.dueDates.length / 3) * 8 + 15, 50);
+    
+    doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, datesBoxHeight, 2, 2, 'F');
+
+    doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATAS DE VENCIMENTO', margin + 5, currentY + 8);
+
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    let dateY = currentY + 15;
+    const colWidth = (pageWidth - 2 * margin) / 3;
+    
+    data.dueDates.slice(0, 15).forEach((date, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const x = margin + 5 + col * colWidth;
+      const y = dateY + row * 7;
+      
+      doc.text(`${index + 1}ª: ${formatDate(date)}`, x, y);
+    });
+
+    if (data.dueDates.length > 15) {
+      doc.text(`... e mais ${data.dueDates.length - 15} parcela(s)`, margin + 5, dateY + Math.ceil(15 / 3) * 7);
+    }
+
+    currentY += datesBoxHeight + 8;
+  }
+
+  // === SIGNATURES ===
+  currentY = Math.max(currentY, 220);
+
+  doc.setDrawColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setLineWidth(0.3);
+  
+  const sigWidth = 70;
+  const sig1X = margin + 15;
+  const sig2X = pageWidth - margin - sigWidth - 15;
+
+  doc.line(sig1X, currentY, sig1X + sigWidth, currentY);
+  doc.line(sig2X, currentY, sig2X + sigWidth, currentY);
+
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFontSize(8);
+  doc.text('Assinatura do Cliente', sig1X + sigWidth / 2, currentY + 5, { align: 'center' });
+  doc.text('Assinatura da Empresa', sig2X + sigWidth / 2, currentY + 5, { align: 'center' });
+
+  // === FOOTER BAR ===
+  const footerY = doc.internal.pageSize.getHeight() - 15;
+  doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.rect(0, footerY, pageWidth, 15, 'F');
+
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(8);
+  doc.text(`Emitido em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, margin, footerY + 9);
+  doc.text('CobraFácil - Sistema de Gestão de Cobranças', pageWidth - margin, footerY + 9, { align: 'right' });
+
+  // Download
+  const fileName = `comprovante-venda-${data.contractId.substring(0, 8)}.pdf`;
+  doc.save(fileName);
+};

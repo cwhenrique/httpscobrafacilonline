@@ -400,7 +400,7 @@ export function useProductSalePayments(saleId?: string) {
 
       if (saleError) throw saleError;
 
-      // Send WhatsApp notification - fetch user phone first
+      // Send WhatsApp notification with progress - fetch user phone and all payments first
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -409,11 +409,60 @@ export function useProductSalePayments(saleId?: string) {
           .single();
 
         if (profile?.phone) {
+          // Fetch all payments for this sale to calculate progress
+          const { data: allPaymentsForSale } = await supabase
+            .from('product_sale_payments')
+            .select('*')
+            .eq('product_sale_id', payment.product_sale_id)
+            .order('installment_number', { ascending: true });
+          
+          const sale = payment.productSale;
+          const totalInstallments = sale?.installments || 1;
+          
+          // Count paid installments (including this one being marked as paid)
+          const paidInstallments = (allPaymentsForSale?.filter(p => 
+            p.status === 'paid' || p.id === paymentId
+          ).length || 0);
+          
+          const progressPercent = Math.round((paidInstallments / totalInstallments) * 100);
+          
+          // Create progress bar
+          const filledBars = Math.round(progressPercent / 10);
+          const emptyBars = 10 - filledBars;
+          const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+          
+          // Find next unpaid installment
+          const nextUnpaid = allPaymentsForSale?.find(p => 
+            p.status === 'pending' && p.id !== paymentId
+          );
+          
+          let message = `✅ *PAGAMENTO RECEBIDO!*\n`;
+          message += `━━━━━━━━━━━━━━━━\n\n`;
+          message += `📦 Produto: ${sale?.product_name}\n`;
+          message += `👤 Cliente: ${sale?.client_name}\n\n`;
+          message += `💰 *PAGAMENTO*\n`;
+          message += `━━━━━━━━━━━━━━━━\n`;
+          message += `💵 Valor Pago: R$ ${payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          message += `📅 Data: ${paidDate.split('-').reverse().join('/')}\n\n`;
+          message += `📊 *PROGRESSO*\n`;
+          message += `━━━━━━━━━━━━━━━━\n`;
+          message += `✅ Parcelas Pagas: ${paidInstallments}/${totalInstallments}\n`;
+          message += `📈 Progresso: ${progressBar} ${progressPercent}%\n`;
+          message += `💰 Total Pago: R$ ${newTotalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          message += `💳 Saldo Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          
+          if (nextUnpaid) {
+            const nextDueDate = new Date(nextUnpaid.due_date + 'T12:00:00');
+            message += `\n📅 Próxima Parcela: ${nextDueDate.toLocaleDateString('pt-BR')} (R$ ${nextUnpaid.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          } else if (newRemainingBalance <= 0) {
+            message += `\n🎉 *CONTRATO QUITADO!*\n`;
+          }
+          
+          message += `\n━━━━━━━━━━━━━━━━\n`;
+          message += `_CobraFácil - Registro automático_`;
+          
           await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              phone: profile.phone,
-              message: `✅ *Pagamento de Venda Recebido!*\n\n📦 Produto: ${payment.productSale?.product_name}\n👤 Cliente: ${payment.productSale?.client_name}\n💵 Valor: R$ ${payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n📋 Parcela: ${payment.installment_number}/${payment.productSale?.installments}\n💰 Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-            },
+            body: { phone: profile.phone, message },
           });
         }
       } catch (err) {
