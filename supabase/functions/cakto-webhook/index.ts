@@ -25,6 +25,9 @@ function cleanApiUrl(url: string): string {
 
 // Determine subscription plan from Cakto payload
 function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | null } {
+  // Log full payload for debugging
+  console.log('FULL CAKTO PAYLOAD FOR PLAN DETECTION:', JSON.stringify(payload, null, 2));
+  
   // Try to extract product info from various Cakto payload structures
   const productName = (
     payload.data?.product?.name ||
@@ -33,6 +36,12 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     payload.offer?.name ||
     payload.data?.plan?.name ||
     payload.plan_name ||
+    payload.data?.subscription?.plan?.name ||
+    payload.subscription?.name ||
+    payload.offer_name ||
+    payload.product_name ||
+    payload.data?.item?.name ||
+    payload.item?.name ||
     ''
   ).toLowerCase();
 
@@ -41,14 +50,28 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     payload.product?.id ||
     payload.data?.offer?.id ||
     payload.offer_id ||
+    payload.data?.item?.id ||
     ''
   ).toLowerCase();
 
-  console.log('Product detection:', { productName, productId });
+  // Extract price for fallback detection
+  const price = parseFloat(
+    payload.data?.total ||
+    payload.total ||
+    payload.data?.value ||
+    payload.value ||
+    payload.data?.amount ||
+    payload.amount ||
+    payload.data?.price ||
+    payload.price ||
+    '0'
+  );
+
+  console.log('Product detection:', { productName, productId, price });
 
   const now = new Date();
 
-  // Check for lifetime/vitalício
+  // Check for lifetime/vitalício by name
   if (
     productName.includes('vitalício') ||
     productName.includes('vitalicio') ||
@@ -56,10 +79,11 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('lifetime') ||
     productId.includes('vitalicio')
   ) {
+    console.log('Matched: LIFETIME by name');
     return { plan: 'lifetime', expiresAt: null };
   }
 
-  // Check for annual/anual
+  // Check for annual/anual by name
   if (
     productName.includes('anual') ||
     productName.includes('annual') ||
@@ -68,12 +92,13 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('annual') ||
     productId.includes('anual')
   ) {
+    console.log('Matched: ANNUAL by name');
     const expiresAt = new Date(now);
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     return { plan: 'annual', expiresAt: expiresAt.toISOString() };
   }
 
-  // Check for monthly/mensal
+  // Check for monthly/mensal by name
   if (
     productName.includes('mensal') ||
     productName.includes('monthly') ||
@@ -82,14 +107,34 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('monthly') ||
     productId.includes('mensal')
   ) {
+    console.log('Matched: MONTHLY by name');
     const expiresAt = new Date(now);
     expiresAt.setMonth(expiresAt.getMonth() + 1);
     return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
   }
 
-  // Default: assume lifetime if no pattern matched (safest for paid customers)
-  console.log('No plan pattern matched, defaulting to lifetime');
-  return { plan: 'lifetime', expiresAt: null };
+  // FALLBACK: Use price to detect plan
+  if (price > 0) {
+    // Monthly: around R$47.90
+    if (price <= 100) {
+      console.log('Matched: MONTHLY by price (R$', price, ')');
+      const expiresAt = new Date(now);
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+      return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+    }
+    
+    // Annual/Lifetime: R$299+
+    if (price >= 250 && price <= 350) {
+      console.log('Matched: LIFETIME by price (R$', price, ')');
+      return { plan: 'lifetime', expiresAt: null };
+    }
+  }
+
+  // SAFE DEFAULT: Monthly (forces renewal, safer than giving free lifetime)
+  console.log('WARNING: No plan pattern matched! Defaulting to MONTHLY for safety');
+  const expiresAt = new Date(now);
+  expiresAt.setMonth(expiresAt.getMonth() + 1);
+  return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
 }
 
 // Send WhatsApp message via Evolution API
