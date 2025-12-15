@@ -174,6 +174,45 @@ export default function Loans() {
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   
+  // Auto-regenerate installment dates when number of installments changes in edit form
+  useEffect(() => {
+    if (isEditDialogOpen && editFormData.payment_type === 'installment' && editFormData.start_date) {
+      const numInstallments = parseInt(editFormData.installments) || 1;
+      const startDate = new Date(editFormData.start_date + 'T12:00:00');
+      const startDay = startDate.getDate();
+      
+      setEditInstallmentDates(prev => {
+        // Only regenerate if installment count changed
+        if (prev.length === numInstallments) return prev;
+        
+        const newDates: string[] = [];
+        
+        for (let i = 0; i < numInstallments; i++) {
+          // Keep existing dates if available
+          if (prev[i]) {
+            newDates.push(prev[i]);
+          } else {
+            // Generate new date based on month offset
+            const date = new Date(startDate);
+            date.setMonth(date.getMonth() + i);
+            // Handle edge cases where the day doesn't exist in the target month
+            if (date.getDate() !== startDay) {
+              date.setDate(0);
+            }
+            newDates.push(date.toISOString().split('T')[0]);
+          }
+        }
+        
+        // Update due_date to last installment
+        if (newDates.length > 0) {
+          setEditFormData(prevForm => ({ ...prevForm, due_date: newDates[newDates.length - 1] }));
+        }
+        
+        return newDates;
+      });
+    }
+  }, [isEditDialogOpen, editFormData.payment_type, editFormData.start_date, editFormData.installments]);
+  
   // Payment history state
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
   const [paymentHistoryLoanId, setPaymentHistoryLoanId] = useState<string | null>(null);
