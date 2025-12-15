@@ -145,6 +145,22 @@ export default function ProductInstallmentsDialog({
                       <Calendar className="w-3 h-3" />
                       <span>{format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
                     </div>
+                    {/* Show badges for special payment types */}
+                    {payment.notes?.includes('[OVERPAYMENT]') && (
+                      <Badge variant="outline" className="text-xs text-primary border-primary/30 mt-1">
+                        +{formatCurrency(parseFloat(payment.notes.match(/excedente: R\$ ([\d.]+)/)?.[1] || '0'))} extra
+                      </Badge>
+                    )}
+                    {payment.notes?.includes('[PAGAMENTO_PARCIAL]') && (
+                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/30 mt-1">
+                        Parcial
+                      </Badge>
+                    )}
+                    {payment.notes?.includes('[PARCELA_RESTANTE]') && (
+                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-500/30 mt-1">
+                        Restante
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

@@ -488,10 +488,221 @@ export function useProductSalePayments(saleId?: string) {
     },
   });
 
+  // Flexible payment - handles underpayment (creates new installment) and overpayment (deducts from total)
+  const markAsPaidFlexible = useMutation({
+    mutationFn: async ({ 
+      paymentId, 
+      paidDate, 
+      paidAmount,
+      originalAmount 
+    }: { 
+      paymentId: string; 
+      paidDate: string; 
+      paidAmount: number;
+      originalAmount: number;
+    }) => {
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Get payment details
+      const { data: payment, error: fetchError } = await supabase
+        .from('product_sale_payments')
+        .select('*, productSale:product_sales(*)')
+        .eq('id', paymentId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const sale = payment.productSale;
+      const remainder = originalAmount - paidAmount;
+      const overpayment = paidAmount > originalAmount ? paidAmount - originalAmount : 0;
+
+      // Build notes based on payment type
+      let paymentNotes = null;
+      if (remainder > 0.01) {
+        paymentNotes = `[PAGAMENTO_PARCIAL] Valor original: R$ ${originalAmount.toFixed(2)}, pago: R$ ${paidAmount.toFixed(2)}`;
+      } else if (overpayment > 0.01) {
+        paymentNotes = `[OVERPAYMENT] Valor original: R$ ${originalAmount.toFixed(2)}, pago: R$ ${paidAmount.toFixed(2)}, excedente: R$ ${overpayment.toFixed(2)}`;
+      }
+
+      // Update payment status with actual paid amount
+      const { error: updateError } = await supabase
+        .from('product_sale_payments')
+        .update({
+          status: 'paid',
+          paid_date: paidDate,
+          amount: paidAmount,
+          notes: paymentNotes,
+        })
+        .eq('id', paymentId);
+
+      if (updateError) throw updateError;
+
+      let newInstallmentNumber = 0;
+
+      // UNDERPAYMENT: Create new installment with remainder
+      if (remainder > 0.01) {
+        // Get max installment number
+        const { data: existingPayments } = await supabase
+          .from('product_sale_payments')
+          .select('installment_number')
+          .eq('product_sale_id', payment.product_sale_id)
+          .order('installment_number', { ascending: false })
+          .limit(1);
+        
+        const maxInstallment = existingPayments?.[0]?.installment_number || 0;
+        newInstallmentNumber = maxInstallment + 1;
+        
+        // Calculate new due date (next month from original due date)
+        const originalDueDate = new Date(payment.due_date + 'T12:00:00');
+        const newDueDate = addMonths(originalDueDate, 1);
+        
+        // Create new installment
+        const { error: insertError } = await supabase
+          .from('product_sale_payments')
+          .insert({
+            user_id: user.id,
+            product_sale_id: payment.product_sale_id,
+            installment_number: newInstallmentNumber,
+            amount: remainder,
+            due_date: format(newDueDate, 'yyyy-MM-dd'),
+            status: 'pending',
+            notes: `[PARCELA_RESTANTE] Valor restante da parcela ${payment.installment_number}`,
+          });
+
+        if (insertError) throw insertError;
+
+        // Update installments count
+        await supabase
+          .from('product_sales')
+          .update({ installments: newInstallmentNumber })
+          .eq('id', payment.product_sale_id);
+      }
+
+      // Update product sale totals
+      const newTotalPaid = (sale?.total_paid || 0) + paidAmount;
+      const newRemainingBalance = (sale?.remaining_balance || 0) - paidAmount;
+
+      const { error: saleError } = await supabase
+        .from('product_sales')
+        .update({
+          total_paid: newTotalPaid,
+          remaining_balance: Math.max(0, newRemainingBalance),
+          status: newRemainingBalance <= 0 ? 'paid' : 'pending',
+        })
+        .eq('id', payment.product_sale_id);
+
+      if (saleError) throw saleError;
+
+      // Send WhatsApp notification
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.phone) {
+          const { data: allPaymentsForSale } = await supabase
+            .from('product_sale_payments')
+            .select('*')
+            .eq('product_sale_id', payment.product_sale_id)
+            .order('installment_number', { ascending: true });
+          
+          const totalInstallments = remainder > 0.01 ? newInstallmentNumber : (sale?.installments || 1);
+          const paidInstallments = allPaymentsForSale?.filter(p => p.status === 'paid' || p.id === paymentId).length || 0;
+          const progressPercent = Math.round((paidInstallments / totalInstallments) * 100);
+          const filledBars = Math.round(progressPercent / 10);
+          const emptyBars = 10 - filledBars;
+          const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+          
+          let message = `✅ *PAGAMENTO RECEBIDO!*\n`;
+          message += `━━━━━━━━━━━━━━━━\n\n`;
+          message += `📦 Produto: ${sale?.product_name}\n`;
+          message += `👤 Cliente: ${sale?.client_name}\n\n`;
+          message += `💰 *PAGAMENTO*\n`;
+          message += `━━━━━━━━━━━━━━━━\n`;
+          message += `💵 Valor Pago: R$ ${paidAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          message += `📅 Data: ${paidDate.split('-').reverse().join('/')}\n`;
+          
+          if (remainder > 0.01) {
+            message += `\n⚠️ *PARCELA PARCIAL*\n`;
+            message += `Valor original: R$ ${originalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+            message += `Nova parcela criada: R$ ${remainder.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          } else if (overpayment > 0.01) {
+            message += `\n💚 *PAGAMENTO A MAIS*\n`;
+            message += `Excedente de R$ ${overpayment.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} abatido do saldo.\n`;
+          }
+          
+          message += `\n📊 *PROGRESSO*\n`;
+          message += `━━━━━━━━━━━━━━━━\n`;
+          message += `✅ Parcelas Pagas: ${paidInstallments}/${totalInstallments}\n`;
+          message += `📈 Progresso: ${progressBar} ${progressPercent}%\n`;
+          message += `💰 Total Pago: R$ ${newTotalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          message += `💳 Saldo Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          
+          const nextUnpaid = allPaymentsForSale?.find(p => p.status === 'pending' && p.id !== paymentId);
+          if (nextUnpaid) {
+            const nextDueDate = new Date(nextUnpaid.due_date + 'T12:00:00');
+            message += `\n📅 Próxima Parcela: ${nextDueDate.toLocaleDateString('pt-BR')} (R$ ${nextUnpaid.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
+          } else if (newRemainingBalance <= 0) {
+            message += `\n🎉 *CONTRATO QUITADO!*\n`;
+          }
+          
+          message += `\n━━━━━━━━━━━━━━━━\n`;
+          message += `_CobraFácil - Registro automático_`;
+          
+          await supabase.functions.invoke('send-whatsapp', {
+            body: { phone: profile.phone, message },
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao enviar WhatsApp:', err);
+      }
+
+      return { 
+        payment, 
+        remainder: remainder > 0.01 ? remainder : 0, 
+        overpayment,
+        newInstallmentCreated: remainder > 0.01,
+        newRemainingBalance: Math.max(0, newRemainingBalance),
+        newTotalPaid,
+      };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['product-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['product-sale-payments'] });
+      
+      if (result.newInstallmentCreated) {
+        toast({
+          title: 'Pagamento registrado',
+          description: `Nova parcela de R$ ${result.remainder.toFixed(2)} criada para o valor restante.`,
+        });
+      } else if (result.overpayment > 0.01) {
+        toast({
+          title: 'Pagamento registrado',
+          description: `Excedente de R$ ${result.overpayment.toFixed(2)} abatido do saldo total.`,
+        });
+      } else {
+        toast({
+          title: 'Pagamento registrado',
+          description: 'O pagamento foi marcado como pago.',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao registrar pagamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   return {
     payments,
     isLoading,
     error,
     markAsPaid,
+    markAsPaidFlexible,
   };
 }
