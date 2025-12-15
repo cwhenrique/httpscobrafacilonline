@@ -17,6 +17,7 @@ import { generateClientSaleReceipt } from '@/lib/pdfGenerator';
 import { ProductSale } from '@/hooks/useProductSales';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
+import SpamWarningDialog from './SpamWarningDialog';
 
 interface SaleCreatedReceiptPromptProps {
   open: boolean;
@@ -38,6 +39,7 @@ export default function SaleCreatedReceiptPrompt({
   const [isSending, setIsSending] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -168,6 +170,15 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  const handleConfirmSendToClient = () => {
+    setShowSpamWarning(false);
+    handleSendToClient();
+  };
+
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -211,98 +222,106 @@ export default function SaleCreatedReceiptPrompt({
   const canSendToClient = profile?.whatsapp_to_clients_enabled && sale.client_phone;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-primary">
-            <Package className="w-5 h-5" />
-            Venda Registrada!
-          </DialogTitle>
-          <DialogDescription>
-            Deseja enviar comprovante ao cliente?
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Package className="w-5 h-5" />
+              Venda Registrada!
+            </DialogTitle>
+            <DialogDescription>
+              Deseja enviar comprovante ao cliente?
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* Sale summary preview - WITHOUT cost/profit */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <span className="font-medium">{sale.client_name}</span>
-            </div>
-            
-            <div className="flex items-center gap-2 text-sm">
-              <Package className="w-4 h-4 text-muted-foreground" />
-              <span>{sale.product_name}</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <span>Total: {formatCurrency(sale.total_amount)}</span>
+          {/* Sale summary preview - WITHOUT cost/profit */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <span className="font-medium">{sale.client_name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>{sale.installments}x {formatCurrency(sale.installment_value)}</span>
+              
+              <div className="flex items-center gap-2 text-sm">
+                <Package className="w-4 h-4 text-muted-foreground" />
+                <span>{sale.product_name}</span>
               </div>
-            </div>
-            
-            <p className="text-xs text-muted-foreground italic">
-              * Comprovante para o cliente não inclui informações de custo e lucro
-            </p>
-          </CardContent>
-        </Card>
+              
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span>Total: {formatCurrency(sale.total_amount)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span>{sale.installments}x {formatCurrency(sale.installment_value)}</span>
+                </div>
+              </div>
+              
+              <p className="text-xs text-muted-foreground italic">
+                * Comprovante para o cliente não inclui informações de custo e lucro
+              </p>
+            </CardContent>
+          </Card>
 
-        <div className="flex flex-col gap-3 mt-4">
-          <Button 
-            onClick={handleSendWhatsApp} 
-            disabled={isSending || !userPhone}
-            className="w-full"
-          >
-            {isSending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <MessageCircle className="w-4 h-4 mr-2" />
-            )}
-            {isSending ? 'Enviando...' : 'Enviar para Mim'}
-          </Button>
-
-          {canSendToClient && (
+          <div className="flex flex-col gap-3 mt-4">
             <Button 
-              variant="outline"
-              onClick={handleSendToClient} 
-              disabled={isSendingToClient}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              onClick={handleSendWhatsApp} 
+              disabled={isSending || !userPhone}
+              className="w-full"
             >
-              {isSendingToClient ? (
+              {isSending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                <Users className="w-4 h-4 mr-2" />
+                <MessageCircle className="w-4 h-4 mr-2" />
               )}
-              {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+              {isSending ? 'Enviando...' : 'Enviar para Mim'}
             </Button>
-          )}
-          
-          <Button 
-            variant="outline" 
-            onClick={handleDownloadPdf}
-            disabled={isGeneratingPdf}
-            className="w-full"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            {isGeneratingPdf ? 'Gerando...' : 'Baixar PDF'}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            onClick={() => onOpenChange(false)}
-            className="w-full"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Fechar
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            {canSendToClient && (
+              <Button 
+                variant="outline"
+                onClick={handleClientButtonClick} 
+                disabled={isSendingToClient}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              >
+                {isSendingToClient ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Users className="w-4 h-4 mr-2" />
+                )}
+                {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+              </Button>
+            )}
+            
+            <Button 
+              variant="outline" 
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="w-full"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {isGeneratingPdf ? 'Gerando...' : 'Baixar PDF'}
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)}
+              className="w-full"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SpamWarningDialog
+        open={showSpamWarning}
+        onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSendToClient}
+      />
+    </>
   );
 }

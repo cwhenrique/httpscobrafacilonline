@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
+import SpamWarningDialog from './SpamWarningDialog';
 
 interface LoanData {
   id: string;
@@ -52,6 +53,7 @@ export default function LoanCreatedReceiptPrompt({
   const [isSending, setIsSending] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -193,6 +195,15 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  const handleConfirmSendToClient = () => {
+    setShowSpamWarning(false);
+    handleSendToClient();
+  };
+
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -230,107 +241,115 @@ export default function LoanCreatedReceiptPrompt({
   const canSendToClient = profile?.whatsapp_to_clients_enabled && loan.clientPhone;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-primary">
-            <CreditCard className="w-5 h-5" />
-            Empréstimo Criado!
-          </DialogTitle>
-          <DialogDescription>
-            Deseja enviar comprovante ao cliente?
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <CreditCard className="w-5 h-5" />
+              Empréstimo Criado!
+            </DialogTitle>
+            <DialogDescription>
+              Deseja enviar comprovante ao cliente?
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* Loan summary preview */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <span className="font-medium">{loan.clientName}</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <span>Valor: {formatCurrency(loan.principalAmount)}</span>
+          {/* Loan summary preview */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <span className="font-medium">{loan.clientName}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Percent className="w-4 h-4 text-muted-foreground" />
-                <span>Juros: {loan.interestRate}%</span>
+              
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span>Valor: {formatCurrency(loan.principalAmount)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Percent className="w-4 h-4 text-muted-foreground" />
+                  <span>Juros: {loan.interestRate}%</span>
+                </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-muted-foreground" />
-                <span>{loan.installments}x {formatCurrency(loan.installmentValue)}</span>
+              
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-muted-foreground" />
+                  <span>{loan.installments}x {formatCurrency(loan.installmentValue)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span>Venc: {formatDate(loan.startDate)}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>Venc: {formatDate(loan.startDate)}</span>
+              
+              <div className="pt-2 border-t border-primary/20">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total a Receber:</span>
+                  <span className="font-bold text-primary">{formatCurrency(loan.totalToReceive)}</span>
+                </div>
               </div>
-            </div>
-            
-            <div className="pt-2 border-t border-primary/20">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total a Receber:</span>
-                <span className="font-bold text-primary">{formatCurrency(loan.totalToReceive)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <div className="flex flex-col gap-3 mt-4">
-          <Button 
-            onClick={handleSendWhatsApp} 
-            disabled={isSending || !userPhone}
-            className="w-full"
-          >
-            {isSending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <MessageCircle className="w-4 h-4 mr-2" />
-            )}
-            {isSending ? 'Enviando...' : 'Enviar para Mim'}
-          </Button>
-
-          {canSendToClient && (
+          <div className="flex flex-col gap-3 mt-4">
             <Button 
-              variant="outline"
-              onClick={handleSendToClient} 
-              disabled={isSendingToClient}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              onClick={handleSendWhatsApp} 
+              disabled={isSending || !userPhone}
+              className="w-full"
             >
-              {isSendingToClient ? (
+              {isSending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                <Users className="w-4 h-4 mr-2" />
+                <MessageCircle className="w-4 h-4 mr-2" />
               )}
-              {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+              {isSending ? 'Enviando...' : 'Enviar para Mim'}
             </Button>
-          )}
-          
-          <Button 
-            variant="outline" 
-            onClick={handleDownloadPdf}
-            disabled={isGeneratingPdf}
-            className="w-full"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            {isGeneratingPdf ? 'Gerando...' : 'Baixar PDF'}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            onClick={() => onOpenChange(false)}
-            className="w-full"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Fechar
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            {canSendToClient && (
+              <Button 
+                variant="outline"
+                onClick={handleClientButtonClick} 
+                disabled={isSendingToClient}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              >
+                {isSendingToClient ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Users className="w-4 h-4 mr-2" />
+                )}
+                {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+              </Button>
+            )}
+            
+            <Button 
+              variant="outline" 
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="w-full"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {isGeneratingPdf ? 'Gerando...' : 'Baixar PDF'}
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)}
+              className="w-full"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SpamWarningDialog
+        open={showSpamWarning}
+        onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSendToClient}
+      />
+    </>
   );
 }

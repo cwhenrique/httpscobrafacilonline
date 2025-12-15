@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import SpamWarningDialog from './SpamWarningDialog';
 
 interface OverdueData {
   clientName: string;
@@ -51,6 +52,7 @@ export default function SendOverdueNotification({
   size = 'sm'
 }: SendOverdueNotificationProps) {
   const [isSending, setIsSending] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -118,22 +120,39 @@ export default function SendOverdueNotification({
     }
   };
 
+  const handleButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  const handleConfirmSend = () => {
+    setShowSpamWarning(false);
+    handleSend();
+  };
+
   if (!canSend) return null;
 
   return (
-    <Button 
-      variant={variant}
-      size={size}
-      onClick={handleSend}
-      disabled={isSending}
-      className={className}
-    >
-      {isSending ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      ) : (
-        <MessageCircle className="w-4 h-4 mr-2" />
-      )}
-      {isSending ? 'Enviando...' : 'Enviar Cobrança'}
-    </Button>
+    <>
+      <Button 
+        variant={variant}
+        size={size}
+        onClick={handleButtonClick}
+        disabled={isSending}
+        className={className}
+      >
+        {isSending ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        ) : (
+          <MessageCircle className="w-4 h-4 mr-2" />
+        )}
+        {isSending ? 'Enviando...' : 'Enviar Cobrança'}
+      </Button>
+
+      <SpamWarningDialog
+        open={showSpamWarning}
+        onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSend}
+      />
+    </>
   );
 }
