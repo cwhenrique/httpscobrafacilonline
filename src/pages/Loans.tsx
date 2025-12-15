@@ -173,6 +173,8 @@ export default function Loans() {
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
+  const [editInstallmentValue, setEditInstallmentValue] = useState('');
+  const [isEditManuallyEditingInstallment, setIsEditManuallyEditingInstallment] = useState(false);
   
   // Auto-regenerate installment dates when number of installments changes in edit form
   useEffect(() => {
@@ -212,6 +214,25 @@ export default function Loans() {
       });
     }
   }, [isEditDialogOpen, editFormData.payment_type, editFormData.start_date, editFormData.installments]);
+  
+  // Auto-recalculate edit installment value when form values change (unless manually editing)
+  useEffect(() => {
+    if (isEditManuallyEditingInstallment) return;
+    if (!isEditDialogOpen) return;
+    if (editFormData.payment_type !== 'installment') return;
+    
+    const principal = parseFloat(editFormData.principal_amount);
+    const rate = parseFloat(editFormData.interest_rate);
+    const numInstallments = parseInt(editFormData.installments) || 1;
+    
+    if (principal > 0 && rate >= 0) {
+      const totalInterest = editFormData.interest_mode === 'on_total' 
+        ? principal * (rate / 100)
+        : principal * (rate / 100) * numInstallments;
+      const total = principal + totalInterest;
+      setEditInstallmentValue((total / numInstallments).toFixed(2));
+    }
+  }, [editFormData.principal_amount, editFormData.installments, editFormData.interest_rate, editFormData.interest_mode, editFormData.payment_type, isEditDialogOpen, isEditManuallyEditingInstallment]);
   
   // Payment history state
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
@@ -1628,9 +1649,9 @@ export default function Loans() {
       daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
     }
     
-    // Check if this is a renegotiation (loan has payments)
+    // Check if this is a renegotiation - always allow renegotiation for any contract
     const totalPaid = loan.total_paid || 0;
-    const isRenegotiation = totalPaid > 0;
+    const isRenegotiation = true; // Allow renegotiation for contracts with or without payments
     
     // Calculate historical data for renegotiation
     let historicalData: typeof editHistoricalData = null;
@@ -1728,6 +1749,19 @@ export default function Loans() {
     } else {
       setEditInstallmentDates((loan.installment_dates as string[]) || []);
     }
+    
+    // Calculate and set initial installment value for edit form
+    const numInstEdit = loan.installments || 1;
+    const principalForInstallment = historicalData ? historicalData.remainingBalance : loan.principal_amount;
+    let totalInterestEdit = 0;
+    if (loan.interest_mode === 'on_total') {
+      totalInterestEdit = principalForInstallment * (loan.interest_rate / 100);
+    } else {
+      totalInterestEdit = principalForInstallment * (loan.interest_rate / 100) * numInstEdit;
+    }
+    const totalToReceiveEdit = principalForInstallment + totalInterestEdit;
+    setEditInstallmentValue((totalToReceiveEdit / numInstEdit).toFixed(2));
+    setIsEditManuallyEditingInstallment(false);
     
     setIsEditDialogOpen(true);
   };
@@ -4512,6 +4546,71 @@ export default function Loans() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {editFormData.payment_type === 'installment' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                        <div className="space-y-1 sm:space-y-2">
+                          <Label className="text-xs sm:text-sm">Juros Total</Label>
+                          <Input 
+                            type="text" 
+                            readOnly 
+                            value={(() => {
+                              const principal = parseFloat(editFormData.principal_amount) || 0;
+                              const rate = parseFloat(editFormData.interest_rate) || 0;
+                              const numInst = parseInt(editFormData.installments) || 1;
+                              const totalInterest = editFormData.interest_mode === 'on_total' 
+                                ? principal * (rate / 100)
+                                : principal * (rate / 100) * numInst;
+                              return formatCurrency(totalInterest);
+                            })()}
+                            className="bg-muted h-9 sm:h-10 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1 sm:space-y-2">
+                          <Label className="text-xs sm:text-sm">Valor da Parcela (R$)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={editInstallmentValue}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setIsEditManuallyEditingInstallment(true);
+                              setEditInstallmentValue(value);
+                              
+                              const newInstallmentValue = parseFloat(value);
+                              const principal = parseFloat(editFormData.principal_amount);
+                              const numInstallments = parseInt(editFormData.installments) || 1;
+                              
+                              if (newInstallmentValue && principal && numInstallments) {
+                                const totalToReceive = newInstallmentValue * numInstallments;
+                                const newTotalInterest = totalToReceive - principal;
+                                
+                                if (newTotalInterest >= 0) {
+                                  const newRate = editFormData.interest_mode === 'on_total'
+                                    ? (newTotalInterest / principal) * 100
+                                    : (newTotalInterest / principal / numInstallments) * 100;
+                                  setEditFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
+                                }
+                              }
+                            }}
+                            className="h-9 sm:h-10 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1 sm:space-y-2">
+                        <Label className="text-xs sm:text-sm">Total a Receber</Label>
+                        <Input 
+                          type="text" 
+                          readOnly 
+                          value={editInstallmentValue && editFormData.installments
+                            ? formatCurrency(parseFloat(editInstallmentValue) * parseInt(editFormData.installments))
+                            : 'R$ 0,00'
+                          } 
+                          className="bg-muted h-9 sm:h-10 text-sm font-medium text-primary"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
                       <Label className="text-xs sm:text-sm">Data do Contrato</Label>
