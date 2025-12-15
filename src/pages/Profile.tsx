@@ -454,7 +454,7 @@ export default function Profile() {
                   {profile?.subscription_plan === 'lifetime' && 'Vitalício'}
                   {profile?.subscription_plan === 'annual' && 'Anual'}
                   {profile?.subscription_plan === 'monthly' && 'Mensal'}
-                  {profile?.subscription_plan === 'trial' && 'Trial'}
+                  {profile?.subscription_plan === 'trial' && 'Teste'}
                   {!profile?.subscription_plan && 'Não definido'}
                 </p>
               </div>
