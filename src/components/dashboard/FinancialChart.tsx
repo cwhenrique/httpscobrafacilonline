@@ -41,7 +41,8 @@ export function FinancialChart({ loans, payments }: FinancialChartProps) {
     return last6Months.map(({ month, year, monthIndex }) => {
       // Total emprestado no mês
       const monthLoans = loans.filter((loan) => {
-        const loanDate = new Date(loan.created_at);
+        // Use contract_date or start_date instead of created_at for accurate historical reporting
+        const loanDate = new Date(loan.contract_date || loan.start_date || loan.created_at);
         return loanDate.getMonth() === monthIndex && loanDate.getFullYear() === year;
       });
       const emprestado = monthLoans.reduce((sum, loan) => sum + loan.principal_amount, 0);
