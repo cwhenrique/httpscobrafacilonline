@@ -5,6 +5,7 @@ import { format, parseISO, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Car, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
 
 interface VehiclePayment {
   id: string;
@@ -71,6 +72,18 @@ const getStatus = (vehicle: Vehicle, payments: VehiclePayment[]) => {
   return 'pending';
 };
 
+const getOverduePayment = (payments: VehiclePayment[]) => {
+  return payments.find(p => 
+    p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date))
+  );
+};
+
+const getDaysOverdue = (dueDate: string) => {
+  const due = parseISO(dueDate);
+  const today = new Date();
+  return Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+};
+
 export default function VehicleCard({
   vehicle,
   payments,
@@ -79,6 +92,8 @@ export default function VehicleCard({
   onPayNextInstallment,
 }: VehicleCardProps) {
   const status = getStatus(vehicle, payments);
+  const overduePayment = status === 'overdue' ? getOverduePayment(payments) : null;
+  const daysOverdue = overduePayment ? getDaysOverdue(overduePayment.due_date) : 0;
   const nextDuePayment = payments.find(p => p.status !== 'paid');
   const paidCount = payments.filter(p => p.status === 'paid').length;
   const profit = vehicle.purchase_value - (vehicle.cost_value || 0);
@@ -210,11 +225,48 @@ export default function VehicleCard({
           )}
         </div>
 
-        {/* Next Due Date */}
-        {nextDuePayment && status !== 'paid' && (
+        {/* Overdue Installment Details */}
+        {status === 'overdue' && overduePayment && (
+          <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 mb-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-destructive">
+                Parcela {overduePayment.installment_number}/{vehicle.installments} em atraso
+              </span>
+              <Badge variant="destructive" className="text-xs">
+                {daysOverdue} dia{daysOverdue !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-muted-foreground">
+                Venceu: {format(parseISO(overduePayment.due_date), "dd/MM/yyyy")}
+              </span>
+              <span className="text-xs font-medium text-destructive">
+                {formatCurrency(overduePayment.amount)}
+              </span>
+            </div>
+            {/* Manual overdue notification button */}
+            {vehicle.buyer_phone && (
+              <SendOverdueNotification
+                data={{
+                  clientName: vehicle.buyer_name || 'Cliente',
+                  clientPhone: vehicle.buyer_phone,
+                  contractType: 'vehicle',
+                  installmentNumber: overduePayment.installment_number,
+                  totalInstallments: vehicle.installments,
+                  amount: overduePayment.amount,
+                  dueDate: overduePayment.due_date,
+                  daysOverdue: daysOverdue,
+                }}
+                className="w-full mt-2"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Next Due Date (for non-overdue) */}
+        {nextDuePayment && status !== 'paid' && status !== 'overdue' && (
           <div className={cn(
             "flex items-center justify-between p-2.5 rounded-lg mb-3",
-            status === 'overdue' && "bg-destructive/10",
             status === 'due_today' && "bg-yellow-500/10",
             status === 'pending' && "bg-muted/50"
           )}>
@@ -227,7 +279,6 @@ export default function VehicleCard({
             <div className="text-right">
               <p className={cn(
                 "font-semibold text-sm",
-                status === 'overdue' && "text-destructive",
                 status === 'due_today' && "text-yellow-600"
               )}>
                 {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
