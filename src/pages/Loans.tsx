@@ -2991,7 +2991,7 @@ export default function Loans() {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
-                    return 'bg-yellow-500/20 border-yellow-400 dark:bg-yellow-500/30 dark:border-yellow-400';
+                    return 'bg-yellow-600/50 border-yellow-500 dark:bg-yellow-600/40 dark:border-yellow-500';
                   }
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
