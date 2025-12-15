@@ -123,10 +123,13 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
       return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
     
-    // Annual/Lifetime: R$299+
+    // R$299 range: Could be annual OR lifetime - DEFAULT TO ANNUAL (safer, forces renewal)
+    // Lifetime MUST be explicitly detected by name containing "vitalício/lifetime"
     if (price >= 250 && price <= 350) {
-      console.log('Matched: LIFETIME by price (R$', price, ')');
-      return { plan: 'lifetime', expiresAt: null };
+      console.log('WARNING: R$299 detected but no lifetime keyword in name. Defaulting to ANNUAL (safer)');
+      const expiresAt = new Date(now);
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
     }
   }
 
