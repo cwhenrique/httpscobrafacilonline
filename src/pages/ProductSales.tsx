@@ -38,7 +38,7 @@ import { useVehicles, useVehiclePayments, Vehicle, CreateVehicleData } from '@/h
 import { VehicleForm } from '@/components/VehicleForm';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, Car, FileSignature, FileText } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, Car, FileSignature, FileText, AlertTriangle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -162,7 +162,7 @@ function ProductInstallmentsList({
 export default function ProductSales() {
   // Product Sales hooks
   const { sales, isLoading: salesLoading, createSale, updateSale, deleteSale } = useProductSales();
-  const { payments: allSalePayments, markAsPaid: markSalePaymentAsPaid } = useProductSalePayments();
+  const { payments: allSalePayments, markAsPaid: markSalePaymentAsPaid, markAsPaidFlexible } = useProductSalePayments();
   
   // Bills hooks
   const { bills, isLoading: billsLoading, createBill, updateBill, deleteBill, markAsPaid: markBillAsPaid } = useBills();
@@ -522,28 +522,32 @@ export default function ProductSales() {
   };
 
   const handleMarkSalePaymentAsPaid = async (paymentId: string) => {
+    if (!selectedPayment) return;
+    
     const payment = allSalePayments.find(p => p.id === paymentId);
     const sale = payment ? sales.find(s => s.id === payment.product_sale_id) : null;
     
-    await markSalePaymentAsPaid.mutateAsync({
+    // Use flexible payment function that handles underpayment/overpayment
+    const result = await markAsPaidFlexible.mutateAsync({
       paymentId,
       paidDate: paymentDate,
+      paidAmount: paymentAmount,
+      originalAmount: selectedPayment.amount,
     });
     
     // Show payment receipt prompt
-    if (payment && sale) {
-      const newRemainingBalance = Math.max(0, sale.remaining_balance - payment.amount);
+    if (sale) {
       setPaymentReceiptData({
         type: 'product',
         contractId: sale.id,
         companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
         clientName: sale.client_name,
-        installmentNumber: payment.installment_number,
+        installmentNumber: payment?.installment_number || 1,
         totalInstallments: sale.installments,
-        amountPaid: payment.amount,
+        amountPaid: paymentAmount,
         paymentDate: paymentDate,
-        remainingBalance: newRemainingBalance,
-        totalPaid: (sale.total_paid || 0) + payment.amount,
+        remainingBalance: result.newRemainingBalance,
+        totalPaid: result.newTotalPaid,
       });
       setIsPaymentReceiptOpen(true);
     }
@@ -2017,13 +2021,44 @@ export default function ProductSales() {
                 <div className="p-4 rounded-lg bg-muted/50">
                   <p className="text-sm text-muted-foreground">Parcela</p>
                   <p className="font-semibold">{selectedPayment.installmentNumber}ª parcela</p>
-                  <p className="text-sm text-muted-foreground mt-2">Valor da parcela</p>
+                  <p className="text-sm text-muted-foreground mt-2">Valor combinado</p>
                   <p className="font-semibold text-primary">{formatCurrency(selectedPayment.amount)}</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Valor Pago (R$)</Label>
                   <Input type="number" min="0" step="0.01" value={paymentAmount || ''} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} placeholder="0,00" />
                 </div>
+                
+                {/* Underpayment Warning */}
+                {paymentAmount > 0 && paymentAmount < selectedPayment.amount && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="flex items-start gap-2 text-amber-600 text-sm">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">Valor menor que o combinado</p>
+                        <p className="mt-1 text-amber-600/80">
+                          Será criada uma nova parcela de <strong>{formatCurrency(selectedPayment.amount - paymentAmount)}</strong> para o valor restante.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Overpayment Notice */}
+                {paymentAmount > selectedPayment.amount && (
+                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                    <div className="flex items-start gap-2 text-primary text-sm">
+                      <TrendingUp className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">Valor maior que o combinado</p>
+                        <p className="mt-1 text-primary/80">
+                          O excedente de <strong>{formatCurrency(paymentAmount - selectedPayment.amount)}</strong> será abatido do saldo total da venda.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label>Data do Pagamento</Label>
                   <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
@@ -2031,9 +2066,9 @@ export default function ProductSales() {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => { setPaymentDialogOpen(false); setSelectedPayment(null); setPaymentDate(format(new Date(), 'yyyy-MM-dd')); }}>Cancelar</Button>
-                  <Button className="flex-1 gap-2" onClick={() => handleMarkSalePaymentAsPaid(selectedPayment.id)} disabled={markSalePaymentAsPaid.isPending || paymentAmount <= 0}>
+                  <Button className="flex-1 gap-2" onClick={() => handleMarkSalePaymentAsPaid(selectedPayment.id)} disabled={markAsPaidFlexible.isPending || paymentAmount <= 0}>
                     <Check className="w-4 h-4" />
-                    {markSalePaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar'}
+                    {markAsPaidFlexible.isPending ? 'Salvando...' : 'Confirmar'}
                   </Button>
                 </div>
               </div>
