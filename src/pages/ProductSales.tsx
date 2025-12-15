@@ -48,6 +48,7 @@ import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import ProductSaleCard from '@/components/ProductSaleCard';
 import ProductInstallmentsDialog from '@/components/ProductInstallmentsDialog';
+import SaleCreatedReceiptPrompt from '@/components/SaleCreatedReceiptPrompt';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -225,6 +226,11 @@ export default function ProductSales() {
   // Payment receipt prompt states
   const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
   const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
+
+  // Sale created receipt prompt states
+  const [isSaleReceiptPromptOpen, setIsSaleReceiptPromptOpen] = useState(false);
+  const [newCreatedSale, setNewCreatedSale] = useState<ProductSale | null>(null);
+  const [newSaleInstallmentDates, setNewSaleInstallmentDates] = useState<InstallmentDate[]>([]);
 
   // Forms
   const [formData, setFormData] = useState<CreateProductSaleData>({
@@ -432,8 +438,14 @@ export default function ProductSales() {
 
   // Product Sales handlers
   const handleCreateSale = async () => {
-    await createSale.mutateAsync({ ...formData, installmentDates });
+    const result = await createSale.mutateAsync({ ...formData, installmentDates });
     setIsCreateOpen(false);
+    
+    // Save data for receipt prompt
+    setNewCreatedSale(result);
+    setNewSaleInstallmentDates([...installmentDates]);
+    setIsSaleReceiptPromptOpen(true);
+    
     resetForm();
   };
 
