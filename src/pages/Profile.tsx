@@ -494,6 +494,60 @@ export default function Profile() {
               </div>
             </div>
 
+            {/* Days Remaining / Days Active */}
+            {profile?.subscription_plan === 'lifetime' && user?.created_at && (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/10">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Membro Ativo Há</p>
+                  <p className="font-bold text-lg text-green-500">
+                    {Math.floor((new Date().getTime() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {profile?.subscription_plan !== 'lifetime' && profile?.subscription_expires_at && (() => {
+              const expiresAt = new Date(profile.subscription_expires_at);
+              const today = new Date();
+              const diffTime = expiresAt.getTime() - today.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              
+              return (
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${
+                    diffDays > 30 
+                      ? 'bg-green-500/10' 
+                      : diffDays > 7 
+                        ? 'bg-amber-500/10' 
+                        : 'bg-red-500/10'
+                  }`}>
+                    <Clock className={`w-4 h-4 ${
+                      diffDays > 30 
+                        ? 'text-green-500' 
+                        : diffDays > 7 
+                          ? 'text-amber-500' 
+                          : 'text-red-500'
+                    }`} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Dias Restantes</p>
+                    <p className={`font-bold text-lg ${
+                      diffDays > 30 
+                        ? 'text-green-500' 
+                        : diffDays > 7 
+                          ? 'text-amber-500' 
+                          : 'text-red-500'
+                    }`}>
+                      {diffDays > 0 ? `${diffDays} dias` : 'Expirado'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {profile?.subscription_expires_at && 
              new Date(profile.subscription_expires_at) < new Date() && 
              profile?.subscription_plan !== 'lifetime' && (
