@@ -11,6 +11,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+
   try {
     const { userId } = await req.json();
 
@@ -32,6 +33,48 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Evolution API request helper with auth fallback (some deployments use different auth header)
+    const evolutionFetch = async (
+      url: string,
+      init: RequestInit & { headers?: Record<string, string> } = {}
+    ) => {
+      const baseHeaders = (init.headers ?? {}) as Record<string, string>;
+
+      // 1) Default: apikey header (official docs)
+      let resp = await fetch(url, {
+        ...init,
+        headers: {
+          ...baseHeaders,
+          apikey: evolutionApiKey,
+        },
+      });
+
+      // 2) Fallback: Authorization Bearer
+      if (resp.status === 401) {
+        resp = await fetch(url, {
+          ...init,
+          headers: {
+            ...baseHeaders,
+            Authorization: `Bearer ${evolutionApiKey}`,
+          },
+        });
+      }
+
+      // 3) Fallback: apikey as query param
+      if (resp.status === 401) {
+        const u = new URL(url);
+        if (!u.searchParams.get('apikey')) u.searchParams.set('apikey', evolutionApiKey);
+        resp = await fetch(u.toString(), {
+          ...init,
+          headers: {
+            ...baseHeaders,
+          },
+        });
+      }
+
+      return resp;
+    };
 
     // Clean the URL - extract just the base URL (protocol + host)
     const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
@@ -66,11 +109,10 @@ serve(async (req) => {
     console.log(`Creating/fetching instance: ${instanceName}`);
 
     // First, try to create the instance (if it already exists, Evolution API will return it)
-    const createResponse = await fetch(`${evolutionApiUrl}/instance/create`, {
+    const createResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
       },
       body: JSON.stringify({
         instanceName: instanceName,
@@ -82,17 +124,26 @@ serve(async (req) => {
     const createText = await createResponse.text();
     console.log('Create instance response:', createResponse.status, createText);
 
+    if (createResponse.status === 401) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Não autorizado na Evolution API ao criar instância. Verifique se a chave (EVOLUTION_API_KEY) tem permissão para criar instâncias.',
+          instanceName,
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     let qrCodeBase64 = null;
-    let instanceCreated = false;
 
     // If instance was created or already exists, try to get QR code
     if (createResponse.ok || createResponse.status === 403) {
-      // Instance exists, let's connect and get QR
-      const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+      const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
         method: 'GET',
-        headers: {
-          'apikey': evolutionApiKey,
-        },
       });
 
       const connectText = await connectResponse.text();
@@ -101,19 +152,19 @@ serve(async (req) => {
       if (connectResponse.ok) {
         try {
           const connectData = JSON.parse(connectText);
-          // QR code comes as base64 in the response
           if (connectData.base64) {
             qrCodeBase64 = connectData.base64;
-            instanceCreated = true;
           } else if (connectData.instance?.state === 'open') {
-            // Already connected
-            return new Response(JSON.stringify({ 
-              success: true, 
-              alreadyConnected: true,
-              message: 'WhatsApp já está conectado'
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
+            return new Response(
+              JSON.stringify({
+                success: true,
+                alreadyConnected: true,
+                message: 'WhatsApp já está conectado',
+              }),
+              {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              }
+            );
           }
         } catch (e) {
           console.error('Error parsing connect response:', e);
@@ -125,7 +176,7 @@ serve(async (req) => {
     if (!profile?.whatsapp_instance_id) {
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ 
+        .update({
           whatsapp_instance_id: instanceName,
         })
         .eq('id', userId);
@@ -136,24 +187,28 @@ serve(async (req) => {
     }
 
     if (qrCodeBase64) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        instanceName,
-        qrCode: qrCodeBase64,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          instanceName,
+          qrCode: qrCodeBase64,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    // If we couldn't get QR, return error with details
-    return new Response(JSON.stringify({ 
-      error: 'Não foi possível gerar o QR Code. Tente novamente.',
-      instanceName,
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
+    return new Response(
+      JSON.stringify({
+        error: 'Não foi possível gerar o QR Code. Tente novamente.',
+        instanceName,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error: unknown) {
     console.error('Error in whatsapp-create-instance:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro interno';
