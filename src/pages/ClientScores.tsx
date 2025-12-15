@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useClients } from '@/hooks/useClients';
 import { useLoans } from '@/hooks/useLoans';
@@ -27,32 +27,57 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ClientScores() {
   const { clients, loading } = useClients();
   const { loans } = useLoans();
+  const { user } = useAuth();
   const [sortBy, setSortBy] = useState<'score' | 'profit'>('score');
+  const [loanPayments, setLoanPayments] = useState<Array<{ loan_id: string; interest_paid: number | null }>>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
 
-  // Calcular lucro por cliente
+  // Buscar todos os pagamentos para calcular interesse real recebido
+  useEffect(() => {
+    const fetchPayments = async () => {
+      if (!user) return;
+      setLoadingPayments(true);
+      const { data } = await supabase
+        .from('loan_payments')
+        .select('loan_id, interest_paid')
+        .eq('user_id', user.id);
+      setLoanPayments(data || []);
+      setLoadingPayments(false);
+    };
+    fetchPayments();
+  }, [user]);
+
+  // Calcular lucro por cliente usando interest_paid como fonte de verdade
   const clientProfitMap = useMemo(() => {
+    // Criar mapa de interest_paid por loan_id
+    const interestByLoan = new Map<string, number>();
+    loanPayments.forEach(payment => {
+      const current = interestByLoan.get(payment.loan_id) || 0;
+      interestByLoan.set(payment.loan_id, current + (payment.interest_paid || 0));
+    });
+
     const map = new Map<string, { expectedProfit: number; realizedProfit: number; extraProfit: number; totalPrincipal: number }>();
     
     loans.forEach(loan => {
       const existing = map.get(loan.client_id) || { expectedProfit: 0, realizedProfit: 0, extraProfit: 0, totalPrincipal: 0 };
       
-      // Lucro previsto = total de juros
+      // Lucro previsto = total de juros do contrato
       const expectedProfit = loan.total_interest || 0;
       
-      // Lucro realizado bruto = proporção do lucro conforme pagamentos
-      const totalContract = loan.principal_amount + (loan.total_interest || 0);
-      const paidRatio = totalContract > 0 ? (loan.total_paid || 0) / totalContract : 0;
-      const rawRealizedProfit = expectedProfit * paidRatio;
+      // Lucro realizado = SOMA REAL de interest_paid dos pagamentos (fonte de verdade)
+      const actualInterestReceived = interestByLoan.get(loan.id) || 0;
       
       // Lucro realizado limitado ao previsto (máximo 100%)
-      const realizedProfit = Math.min(rawRealizedProfit, expectedProfit);
+      const realizedProfit = Math.min(actualInterestReceived, expectedProfit);
       
       // Lucro EXTRA = o que passou do previsto (multas, penalidades)
-      const extraProfit = Math.max(0, rawRealizedProfit - expectedProfit);
+      const extraProfit = Math.max(0, actualInterestReceived - expectedProfit);
       
       map.set(loan.client_id, {
         expectedProfit: existing.expectedProfit + expectedProfit,
@@ -63,7 +88,7 @@ export default function ClientScores() {
     });
     
     return map;
-  }, [loans]);
+  }, [loans, loanPayments]);
 
   const stats = useMemo(() => {
     if (clients.length === 0) return null;
@@ -148,7 +173,7 @@ export default function ClientScores() {
           </p>
         </div>
 
-        {loading ? (
+        {loading || loadingPayments ? (
           <div className="grid gap-4 md:grid-cols-4">
             {[...Array(4)].map((_, i) => (
               <Skeleton key={i} className="h-32" />
