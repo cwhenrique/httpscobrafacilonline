@@ -711,6 +711,9 @@ export type Database = {
           company_name: string | null
           created_at: string
           email: string | null
+          evolution_api_key: string | null
+          evolution_api_url: string | null
+          evolution_instance_name: string | null
           full_name: string | null
           has_seen_loan_form_tutorial: boolean | null
           has_seen_loans_tutorial: boolean | null
@@ -722,11 +725,15 @@ export type Database = {
           temp_password: string | null
           trial_expires_at: string | null
           updated_at: string
+          whatsapp_to_clients_enabled: boolean | null
         }
         Insert: {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance_name?: string | null
           full_name?: string | null
           has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
@@ -738,11 +745,15 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          whatsapp_to_clients_enabled?: boolean | null
         }
         Update: {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance_name?: string | null
           full_name?: string | null
           has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
@@ -754,6 +765,7 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          whatsapp_to_clients_enabled?: boolean | null
         }
         Relationships: []
       }

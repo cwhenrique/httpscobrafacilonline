@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X, FileText, MessageCircle, Loader2 } from 'lucide-react';
+import { Download, X, FileText, MessageCircle, Loader2, Users } from 'lucide-react';
 import { generatePaymentReceipt, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: PaymentReceiptData | null;
+  clientPhone?: string; // Telefone do cliente para envio direto
 }
 
 const formatCurrency = (value: number): string => {
@@ -77,13 +79,16 @@ const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
   return message;
 };
 
-export default function PaymentReceiptPrompt({ open, onOpenChange, data }: PaymentReceiptPromptProps) {
+export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone }: PaymentReceiptPromptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isSendingToClient, setIsSendingToClient] = useState(false);
   const { profile } = useProfile();
+  const { user } = useAuth();
 
   if (!data) return null;
 
+  // Send to collector (existing behavior)
   const handleSendWhatsApp = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
@@ -113,6 +118,50 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
     }
   };
 
+  // Send to client (new feature)
+  const handleSendToClient = async () => {
+    if (!clientPhone) {
+      toast.error('Cliente não possui telefone cadastrado');
+      return;
+    }
+
+    if (!profile?.whatsapp_to_clients_enabled) {
+      toast.error('Configure seu WhatsApp para clientes nas configurações');
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+    
+    setIsSendingToClient(true);
+    try {
+      const message = generateWhatsAppMessage(data);
+      
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
+        body: { 
+          userId: user.id,
+          clientPhone: clientPhone,
+          message 
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (result?.success) {
+        toast.success('Comprovante enviado para o cliente!');
+      } else {
+        throw new Error(result?.error || 'Erro ao enviar');
+      }
+    } catch (error: any) {
+      console.error('Error sending WhatsApp to client:', error);
+      toast.error('Erro ao enviar para cliente: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsSendingToClient(false);
+    }
+  };
+
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
@@ -128,6 +177,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
   };
 
   const isFullyPaid = data.remainingBalance <= 0;
+  const canSendToClient = profile?.whatsapp_to_clients_enabled && clientPhone;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -177,7 +227,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
           </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap justify-center sm:justify-end">
+        <DialogFooter className="gap-2 flex-col sm:flex-row">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="text-xs sm:text-sm">
             <X className="w-4 h-4 mr-1 sm:mr-2" />
             Fechar
@@ -193,8 +243,23 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data }: Payme
             ) : (
               <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
             )}
-            {isSendingWhatsApp ? 'Enviando...' : 'WhatsApp'}
+            {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
           </Button>
+          {canSendToClient && (
+            <Button 
+              variant="outline" 
+              onClick={handleSendToClient} 
+              disabled={isSendingToClient}
+              className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+            >
+              {isSendingToClient ? (
+                <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+              ) : (
+                <Users className="w-4 h-4 mr-1 sm:mr-2" />
+              )}
+              {isSendingToClient ? 'Enviando...' : 'Para Cliente'}
+            </Button>
+          )}
           <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
             <Download className="w-4 h-4 mr-1 sm:mr-2" />
             {isGenerating ? 'Gerando...' : 'PDF'}

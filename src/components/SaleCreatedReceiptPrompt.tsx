@@ -8,13 +8,15 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign } from 'lucide-react';
+import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign, Users, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { generateClientSaleReceipt } from '@/lib/pdfGenerator';
 import { ProductSale } from '@/hooks/useProductSales';
+import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SaleCreatedReceiptPromptProps {
   open: boolean;
@@ -34,7 +36,10 @@ export default function SaleCreatedReceiptPrompt({
   installmentDates,
 }: SaleCreatedReceiptPromptProps) {
   const [isSending, setIsSending] = useState(false);
+  const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const { profile } = useProfile();
+  const { user } = useAuth();
 
   if (!sale) return null;
 
@@ -93,6 +98,7 @@ export default function SaleCreatedReceiptPrompt({
     return message;
   };
 
+  // Send to collector (existing behavior)
   const handleSendWhatsApp = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -114,6 +120,51 @@ export default function SaleCreatedReceiptPrompt({
       toast.error('Erro ao enviar comprovante');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Send to client (new feature)
+  const handleSendToClient = async () => {
+    if (!sale.client_phone) {
+      toast.error('Cliente não possui telefone cadastrado');
+      return;
+    }
+
+    if (!profile?.whatsapp_to_clients_enabled) {
+      toast.error('Configure seu WhatsApp para clientes nas configurações');
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+
+    setIsSendingToClient(true);
+    try {
+      const message = generateClientMessage();
+      
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
+        body: { 
+          userId: user.id,
+          clientPhone: sale.client_phone,
+          message 
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (result?.success) {
+        toast.success('Comprovante enviado para o cliente!');
+        onOpenChange(false);
+      } else {
+        throw new Error(result?.error || 'Erro ao enviar');
+      }
+    } catch (error: any) {
+      console.error('Erro ao enviar WhatsApp para cliente:', error);
+      toast.error('Erro ao enviar para cliente: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsSendingToClient(false);
     }
   };
 
@@ -156,6 +207,8 @@ export default function SaleCreatedReceiptPrompt({
       setIsGeneratingPdf(false);
     }
   };
+
+  const canSendToClient = profile?.whatsapp_to_clients_enabled && sale.client_phone;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -206,9 +259,29 @@ export default function SaleCreatedReceiptPrompt({
             disabled={isSending || !userPhone}
             className="w-full"
           >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            {isSending ? 'Enviando...' : 'Enviar via WhatsApp'}
+            {isSending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <MessageCircle className="w-4 h-4 mr-2" />
+            )}
+            {isSending ? 'Enviando...' : 'Enviar para Mim'}
           </Button>
+
+          {canSendToClient && (
+            <Button 
+              variant="outline"
+              onClick={handleSendToClient} 
+              disabled={isSendingToClient}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+            >
+              {isSendingToClient ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Users className="w-4 h-4 mr-2" />
+              )}
+              {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+            </Button>
+          )}
           
           <Button 
             variant="outline" 
