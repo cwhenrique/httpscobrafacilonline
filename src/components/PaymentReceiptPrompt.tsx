@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import SpamWarningDialog from './SpamWarningDialog';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
@@ -83,6 +84,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -162,6 +164,15 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     }
   };
 
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  const handleConfirmSendToClient = () => {
+    setShowSpamWarning(false);
+    handleSendToClient();
+  };
+
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
@@ -180,92 +191,100 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const canSendToClient = profile?.whatsapp_to_clients_enabled && clientPhone;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-md sm:max-w-lg animate-scale-in">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            Pagamento Registrado!
-          </DialogTitle>
-          <DialogDescription>
-            Deseja baixar ou enviar o comprovante?
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-3 py-2">
-          <div className="bg-primary/10 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Tipo:</span>
-              <span className="font-medium">{getTypeLabel(data.type)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Cliente:</span>
-              <span className="font-medium">{data.clientName}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Parcela:</span>
-              <span className="font-medium">{data.installmentNumber}/{data.totalInstallments}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Valor Pago:</span>
-              <span className="font-semibold text-primary">{formatCurrency(data.amountPaid)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Data:</span>
-              <span className="font-medium">{formatDate(data.paymentDate)}</span>
-            </div>
-            {isFullyPaid ? (
-              <div className="bg-primary rounded-lg p-2 text-center text-primary-foreground text-sm font-medium mt-2">
-                ✅ Contrato Quitado!
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[95vw] max-w-md sm:max-w-lg animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Pagamento Registrado!
+            </DialogTitle>
+            <DialogDescription>
+              Deseja baixar ou enviar o comprovante?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-2">
+            <div className="bg-primary/10 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tipo:</span>
+                <span className="font-medium">{getTypeLabel(data.type)}</span>
               </div>
-            ) : (
-              <div className="flex justify-between text-sm pt-2 border-t border-primary/20">
-                <span className="text-muted-foreground">Saldo Restante:</span>
-                <span className="font-semibold">{formatCurrency(data.remainingBalance)}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Cliente:</span>
+                <span className="font-medium">{data.clientName}</span>
               </div>
-            )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Parcela:</span>
+                <span className="font-medium">{data.installmentNumber}/{data.totalInstallments}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Valor Pago:</span>
+                <span className="font-semibold text-primary">{formatCurrency(data.amountPaid)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Data:</span>
+                <span className="font-medium">{formatDate(data.paymentDate)}</span>
+              </div>
+              {isFullyPaid ? (
+                <div className="bg-primary rounded-lg p-2 text-center text-primary-foreground text-sm font-medium mt-2">
+                  ✅ Contrato Quitado!
+                </div>
+              ) : (
+                <div className="flex justify-between text-sm pt-2 border-t border-primary/20">
+                  <span className="text-muted-foreground">Saldo Restante:</span>
+                  <span className="font-semibold">{formatCurrency(data.remainingBalance)}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        <DialogFooter className="gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="text-xs sm:text-sm">
-            <X className="w-4 h-4 mr-1 sm:mr-2" />
-            Fechar
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={handleSendWhatsApp} 
-            disabled={isSendingWhatsApp}
-            className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
-          >
-            {isSendingWhatsApp ? (
-              <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
-            ) : (
-              <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
-            )}
-            {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
-          </Button>
-          {canSendToClient && (
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="text-xs sm:text-sm">
+              <X className="w-4 h-4 mr-1 sm:mr-2" />
+              Fechar
+            </Button>
             <Button 
               variant="outline" 
-              onClick={handleSendToClient} 
-              disabled={isSendingToClient}
-              className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              onClick={handleSendWhatsApp} 
+              disabled={isSendingWhatsApp}
+              className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
             >
-              {isSendingToClient ? (
+              {isSendingWhatsApp ? (
                 <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
               ) : (
-                <Users className="w-4 h-4 mr-1 sm:mr-2" />
+                <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
               )}
-              {isSendingToClient ? 'Enviando...' : 'Para Cliente'}
+              {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
             </Button>
-          )}
-          <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
-            <Download className="w-4 h-4 mr-1 sm:mr-2" />
-            {isGenerating ? 'Gerando...' : 'PDF'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {canSendToClient && (
+              <Button 
+                variant="outline" 
+                onClick={handleClientButtonClick} 
+                disabled={isSendingToClient}
+                className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+              >
+                {isSendingToClient ? (
+                  <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+                ) : (
+                  <Users className="w-4 h-4 mr-1 sm:mr-2" />
+                )}
+                {isSendingToClient ? 'Enviando...' : 'Para Cliente'}
+              </Button>
+            )}
+            <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
+              <Download className="w-4 h-4 mr-1 sm:mr-2" />
+              {isGenerating ? 'Gerando...' : 'PDF'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <SpamWarningDialog
+        open={showSpamWarning}
+        onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSendToClient}
+      />
+    </>
   );
 }
