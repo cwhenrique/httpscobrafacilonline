@@ -70,6 +70,8 @@ export default function Settings() {
         if (status?.connected) {
           setShowQrModal(false);
           setQrCode(null);
+          // Auto-enable send to clients when connected
+          setSendToClientsEnabled(true);
           toast.success('WhatsApp conectado com sucesso!');
         }
       });

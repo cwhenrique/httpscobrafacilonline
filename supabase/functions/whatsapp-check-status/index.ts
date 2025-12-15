@@ -119,13 +119,13 @@ serve(async (req) => {
           console.log('Could not fetch phone number:', e);
         }
 
-        // Update profile with connection info
-        if (phoneNumber || isConnected) {
+        // Update profile with connection info - ALWAYS enable whatsapp_to_clients_enabled when connected
+        if (isConnected) {
           await supabase
             .from('profiles')
             .update({ 
-              whatsapp_connected_phone: phoneNumber,
-              whatsapp_connected_at: new Date().toISOString(),
+              whatsapp_connected_phone: phoneNumber || null,
+              whatsapp_connected_at: profile.whatsapp_connected_at || new Date().toISOString(),
               whatsapp_to_clients_enabled: true,
             })
             .eq('id', userId);
