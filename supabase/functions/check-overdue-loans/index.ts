@@ -178,13 +178,16 @@ const handler = async (req: Request): Promise<Response> => {
       if (dueDate < today) {
         const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         
+        // Check if this is the first time detecting overdue (status still pending)
+        const isFirstOverdueDetection = loan.status !== 'overdue';
+        
         // Update loan status to overdue
-        if (loan.status !== 'overdue') {
+        if (isFirstOverdueDetection) {
           overdueUpdates.push(loan.id);
         }
 
-        // Only send alert on specific days (1, 7, 15, 30)
-        if (!ALERT_DAYS.includes(daysOverdue)) continue;
+        // Send alerts on first overdue detection OR on specific days (1, 7, 15, 30)
+        if (!isFirstOverdueDetection && !ALERT_DAYS.includes(daysOverdue)) continue;
 
         const loanInfo = {
           ...loan,
