@@ -11,22 +11,85 @@ const DEFAULT_PASSWORD = 'mudar@123';
 
 // Clean API URL - remove trailing slashes and any path segments
 function cleanApiUrl(url: string): string {
-  // Remove trailing slashes
   let cleaned = url.replace(/\/+$/, '');
-  
-  // Remove any path that might have been accidentally included
-  // Common patterns: /message/sendText/InstanceName
   const pathPatterns = [
     /\/message\/sendText\/[^\/]+$/i,
     /\/message\/sendText$/i,
     /\/message$/i,
   ];
-  
   for (const pattern of pathPatterns) {
     cleaned = cleaned.replace(pattern, '');
   }
-  
   return cleaned;
+}
+
+// Determine subscription plan from Cakto payload
+function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | null } {
+  // Try to extract product info from various Cakto payload structures
+  const productName = (
+    payload.data?.product?.name ||
+    payload.product?.name ||
+    payload.data?.offer?.name ||
+    payload.offer?.name ||
+    payload.data?.plan?.name ||
+    payload.plan_name ||
+    ''
+  ).toLowerCase();
+
+  const productId = (
+    payload.data?.product?.id ||
+    payload.product?.id ||
+    payload.data?.offer?.id ||
+    payload.offer_id ||
+    ''
+  ).toLowerCase();
+
+  console.log('Product detection:', { productName, productId });
+
+  const now = new Date();
+
+  // Check for lifetime/vitalício
+  if (
+    productName.includes('vitalício') ||
+    productName.includes('vitalicio') ||
+    productName.includes('lifetime') ||
+    productId.includes('lifetime') ||
+    productId.includes('vitalicio')
+  ) {
+    return { plan: 'lifetime', expiresAt: null };
+  }
+
+  // Check for annual/anual
+  if (
+    productName.includes('anual') ||
+    productName.includes('annual') ||
+    productName.includes('ano') ||
+    productName.includes('year') ||
+    productId.includes('annual') ||
+    productId.includes('anual')
+  ) {
+    const expiresAt = new Date(now);
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+  }
+
+  // Check for monthly/mensal
+  if (
+    productName.includes('mensal') ||
+    productName.includes('monthly') ||
+    productName.includes('mês') ||
+    productName.includes('mes') ||
+    productId.includes('monthly') ||
+    productId.includes('mensal')
+  ) {
+    const expiresAt = new Date(now);
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+    return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+  }
+
+  // Default: assume lifetime if no pattern matched (safest for paid customers)
+  console.log('No plan pattern matched, defaulting to lifetime');
+  return { plan: 'lifetime', expiresAt: null };
 }
 
 // Send WhatsApp message via Evolution API
@@ -40,7 +103,6 @@ async function sendWhatsAppMessage(phone: string, message: string) {
     return;
   }
 
-  // Format phone number (remove non-digits and add country code if needed)
   let formattedPhone = phone.replace(/\D/g, '');
   if (formattedPhone.startsWith('0')) {
     formattedPhone = '55' + formattedPhone.substring(1);
@@ -77,13 +139,12 @@ async function sendWhatsAppMessage(phone: string, message: string) {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate webhook secret (from header OR URL parameter)
+    // Validate webhook secret
     const webhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
     const url = new URL(req.url);
     const receivedSecret = req.headers.get('x-webhook-secret') || url.searchParams.get('secret');
@@ -96,12 +157,10 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
     const payload = await req.json();
     console.log('Received Cakto webhook payload:', JSON.stringify(payload));
 
-    // Extract customer data from Cakto payload
-    // Cakto sends data in: data.customer.email, data.customer.name, data.customer.phone
+    // Extract customer data
     const customerData = payload.data?.customer || payload.customer;
     const customerEmail = customerData?.email || payload.email;
     const customerName = customerData?.name || payload.name || customerData?.full_name;
@@ -114,7 +173,7 @@ serve(async (req) => {
     const validStatuses = ['approved', 'paid', 'completed', 'active', 'subscription_created'];
     const statusToCheck = transactionStatus?.toLowerCase?.() || '';
     if (transactionStatus && !validStatuses.includes(statusToCheck)) {
-      console.log(`Transaction status "${transactionStatus}" is not approved, skipping user creation`);
+      console.log(`Transaction status "${transactionStatus}" is not approved, skipping`);
       return new Response(
         JSON.stringify({ message: 'Transaction not approved, skipping' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -129,14 +188,15 @@ serve(async (req) => {
       );
     }
 
+    // Determine subscription plan
+    const { plan, expiresAt } = getSubscriptionPlan(payload);
+    console.log('Subscription plan determined:', { plan, expiresAt });
+
     // Initialize Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+      auth: { autoRefreshToken: false, persistSession: false }
     });
 
     // Check if user already exists
@@ -149,27 +209,67 @@ serve(async (req) => {
     const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
     
     if (existingUser) {
-      console.log('User already exists:', customerEmail);
+      // USER EXISTS - This is a RENEWAL, update subscription
+      console.log('User already exists, updating subscription:', customerEmail);
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          is_active: true,
+          subscription_plan: plan,
+          subscription_expires_at: expiresAt,
+        })
+        .eq('id', existingUser.id);
+
+      if (updateError) {
+        console.error('Error updating subscription:', updateError);
+      } else {
+        console.log('Subscription renewed successfully');
+      }
+
+      // Send renewal confirmation via WhatsApp
+      if (customerPhone) {
+        const planNames: Record<string, string> = {
+          'lifetime': 'Vitalício',
+          'annual': 'Anual',
+          'monthly': 'Mensal',
+        };
+        const renewalMessage = `🎉 *Assinatura Renovada!*
+
+Olá ${customerName || 'Cliente'}!
+
+Sua assinatura do *CobraFácil* foi renovada com sucesso!
+
+📦 *Plano:* ${planNames[plan] || plan}
+${expiresAt ? `📅 *Válido até:* ${new Date(expiresAt).toLocaleDateString('pt-BR')}` : '♾️ *Acesso vitalício*'}
+
+🔗 *Acesse:* https://cobrafacil.online/auth
+
+Obrigado por continuar com a gente! 💚`;
+
+        await sendWhatsAppMessage(customerPhone, renewalMessage);
+      }
+
       return new Response(
         JSON.stringify({ 
-          message: 'User already exists',
-          email: customerEmail
+          success: true,
+          message: 'Subscription renewed',
+          email: customerEmail,
+          plan,
+          expiresAt
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Use default password for new user
+    // NEW USER - Create account
     const generatedPassword = DEFAULT_PASSWORD;
 
-    // Create new user in Supabase Auth
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
       email: customerEmail,
       password: generatedPassword,
-      email_confirm: true, // Auto-confirm email
-      user_metadata: {
-        full_name: customerName || '',
-      }
+      email_confirm: true,
+      user_metadata: { full_name: customerName || '' }
     });
 
     if (createError) {
@@ -182,13 +282,16 @@ serve(async (req) => {
 
     console.log('User created successfully:', newUser.user.id);
 
-    // Update profile with phone if provided
-    if (customerPhone && newUser.user) {
+    // Update profile with phone and subscription info
+    if (newUser.user) {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
-          phone: customerPhone,
-          full_name: customerName || null
+          phone: customerPhone || null,
+          full_name: customerName || null,
+          subscription_plan: plan,
+          subscription_expires_at: expiresAt,
+          is_active: true,
         })
         .eq('id', newUser.user.id);
 
@@ -216,7 +319,7 @@ serve(async (req) => {
     } else {
       console.log('Example client created:', exampleClient.id);
       
-      // Create example loan for tutorial
+      // Create example loan
       const today = new Date();
       const dueDate = new Date(today);
       dueDate.setMonth(dueDate.getMonth() + 1);
@@ -249,19 +352,24 @@ serve(async (req) => {
 
       if (loanError) {
         console.error('Error creating example loan:', loanError);
-      } else {
-        console.log('Example loan created successfully');
       }
     }
 
-    // Send credentials via WhatsApp if phone is available
+    // Send credentials via WhatsApp
     if (customerPhone) {
+      const planNames: Record<string, string> = {
+        'lifetime': 'Vitalício',
+        'annual': 'Anual',
+        'monthly': 'Mensal',
+      };
       const welcomeMessage = `🎉 *Bem-vindo ao CobraFácil!*
 
 Sua conta foi criada com sucesso!
 
 📧 *Email:* ${customerEmail}
 🔑 *Senha:* ${generatedPassword}
+📦 *Plano:* ${planNames[plan] || plan}
+${expiresAt ? `📅 *Válido até:* ${new Date(expiresAt).toLocaleDateString('pt-BR')}` : '♾️ *Acesso vitalício*'}
 
 🔗 *Acesse:* https://cobrafacil.online/auth
 
@@ -277,7 +385,9 @@ Qualquer dúvida, estamos à disposição!`;
         success: true,
         message: 'User created successfully',
         userId: newUser.user.id,
-        email: customerEmail
+        email: customerEmail,
+        plan,
+        expiresAt
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

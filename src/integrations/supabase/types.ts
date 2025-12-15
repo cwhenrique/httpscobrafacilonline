@@ -717,6 +717,8 @@ export type Database = {
           id: string
           is_active: boolean
           phone: string | null
+          subscription_expires_at: string | null
+          subscription_plan: string | null
           temp_password: string | null
           trial_expires_at: string | null
           updated_at: string
@@ -731,6 +733,8 @@ export type Database = {
           id: string
           is_active?: boolean
           phone?: string | null
+          subscription_expires_at?: string | null
+          subscription_plan?: string | null
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
@@ -745,6 +749,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           phone?: string | null
+          subscription_expires_at?: string | null
+          subscription_plan?: string | null
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
