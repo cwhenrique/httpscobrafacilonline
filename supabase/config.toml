@@ -39,7 +39,7 @@ verify_jwt = false
 [functions.create-trial-user]
 verify_jwt = false
 
-[functions.check-expired-trials]
+[functions.check-expired-subscriptions]
 verify_jwt = false
 
 [functions.list-trial-users]
