@@ -1623,7 +1623,7 @@ export default function Loans() {
     setSelectedLoanId(null);
   };
 
-  const openEditDialog = (loanId: string) => {
+  const openEditDialog = async (loanId: string) => {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
@@ -1665,9 +1665,10 @@ export default function Loans() {
       }
       const totalContract = loan.principal_amount + totalInterest;
       
-      // Realized profit proportional to payments
-      const paidRatio = totalContract > 0 ? totalPaid / totalContract : 0;
-      const realizedProfit = totalInterest * paidRatio;
+      // Fetch actual payments to calculate realized profit correctly (sum of interest_paid)
+      const paymentsResult = await getLoanPayments(loanId);
+      const payments = paymentsResult.data || [];
+      const realizedProfit = payments.reduce((sum, p) => sum + Number(p.interest_paid || 0), 0);
       
       // Remaining balance
       const remaining = loan.remaining_balance || (totalContract - totalPaid);
