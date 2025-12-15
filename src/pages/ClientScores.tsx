@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useClients } from '@/hooks/useClients';
+import { useLoans } from '@/hooks/useLoans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -18,13 +20,42 @@ import {
   Award,
   ShieldAlert,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  DollarSign,
+  Wallet
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
 
 export default function ClientScores() {
   const { clients, loading } = useClients();
+  const { loans } = useLoans();
+  const [sortBy, setSortBy] = useState<'score' | 'profit'>('score');
+
+  // Calcular lucro por cliente
+  const clientProfitMap = useMemo(() => {
+    const map = new Map<string, { expectedProfit: number; realizedProfit: number; totalPrincipal: number }>();
+    
+    loans.forEach(loan => {
+      const existing = map.get(loan.client_id) || { expectedProfit: 0, realizedProfit: 0, totalPrincipal: 0 };
+      
+      // Lucro previsto = total de juros
+      const expectedProfit = loan.total_interest || 0;
+      
+      // Lucro realizado = proporção do lucro conforme pagamentos
+      const totalContract = loan.principal_amount + (loan.total_interest || 0);
+      const paidRatio = totalContract > 0 ? (loan.total_paid || 0) / totalContract : 0;
+      const realizedProfit = expectedProfit * paidRatio;
+      
+      map.set(loan.client_id, {
+        expectedProfit: existing.expectedProfit + expectedProfit,
+        realizedProfit: existing.realizedProfit + realizedProfit,
+        totalPrincipal: existing.totalPrincipal + loan.principal_amount,
+      });
+    });
+    
+    return map;
+  }, [loans]);
 
   const stats = useMemo(() => {
     if (clients.length === 0) return null;
@@ -37,6 +68,15 @@ export default function ClientScores() {
     const totalOnTime = clients.reduce((sum, c) => sum + (c.on_time_payments || 0), 0);
     const totalLate = clients.reduce((sum, c) => sum + (c.late_payments || 0), 0);
 
+    // Lucro total de todos os clientes
+    let totalExpectedProfit = 0;
+    let totalRealizedProfit = 0;
+    
+    clientProfitMap.forEach(({ expectedProfit, realizedProfit }) => {
+      totalExpectedProfit += expectedProfit;
+      totalRealizedProfit += realizedProfit;
+    });
+
     return {
       avgScore: Math.round(avgScore),
       excellent,
@@ -46,12 +86,21 @@ export default function ClientScores() {
       totalOnTime,
       totalLate,
       total: clients.length,
+      totalExpectedProfit,
+      totalRealizedProfit,
     };
-  }, [clients]);
+  }, [clients, clientProfitMap]);
 
   const sortedClients = useMemo(() => {
-    return [...clients].sort((a, b) => (b.score || 100) - (a.score || 100));
-  }, [clients]);
+    return [...clients].sort((a, b) => {
+      if (sortBy === 'profit') {
+        const profitA = clientProfitMap.get(a.id)?.realizedProfit || 0;
+        const profitB = clientProfitMap.get(b.id)?.realizedProfit || 0;
+        return profitB - profitA;
+      }
+      return (b.score || 100) - (a.score || 100);
+    });
+  }, [clients, sortBy, clientProfitMap]);
 
   const getScoreGradient = (score: number) => {
     if (score >= 120) return 'from-emerald-500 to-green-600';
@@ -158,6 +207,45 @@ export default function ClientScores() {
               </Card>
             </div>
 
+            {/* Profit Stats */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Lucro Previsto Total</p>
+                      <p className="text-3xl font-bold text-blue-600">{formatCurrency(stats.totalExpectedProfit)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Soma de juros de todos os contratos
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <Wallet className="w-7 h-7 text-blue-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-l-emerald-500 bg-gradient-to-br from-emerald-500/5 to-emerald-500/10">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Lucro Realizado Total</p>
+                      <p className="text-3xl font-bold text-emerald-600">{formatCurrency(stats.totalRealizedProfit)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {stats.totalExpectedProfit > 0 
+                          ? `${Math.round((stats.totalRealizedProfit / stats.totalExpectedProfit) * 100)}% do previsto`
+                          : 'Nenhum lucro previsto'}
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <DollarSign className="w-7 h-7 text-emerald-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Payment Stats */}
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
@@ -241,13 +329,37 @@ export default function ClientScores() {
             {/* Client List */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Ranking de Clientes
-                </CardTitle>
-                <CardDescription>
-                  Ordenado por pontuação - atualizado automaticamente após cada pagamento
-                </CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Ranking de Clientes
+                    </CardTitle>
+                    <CardDescription>
+                      {sortBy === 'score' 
+                        ? 'Ordenado por pontuação' 
+                        : 'Ordenado por lucro realizado'} - atualizado automaticamente
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant={sortBy === 'score' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setSortBy('score')}
+                    >
+                      <Star className="w-4 h-4 mr-1" />
+                      Por Score
+                    </Button>
+                    <Button 
+                      variant={sortBy === 'profit' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setSortBy('profit')}
+                    >
+                      <DollarSign className="w-4 h-4 mr-1" />
+                      Por Lucro
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {sortedClients.length === 0 ? (
@@ -328,6 +440,51 @@ export default function ClientScores() {
                             </Badge>
                             {getTrendIcon(score)}
                           </div>
+
+                          {/* Profit Section */}
+                          {(() => {
+                            const profit = clientProfitMap.get(client.id);
+                            if (!profit || profit.expectedProfit === 0) return null;
+                            
+                            const profitPercentage = profit.expectedProfit > 0 
+                              ? Math.round((profit.realizedProfit / profit.expectedProfit) * 100) 
+                              : 0;
+                            
+                            return (
+                              <div className="w-full flex items-center gap-4 mt-2 pt-2 border-t border-border/50 pl-10 sm:pl-0">
+                                <div className="flex-1">
+                                  <p className="text-[10px] text-muted-foreground">Principal</p>
+                                  <p className="text-sm font-medium">
+                                    {formatCurrency(profit.totalPrincipal)}
+                                  </p>
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-[10px] text-muted-foreground">Lucro Previsto</p>
+                                  <p className="text-sm font-medium text-blue-500">
+                                    {formatCurrency(profit.expectedProfit)}
+                                  </p>
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-[10px] text-muted-foreground">Lucro Realizado</p>
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-sm font-medium text-emerald-500">
+                                      {formatCurrency(profit.realizedProfit)}
+                                    </p>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-[9px] px-1 py-0 ${
+                                        profitPercentage >= 100 
+                                          ? 'border-emerald-500 text-emerald-500' 
+                                          : 'border-muted-foreground'
+                                      }`}
+                                    >
+                                      {profitPercentage}%
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
