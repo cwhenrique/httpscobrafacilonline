@@ -43,6 +43,20 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
+// Helper para extrair sub-parcelas de adiantamento do notes
+const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string }> => {
+  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string }> = [];
+  const matches = (notes || '').matchAll(/\[ADVANCE_SUBPARCELA:(\d+):([0-9.]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    subparcelas.push({
+      originalIndex: parseInt(match[1]),
+      amount: parseFloat(match[2]),
+      dueDate: match[3],
+    });
+  }
+  return subparcelas;
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -548,6 +562,7 @@ export default function Loans() {
     selected_installments: [] as number[],
     partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
+    is_advance_payment: false, // Flag para adiantamento de pagamento
   });
 
   // Generate installment dates when start_date or installments change
@@ -1164,29 +1179,60 @@ export default function Loans() {
       }
     } else if (paymentData.payment_type === 'partial') {
       // Pagamento parcial - atualizar tracking da parcela selecionada
-      // Permite registrar valores maiores que a parcela (sem limitar)
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
-      const newPartialTotal = accumulatedPaid + amount; // Sem Math.min para permitir valor maior
+      const dates = (selectedLoan.installment_dates as string[]) || [];
       
-      // Remover tracking anterior desta parcela se existir
-      updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
-      // Adicionar novo valor (pode ser maior que o valor original da parcela)
-      updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${newPartialTotal.toFixed(2)}]`;
-      
-      const remaining = targetInstallmentValue - newPartialTotal;
-      if (remaining > 0) {
-        installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
-      } else if (remaining < 0) {
-        installmentNote = `Pagamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Excedente: ${formatCurrency(Math.abs(remaining))}`;
-        // Se esta parcela tinha taxa extra e foi quitada (mesmo com excedente), remover a tag
+      // Se é um adiantamento (pagamento antes do vencimento + valor parcial)
+      if (paymentData.is_advance_payment) {
+        const remainderAmount = targetInstallmentValue - (accumulatedPaid + amount);
+        const originalDueDate = dates[targetInstallmentIndex] || selectedLoan.due_date;
+        
+        if (remainderAmount > 0.01) {
+          // Marcar a parcela original como totalmente paga (para não aparecer como pendente)
+          updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
+          updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${targetInstallmentValue.toFixed(2)}]`;
+          
+          // Criar sub-parcela com o valor restante e a data de vencimento original
+          // Tag: [ADVANCE_SUBPARCELA:índice_original:valor_restante:data_vencimento]
+          updatedNotes += `[ADVANCE_SUBPARCELA:${targetInstallmentIndex}:${remainderAmount.toFixed(2)}:${originalDueDate}]`;
+          
+          installmentNote = `Adiantamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Sub-parcela criada: ${formatCurrency(remainderAmount)} vencendo em ${formatDate(originalDueDate)}`;
+        } else {
+          // Valor é suficiente para quitar a parcela
+          updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
+          updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${targetInstallmentValue.toFixed(2)}]`;
+          installmentNote = `Parcela ${targetInstallmentIndex + 1}/${numInstallments} quitada`;
+        }
+        
+        // Se esta parcela tinha taxa extra e foi quitada, remover a tag
         if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
           updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
         }
       } else {
-        installmentNote = `Parcela ${targetInstallmentIndex + 1}/${numInstallments} quitada`;
-        // Se esta parcela tinha taxa extra e foi quitada, remover a tag
-        if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
-          updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+        // Comportamento padrão: pagamento parcial normal
+        // Permite registrar valores maiores que a parcela (sem limitar)
+        const newPartialTotal = accumulatedPaid + amount; // Sem Math.min para permitir valor maior
+        
+        // Remover tracking anterior desta parcela se existir
+        updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
+        // Adicionar novo valor (pode ser maior que o valor original da parcela)
+        updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${newPartialTotal.toFixed(2)}]`;
+        
+        const remaining = targetInstallmentValue - newPartialTotal;
+        if (remaining > 0) {
+          installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
+        } else if (remaining < 0) {
+          installmentNote = `Pagamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Excedente: ${formatCurrency(Math.abs(remaining))}`;
+          // Se esta parcela tinha taxa extra e foi quitada (mesmo com excedente), remover a tag
+          if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
+            updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+          }
+        } else {
+          installmentNote = `Parcela ${targetInstallmentIndex + 1}/${numInstallments} quitada`;
+          // Se esta parcela tinha taxa extra e foi quitada, remover a tag
+          if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
+            updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
+          }
         }
       }
     }
@@ -1271,7 +1317,7 @@ export default function Loans() {
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
+    setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false });
   };
 
   const resetForm = () => {
@@ -3410,6 +3456,57 @@ export default function Loans() {
                         </div>
                       )}
                       
+                      {/* Advance subparcelas (sub-parcelas de adiantamento) */}
+                      {(() => {
+                        const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+                        if (advanceSubparcelas.length === 0) return null;
+                        
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        
+                        return (
+                          <div className="mt-2 sm:mt-3 space-y-2">
+                            {advanceSubparcelas.map((subparcela, idx) => {
+                              const subDueDate = new Date(subparcela.dueDate + 'T12:00:00');
+                              subDueDate.setHours(0, 0, 0, 0);
+                              const isSubOverdue = today > subDueDate;
+                              const subDaysOverdue = isSubOverdue 
+                                ? Math.ceil((today.getTime() - subDueDate.getTime()) / (1000 * 60 * 60 * 24))
+                                : 0;
+                              
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={`p-2 sm:p-3 rounded-lg ${
+                                    isSubOverdue 
+                                      ? 'bg-amber-500/20 border border-amber-400/30' 
+                                      : 'bg-blue-500/20 border border-blue-400/30'
+                                  }`}
+                                >
+                                  <div className="text-xs sm:text-sm">
+                                    <div className="flex items-center justify-between">
+                                      <span className={`font-medium ${isSubOverdue ? 'text-amber-300' : 'text-blue-300'}`}>
+                                        Sub-parcela (Adiantamento P{subparcela.originalIndex + 1})
+                                      </span>
+                                      {isSubOverdue && (
+                                        <span className="text-amber-200 font-bold">{subDaysOverdue} dias</span>
+                                      )}
+                                    </div>
+                                    <div className={`flex items-center justify-between mt-1 ${isSubOverdue ? 'text-amber-300/70' : 'text-blue-300/70'}`}>
+                                      <span>Vencimento: {formatDate(subparcela.dueDate)}</span>
+                                      <span className="font-bold">{formatCurrency(subparcela.amount)}</span>
+                                    </div>
+                                    <p className={`text-[10px] mt-1 ${isSubOverdue ? 'text-amber-300/60' : 'text-blue-300/60'}`}>
+                                      {isSubOverdue ? 'Valor restante do adiantamento em atraso' : 'Valor restante do adiantamento pendente'}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                      
                       <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
                         <TooltipProvider delayDuration={300}>
                           <div className="flex gap-1.5 sm:gap-2">
@@ -3444,7 +3541,8 @@ export default function Loans() {
                                       payment_type: 'partial', 
                                       selected_installments: [], 
                                       partial_installment_index: null, 
-                                      send_notification: false 
+                                      send_notification: false,
+                                      is_advance_payment: false 
                                     });
                                     
                                     setIsPaymentDialogOpen(true); 
@@ -3888,7 +3986,7 @@ export default function Loans() {
                             type="number" 
                             step="0.01" 
                             value={paymentData.amount} 
-                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })} 
+                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value, is_advance_payment: false })} 
                             placeholder={`Máx: ${formatCurrency(selectedStatus.remaining)}`}
                             required 
                           />
@@ -3896,6 +3994,39 @@ export default function Loans() {
                             Digite qualquer valor até {formatCurrency(selectedStatus.remaining)}
                           </p>
                         </div>
+                        
+                        {/* Checkbox de Adiantamento - aparece quando pagamento é antes do vencimento e valor é parcial */}
+                        {(() => {
+                          const paymentDateObj = new Date(paymentData.payment_date + 'T12:00:00');
+                          const installmentDueDate = dates[selectedPartialIndex];
+                          const dueDateObj = installmentDueDate ? new Date(installmentDueDate + 'T12:00:00') : null;
+                          const isBeforeDueDate = dueDateObj ? paymentDateObj < dueDateObj : false;
+                          const paidAmount = parseFloat(paymentData.amount) || 0;
+                          const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
+                          const showAdvanceOption = isBeforeDueDate && isPartialAmount;
+                          const remainderAmount = selectedStatus.remaining - paidAmount;
+                          
+                          if (!showAdvanceOption) return null;
+                          
+                          return (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
+                              <Checkbox
+                                id="is_advance_payment"
+                                checked={paymentData.is_advance_payment}
+                                onCheckedChange={(checked) => setPaymentData({ ...paymentData, is_advance_payment: !!checked })}
+                              />
+                              <div className="flex-1">
+                                <label htmlFor="is_advance_payment" className="text-sm font-medium cursor-pointer text-amber-700 dark:text-amber-300">
+                                  É um adiantamento de pagamento?
+                                </label>
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                  Se marcado, o valor restante ({formatCurrency(remainderAmount)}) 
+                                  continuará vencendo em {formatDate(installmentDueDate)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
