@@ -37,6 +37,7 @@ Exemplos de comandos válidos:
 - "Me fala do empréstimo da Maria" → consulta_contrato, nome_cliente: "Maria", tipo_contrato: "emprestimo"
 - "O que vence hoje?" → consulta_vencimentos, periodo: "hoje"
 - "Quem tá atrasado?" → consulta_atrasados
+- "Quem são os caloteiros?" → consulta_atrasados
 - "Me dá um resumo" → consulta_resumo
 
 Se o usuário pedir para registrar pagamento, criar empréstimo ou qualquer ação que MODIFIQUE dados,
@@ -249,7 +250,44 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('pt-BR');
 }
 
-// CONSULTA_CLIENTE: Get client debt summary
+// Calculate days between dates
+function daysBetween(date1: string, date2: string): number {
+  const d1 = new Date(date1 + 'T12:00:00');
+  const d2 = new Date(date2 + 'T12:00:00');
+  return Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Calculate overdue installment info for a loan (DYNAMIC calculation)
+function calculateLoanOverdueInfo(loan: any): { isOverdue: boolean; installmentNumber: number; totalInstallments: number; dueDate: string; installmentValue: number; daysOverdue: number } | null {
+  const today = new Date().toISOString().split('T')[0];
+  const installmentDates: string[] = loan.installment_dates || [loan.due_date];
+  const numInstallments = installmentDates.length;
+  const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+  const installmentValue = totalContract / numInstallments;
+  const totalPaid = Number(loan.total_paid) || 0;
+  
+  // Calculate how many installments should be paid
+  const paidInstallments = Math.floor(totalPaid / installmentValue);
+  
+  // Check each unpaid installment
+  for (let i = paidInstallments; i < numInstallments; i++) {
+    const dueDate = installmentDates[i];
+    if (dueDate && dueDate < today) {
+      return {
+        isOverdue: true,
+        installmentNumber: i + 1,
+        totalInstallments: numInstallments,
+        dueDate,
+        installmentValue,
+        daysOverdue: daysBetween(dueDate, today),
+      };
+    }
+  }
+  
+  return null;
+}
+
+// CONSULTA_CLIENTE: Get client debt summary with details
 async function handleConsultaCliente(supabase: any, userId: string, nomeCliente: string | null): Promise<string> {
   if (!nomeCliente) {
     return '❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente. Ex: "Quanto o João me deve?"';
@@ -273,11 +311,12 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
   }
 
   const client = clients[0];
+  const today = new Date().toISOString().split('T')[0];
 
-  // Get loans for this client
+  // Get loans for this client with all details needed
   const { data: loans } = await supabase
     .from('loans')
-    .select('id, principal_amount, total_interest, remaining_balance, status, due_date, installments, total_paid')
+    .select('id, principal_amount, total_interest, remaining_balance, status, due_date, installments, installment_dates, total_paid, notes')
     .eq('user_id', userId)
     .eq('client_id', client.id)
     .neq('status', 'paid');
@@ -285,46 +324,143 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
   // Get product sales for this client
   const { data: products } = await supabase
     .from('product_sales')
-    .select('id, product_name, total_amount, remaining_balance, status')
+    .select('id, product_name, total_amount, remaining_balance, status, installments, first_due_date')
     .eq('user_id', userId)
     .ilike('client_name', `%${client.full_name}%`)
     .neq('status', 'paid');
 
+  // Get product sale payments (pending/overdue)
+  const productIds = products?.map((p: any) => p.id) || [];
+  let productPayments: any[] = [];
+  if (productIds.length > 0) {
+    const { data } = await supabase
+      .from('product_sale_payments')
+      .select('id, product_sale_id, due_date, amount, installment_number, status')
+      .eq('user_id', userId)
+      .in('product_sale_id', productIds)
+      .neq('status', 'paid')
+      .order('due_date');
+    productPayments = data || [];
+  }
+
   // Get vehicles for this client
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, brand, model, purchase_value, remaining_balance, status')
+    .select('id, brand, model, purchase_value, remaining_balance, status, installments, first_due_date')
     .eq('user_id', userId)
     .ilike('buyer_name', `%${client.full_name}%`)
     .neq('status', 'paid');
 
+  // Get vehicle payments (pending/overdue)
+  const vehicleIds = vehicles?.map((v: any) => v.id) || [];
+  let vehiclePayments: any[] = [];
+  if (vehicleIds.length > 0) {
+    const { data } = await supabase
+      .from('vehicle_payments')
+      .select('id, vehicle_id, due_date, amount, installment_number, status')
+      .eq('user_id', userId)
+      .in('vehicle_id', vehicleIds)
+      .neq('status', 'paid')
+      .order('due_date');
+    vehiclePayments = data || [];
+  }
+
   let totalDevido = 0;
   let activeContracts: string[] = [];
 
-  // Sum loans
+  // Process loans with dynamic overdue calculation
   if (loans?.length) {
     loans.forEach((loan: any) => {
+      // Skip historical contracts
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
+      
       totalDevido += Number(loan.remaining_balance) || 0;
-      const status = loan.status === 'overdue' ? '🔴' : '🟡';
-      activeContracts.push(`${status} Empréstimo: ${formatCurrency(loan.remaining_balance)}`);
+      
+      const overdueInfo = calculateLoanOverdueInfo(loan);
+      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      const numInstallments = (loan.installment_dates || [loan.due_date]).length;
+      
+      if (overdueInfo) {
+        activeContracts.push(
+          `🔴 *Empréstimo* (${formatCurrency(totalContract)})\n` +
+          `   📋 Parcela ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments} em atraso\n` +
+          `   💰 Valor: ${formatCurrency(overdueInfo.installmentValue)}\n` +
+          `   📅 Venceu: ${formatDate(overdueInfo.dueDate)} (${overdueInfo.daysOverdue} dias)\n` +
+          `   ⏳ Saldo: ${formatCurrency(loan.remaining_balance)}`
+        );
+      } else {
+        // Get next due date
+        const installmentDates: string[] = loan.installment_dates || [loan.due_date];
+        const paidCount = Math.floor((Number(loan.total_paid) || 0) / (totalContract / numInstallments));
+        const nextDueDate = installmentDates[Math.min(paidCount, installmentDates.length - 1)];
+        
+        activeContracts.push(
+          `🟡 *Empréstimo* (${formatCurrency(totalContract)})\n` +
+          `   📋 Parcela ${paidCount + 1}/${numInstallments}\n` +
+          `   📅 Próximo venc.: ${formatDate(nextDueDate)}\n` +
+          `   ⏳ Saldo: ${formatCurrency(loan.remaining_balance)}`
+        );
+      }
     });
   }
 
-  // Sum products
+  // Process products with payment details
   if (products?.length) {
     products.forEach((product: any) => {
       totalDevido += Number(product.remaining_balance) || 0;
-      const status = product.status === 'overdue' ? '🔴' : '🟡';
-      activeContracts.push(`${status} ${product.product_name}: ${formatCurrency(product.remaining_balance)}`);
+      
+      // Find next/overdue payment for this product
+      const payments = productPayments.filter((p: any) => p.product_sale_id === product.id);
+      const overduePayment = payments.find((p: any) => p.due_date < today);
+      const nextPayment = payments.find((p: any) => p.due_date >= today);
+      
+      if (overduePayment) {
+        const daysOverdue = daysBetween(overduePayment.due_date, today);
+        activeContracts.push(
+          `🔴 *${product.product_name}* (${formatCurrency(product.total_amount)})\n` +
+          `   📋 Parcela ${overduePayment.installment_number}/${product.installments} em atraso\n` +
+          `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n` +
+          `   📅 Venceu: ${formatDate(overduePayment.due_date)} (${daysOverdue} dias)\n` +
+          `   ⏳ Saldo: ${formatCurrency(product.remaining_balance)}`
+        );
+      } else if (nextPayment) {
+        activeContracts.push(
+          `🟡 *${product.product_name}* (${formatCurrency(product.total_amount)})\n` +
+          `   📋 Parcela ${nextPayment.installment_number}/${product.installments}\n` +
+          `   📅 Próximo venc.: ${formatDate(nextPayment.due_date)}\n` +
+          `   ⏳ Saldo: ${formatCurrency(product.remaining_balance)}`
+        );
+      }
     });
   }
 
-  // Sum vehicles
+  // Process vehicles with payment details
   if (vehicles?.length) {
     vehicles.forEach((vehicle: any) => {
       totalDevido += Number(vehicle.remaining_balance) || 0;
-      const status = vehicle.status === 'overdue' ? '🔴' : '🟡';
-      activeContracts.push(`${status} ${vehicle.brand} ${vehicle.model}: ${formatCurrency(vehicle.remaining_balance)}`);
+      
+      // Find next/overdue payment for this vehicle
+      const payments = vehiclePayments.filter((p: any) => p.vehicle_id === vehicle.id);
+      const overduePayment = payments.find((p: any) => p.due_date < today);
+      const nextPayment = payments.find((p: any) => p.due_date >= today);
+      
+      if (overduePayment) {
+        const daysOverdue = daysBetween(overduePayment.due_date, today);
+        activeContracts.push(
+          `🔴 *${vehicle.brand} ${vehicle.model}* (${formatCurrency(vehicle.purchase_value)})\n` +
+          `   📋 Parcela ${overduePayment.installment_number}/${vehicle.installments} em atraso\n` +
+          `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n` +
+          `   📅 Venceu: ${formatDate(overduePayment.due_date)} (${daysOverdue} dias)\n` +
+          `   ⏳ Saldo: ${formatCurrency(vehicle.remaining_balance)}`
+        );
+      } else if (nextPayment) {
+        activeContracts.push(
+          `🟡 *${vehicle.brand} ${vehicle.model}* (${formatCurrency(vehicle.purchase_value)})\n` +
+          `   📋 Parcela ${nextPayment.installment_number}/${vehicle.installments}\n` +
+          `   📅 Próximo venc.: ${formatDate(nextPayment.due_date)}\n` +
+          `   ⏳ Saldo: ${formatCurrency(vehicle.remaining_balance)}`
+        );
+      }
     });
   }
 
@@ -335,7 +471,7 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
   let message = `📊 *Situação do Cliente*\n\n`;
   message += `👤 *${client.full_name}*\n`;
   message += `💰 Total devido: *${formatCurrency(totalDevido)}*\n\n`;
-  message += `📋 *Contratos ativos:*\n${activeContracts.join('\n')}`;
+  message += `📋 *Contratos:*\n\n${activeContracts.join('\n\n')}`;
 
   return message;
 }
@@ -346,7 +482,7 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     return '❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente. Ex: "Qual o contrato do João?"';
   }
 
-  // Get all contracts for this client
+  const today = new Date().toISOString().split('T')[0];
   const contracts: any[] = [];
 
   // Search loans
@@ -354,7 +490,7 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     .from('loans')
     .select(`
       id, principal_amount, interest_rate, total_interest, remaining_balance, 
-      status, due_date, start_date, installments, total_paid, payment_type,
+      status, due_date, start_date, installments, installment_dates, total_paid, payment_type, notes,
       clients!inner(full_name)
     `)
     .eq('user_id', userId)
@@ -379,14 +515,21 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     .ilike('client_name', `%${nomeCliente}%`);
 
   if (products?.length) {
-    products.forEach((product: any) => {
+    for (const product of products) {
+      // Get payments for this product
+      const { data: payments } = await supabase
+        .from('product_sale_payments')
+        .select('*')
+        .eq('product_sale_id', product.id)
+        .order('due_date');
+      
       contracts.push({
         type: 'produto',
         label: `Produto: ${product.product_name}`,
-        data: product,
+        data: { ...product, payments: payments || [] },
         clientName: product.client_name,
       });
-    });
+    }
   }
 
   // Search vehicles
@@ -397,14 +540,21 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     .ilike('buyer_name', `%${nomeCliente}%`);
 
   if (vehicles?.length) {
-    vehicles.forEach((vehicle: any) => {
+    for (const vehicle of vehicles) {
+      // Get payments for this vehicle
+      const { data: payments } = await supabase
+        .from('vehicle_payments')
+        .select('*')
+        .eq('vehicle_id', vehicle.id)
+        .order('due_date');
+      
       contracts.push({
         type: 'veiculo',
         label: `Veículo: ${vehicle.brand} ${vehicle.model}`,
-        data: vehicle,
+        data: { ...vehicle, payments: payments || [] },
         clientName: vehicle.buyer_name,
       });
-    });
+    }
   }
 
   if (contracts.length === 0) {
@@ -420,45 +570,108 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     }
   }
 
-  // If multiple contracts and no type specified, list them
+  // If multiple contracts and no type specified, list them with details
   if (filtered.length > 1 && !tipoContrato) {
-    let message = `🔍 *Múltiplos contratos encontrados*\n\n`;
-    message += `👤 *${filtered[0].clientName}*\n\n`;
+    let message = `🔍 *Múltiplos contratos de ${filtered[0].clientName}*\n\n`;
+    
     filtered.forEach((c, i) => {
-      const status = c.data.status === 'overdue' ? '🔴' : c.data.status === 'paid' ? '✅' : '🟡';
-      message += `${i + 1}. ${status} ${c.label} - ${formatCurrency(c.data.remaining_balance || 0)}\n`;
+      const d = c.data;
+      let status = '🟡';
+      let statusText = 'Pendente';
+      
+      if (c.type === 'emprestimo') {
+        const overdueInfo = calculateLoanOverdueInfo(d);
+        if (d.status === 'paid') {
+          status = '✅'; statusText = 'Pago';
+        } else if (overdueInfo) {
+          status = '🔴'; statusText = `Atraso (Parc. ${overdueInfo.installmentNumber})`;
+        }
+      } else {
+        const overduePayment = d.payments?.find((p: any) => p.due_date < today && p.status !== 'paid');
+        if (d.status === 'paid') {
+          status = '✅'; statusText = 'Pago';
+        } else if (overduePayment) {
+          status = '🔴'; statusText = `Atraso (Parc. ${overduePayment.installment_number})`;
+        }
+      }
+      
+      message += `${i + 1}. ${status} *${c.label}*\n`;
+      message += `   💰 Saldo: ${formatCurrency(d.remaining_balance || 0)}\n`;
+      message += `   📊 ${statusText}\n\n`;
     });
-    message += `\nDiga o tipo específico. Ex: "Me fala do empréstimo do ${nomeCliente}"`;
+    
+    message += `Diga o tipo específico. Ex: "Me fala do empréstimo do ${nomeCliente}"`;
     return message;
   }
 
   // Show details of single contract
   const contract = filtered[0];
   const d = contract.data;
-  const status = d.status === 'overdue' ? '🔴 Em Atraso' : d.status === 'paid' ? '✅ Pago' : '🟡 Pendente';
+  
+  let statusEmoji = '🟡';
+  let statusText = 'Pendente';
+  let overdueDetails = '';
+
+  if (contract.type === 'emprestimo') {
+    const overdueInfo = calculateLoanOverdueInfo(d);
+    if (d.status === 'paid') {
+      statusEmoji = '✅'; statusText = 'Pago';
+    } else if (overdueInfo) {
+      statusEmoji = '🔴'; 
+      statusText = 'Em Atraso';
+      overdueDetails = `\n🚨 *Parcela em atraso:* ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments}\n`;
+      overdueDetails += `   💰 Valor: ${formatCurrency(overdueInfo.installmentValue)}\n`;
+      overdueDetails += `   📅 Venceu: ${formatDate(overdueInfo.dueDate)}\n`;
+      overdueDetails += `   ⏰ ${overdueInfo.daysOverdue} dias de atraso`;
+    }
+  } else {
+    const overduePayment = d.payments?.find((p: any) => p.due_date < today && p.status !== 'paid');
+    if (d.status === 'paid') {
+      statusEmoji = '✅'; statusText = 'Pago';
+    } else if (overduePayment) {
+      statusEmoji = '🔴';
+      statusText = 'Em Atraso';
+      const daysOverdue = daysBetween(overduePayment.due_date, today);
+      overdueDetails = `\n🚨 *Parcela em atraso:* ${overduePayment.installment_number}/${d.installments}\n`;
+      overdueDetails += `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n`;
+      overdueDetails += `   📅 Venceu: ${formatDate(overduePayment.due_date)}\n`;
+      overdueDetails += `   ⏰ ${daysOverdue} dias de atraso`;
+    }
+  }
 
   let message = `📄 *Detalhes do Contrato*\n\n`;
   message += `👤 *${contract.clientName}*\n`;
   message += `📌 ${contract.label}\n`;
-  message += `📊 Status: ${status}\n\n`;
+  message += `${statusEmoji} Status: ${statusText}\n`;
+  message += overdueDetails;
+  message += `\n`;
 
   if (contract.type === 'emprestimo') {
     const totalContrato = Number(d.principal_amount) + Number(d.total_interest || 0);
+    const numInstallments = (d.installment_dates || [d.due_date]).length;
+    const paidCount = Math.floor((Number(d.total_paid) || 0) / (totalContrato / numInstallments));
+    
     message += `💵 Principal: ${formatCurrency(d.principal_amount)}\n`;
     message += `📈 Juros: ${d.interest_rate}% (${formatCurrency(d.total_interest || 0)})\n`;
-    message += `💰 Total do Contrato: ${formatCurrency(totalContrato)}\n`;
+    message += `💰 Total do Contrato: *${formatCurrency(totalContrato)}*\n`;
     message += `✅ Total Pago: ${formatCurrency(d.total_paid || 0)}\n`;
     message += `⏳ Saldo Restante: *${formatCurrency(d.remaining_balance)}*\n`;
-    message += `📅 Vencimento: ${formatDate(d.due_date)}\n`;
-    if (d.installments > 1) {
-      message += `🔢 Parcelas: ${d.installments}x\n`;
-    }
+    message += `🔢 Parcelas Pagas: ${paidCount}/${numInstallments}\n`;
+    message += `📅 Vencimento Final: ${formatDate(d.due_date)}`;
   } else {
-    message += `💰 Valor Total: ${formatCurrency(d.total_amount || d.purchase_value)}\n`;
+    const paidPayments = d.payments?.filter((p: any) => p.status === 'paid').length || 0;
+    const nextPayment = d.payments?.find((p: any) => p.status !== 'paid' && p.due_date >= today);
+    
+    message += `💰 Valor Total: *${formatCurrency(d.total_amount || d.purchase_value)}*\n`;
     message += `✅ Total Pago: ${formatCurrency(d.total_paid || 0)}\n`;
     message += `⏳ Saldo Restante: *${formatCurrency(d.remaining_balance)}*\n`;
-    if (d.installments) {
-      message += `🔢 Parcelas: ${d.installments}x\n`;
+    message += `🔢 Parcelas Pagas: ${paidPayments}/${d.installments}\n`;
+    
+    if (nextPayment) {
+      message += `\n📅 *Próxima Parcela:*\n`;
+      message += `   Parcela ${nextPayment.installment_number}/${d.installments}\n`;
+      message += `   Valor: ${formatCurrency(nextPayment.amount)}\n`;
+      message += `   Vencimento: ${formatDate(nextPayment.due_date)}`;
     }
   }
 
@@ -494,31 +707,38 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
 
   const vencimentos: any[] = [];
 
-  // Get loan installments due
+  // Get loan installments due (calculate dynamically)
   const { data: loans } = await supabase
     .from('loans')
     .select(`
       id, due_date, remaining_balance, installments, installment_dates, payment_type,
+      principal_amount, total_interest, total_paid,
       clients!inner(full_name)
     `)
     .eq('user_id', userId)
-    .eq('status', 'pending');
+    .neq('status', 'paid');
 
   if (loans?.length) {
     loans.forEach((loan: any) => {
-      const dates = loan.installment_dates || [loan.due_date];
-      dates.forEach((date: string, idx: number) => {
+      const dates: string[] = loan.installment_dates || [loan.due_date];
+      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      const installmentValue = totalContract / dates.length;
+      const paidInstallments = Math.floor((Number(loan.total_paid) || 0) / installmentValue);
+      
+      // Only check unpaid installments
+      for (let i = paidInstallments; i < dates.length; i++) {
+        const date = dates[i];
         if (date >= startStr && date <= endStr) {
-          const installmentValue = loan.remaining_balance / (dates.length - idx) || loan.remaining_balance;
           vencimentos.push({
             date,
             name: loan.clients?.full_name,
             type: 'Empréstimo',
             amount: installmentValue,
-            installment: `${idx + 1}/${dates.length}`,
+            installment: `${i + 1}/${dates.length}`,
+            balance: loan.remaining_balance,
           });
         }
-      });
+      }
     });
   }
 
@@ -527,7 +747,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
     .from('product_sale_payments')
     .select(`
       id, due_date, amount, installment_number,
-      product_sales!inner(client_name, product_name, installments)
+      product_sales!inner(client_name, product_name, installments, remaining_balance)
     `)
     .eq('user_id', userId)
     .eq('status', 'pending')
@@ -542,6 +762,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
         type: payment.product_sales?.product_name || 'Produto',
         amount: payment.amount,
         installment: `${payment.installment_number}/${payment.product_sales?.installments}`,
+        balance: payment.product_sales?.remaining_balance,
       });
     });
   }
@@ -551,7 +772,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
     .from('vehicle_payments')
     .select(`
       id, due_date, amount, installment_number,
-      vehicles!inner(buyer_name, brand, model, installments)
+      vehicles!inner(buyer_name, brand, model, installments, remaining_balance)
     `)
     .eq('user_id', userId)
     .eq('status', 'pending')
@@ -566,6 +787,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
         type: `${payment.vehicles?.brand} ${payment.vehicles?.model}`,
         amount: payment.amount,
         installment: `${payment.installment_number}/${payment.vehicles?.installments}`,
+        balance: payment.vehicles?.remaining_balance,
       });
     });
   }
@@ -582,65 +804,78 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
 
   vencimentos.forEach((v, i) => {
     message += `${i + 1}️⃣ *${v.name}*\n`;
-    message += `   ${v.type} (Parcela ${v.installment})\n`;
-    message += `   💰 ${formatCurrency(v.amount)} - 📅 ${formatDate(v.date)}\n\n`;
+    message += `   📋 ${v.type} (Parcela ${v.installment})\n`;
+    message += `   💰 Valor: ${formatCurrency(v.amount)}\n`;
+    message += `   📅 Vence: ${formatDate(v.date)}\n`;
+    message += `   ⏳ Saldo total: ${formatCurrency(v.balance)}\n\n`;
     total += v.amount;
   });
 
-  message += `💰 *Total: ${formatCurrency(total)}*\n`;
-  message += `📊 ${vencimentos.length} cobrança${vencimentos.length > 1 ? 's' : ''} pendente${vencimentos.length > 1 ? 's' : ''}`;
+  message += `━━━━━━━━━━━━━━━━\n`;
+  message += `💰 *Total a receber: ${formatCurrency(total)}*\n`;
+  message += `📊 ${vencimentos.length} cobrança${vencimentos.length > 1 ? 's' : ''}`;
 
   return message;
 }
 
-// CONSULTA_ATRASADOS: List overdue clients
+// CONSULTA_ATRASADOS: List overdue clients (DYNAMIC calculation)
 async function handleConsultaAtrasados(supabase: any, userId: string): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
   const atrasados: any[] = [];
 
-  // Get overdue loans
+  // Get ALL non-paid loans and calculate overdue dynamically
   const { data: loans } = await supabase
     .from('loans')
     .select(`
-      id, due_date, remaining_balance, notes,
+      id, due_date, remaining_balance, notes, principal_amount, total_interest, 
+      installment_dates, total_paid, installments,
       clients!inner(full_name)
     `)
     .eq('user_id', userId)
-    .eq('status', 'overdue');
+    .neq('status', 'paid');
 
   if (loans?.length) {
     loans.forEach((loan: any) => {
       // Skip historical contracts
       if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
       
-      const daysOverdue = Math.floor((new Date().getTime() - new Date(loan.due_date).getTime()) / (1000 * 60 * 60 * 24));
-      atrasados.push({
-        name: loan.clients?.full_name,
-        type: 'Empréstimo',
-        amount: loan.remaining_balance,
-        daysOverdue,
-      });
+      const overdueInfo = calculateLoanOverdueInfo(loan);
+      if (overdueInfo) {
+        atrasados.push({
+          name: loan.clients?.full_name,
+          type: 'Empréstimo',
+          installment: `${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments}`,
+          installmentValue: overdueInfo.installmentValue,
+          dueDate: overdueInfo.dueDate,
+          daysOverdue: overdueInfo.daysOverdue,
+          totalBalance: loan.remaining_balance,
+        });
+      }
     });
   }
 
-  // Get overdue product payments
+  // Get overdue product payments (status check + date check for pending)
   const { data: productPayments } = await supabase
     .from('product_sale_payments')
     .select(`
-      id, due_date, amount,
-      product_sales!inner(client_name, product_name)
+      id, due_date, amount, installment_number, status,
+      product_sales!inner(client_name, product_name, installments, remaining_balance)
     `)
     .eq('user_id', userId)
-    .eq('status', 'overdue');
+    .neq('status', 'paid')
+    .lt('due_date', today);
 
   if (productPayments?.length) {
     productPayments.forEach((payment: any) => {
-      const daysOverdue = Math.floor((new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = daysBetween(payment.due_date, today);
       atrasados.push({
         name: payment.product_sales?.client_name,
         type: payment.product_sales?.product_name || 'Produto',
-        amount: payment.amount,
+        installment: `${payment.installment_number}/${payment.product_sales?.installments}`,
+        installmentValue: payment.amount,
+        dueDate: payment.due_date,
         daysOverdue,
+        totalBalance: payment.product_sales?.remaining_balance,
       });
     });
   }
@@ -649,20 +884,24 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
   const { data: vehiclePayments } = await supabase
     .from('vehicle_payments')
     .select(`
-      id, due_date, amount,
-      vehicles!inner(buyer_name, brand, model)
+      id, due_date, amount, installment_number, status,
+      vehicles!inner(buyer_name, brand, model, installments, remaining_balance)
     `)
     .eq('user_id', userId)
-    .eq('status', 'overdue');
+    .neq('status', 'paid')
+    .lt('due_date', today);
 
   if (vehiclePayments?.length) {
     vehiclePayments.forEach((payment: any) => {
-      const daysOverdue = Math.floor((new Date().getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = daysBetween(payment.due_date, today);
       atrasados.push({
         name: payment.vehicles?.buyer_name,
         type: `${payment.vehicles?.brand} ${payment.vehicles?.model}`,
-        amount: payment.amount,
+        installment: `${payment.installment_number}/${payment.vehicles?.installments}`,
+        installmentValue: payment.amount,
+        dueDate: payment.due_date,
         daysOverdue,
+        totalBalance: payment.vehicles?.remaining_balance,
       });
     });
   }
@@ -671,66 +910,133 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
   atrasados.sort((a, b) => b.daysOverdue - a.daysOverdue);
 
   if (atrasados.length === 0) {
-    return `🚨 *Clientes em Atraso*\n\n✅ Nenhum cliente em atraso no momento!`;
+    return `🎉 *Clientes em Atraso*\n\n✅ Parabéns! Nenhum cliente em atraso no momento!`;
   }
 
   let message = `🚨 *Clientes em Atraso*\n\n`;
-  let total = 0;
+  let totalInstallments = 0;
+  let totalBalance = 0;
 
   atrasados.forEach((a, i) => {
     message += `${i + 1}️⃣ *${a.name}*\n`;
-    message += `   ${a.type}\n`;
-    message += `   💰 ${formatCurrency(a.amount)} - ⏰ ${a.daysOverdue} dia${a.daysOverdue > 1 ? 's' : ''} em atraso\n\n`;
-    total += a.amount;
+    message += `   📋 ${a.type}\n`;
+    message += `   🔴 Parcela ${a.installment} em atraso\n`;
+    message += `   💰 Valor parcela: ${formatCurrency(a.installmentValue)}\n`;
+    message += `   📅 Venceu: ${formatDate(a.dueDate)}\n`;
+    message += `   ⏰ ${a.daysOverdue} dia${a.daysOverdue > 1 ? 's' : ''} de atraso\n`;
+    message += `   ⏳ Saldo total: ${formatCurrency(a.totalBalance)}\n\n`;
+    totalInstallments += a.installmentValue;
+    totalBalance += a.totalBalance;
   });
 
-  message += `📊 *Total em atraso: ${formatCurrency(total)}*\n`;
-  message += `👥 ${atrasados.length} cliente${atrasados.length > 1 ? 's' : ''} inadimplente${atrasados.length > 1 ? 's' : ''}`;
+  message += `━━━━━━━━━━━━━━━━\n`;
+  message += `📊 *Resumo:*\n`;
+  message += `• ${atrasados.length} parcela${atrasados.length > 1 ? 's' : ''} em atraso\n`;
+  message += `• Valor das parcelas: ${formatCurrency(totalInstallments)}\n`;
+  message += `• Saldo total devido: ${formatCurrency(totalBalance)}`;
 
   return message;
 }
 
-// CONSULTA_RESUMO: General summary
+// CONSULTA_RESUMO: General summary (includes all contract types)
 async function handleConsultaResumo(supabase: any, userId: string): Promise<string> {
-  // Get active loans
+  const today = new Date().toISOString().split('T')[0];
+  
+  // === LOANS ===
   const { data: loans } = await supabase
     .from('loans')
-    .select('principal_amount, total_interest, remaining_balance, status, total_paid')
+    .select('id, principal_amount, total_interest, remaining_balance, status, total_paid, installment_dates, due_date, notes')
     .eq('user_id', userId)
     .neq('status', 'paid');
 
-  let capitalNaRua = 0;
-  let jurosAReceber = 0;
-  let totalRecebido = 0;
-  let emAtraso = 0;
+  let loanCapital = 0;
+  let loanInterest = 0;
+  let loanReceived = 0;
+  let loanOverdueCount = 0;
+  let loanOverdueAmount = 0;
+  let loanActiveCount = 0;
 
   if (loans?.length) {
     loans.forEach((loan: any) => {
-      capitalNaRua += Number(loan.principal_amount) || 0;
-      jurosAReceber += Number(loan.total_interest) || 0;
-      totalRecebido += Number(loan.total_paid) || 0;
-      if (loan.status === 'overdue') {
-        emAtraso += Number(loan.remaining_balance) || 0;
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
+      
+      loanActiveCount++;
+      loanCapital += Number(loan.principal_amount) || 0;
+      loanInterest += Number(loan.total_interest) || 0;
+      loanReceived += Number(loan.total_paid) || 0;
+      
+      const overdueInfo = calculateLoanOverdueInfo(loan);
+      if (overdueInfo) {
+        loanOverdueCount++;
+        loanOverdueAmount += Number(loan.remaining_balance) || 0;
       }
     });
   }
 
-  // Get today's due count
-  const today = new Date().toISOString().split('T')[0];
-  
-  const { count: vencimentosHoje } = await supabase
-    .from('loans')
-    .select('id', { count: 'exact', head: true })
+  // === PRODUCTS ===
+  const { data: products } = await supabase
+    .from('product_sales')
+    .select('id, total_amount, remaining_balance, total_paid, status')
     .eq('user_id', userId)
-    .eq('status', 'pending')
-    .eq('due_date', today);
+    .neq('status', 'paid');
 
-  // Get overdue count
-  const { count: atrasadosCount } = await supabase
-    .from('loans')
-    .select('id', { count: 'exact', head: true })
+  let productTotal = 0;
+  let productReceived = 0;
+  let productActiveCount = products?.length || 0;
+
+  if (products?.length) {
+    products.forEach((p: any) => {
+      productTotal += Number(p.total_amount) || 0;
+      productReceived += Number(p.total_paid) || 0;
+    });
+  }
+
+  // Get overdue product payments
+  const { data: overdueProductPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount')
     .eq('user_id', userId)
-    .eq('status', 'overdue');
+    .neq('status', 'paid')
+    .lt('due_date', today);
+
+  let productOverdueCount = overdueProductPayments?.length || 0;
+  let productOverdueAmount = overdueProductPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+
+  // === VEHICLES ===
+  const { data: vehicles } = await supabase
+    .from('vehicles')
+    .select('id, purchase_value, remaining_balance, total_paid, status')
+    .eq('user_id', userId)
+    .neq('status', 'paid');
+
+  let vehicleTotal = 0;
+  let vehicleReceived = 0;
+  let vehicleActiveCount = vehicles?.length || 0;
+
+  if (vehicles?.length) {
+    vehicles.forEach((v: any) => {
+      vehicleTotal += Number(v.purchase_value) || 0;
+      vehicleReceived += Number(v.total_paid) || 0;
+    });
+  }
+
+  // Get overdue vehicle payments
+  const { data: overdueVehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .neq('status', 'paid')
+    .lt('due_date', today);
+
+  let vehicleOverdueCount = overdueVehiclePayments?.length || 0;
+  let vehicleOverdueAmount = overdueVehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+
+  // === TOTALS ===
+  const totalCapital = loanCapital + productTotal + vehicleTotal;
+  const totalReceived = loanReceived + productReceived + vehicleReceived;
+  const totalOverdueCount = loanOverdueCount + productOverdueCount + vehicleOverdueCount;
+  const totalOverdueAmount = loanOverdueAmount + productOverdueAmount + vehicleOverdueAmount;
+  const totalActiveContracts = loanActiveCount + productActiveCount + vehicleActiveCount;
 
   // Get active clients count
   const { count: clientesAtivos } = await supabase
@@ -739,15 +1045,27 @@ async function handleConsultaResumo(supabase: any, userId: string): Promise<stri
     .eq('user_id', userId);
 
   let message = `📊 *Resumo da Operação*\n\n`;
-  message += `💰 Capital na rua: *${formatCurrency(capitalNaRua)}*\n`;
-  message += `📈 Juros a receber: *${formatCurrency(jurosAReceber)}*\n`;
-  message += `✅ Total recebido: *${formatCurrency(totalRecebido)}*\n\n`;
   
-  message += `📅 *Hoje:*\n`;
-  message += `• ${vencimentosHoje || 0} vencimento${(vencimentosHoje || 0) !== 1 ? 's' : ''}\n`;
-  message += `• ${atrasadosCount || 0} em atraso (${formatCurrency(emAtraso)})\n\n`;
+  message += `💰 *Valores Gerais:*\n`;
+  message += `• Capital na rua: *${formatCurrency(totalCapital)}*\n`;
+  message += `• Juros a receber: *${formatCurrency(loanInterest)}*\n`;
+  message += `• Total recebido: *${formatCurrency(totalReceived)}*\n\n`;
   
-  message += `👥 ${clientesAtivos || 0} cliente${(clientesAtivos || 0) !== 1 ? 's' : ''} ativo${(clientesAtivos || 0) !== 1 ? 's' : ''}`;
+  message += `📋 *Contratos Ativos:*\n`;
+  message += `• Empréstimos: ${loanActiveCount} (${formatCurrency(loanCapital + loanInterest)})\n`;
+  message += `• Produtos: ${productActiveCount} (${formatCurrency(productTotal)})\n`;
+  message += `• Veículos: ${vehicleActiveCount} (${formatCurrency(vehicleTotal)})\n`;
+  message += `• *Total: ${totalActiveContracts} contratos*\n\n`;
+  
+  if (totalOverdueCount > 0) {
+    message += `🚨 *Em Atraso:*\n`;
+    message += `• ${totalOverdueCount} parcela${totalOverdueCount > 1 ? 's' : ''} atrasada${totalOverdueCount > 1 ? 's' : ''}\n`;
+    message += `• Valor: ${formatCurrency(totalOverdueAmount)}\n\n`;
+  } else {
+    message += `✅ *Nenhum atraso!*\n\n`;
+  }
+  
+  message += `👥 ${clientesAtivos || 0} cliente${(clientesAtivos || 0) !== 1 ? 's' : ''} cadastrado${(clientesAtivos || 0) !== 1 ? 's' : ''}`;
 
   return message;
 }
