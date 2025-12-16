@@ -30,7 +30,9 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -42,7 +44,7 @@ import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
 export default function Vehicles() {
   const { vehicles, isLoading: loading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
-  const { payments: vehiclePaymentsList, markAsPaid: markVehiclePaymentAsPaid } = useVehiclePayments();
+  const { payments: vehiclePaymentsList, markAsPaidFlexible } = useVehiclePayments();
   const { profile } = useProfile();
 
   // Search
@@ -63,6 +65,8 @@ export default function Vehicles() {
     payment: { id: string; amount: number; installment_number: number; due_date: string };
     vehicle: Vehicle;
   } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentDate, setPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -114,22 +118,31 @@ export default function Vehicles() {
   // Open vehicle payment dialog
   const openVehiclePaymentDialog = (payment: { id: string; amount: number; installment_number: number; due_date: string }, vehicle: Vehicle) => {
     setSelectedVehiclePaymentData({ paymentId: payment.id, vehicleId: vehicle.id, payment, vehicle });
+    setPaymentAmount(payment.amount);
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd'));
     setVehiclePaymentDialogOpen(true);
   };
 
-  // Confirm vehicle payment with receipt prompt
+
+  // Confirm vehicle payment with receipt prompt (flexible)
   const confirmVehiclePaymentWithReceipt = async () => {
     if (!selectedVehiclePaymentData) return;
     
     const { paymentId, vehicleId, payment, vehicle } = selectedVehiclePaymentData;
     
-    await markVehiclePaymentAsPaid.mutateAsync({ paymentId, vehicleId });
+    await markAsPaidFlexible.mutateAsync({ 
+      paymentId, 
+      vehicleId,
+      paidDate: paymentDate,
+      paidAmount: paymentAmount,
+      originalAmount: payment.amount,
+    });
     
     setVehiclePaymentDialogOpen(false);
     setSelectedVehiclePaymentData(null);
     
     // Show payment receipt prompt
-    const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
+    const newRemainingBalance = Math.max(0, vehicle.remaining_balance - paymentAmount);
     setPaymentClientPhone(vehicle.buyer_phone || null);
     setPaymentReceiptData({
       type: 'vehicle',
@@ -138,10 +151,10 @@ export default function Vehicles() {
       clientName: vehicle.buyer_name || vehicle.seller_name,
       installmentNumber: payment.installment_number,
       totalInstallments: vehicle.installments,
-      amountPaid: payment.amount,
-      paymentDate: format(new Date(), 'yyyy-MM-dd'),
+      amountPaid: paymentAmount,
+      paymentDate: paymentDate,
       remainingBalance: newRemainingBalance,
-      totalPaid: (vehicle.total_paid || 0) + payment.amount,
+      totalPaid: (vehicle.total_paid || 0) + paymentAmount,
     });
     setIsPaymentReceiptOpen(true);
   };
@@ -510,10 +523,69 @@ export default function Vehicles() {
                     <span className="text-muted-foreground">Vencimento:</span>
                     <span className="font-medium">{format(parseISO(selectedVehiclePaymentData.payment.due_date), "dd/MM/yyyy")}</span>
                   </div>
-                  <div className="flex justify-between text-lg pt-2 border-t">
-                    <span className="text-muted-foreground">Valor:</span>
-                    <span className="font-bold text-primary">{formatCurrency(selectedVehiclePaymentData.payment.amount)}</span>
+                  <div className="flex justify-between text-sm pt-2 border-t">
+                    <span className="text-muted-foreground">Valor Esperado:</span>
+                    <span className="font-medium">{formatCurrency(selectedVehiclePaymentData.payment.amount)}</span>
                   </div>
+                </div>
+
+                {/* Editable Payment Amount */}
+                <div className="space-y-2">
+                  <Label htmlFor="paymentAmount">Valor Pago (R$)</Label>
+                  <Input
+                    id="paymentAmount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    className="text-lg font-semibold"
+                  />
+                </div>
+
+                {/* Underpayment Warning */}
+                {paymentAmount < selectedVehiclePaymentData.payment.amount && paymentAmount > 0 && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-600">Pagamento Parcial</p>
+                      <p className="text-muted-foreground">
+                        Será criada uma nova parcela de{' '}
+                        <span className="font-semibold text-amber-600">
+                          {formatCurrency(selectedVehiclePaymentData.payment.amount - paymentAmount)}
+                        </span>{' '}
+                        para o valor restante.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Overpayment Notice */}
+                {paymentAmount > selectedVehiclePaymentData.payment.amount && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                    <TrendingUp className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-emerald-600">Pagamento a Mais</p>
+                      <p className="text-muted-foreground">
+                        O excedente de{' '}
+                        <span className="font-semibold text-emerald-600">
+                          {formatCurrency(paymentAmount - selectedVehiclePaymentData.payment.amount)}
+                        </span>{' '}
+                        será abatido do saldo total.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Date */}
+                <div className="space-y-2">
+                  <Label htmlFor="paymentDate">Data do Pagamento</Label>
+                  <Input
+                    id="paymentDate"
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
                 </div>
               </div>
             )}
@@ -522,8 +594,12 @@ export default function Vehicles() {
               <Button variant="outline" onClick={() => setVehiclePaymentDialogOpen(false)} className="flex-1">
                 Cancelar
               </Button>
-              <Button onClick={confirmVehiclePaymentWithReceipt} disabled={markVehiclePaymentAsPaid.isPending} className="flex-1">
-                {markVehiclePaymentAsPaid.isPending ? 'Processando...' : 'Confirmar Pagamento'}
+              <Button 
+                onClick={confirmVehiclePaymentWithReceipt} 
+                disabled={markAsPaidFlexible.isPending || paymentAmount <= 0} 
+                className="flex-1"
+              >
+                {markAsPaidFlexible.isPending ? 'Processando...' : 'Confirmar Pagamento'}
               </Button>
             </div>
           </DialogContent>
