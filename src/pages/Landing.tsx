@@ -32,8 +32,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import VideoCarousel from "@/components/VideoCarousel";
 import PricingSection from "@/components/PricingSection";
+import { 
+  Car, 
+  Home, 
+  Package, 
+  Receipt, 
+  Send, 
+  QrCode,
+  CircleDollarSign,
+  ClipboardList,
+  PieChart
+} from "lucide-react";
 import heroPerson from "@/assets/hero-person.png";
 import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
 import dashboardOverview from "@/assets/dashboard-overview.png";
@@ -391,6 +401,91 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Overview Geral de Funcionalidades */}
+      <section className="py-16 px-4 relative bg-muted/30">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="container mx-auto relative">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <Sparkles className="w-4 h-4" />
+              <span>Sistema Completo</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Tudo que Você Precisa para <span className="gradient-text">Cobrar Melhor</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Uma visão geral de todas as funcionalidades do CobraFácil
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={staggerContainer}
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto"
+          >
+            {[
+              { icon: BarChart3, title: "Dashboard Inteligente", description: "Visão geral em tempo real", badge: null },
+              { icon: Calculator, title: "Cálculo de Juros", description: "Simples ou por parcela", badge: null },
+              { icon: MessageCircle, title: "Alertas WhatsApp", description: "Receba no seu WhatsApp", badge: null },
+              { icon: Send, title: "Cobranças p/ Clientes", description: "Envie direto pelo WhatsApp", badge: "🆕 NOVO" },
+              { icon: QrCode, title: "Conexão QR Code", description: "Conecte em segundos", badge: "🆕 NOVO" },
+              { icon: Calendar, title: "Calendário", description: "Visualize vencimentos", badge: null },
+              { icon: Users, title: "Score de Clientes", description: "Avalie confiabilidade", badge: null },
+              { icon: CircleDollarSign, title: "Simulador", description: "Planeje empréstimos", badge: null },
+              { icon: Receipt, title: "Comprovantes PDF", description: "Gere recibos profissionais", badge: null },
+              { icon: ClipboardList, title: "Contas a Pagar", description: "Controle suas despesas", badge: null },
+              { icon: Package, title: "Venda de Produtos", description: "Parcele vendas", badge: null },
+              { icon: Car, title: "Venda de Veículos", description: "Controle financiamentos", badge: null },
+              { icon: Home, title: "Aluguéis", description: "Gerencie inquilinos", badge: null },
+              { icon: PieChart, title: "Relatórios", description: "Métricas detalhadas", badge: null },
+              { icon: FileText, title: "Contratos", description: "Organize documentos", badge: null },
+              { icon: Shield, title: "Dados Seguros", description: "Criptografia de ponta", badge: null },
+            ].map((item, index) => (
+              <motion.div key={index} variants={fadeInUp}>
+                <div className="stat-card rounded-xl p-4 h-full hover:scale-105 transition-all duration-300 relative">
+                  {item.badge && (
+                    <span className="absolute -top-2 -right-2 bg-gradient-to-r from-primary to-green-600 text-primary-foreground text-[10px] font-bold px-2 py-1 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center mb-3">
+                    <item.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-sm text-foreground mb-1">{item.title}</h3>
+                  <p className="text-muted-foreground text-xs">{item.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mt-10"
+          >
+            <Button 
+              size="lg" 
+              className="text-sm sm:text-lg px-6 sm:px-10 h-12 sm:h-14 shadow-glow font-bold bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary transition-all duration-300"
+              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              <Zap className="w-5 h-5 mr-2" />
+              Ver Planos e Preços
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Garantia Section */}
       <section className="py-8 px-4 relative">
         <div className="container mx-auto">
@@ -679,31 +774,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="py-24 px-4 relative">
-        <div className="container mx-auto">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={fadeInUp}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">
-              Depoimentos
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
-              O que nossos clientes dizem
-            </h2>
-            <p className="text-muted-foreground">Conheça quem já usa o CobraFácil</p>
-          </motion.div>
-          
-          <VideoCarousel />
-        </div>
-      </section>
-
-      {/* Pricing Section 2 - After Testimonials */}
+      {/* Pricing Section 2 - After Multi-Device */}
       <PricingSection showTitle={false} />
 
       {/* Detailed Features Section */}
