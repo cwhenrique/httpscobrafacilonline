@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { format } from 'date-fns';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useClients } from '@/hooks/useClients';
@@ -107,7 +108,7 @@ export default function Loans() {
     notes: '',
     interest_only_paid: false,
     interest_amount_paid: '',
-    interest_payment_date: new Date().toISOString().split('T')[0], // Data do pagamento de juros
+    interest_payment_date: format(new Date(), 'yyyy-MM-dd'), // Data do pagamento de juros
     send_interest_notification: false,
     renewal_fee_enabled: false,
     renewal_fee_percentage: '20',
@@ -222,7 +223,7 @@ export default function Loans() {
             if (date.getDate() !== startDay) {
               date.setDate(0);
             }
-            newDates.push(date.toISOString().split('T')[0]);
+            newDates.push(format(date, 'yyyy-MM-dd'));
           }
         }
         
@@ -435,8 +436,8 @@ export default function Loans() {
     interest_mode: 'per_installment' as 'per_installment' | 'on_total',
     payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
-    contract_date: new Date().toISOString().split('T')[0],
-    start_date: new Date().toISOString().split('T')[0],
+    contract_date: format(new Date(), 'yyyy-MM-dd'),
+    start_date: format(new Date(), 'yyyy-MM-dd'),
     due_date: '',
     notes: '',
     daily_amount: '',
@@ -541,7 +542,7 @@ export default function Loans() {
 
   const [paymentData, setPaymentData] = useState({
     amount: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: format(new Date(), 'yyyy-MM-dd'),
     new_due_date: '', // Nova data de vencimento (opcional)
     payment_type: 'partial' as 'partial' | 'total' | 'installment',
     selected_installments: [] as number[],
@@ -569,7 +570,7 @@ export default function Loans() {
           date.setDate(0);
         }
         
-        newDates.push(date.toISOString().split('T')[0]);
+        newDates.push(format(date, 'yyyy-MM-dd'));
       }
       
       setInstallmentDates(newDates);
@@ -591,7 +592,7 @@ export default function Loans() {
         const date = new Date(startDate);
         // Add weeks (7 days) for each installment
         date.setDate(date.getDate() + (i * 7));
-        newDates.push(date.toISOString().split('T')[0]);
+        newDates.push(format(date, 'yyyy-MM-dd'));
       }
       
       setInstallmentDates(newDates);
@@ -1270,15 +1271,15 @@ export default function Loans() {
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: new Date().toISOString().split('T')[0], new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
+    setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false });
   };
 
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
       interest_mode: 'per_installment', payment_type: 'single', installments: '1', 
-      contract_date: new Date().toISOString().split('T')[0],
-      start_date: new Date().toISOString().split('T')[0], due_date: '', notes: '',
+      contract_date: format(new Date(), 'yyyy-MM-dd'),
+      start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
       daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: false,
     });
     setInstallmentDates([]);
@@ -1335,14 +1336,14 @@ export default function Loans() {
     today.setDate(today.getDate() + (loan.payment_type === 'weekly' ? 7 : 30));
     setRenegotiateData({
       promised_amount: '',
-      promised_date: today.toISOString().split('T')[0],
+      promised_date: format(today, 'yyyy-MM-dd'),
       // Aqui usamos o remaining para renegociação normal, mas o modal vai usar
       // remainingForInterestOnly quando "só juros" estiver marcado
       remaining_amount: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
       notes: loan.notes || '',
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
-      interest_payment_date: new Date().toISOString().split('T')[0], // Data do pagamento de juros
+      interest_payment_date: format(new Date(), 'yyyy-MM-dd'), // Data do pagamento de juros
       send_interest_notification: true,
       renewal_fee_enabled: false,
       renewal_fee_percentage: '20',
@@ -1386,7 +1387,7 @@ export default function Loans() {
       dueDates: (loan.installment_dates as string[]) || [loan.due_date],
       interestOnlyPayment: interestOnlyPayment ? {
         amountPaid: interestOnlyPayment.amountPaid,
-        paymentDate: new Date().toISOString().split('T')[0],
+        paymentDate: format(new Date(), 'yyyy-MM-dd'),
         remainingBalance: interestOnlyPayment.remainingBalance,
       } : undefined,
     };
@@ -1436,7 +1437,7 @@ export default function Loans() {
         amount: interestPaid,
         principal_paid: 0, // Nunca reduz principal neste fluxo
         interest_paid: interestPaid,
-        payment_date: renegotiateData.interest_payment_date || new Date().toISOString().split('T')[0],
+        payment_date: renegotiateData.interest_payment_date || format(new Date(), 'yyyy-MM-dd'),
         notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
         send_notification: renegotiateData.send_interest_notification,
       });
@@ -1568,7 +1569,7 @@ export default function Loans() {
         installmentNumber: getPaidInstallmentsCount(loan) + 1,
         totalInstallments: loan.installments || 1,
         amountPaid: interestPaid,
-        paymentDate: renegotiateData.interest_payment_date || new Date().toISOString().split('T')[0],
+        paymentDate: renegotiateData.interest_payment_date || format(new Date(), 'yyyy-MM-dd'),
         remainingBalance: safeRemaining,
         totalPaid: (loan.total_paid || 0) + interestPaid,
       });
@@ -1769,8 +1770,8 @@ export default function Loans() {
       interest_mode: loan.interest_mode || 'per_installment',
       payment_type: loan.payment_type,
       installments: (loan.installments || 1).toString(),
-      contract_date: new Date().toISOString().split('T')[0], // New contract date for renegotiation
-      start_date: new Date().toISOString().split('T')[0],
+      contract_date: format(new Date(), 'yyyy-MM-dd'), // New contract date for renegotiation
+      start_date: format(new Date(), 'yyyy-MM-dd'),
       due_date: loan.due_date,
       notes: cleanNotes,
       daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
@@ -1793,7 +1794,7 @@ export default function Loans() {
       for (let i = 0; i < numInst; i++) {
         const date = new Date(startDate);
         date.setMonth(date.getMonth() + i);
-        newDates.push(date.toISOString().split('T')[0]);
+        newDates.push(format(date, 'yyyy-MM-dd'));
       }
       setEditInstallmentDates(newDates);
     } else {
@@ -1863,7 +1864,7 @@ export default function Loans() {
 [ORIGINAL_TOTAL_INTEREST:${editHistoricalData.originalTotalInterest.toFixed(2)}]
 [HISTORICAL_PAID:${editHistoricalData.totalPaid.toFixed(2)}]
 [HISTORICAL_INTEREST_PAID:${editHistoricalData.realizedProfit.toFixed(2)}]
-[RENEGOTIATION_DATE:${new Date().toISOString().split('T')[0]}]`;
+[RENEGOTIATION_DATE:${format(new Date(), 'yyyy-MM-dd')}]`;
       
       finalNotes = `${renegotiationTags}\n${cleanNotes}`.trim();
     }
@@ -2196,7 +2197,7 @@ export default function Loans() {
                         selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
                         onSelect={(dates) => {
                           if (dates) {
-                            const sortedDates = dates.map(d => d.toISOString().split('T')[0]).sort();
+                            const sortedDates = dates.map(d => format(d, 'yyyy-MM-dd')).sort();
                             setInstallmentDates(sortedDates);
                             if (sortedDates.length > 0) {
                               setFormData(prev => ({
@@ -2608,7 +2609,7 @@ export default function Loans() {
                         onSelect={(dates) => {
                           if (dates) {
                             const sortedDates = dates
-                              .map(d => d.toISOString().split('T')[0])
+                              .map(d => format(d, 'yyyy-MM-dd'))
                               .sort();
                             setInstallmentDates(sortedDates);
                             if (sortedDates.length > 0) {
@@ -3429,16 +3430,16 @@ export default function Loans() {
                                     if (dates.length > 0 && paidCount < dates.length) {
                                       const currentInstallmentDate = new Date(dates[paidCount] + 'T12:00:00');
                                       currentInstallmentDate.setMonth(currentInstallmentDate.getMonth() + 1);
-                                      defaultNextDueDate = currentInstallmentDate.toISOString().split('T')[0];
+                                      defaultNextDueDate = format(currentInstallmentDate, 'yyyy-MM-dd');
                                     } else if (loan.due_date) {
                                       const dueDate = new Date(loan.due_date + 'T12:00:00');
                                       dueDate.setMonth(dueDate.getMonth() + 1);
-                                      defaultNextDueDate = dueDate.toISOString().split('T')[0];
+                                      defaultNextDueDate = format(dueDate, 'yyyy-MM-dd');
                                     }
                                     
                                     setPaymentData({ 
                                       amount: '', 
-                                      payment_date: new Date().toISOString().split('T')[0],
+                                      payment_date: format(new Date(), 'yyyy-MM-dd'),
                                       new_due_date: defaultNextDueDate,
                                       payment_type: 'partial', 
                                       selected_installments: [], 
@@ -4532,7 +4533,7 @@ export default function Loans() {
                         selected={editInstallmentDates.map(d => new Date(d + 'T12:00:00'))}
                         onSelect={(dates) => {
                           if (dates) {
-                            const sortedDates = dates.map(d => d.toISOString().split('T')[0]).sort();
+                            const sortedDates = dates.map(d => format(d, 'yyyy-MM-dd')).sort();
                             setEditInstallmentDates(sortedDates);
                             if (sortedDates.length > 0) {
                               setEditFormData(prev => ({
@@ -4887,7 +4888,7 @@ export default function Loans() {
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button variant="outline" size="sm" className="h-7 text-xs">
-                                    {editingPaymentDate ? formatDate(editingPaymentDate.toISOString().split('T')[0]) : formatDate(payment.payment_date)}
+                                    {editingPaymentDate ? formatDate(format(editingPaymentDate, 'yyyy-MM-dd')) : formatDate(payment.payment_date)}
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -4928,7 +4929,7 @@ export default function Loans() {
                                     className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                                     onClick={async () => {
                                       if (editingPaymentDate && paymentHistoryLoanId) {
-                                        const dateStr = editingPaymentDate.toISOString().split('T')[0];
+                                        const dateStr = format(editingPaymentDate, 'yyyy-MM-dd');
                                         await updatePaymentDate(payment.id, dateStr);
                                         setEditingPaymentId(null);
                                         setEditingPaymentDate(undefined);
