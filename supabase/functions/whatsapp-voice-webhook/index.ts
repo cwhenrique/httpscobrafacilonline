@@ -62,68 +62,47 @@ serve(async (req) => {
     const senderPhone = remoteJid.split('@')[0];
     console.log('📞 Sender phone:', senderPhone);
 
-    // Get instance name from webhook
-    const instanceName = body.instance || messageData.instance;
-    if (!instanceName) {
-      console.log('❌ No instance name found');
-      return new Response(JSON.stringify({ error: 'No instance name found' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log('🔊 Instance:', instanceName);
-
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find user by instance name (cf_<userId>)
-    const userId = instanceName.replace('cf_', '');
+    // Find user by phone number (match last 8-9 digits to handle country code variations)
+    const phoneDigits = senderPhone.replace(/\D/g, '');
+    const last9 = phoneDigits.slice(-9);
+    const last8 = phoneDigits.slice(-8);
     
+    console.log('🔍 Searching for user with phone ending in:', last9, 'or', last8);
+
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, voice_assistant_enabled, is_active, whatsapp_connected_phone')
-      .eq('id', userId)
-      .single();
+      .select('id, phone, voice_assistant_enabled, is_active')
+      .eq('is_active', true)
+      .eq('voice_assistant_enabled', true)
+      .or(`phone.ilike.%${last9}%,phone.ilike.%${last8}%`)
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      console.log('❌ User not found for instance:', instanceName);
-      return new Response(JSON.stringify({ error: 'User not found' }), {
-        status: 404,
+    if (profileError) {
+      console.error('❌ Error searching for user:', profileError);
+      return new Response(JSON.stringify({ status: 'ignored', reason: 'database error' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Check if user has voice assistant enabled
-    if (!profile.voice_assistant_enabled) {
-      console.log('⏭️ Voice assistant not enabled for user:', userId);
-      return new Response(JSON.stringify({ status: 'ignored', reason: 'voice assistant disabled' }), {
+    // If no profile found, silently ignore - sender is not a registered user
+    if (!profile) {
+      console.log('⏭️ Sender not a registered user or voice assistant disabled. Phone:', senderPhone);
+      return new Response(JSON.stringify({ status: 'ignored', reason: 'not a registered user' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Check if user is active
-    if (!profile.is_active) {
-      console.log('⏭️ User account inactive:', userId);
-      return new Response(JSON.stringify({ status: 'ignored', reason: 'inactive account' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    console.log('✅ Found user:', profile.id, 'phone:', profile.phone);
 
-    // Verify the sender is the connected phone (security check)
-    const connectedPhone = profile.whatsapp_connected_phone?.replace(/\D/g, '');
-    if (connectedPhone && senderPhone !== connectedPhone) {
-      console.log('⏭️ Message not from connected phone:', senderPhone, 'vs', connectedPhone);
-      return new Response(JSON.stringify({ status: 'ignored', reason: 'not from connected phone' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Get audio in base64 from Evolution API
+    // Get global Evolution API credentials
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+    const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')!;
 
     const messageId = key?.id || messageData.key?.id;
     if (!messageId) {
@@ -134,9 +113,9 @@ serve(async (req) => {
       });
     }
 
-    console.log('🔄 Fetching audio from Evolution API...');
+    console.log('🔄 Fetching audio from Evolution API using instance:', instanceName);
     
-    // Get base64 audio from Evolution API
+    // Get base64 audio from Evolution API using central instance
     const mediaResponse = await fetch(
       `${evolutionApiUrl}/chat/getBase64FromMediaMessage/${instanceName}`,
       {
@@ -204,15 +183,14 @@ serve(async (req) => {
     }
 
     // Call process-voice-query function
-    console.log('🚀 Calling process-voice-query...');
+    console.log('🚀 Calling process-voice-query for user:', profile.id);
     
     const { data: queryResult, error: queryError } = await supabase.functions.invoke('process-voice-query', {
       body: {
-        userId: userId,
+        userId: profile.id,
         audioBase64: audioBase64,
         mimeType: mimeType,
         senderPhone: senderPhone,
-        instanceName: instanceName,
       },
     });
 
