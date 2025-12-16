@@ -28,6 +28,7 @@ import {
   BarChart3,
   MessageCircle,
   X,
+  Percent,
   Check,
   Sparkles,
 } from "lucide-react";
@@ -334,8 +335,12 @@ const Landing = () => {
             animate="visible"
             variants={fadeInUp}
             transition={{ duration: 0.6, delay: 0.4 }}
-            className="grid grid-cols-3 sm:flex sm:flex-wrap sm:justify-center gap-2 sm:gap-4 mt-8 text-xs sm:text-sm px-4 max-w-sm sm:max-w-none mx-auto"
+            className="grid grid-cols-2 sm:flex sm:flex-wrap sm:justify-center gap-2 sm:gap-4 mt-8 text-xs sm:text-sm px-4 max-w-md sm:max-w-none mx-auto"
           >
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center border-2 border-primary/50">
+              <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Empréstimos a Juros</span>
+            </div>
             <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
               <span className="font-medium text-foreground text-[10px] sm:text-sm">Vitalício</span>
