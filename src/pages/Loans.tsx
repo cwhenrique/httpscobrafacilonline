@@ -88,11 +88,18 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   
   const partialPayments = getPartialPaymentsFromNotes(loan.notes);
   
+  // Extrair sub-parcelas de adiantamento - se houver sub-parcela pendente para um índice, 
+  // essa parcela NÃO deve ser considerada como totalmente paga
+  const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+  const hasSubparcelaForIndex = (index: number) => 
+    advanceSubparcelas.some(s => s.originalIndex === index);
+  
   let paidCount = 0;
   for (let i = 0; i < numInstallments; i++) {
     const installmentValue = getInstallmentValue(i);
     const paidAmount = partialPayments[i] || 0;
-    if (paidAmount >= installmentValue * 0.99) { // 99% tolerance for rounding
+    // Parcela só é considerada paga se: valor pago >= 99% E não tem sub-parcela pendente
+    if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
       paidCount++;
     } else {
       break; // Para no primeiro não pago
@@ -1132,8 +1139,23 @@ export default function Loans() {
     let targetInstallmentIndex = 0;
     let accumulatedPaid = 0;
     
-    // Se o usuário selecionou uma parcela específica, usar ela
-    if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null) {
+    // Verificar se é pagamento de sub-parcela de adiantamento (índice negativo)
+    const isAdvanceSubparcelaPayment = paymentData.payment_type === 'partial' && 
+      paymentData.partial_installment_index !== null && 
+      paymentData.partial_installment_index < 0;
+    
+    let targetSubparcela: { originalIndex: number; amount: number; dueDate: string } | null = null;
+    
+    if (isAdvanceSubparcelaPayment) {
+      // Pagamento de sub-parcela de adiantamento
+      const subIdx = Math.abs(paymentData.partial_installment_index!) - 1;
+      const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
+      targetSubparcela = advanceSubparcelas[subIdx] || null;
+      if (targetSubparcela) {
+        targetInstallmentIndex = targetSubparcela.originalIndex;
+      }
+    } else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null) {
+      // Se o usuário selecionou uma parcela específica, usar ela
       targetInstallmentIndex = paymentData.partial_installment_index;
       accumulatedPaid = existingPartials[targetInstallmentIndex] || 0;
     } else {
@@ -1177,6 +1199,33 @@ export default function Loans() {
           updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
         }
       }
+    } else if (isAdvanceSubparcelaPayment && targetSubparcela) {
+      // Pagamento de sub-parcela de adiantamento
+      amount = parseFloat(paymentData.amount) || targetSubparcela.amount;
+      
+      // Remover a tag da sub-parcela específica
+      const subparcelaRegex = new RegExp(
+        `\\[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${targetSubparcela.amount.toFixed(2)}:${targetSubparcela.dueDate}\\]`,
+        'g'
+      );
+      updatedNotes = updatedNotes.replace(subparcelaRegex, '');
+      
+      // Se o valor pago for menor que a sub-parcela, criar nova sub-parcela com restante
+      if (amount < targetSubparcela.amount - 0.01) {
+        const newRemainder = targetSubparcela.amount - amount;
+        updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${targetSubparcela.dueDate}]`;
+        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) - Pagamento parcial. Restante: ${formatCurrency(newRemainder)}`;
+      } else {
+        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) quitada`;
+      }
+      
+      // Calcular juros e principal proporcionalmente
+      const totalContract = selectedLoan.principal_amount + (selectedLoan.interest_mode === 'on_total' 
+        ? selectedLoan.principal_amount * (selectedLoan.interest_rate / 100)
+        : selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments);
+      const interestRatio = (totalContract - selectedLoan.principal_amount) / totalContract;
+      interest_paid = amount * interestRatio;
+      principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'partial') {
       // Pagamento parcial - atualizar tracking da parcela selecionada
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
@@ -3926,24 +3975,46 @@ export default function Loans() {
                       }
                     }
                     
-                    // Definir parcela selecionada (primeira não paga por padrão)
-                    const selectedPartialIndex = paymentData.partial_installment_index ?? (unpaidInstallments[0]?.index ?? 0);
-                    const selectedStatus = getInstallmentStatusPartial(selectedPartialIndex);
+                    // Extrair sub-parcelas de adiantamento pendentes
+                    const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
+                    
+                    // Definir parcela selecionada (primeira não paga ou primeira sub-parcela por padrão)
+                    const selectedPartialIndex = paymentData.partial_installment_index ?? (unpaidInstallments[0]?.index ?? (advanceSubparcelas.length > 0 ? -1 : 0));
+                    
+                    // Se selecionou uma sub-parcela (índice negativo = -1 - subIndex)
+                    const isAdvanceSubparcelaSelected = selectedPartialIndex !== null && String(selectedPartialIndex).startsWith('-');
+                    const selectedSubparcelaIdx = isAdvanceSubparcelaSelected ? Math.abs(selectedPartialIndex) - 1 : -1;
+                    const selectedSubparcela = selectedSubparcelaIdx >= 0 ? advanceSubparcelas[selectedSubparcelaIdx] : null;
+                    
+                    const selectedStatus = selectedSubparcela 
+                      ? { isPaid: false, isPartial: false, paidAmount: 0, remaining: selectedSubparcela.amount }
+                      : getInstallmentStatusPartial(selectedPartialIndex ?? 0);
                     
                     return (
                       <div className="space-y-4">
                         {/* Seletor de Parcela */}
-                        {dates.length > 0 && (
+                        {(dates.length > 0 || advanceSubparcelas.length > 0) && (
                           <div className="space-y-2">
                             <Label>Referente a qual Parcela?</Label>
                             <Select 
-                              value={selectedPartialIndex.toString()} 
+                              value={selectedPartialIndex?.toString() ?? ''} 
                               onValueChange={(value) => setPaymentData({ ...paymentData, partial_installment_index: parseInt(value) })}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione a parcela" />
                               </SelectTrigger>
                               <SelectContent>
+                                {/* Sub-parcelas de adiantamento primeiro (mais urgentes) */}
+                                {advanceSubparcelas.map((sub, subIdx) => (
+                                  <SelectItem key={`advance-${subIdx}`} value={(-1 - subIdx).toString()}>
+                                    <span className="flex items-center gap-2">
+                                      <span className="text-amber-600 font-medium">Sub-parcela (Adiant. P{sub.originalIndex + 1})</span>
+                                      <span className="text-xs text-amber-500">- {formatDate(sub.dueDate)}</span>
+                                      <span className="text-xs text-amber-600 font-medium">({formatCurrency(sub.amount)})</span>
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                                {/* Parcelas normais */}
                                 {unpaidInstallments.map(({ index, status, date }) => (
                                   <SelectItem key={index} value={index.toString()}>
                                     <span className="flex items-center gap-2">
@@ -3960,20 +4031,35 @@ export default function Loans() {
                             
                             {/* Info da parcela selecionada */}
                             <div className="bg-muted/50 rounded-lg p-3 text-sm">
-                              <div className="flex justify-between">
-                                <span>Valor da parcela:</span>
-                                <span className="font-medium">{formatCurrency(getInstallmentValuePartial(selectedPartialIndex))}</span>
-                              </div>
-                              {selectedStatus.isPartial && (
+                              {selectedSubparcela ? (
                                 <>
-                                  <div className="flex justify-between text-yellow-600">
-                                    <span>Já pago:</span>
-                                    <span>{formatCurrency(selectedStatus.paidAmount)}</span>
+                                  <div className="flex justify-between text-amber-600">
+                                    <span>Sub-parcela (Adiant. P{selectedSubparcela.originalIndex + 1}):</span>
+                                    <span className="font-medium">{formatCurrency(selectedSubparcela.amount)}</span>
                                   </div>
-                                  <div className="flex justify-between font-medium">
-                                    <span>Falta pagar:</span>
-                                    <span>{formatCurrency(selectedStatus.remaining)}</span>
+                                  <div className="flex justify-between text-muted-foreground text-xs mt-1">
+                                    <span>Vencimento:</span>
+                                    <span>{formatDate(selectedSubparcela.dueDate)}</span>
                                   </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span>Valor da parcela:</span>
+                                    <span className="font-medium">{formatCurrency(getInstallmentValuePartial(selectedPartialIndex ?? 0))}</span>
+                                  </div>
+                                  {selectedStatus.isPartial && (
+                                    <>
+                                      <div className="flex justify-between text-yellow-600">
+                                        <span>Já pago:</span>
+                                        <span>{formatCurrency(selectedStatus.paidAmount)}</span>
+                                      </div>
+                                      <div className="flex justify-between font-medium">
+                                        <span>Falta pagar:</span>
+                                        <span>{formatCurrency(selectedStatus.remaining)}</span>
+                                      </div>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -3995,10 +4081,10 @@ export default function Loans() {
                           </p>
                         </div>
                         
-                        {/* Checkbox de Adiantamento - aparece quando pagamento é antes do vencimento e valor é parcial */}
-                        {(() => {
+                        {/* Checkbox de Adiantamento - NÃO aparece para sub-parcelas (já são sub-parcelas) */}
+                        {!selectedSubparcela && (() => {
                           const paymentDateObj = new Date(paymentData.payment_date + 'T12:00:00');
-                          const installmentDueDate = dates[selectedPartialIndex];
+                          const installmentDueDate = dates[selectedPartialIndex ?? 0];
                           const dueDateObj = installmentDueDate ? new Date(installmentDueDate + 'T12:00:00') : null;
                           const isBeforeDueDate = dueDateObj ? paymentDateObj < dueDateObj : false;
                           const paidAmount = parseFloat(paymentData.amount) || 0;
