@@ -4211,9 +4211,13 @@ export default function Loans() {
                       <p className="text-muted-foreground">
                         📅 A sub-parcela manterá a data de vencimento original da parcela: 
                         <span className="font-medium text-foreground ml-1">
-                          {selectedLoan && (selectedLoan.installment_dates as string[])?.[paymentData.selected_installments[0] ?? 0] 
-                            ? formatDate((selectedLoan.installment_dates as string[])[paymentData.selected_installments[0] ?? 0])
-                            : formatDate(selectedLoan?.due_date || '')}
+                          {(() => {
+                            // Priorizar partial_installment_index (modo Parcial) sobre selected_installments (modo Parcela)
+                            const installmentIndex = paymentData.partial_installment_index ?? paymentData.selected_installments[0] ?? 0;
+                            const installmentDates = selectedLoan?.installment_dates as string[] | undefined;
+                            const targetDate = installmentDates?.[installmentIndex];
+                            return targetDate ? formatDate(targetDate) : formatDate(selectedLoan?.due_date || '');
+                          })()}
                         </span>
                       </p>
                     </div>
