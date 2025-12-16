@@ -4193,15 +4193,28 @@ export default function Loans() {
                     <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>Nova Data de Vencimento</Label>
-                    <Input 
-                      type="date" 
-                      value={paymentData.new_due_date} 
-                      onChange={(e) => setPaymentData({ ...paymentData, new_due_date: e.target.value })} 
-                    />
-                    <p className="text-xs text-muted-foreground">Pré-preenchido com próximo mês. Altere se necessário.</p>
-                  </div>
+                  {paymentData.is_advance_payment ? (
+                    <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                      <p className="text-muted-foreground">
+                        📅 A sub-parcela manterá a data de vencimento original da parcela: 
+                        <span className="font-medium text-foreground ml-1">
+                          {selectedLoan && (selectedLoan.installment_dates as string[])?.[paymentData.selected_installments[0] ?? 0] 
+                            ? formatDate((selectedLoan.installment_dates as string[])[paymentData.selected_installments[0] ?? 0])
+                            : formatDate(selectedLoan?.due_date || '')}
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Nova Data de Vencimento</Label>
+                      <Input 
+                        type="date" 
+                        value={paymentData.new_due_date} 
+                        onChange={(e) => setPaymentData({ ...paymentData, new_due_date: e.target.value })} 
+                      />
+                      <p className="text-xs text-muted-foreground">Pré-preenchido com próximo mês. Altere se necessário.</p>
+                    </div>
+                  )}
                   
                   <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
                     <input
