@@ -44,14 +44,17 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
 };
 
 // Helper para extrair sub-parcelas de adiantamento do notes
-const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string }> => {
-  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string }> = [];
-  const matches = (notes || '').matchAll(/\[ADVANCE_SUBPARCELA:(\d+):([0-9.]+):([^\]]+)\]/g);
+// Formato: [ADVANCE_SUBPARCELA:índice:valor:data:id_único]
+const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
+  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> = [];
+  // Regex que suporta formato antigo (sem ID) e novo (com ID)
+  const matches = (notes || '').matchAll(/\[ADVANCE_SUBPARCELA:(\d+):([0-9.]+):([^:\]]+)(?::(\d+))?\]/g);
   for (const match of matches) {
     subparcelas.push({
       originalIndex: parseInt(match[1]),
       amount: parseFloat(match[2]),
       dueDate: match[3],
+      uniqueId: match[4] || `legacy_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, // Fallback para sub-parcelas antigas
     });
   }
   return subparcelas;
@@ -1144,7 +1147,7 @@ export default function Loans() {
       paymentData.partial_installment_index !== null && 
       paymentData.partial_installment_index < 0;
     
-    let targetSubparcela: { originalIndex: number; amount: number; dueDate: string } | null = null;
+    let targetSubparcela: { originalIndex: number; amount: number; dueDate: string; uniqueId: string } | null = null;
     
     if (isAdvanceSubparcelaPayment) {
       // Pagamento de sub-parcela de adiantamento
@@ -1203,17 +1206,24 @@ export default function Loans() {
       // Pagamento de sub-parcela de adiantamento
       amount = parseFloat(paymentData.amount) || targetSubparcela.amount;
       
-      // Remover a tag da sub-parcela específica
-      const subparcelaRegex = new RegExp(
+      // Remover a tag da sub-parcela específica usando o uniqueId
+      // Suporta formato antigo (sem ID) e novo (com ID)
+      const subparcelaRegexWithId = new RegExp(
+        `\\[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:[0-9.]+:[^:\\]]+:${targetSubparcela.uniqueId}\\]`,
+        'g'
+      );
+      const subparcelaRegexWithoutId = new RegExp(
         `\\[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${targetSubparcela.amount.toFixed(2)}:${targetSubparcela.dueDate}\\]`,
         'g'
       );
-      updatedNotes = updatedNotes.replace(subparcelaRegex, '');
+      updatedNotes = updatedNotes.replace(subparcelaRegexWithId, '');
+      updatedNotes = updatedNotes.replace(subparcelaRegexWithoutId, '');
       
-      // Se o valor pago for menor que a sub-parcela, criar nova sub-parcela com restante
+      // Se o valor pago for menor que a sub-parcela, criar nova sub-parcela com restante (com novo ID)
       if (amount < targetSubparcela.amount - 0.01) {
         const newRemainder = targetSubparcela.amount - amount;
-        updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${targetSubparcela.dueDate}]`;
+        const newUniqueId = Date.now().toString();
+        updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${targetSubparcela.dueDate}:${newUniqueId}]`;
         installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) - Pagamento parcial. Restante: ${formatCurrency(newRemainder)}`;
       } else {
         installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) quitada`;
@@ -1241,9 +1251,10 @@ export default function Loans() {
           updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
           updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${targetInstallmentValue.toFixed(2)}]`;
           
-          // Criar sub-parcela com o valor restante e a data de vencimento original
-          // Tag: [ADVANCE_SUBPARCELA:índice_original:valor_restante:data_vencimento]
-          updatedNotes += `[ADVANCE_SUBPARCELA:${targetInstallmentIndex}:${remainderAmount.toFixed(2)}:${originalDueDate}]`;
+          // Criar sub-parcela com o valor restante, data de vencimento original e ID único
+          // Tag: [ADVANCE_SUBPARCELA:índice_original:valor_restante:data_vencimento:id_único]
+          const uniqueId = Date.now().toString();
+          updatedNotes += `[ADVANCE_SUBPARCELA:${targetInstallmentIndex}:${remainderAmount.toFixed(2)}:${originalDueDate}:${uniqueId}]`;
           
           installmentNote = `Adiantamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Sub-parcela criada: ${formatCurrency(remainderAmount)} vencendo em ${formatDate(originalDueDate)}`;
         } else {
@@ -3808,6 +3819,8 @@ export default function Loans() {
                       );
                     }
                     
+                    const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
+                    
                     const toggleInstallment = (index: number) => {
                       const current = paymentData.selected_installments;
                       let next: number[];
@@ -3817,8 +3830,13 @@ export default function Loans() {
                         next = [...current, index].sort((a, b) => a - b);
                       }
 
-                      // Calcular valor total considerando parcelas parcialmente pagas
+                      // Calcular valor total considerando parcelas e sub-parcelas
                       const totalSelectedAmount = next.reduce((sum, i) => {
+                        if (i < 0) {
+                          // É uma sub-parcela de adiantamento (índice negativo)
+                          const subIdx = Math.abs(i) - 1;
+                          return sum + (advanceSubparcelas[subIdx]?.amount || 0);
+                        }
                         const status = getInstallmentStatus(i);
                         return sum + status.remaining; // Usar o valor restante, não o valor total
                       }, 0);
@@ -3901,6 +3919,54 @@ export default function Loans() {
                                 </Button>
                               );
                             })}
+                            
+                            {/* Sub-parcelas de adiantamento */}
+                            {advanceSubparcelas.length > 0 && (
+                              <>
+                                <div className="border-t border-amber-500/30 my-2 pt-2">
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Sub-parcelas de Adiantamento</span>
+                                </div>
+                                {advanceSubparcelas.map((sub, subIdx) => {
+                                  const dateObj = new Date(sub.dueDate + 'T12:00:00');
+                                  const today = new Date();
+                                  today.setHours(0, 0, 0, 0);
+                                  const isOverdue = dateObj < today;
+                                  const negativeIndex = -1 - subIdx; // Índice negativo para sub-parcelas
+                                  const isSelected = paymentData.selected_installments.includes(negativeIndex);
+                                  
+                                  return (
+                                    <Button
+                                      key={`advance-${subIdx}`}
+                                      type="button"
+                                      variant={isSelected ? 'default' : 'outline'}
+                                      className={`w-full justify-between text-sm h-auto py-2 ${
+                                        isOverdue 
+                                          ? 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300' 
+                                          : 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                                      }`}
+                                      onClick={() => toggleInstallment(negativeIndex)}
+                                    >
+                                      <span className="flex flex-col items-start gap-0.5">
+                                        <span className="flex items-center gap-2">
+                                          {isSelected && <span className="text-primary-foreground">✓</span>}
+                                          <span>
+                                            Sub-parcela (Adiant. P{sub.originalIndex + 1})
+                                            {isOverdue && ' (Atrasada)'}
+                                          </span>
+                                        </span>
+                                        <span className="text-xs opacity-80">
+                                          Valor restante do adiantamento
+                                        </span>
+                                      </span>
+                                      <span className="flex flex-col items-end gap-0.5">
+                                        <span className="text-xs opacity-70">{formatDate(sub.dueDate)}</span>
+                                        <span className="font-medium">{formatCurrency(sub.amount)}</span>
+                                      </span>
+                                    </Button>
+                                  );
+                                })}
+                              </>
+                            )}
                           </div>
                         </ScrollArea>
                         
