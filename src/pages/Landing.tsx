@@ -282,8 +282,8 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto"
           >
-            Sistema completo para quem trabalha com <strong className="text-foreground">empréstimos, aluguéis ou mensalidades</strong>. 
-            Calcula juros automático, avisa no WhatsApp e controla tudo em um só lugar.
+              Sistema completo para quem <strong className="text-foreground">empresta dinheiro a juros</strong>. 
+              Calcula juros simples e compostos automaticamente, avisa vencimentos no WhatsApp e controla suas cobranças em um só lugar.
           </motion.p>
           
           <motion.div 
