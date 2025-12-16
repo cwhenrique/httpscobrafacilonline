@@ -246,10 +246,10 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight text-foreground"
           >
-            Você Empresta, Aluga ou Presta Serviços?
+            Você Empresta Dinheiro a Juros?
             <br />
             <span className="gradient-text-animated">
-              Nunca Mais Esqueça de Cobrar!
+              Nunca Mais Perca uma Cobrança!
             </span>
           </motion.h1>
 
