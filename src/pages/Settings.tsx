@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -41,6 +41,8 @@ export default function Settings() {
   const [generatingQr, setGeneratingQr] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [sendToClientsEnabled, setSendToClientsEnabled] = useState(false);
+  const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
+  const [togglingVoice, setTogglingVoice] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -51,6 +53,7 @@ export default function Settings() {
         company_name: profile.company_name || '',
       });
       setSendToClientsEnabled(profile.whatsapp_to_clients_enabled || false);
+      setVoiceAssistantEnabled(profile.voice_assistant_enabled || false);
     }
   }, [profile, user]);
 
@@ -214,6 +217,23 @@ export default function Settings() {
       toast.error('Erro ao salvar configuração');
       setSendToClientsEnabled(!enabled);
     }
+  };
+
+  const handleToggleVoiceAssistant = async (enabled: boolean) => {
+    setTogglingVoice(true);
+    setVoiceAssistantEnabled(enabled);
+    
+    const { error } = await updateProfile({
+      voice_assistant_enabled: enabled,
+    });
+
+    if (error) {
+      toast.error('Erro ao salvar configuração');
+      setVoiceAssistantEnabled(!enabled);
+    } else {
+      toast.success(enabled ? 'Assistente de voz ativado!' : 'Assistente de voz desativado');
+    }
+    setTogglingVoice(false);
   };
 
   const formatPhone = (value: string) => {
@@ -526,6 +546,68 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        {/* Voice Assistant */}
+        {isConnected && (
+          <Card className="shadow-soft border-purple-500/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/10">
+                    <Mic className="w-5 h-5 text-purple-500" />
+                  </div>
+                  <div>
+                    <CardTitle>Assistente de Voz</CardTitle>
+                    <CardDescription>
+                      Faça consultas por áudio no WhatsApp
+                    </CardDescription>
+                  </div>
+                </div>
+                {voiceAssistantEnabled ? (
+                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30">
+                    <Mic className="w-3 h-3 mr-1" />
+                    Ativo
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-muted text-muted-foreground">
+                    <MicOff className="w-3 h-3 mr-1" />
+                    Inativo
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <p className="font-medium text-sm">Ativar Assistente de Voz</p>
+                  <p className="text-xs text-muted-foreground">Responde a comandos de voz no WhatsApp</p>
+                </div>
+                <Switch
+                  checked={voiceAssistantEnabled}
+                  onCheckedChange={handleToggleVoiceAssistant}
+                  disabled={togglingVoice}
+                />
+              </div>
+
+              {voiceAssistantEnabled && (
+                <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                  <p className="font-medium text-sm mb-2">📱 Como usar:</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Envie um áudio pelo WhatsApp conectado e receba a resposta em texto.
+                  </p>
+                  <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• "Quanto o João me deve?"</li>
+                    <li>• "Qual o contrato do Pedro?"</li>
+                    <li>• "O que vence hoje/amanhã?"</li>
+                    <li>• "Quem está atrasado?"</li>
+                    <li>• "Me dá um resumo"</li>
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* QR Code Modal */}

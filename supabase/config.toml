@@ -59,3 +59,9 @@ verify_jwt = true
 
 [functions.whatsapp-disconnect]
 verify_jwt = true
+
+[functions.whatsapp-voice-webhook]
+verify_jwt = false
+
+[functions.process-voice-query]
+verify_jwt = false
