@@ -403,7 +403,7 @@ export default function ProductSales() {
   // Generate installment dates for product sales
   useEffect(() => {
     if (formData.first_due_date && formData.installments > 0) {
-      const firstDate = new Date(formData.first_due_date);
+      const firstDate = parseISO(formData.first_due_date);
       const dayOfMonth = getDate(firstDate);
       
       const dates: InstallmentDate[] = [];

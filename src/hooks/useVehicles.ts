@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { addMonths, format } from 'date-fns';
+import { addMonths, format, parseISO } from 'date-fns';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
@@ -186,7 +186,7 @@ export function useVehicles() {
           buyer_name: data.buyer_name || null,
           buyer_phone: data.buyer_phone || null,
           buyer_email: data.buyer_email || null,
-          purchase_date: data.purchase_date || new Date().toISOString().split('T')[0],
+          purchase_date: data.purchase_date || format(new Date(), 'yyyy-MM-dd'),
           purchase_value: data.purchase_value,
           cost_value: data.cost_value || 0,
           down_payment: downPayment,
@@ -225,14 +225,14 @@ export function useVehicles() {
             amount: inst.amount,
             due_date: inst.due_date,
             status: isPaid ? 'paid' : 'pending',
-            paid_date: isPaid ? new Date().toISOString().split('T')[0] : null,
+            paid_date: isPaid ? format(new Date(), 'yyyy-MM-dd') : null,
             notes: isPaid ? '[CONTRATO_ANTIGO]' : null,
           });
           installmentsList.push(`${inst.installment_number}ª: ${formatDate(inst.due_date)} - ${formatCurrency(inst.amount)}`);
         }
       } else {
         for (let i = 0; i < data.installments; i++) {
-          const dueDate = addMonths(new Date(data.first_due_date), i);
+          const dueDate = addMonths(parseISO(data.first_due_date), i);
           const dueDateStr = format(dueDate, 'yyyy-MM-dd');
           payments.push({
             user_id: user.id,
@@ -414,7 +414,7 @@ export function useVehiclePayments(vehicleId?: string) {
         .from('vehicle_payments')
         .update({
           status: 'paid',
-          paid_date: new Date().toISOString().split('T')[0],
+          paid_date: format(new Date(), 'yyyy-MM-dd'),
         })
         .eq('id', paymentId)
         .select()
@@ -451,7 +451,7 @@ export function useVehiclePayments(vehicleId?: string) {
         if (userPhone) {
           const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
           const clientName = vehicle.buyer_name || vehicle.seller_name;
-          const today = new Date().toISOString().split('T')[0];
+          const today = format(new Date(), 'yyyy-MM-dd');
           
           const message = `💵 *Pagamento de Veículo Recebido*\n\n` +
             `🚗 *Veículo:* ${vehicleName}\n` +

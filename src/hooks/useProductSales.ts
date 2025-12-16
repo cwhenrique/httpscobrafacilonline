@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { addMonths, format } from 'date-fns';
+import { addMonths, format, parseISO } from 'date-fns';
 
 export interface ProductSale {
   id: string;
@@ -149,7 +149,7 @@ export function useProductSales() {
         // Use custom dates if provided, otherwise calculate
         const dueDate = saleData.installmentDates?.[i]?.date 
           ? saleData.installmentDates[i].date
-          : format(addMonths(new Date(saleData.first_due_date), i), 'yyyy-MM-dd');
+          : format(addMonths(parseISO(saleData.first_due_date), i), 'yyyy-MM-dd');
         
         const isPaid = saleData.is_historical && saleData.installmentDates?.[i]?.isPaid === true;
         
@@ -165,7 +165,7 @@ export function useProductSales() {
           installment_number: i + 1,
           due_date: dueDate,
           status: isPaid ? 'paid' : 'pending',
-          paid_date: isPaid ? new Date().toISOString().split('T')[0] : null,
+          paid_date: isPaid ? format(new Date(), 'yyyy-MM-dd') : null,
           notes: isPaid ? '[CONTRATO_ANTIGO]' : null,
         });
       }
