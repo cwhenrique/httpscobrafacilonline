@@ -313,7 +313,7 @@ const Landing = () => {
             className="mt-6 px-2"
           >
             <a 
-              href="https://wa.me/5517991050811?text=Ol%C3%A1!%20Gostaria%20de%20testar%20o%20CobraF%C3%A1cil%20por%201%20dia%20gratuitamente.%20LP" 
+              href="https://wa.me/5517991050811?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
