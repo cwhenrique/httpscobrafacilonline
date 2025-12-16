@@ -60,6 +60,22 @@ const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalI
   return subparcelas;
 };
 
+// Helper para extrair sub-parcelas de adiantamento já PAGAS do notes
+// Formato: [ADVANCE_SUBPARCELA_PAID:índice:valor:data:id_único]
+const getPaidAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
+  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> = [];
+  const matches = (notes || '').matchAll(/\[ADVANCE_SUBPARCELA_PAID:(\d+):([0-9.]+):([^:\]]+)(?::(\d+))?\]/g);
+  for (const match of matches) {
+    subparcelas.push({
+      originalIndex: parseInt(match[1]),
+      amount: parseFloat(match[2]),
+      dueDate: match[3],
+      uniqueId: match[4] || `paid_${match[1]}_${match[3]}`
+    });
+  }
+  return subparcelas;
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -1206,8 +1222,9 @@ export default function Loans() {
       // Pagamento de sub-parcela de adiantamento
       amount = parseFloat(paymentData.amount) || targetSubparcela.amount;
       
-      // Remover a tag da sub-parcela específica usando o uniqueId
+      // Renomear a tag da sub-parcela para PAID ao invés de remover
       // Suporta formato antigo (sem ID) e novo (com ID)
+      const paidTag = `[ADVANCE_SUBPARCELA_PAID:${targetSubparcela.originalIndex}:${targetSubparcela.amount.toFixed(2)}:${targetSubparcela.dueDate}:${targetSubparcela.uniqueId}]`;
       const subparcelaRegexWithId = new RegExp(
         `\\[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:[0-9.]+:[^:\\]]+:${targetSubparcela.uniqueId}\\]`,
         'g'
@@ -1216,8 +1233,9 @@ export default function Loans() {
         `\\[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${targetSubparcela.amount.toFixed(2)}:${targetSubparcela.dueDate}\\]`,
         'g'
       );
-      updatedNotes = updatedNotes.replace(subparcelaRegexWithId, '');
-      updatedNotes = updatedNotes.replace(subparcelaRegexWithoutId, '');
+      // Substituir por tag PAID ao invés de remover
+      updatedNotes = updatedNotes.replace(subparcelaRegexWithId, paidTag);
+      updatedNotes = updatedNotes.replace(subparcelaRegexWithoutId, paidTag);
       
       // Se o valor pago for menor que a sub-parcela, criar nova sub-parcela com restante (com novo ID)
       if (amount < targetSubparcela.amount - 0.01) {
@@ -3939,44 +3957,73 @@ export default function Loans() {
                                     </span>
                                   </Button>
                                   
-                                  {/* Sub-parcelas agrupadas sob a parcela */}
-                                  {hasSubparcelas && (
-                                    <div className="ml-4 border-l-2 border-amber-500 pl-2 space-y-1">
-                                      {status.subparcelas.map((sub, subIdx) => {
-                                        const subDateObj = new Date(sub.dueDate + 'T12:00:00');
-                                        const isSubOverdue = subDateObj < today;
-                                        const globalSubIdx = advanceSubparcelas.findIndex(s => s === sub);
-                                        const negativeIndex = -1 - globalSubIdx;
-                                        const isSubSelected = paymentData.selected_installments.includes(negativeIndex);
-                                        
-                                        return (
+                                  {/* Sub-parcelas agrupadas sob a parcela (pagas + pendentes) */}
+                                  {(() => {
+                                    const paidSubparcelas = getPaidAdvanceSubparcelasFromNotes(selectedLoan?.notes || null);
+                                    const paidSubparcelasForThis = paidSubparcelas.filter(s => s.originalIndex === index);
+                                    const hasPaidSubparcelas = paidSubparcelasForThis.length > 0;
+                                    
+                                    if (!hasSubparcelas && !hasPaidSubparcelas) return null;
+                                    
+                                    return (
+                                      <div className="ml-4 border-l-2 border-amber-500 pl-2 space-y-1">
+                                        {/* Sub-parcelas PAGAS (bloqueadas) */}
+                                        {paidSubparcelasForThis.map((sub, subIdx) => (
                                           <Button
-                                            key={`sub-${index}-${subIdx}`}
+                                            key={`sub-paid-${index}-${subIdx}`}
                                             type="button"
-                                            variant={isSubSelected ? 'default' : 'outline'}
-                                            className={`w-full justify-between text-xs h-auto py-1.5 ${
-                                              isSubOverdue 
-                                                ? 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300' 
-                                                : 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
-                                            }`}
-                                            onClick={() => toggleInstallment(negativeIndex)}
+                                            variant="outline"
+                                            className="w-full justify-between text-xs h-auto py-1.5 bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60"
+                                            disabled={true}
                                           >
                                             <span className="flex items-center gap-2">
-                                              {isSubSelected && <span className="text-primary-foreground">✓</span>}
-                                              <span>
-                                                ↳ Sub-parcela {index + 1}.{subIdx + 1}/{dates.length}
-                                                {isSubOverdue && ' (Atrasada)'}
-                                              </span>
+                                              <span className="text-green-600">✓</span>
+                                              <span>↳ Sub-parcela {index + 1}.{subIdx + 1}/{dates.length} (Paga)</span>
                                             </span>
                                             <span className="flex items-center gap-2">
                                               <span className="opacity-70">{formatDate(sub.dueDate)}</span>
                                               <span className="font-medium">{formatCurrency(sub.amount)}</span>
                                             </span>
                                           </Button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
+                                        ))}
+                                        
+                                        {/* Sub-parcelas PENDENTES (clicáveis) */}
+                                        {status.subparcelas.map((sub, subIdx) => {
+                                          const subDateObj = new Date(sub.dueDate + 'T12:00:00');
+                                          const isSubOverdue = subDateObj < today;
+                                          const globalSubIdx = advanceSubparcelas.findIndex(s => s === sub);
+                                          const negativeIndex = -1 - globalSubIdx;
+                                          const isSubSelected = paymentData.selected_installments.includes(negativeIndex);
+                                          
+                                          return (
+                                            <Button
+                                              key={`sub-${index}-${subIdx}`}
+                                              type="button"
+                                              variant={isSubSelected ? 'default' : 'outline'}
+                                              className={`w-full justify-between text-xs h-auto py-1.5 ${
+                                                isSubOverdue 
+                                                  ? 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300' 
+                                                  : 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
+                                              }`}
+                                              onClick={() => toggleInstallment(negativeIndex)}
+                                            >
+                                              <span className="flex items-center gap-2">
+                                                {isSubSelected && <span className="text-primary-foreground">✓</span>}
+                                                <span>
+                                                  ↳ Sub-parcela {index + 1}.{paidSubparcelasForThis.length + subIdx + 1}/{dates.length}
+                                                  {isSubOverdue && ' (Atrasada)'}
+                                                </span>
+                                              </span>
+                                              <span className="flex items-center gap-2">
+                                                <span className="opacity-70">{formatDate(sub.dueDate)}</span>
+                                                <span className="font-medium">{formatCurrency(sub.amount)}</span>
+                                              </span>
+                                            </Button>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}
