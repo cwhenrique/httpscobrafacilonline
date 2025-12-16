@@ -48,7 +48,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, audioBase64, mimeType, senderPhone, instanceName } = await req.json();
+    const { userId, audioBase64, mimeType, senderPhone } = await req.json();
     
     console.log('🎤 Processing voice query for user:', userId);
 
@@ -64,9 +64,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Evolution API config
+    // Evolution API config - use global central instance
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+    const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')!;
+    
+    console.log('📱 Using central instance:', instanceName);
 
     // Send audio to Lovable AI for transcription and interpretation
     console.log('🤖 Sending audio to Lovable AI...');

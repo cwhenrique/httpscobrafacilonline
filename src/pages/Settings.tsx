@@ -226,22 +226,8 @@ export default function Settings() {
     setVoiceAssistantEnabled(enabled);
     
     try {
-      // Configure webhook on Evolution API
-      const { data: webhookResult, error: webhookError } = await supabase.functions.invoke('whatsapp-configure-voice-webhook', {
-        body: { userId: user.id, enabled }
-      });
-
-      if (webhookError) {
-        console.error('Error configuring webhook:', webhookError);
-        toast.error('Erro ao configurar webhook');
-        setVoiceAssistantEnabled(!enabled);
-        setTogglingVoice(false);
-        return;
-      }
-
-      console.log('Webhook configuration result:', webhookResult);
-
-      // Save preference in profile
+      // Save preference in profile - no webhook configuration needed anymore
+      // The central CobraFácil number already has the webhook configured
       const { error: profileError } = await updateProfile({
         voice_assistant_enabled: enabled,
       });
@@ -572,67 +558,65 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Voice Assistant */}
-        {isConnected && (
-          <Card className="shadow-soft border-purple-500/20">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/10">
-                    <Mic className="w-5 h-5 text-purple-500" />
-                  </div>
-                  <div>
-                    <CardTitle>Assistente de Voz</CardTitle>
-                    <CardDescription>
-                      Faça consultas por áudio no WhatsApp
-                    </CardDescription>
-                  </div>
+        {/* Voice Assistant - Now independent of WhatsApp connection */}
+        <Card className="shadow-soft border-purple-500/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                  <Mic className="w-5 h-5 text-purple-500" />
                 </div>
-                {voiceAssistantEnabled ? (
-                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30">
-                    <Mic className="w-3 h-3 mr-1" />
-                    Ativo
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="bg-muted text-muted-foreground">
-                    <MicOff className="w-3 h-3 mr-1" />
-                    Inativo
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div>
-                  <p className="font-medium text-sm">Ativar Assistente de Voz</p>
-                  <p className="text-xs text-muted-foreground">Responde a comandos de voz no WhatsApp</p>
+                  <CardTitle>Assistente de Voz</CardTitle>
+                  <CardDescription>
+                    Faça consultas por áudio no WhatsApp do CobraFácil
+                  </CardDescription>
                 </div>
-                <Switch
-                  checked={voiceAssistantEnabled}
-                  onCheckedChange={handleToggleVoiceAssistant}
-                  disabled={togglingVoice}
-                />
               </div>
-
-              {voiceAssistantEnabled && (
-                <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                  <p className="font-medium text-sm mb-2">📱 Como usar:</p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Envie um áudio pelo WhatsApp conectado e receba a resposta em texto.
-                  </p>
-                  <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    <li>• "Quanto o João me deve?"</li>
-                    <li>• "Qual o contrato do Pedro?"</li>
-                    <li>• "O que vence hoje/amanhã?"</li>
-                    <li>• "Quem está atrasado?"</li>
-                    <li>• "Me dá um resumo"</li>
-                  </ul>
-                </div>
+              {voiceAssistantEnabled ? (
+                <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30">
+                  <Mic className="w-3 h-3 mr-1" />
+                  Ativo
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-muted text-muted-foreground">
+                  <MicOff className="w-3 h-3 mr-1" />
+                  Inativo
+                </Badge>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div>
+                <p className="font-medium text-sm">Ativar Assistente de Voz</p>
+                <p className="text-xs text-muted-foreground">Responde a comandos de voz no WhatsApp</p>
+              </div>
+              <Switch
+                checked={voiceAssistantEnabled}
+                onCheckedChange={handleToggleVoiceAssistant}
+                disabled={togglingVoice}
+              />
+            </div>
+
+            {voiceAssistantEnabled && (
+              <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                <p className="font-medium text-sm mb-2">📱 Como usar:</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Envie um áudio para o <strong>mesmo número do CobraFácil</strong> que você recebe as notificações diárias. A resposta virá em texto no mesmo chat.
+                </p>
+                <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• "Quanto o João me deve?"</li>
+                  <li>• "Qual o contrato do Pedro?"</li>
+                  <li>• "O que vence hoje/amanhã?"</li>
+                  <li>• "Quem está atrasado?"</li>
+                  <li>• "Me dá um resumo"</li>
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* QR Code Modal */}
