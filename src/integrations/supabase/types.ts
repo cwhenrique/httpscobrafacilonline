@@ -725,6 +725,7 @@ export type Database = {
           temp_password: string | null
           trial_expires_at: string | null
           updated_at: string
+          voice_assistant_enabled: boolean | null
           whatsapp_connected_at: string | null
           whatsapp_connected_phone: string | null
           whatsapp_instance_id: string | null
@@ -748,6 +749,7 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          voice_assistant_enabled?: boolean | null
           whatsapp_connected_at?: string | null
           whatsapp_connected_phone?: string | null
           whatsapp_instance_id?: string | null
@@ -771,6 +773,7 @@ export type Database = {
           temp_password?: string | null
           trial_expires_at?: string | null
           updated_at?: string
+          voice_assistant_enabled?: boolean | null
           whatsapp_connected_at?: string | null
           whatsapp_connected_phone?: string | null
           whatsapp_instance_id?: string | null

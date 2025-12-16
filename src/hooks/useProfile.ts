@@ -20,6 +20,8 @@ export interface Profile {
   whatsapp_instance_id: string | null;
   whatsapp_connected_at: string | null;
   whatsapp_connected_phone: string | null;
+  // Voice assistant
+  voice_assistant_enabled: boolean;
 }
 
 export function useProfile() {
