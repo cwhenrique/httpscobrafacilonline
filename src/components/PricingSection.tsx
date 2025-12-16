@@ -107,7 +107,11 @@ const PricingSection = ({
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-muted-foreground text-sm">Alertas WhatsApp</span>
+                    <span className="text-muted-foreground text-sm">Alertas WhatsApp para você</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-muted-foreground text-sm">Cobranças WhatsApp para clientes</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
@@ -195,7 +199,11 @@ const PricingSection = ({
                   </li>
                   <li className="flex items-center gap-2 sm:gap-3">
                     <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                    <span className="text-foreground text-xs sm:text-sm font-medium">Alertas de cobranças no WhatsApp</span>
+                    <span className="text-foreground text-xs sm:text-sm font-medium">Alertas WhatsApp para você</span>
+                  </li>
+                  <li className="flex items-center gap-2 sm:gap-3">
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                    <span className="text-foreground text-xs sm:text-sm font-medium">Cobranças WhatsApp para clientes</span>
                   </li>
                   <li className="flex items-center gap-2 sm:gap-3">
                     <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
