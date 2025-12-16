@@ -268,28 +268,6 @@ export default function ProductSales() {
     notes: '',
   });
 
-  const [vehicleForm, setVehicleForm] = useState<CreateVehicleData>({
-    brand: '',
-    model: '',
-    year: new Date().getFullYear(),
-    color: '',
-    plate: '',
-    chassis: '',
-    seller_name: '',
-    buyer_name: '',
-    buyer_phone: '',
-    buyer_email: '',
-    buyer_cpf: '',
-    buyer_rg: '',
-    buyer_address: '',
-    purchase_date: '',
-    purchase_value: 0,
-    down_payment: 0,
-    installments: 12,
-    installment_value: 0,
-    first_due_date: '',
-    notes: '',
-  });
 
   const [billForm, setBillForm] = useState<CreateBillData>({
     description: '',
@@ -344,30 +322,6 @@ export default function ProductSales() {
     });
   };
 
-  const resetVehicleForm = () => {
-    setVehicleForm({
-      brand: '',
-      model: '',
-      year: new Date().getFullYear(),
-      color: '',
-      plate: '',
-      chassis: '',
-      seller_name: '',
-      buyer_name: '',
-      buyer_phone: '',
-      buyer_email: '',
-      buyer_cpf: '',
-      buyer_rg: '',
-      buyer_address: '',
-      purchase_date: '',
-      purchase_value: 0,
-      down_payment: 0,
-      installments: 12,
-      installment_value: 0,
-      first_due_date: '',
-      notes: '',
-    });
-  };
 
   const resetBillForm = () => {
     setBillForm({
@@ -551,40 +505,6 @@ export default function ProductSales() {
     setPaymentDialogOpen(true);
   };
 
-  // Open vehicle payment dialog
-  const openVehiclePaymentDialog = (payment: { id: string; amount: number; installment_number: number; due_date: string }, vehicle: Vehicle) => {
-    setSelectedVehiclePaymentData({ paymentId: payment.id, vehicleId: vehicle.id, payment, vehicle });
-    setVehiclePaymentDialogOpen(true);
-  };
-
-  // Confirm vehicle payment with receipt prompt
-  const confirmVehiclePaymentWithReceipt = async () => {
-    if (!selectedVehiclePaymentData) return;
-    
-    const { paymentId, vehicleId, payment, vehicle } = selectedVehiclePaymentData;
-    
-    await markVehiclePaymentAsPaid.mutateAsync({ paymentId, vehicleId });
-    
-    setVehiclePaymentDialogOpen(false);
-    setSelectedVehiclePaymentData(null);
-    
-    // Show payment receipt prompt
-    const newRemainingBalance = Math.max(0, vehicle.remaining_balance - payment.amount);
-    setPaymentClientPhone(vehicle.buyer_phone || null);
-    setPaymentReceiptData({
-      type: 'vehicle',
-      contractId: vehicle.id,
-      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-      clientName: vehicle.buyer_name || vehicle.seller_name,
-      installmentNumber: payment.installment_number,
-      totalInstallments: vehicle.installments,
-      amountPaid: payment.amount,
-      paymentDate: format(new Date(), 'yyyy-MM-dd'),
-      remainingBalance: newRemainingBalance,
-      totalPaid: (vehicle.total_paid || 0) + payment.amount,
-    });
-    setIsPaymentReceiptOpen(true);
-  };
 
   // Wrapper for contract payment with receipt prompt
   const handleMarkContractPaymentAsPaid = async (paymentId: string, contract: Contract) => {
@@ -668,71 +588,6 @@ export default function ProductSales() {
     }
   };
 
-  // Vehicle handlers
-  const handleCreateVehicle = async (data: CreateVehicleData) => {
-    await createVehicle.mutateAsync(data);
-    setIsVehicleOpen(false);
-  };
-
-  const openEditVehicleDialog = (vehicle: Vehicle) => {
-    setEditingVehicle(vehicle);
-    setVehicleForm({
-      brand: vehicle.brand,
-      model: vehicle.model,
-      year: vehicle.year,
-      color: vehicle.color || '',
-      plate: vehicle.plate || '',
-      chassis: vehicle.chassis || '',
-      seller_name: vehicle.seller_name,
-      buyer_name: vehicle.buyer_name || '',
-      buyer_phone: vehicle.buyer_phone || '',
-      buyer_email: vehicle.buyer_email || '',
-      purchase_date: vehicle.purchase_date,
-      purchase_value: vehicle.purchase_value,
-      down_payment: vehicle.down_payment,
-      installments: vehicle.installments,
-      installment_value: vehicle.installment_value,
-      first_due_date: vehicle.first_due_date,
-      notes: vehicle.notes || '',
-    });
-    setIsEditVehicleOpen(true);
-  };
-
-  const handleEditVehicle = async () => {
-    if (!editingVehicle) return;
-    await updateVehicle.mutateAsync({
-      id: editingVehicle.id,
-      data: {
-        brand: vehicleForm.brand,
-        model: vehicleForm.model,
-        year: vehicleForm.year,
-        color: vehicleForm.color || undefined,
-        plate: vehicleForm.plate || undefined,
-        chassis: vehicleForm.chassis || undefined,
-        seller_name: vehicleForm.seller_name,
-        buyer_name: vehicleForm.buyer_name || undefined,
-        buyer_phone: vehicleForm.buyer_phone || undefined,
-        buyer_email: vehicleForm.buyer_email || undefined,
-        purchase_value: vehicleForm.purchase_value,
-        down_payment: vehicleForm.down_payment,
-        installment_value: vehicleForm.installment_value,
-        notes: vehicleForm.notes || undefined,
-      },
-    });
-    setIsEditVehicleOpen(false);
-    setEditingVehicle(null);
-    resetVehicleForm();
-  };
-
-  const handleDeleteVehicle = async () => {
-    if (!deleteVehicleId) return;
-    await deleteVehicle.mutateAsync(deleteVehicleId);
-    setDeleteVehicleId(null);
-  };
-
-  const toggleVehicleExpand = (vehicleId: string) => {
-    setExpandedVehicle(expandedVehicle === vehicleId ? null : vehicleId);
-  };
 
   // Bill handlers
   const handleCreateBill = async () => {
@@ -801,41 +656,6 @@ export default function ProductSales() {
     setIsReceiptPreviewOpen(true);
   };
 
-  const handleGenerateVehicleReceipt = (vehicle: Vehicle) => {
-    const receiptData: ContractReceiptData = {
-      type: 'vehicle',
-      contractId: vehicle.id,
-      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-      client: {
-        name: vehicle.buyer_name || vehicle.seller_name,
-        phone: vehicle.buyer_phone || undefined,
-        cpf: vehicle.buyer_cpf || undefined,
-        rg: vehicle.buyer_rg || undefined,
-        email: vehicle.buyer_email || undefined,
-        address: vehicle.buyer_address || undefined,
-      },
-      negotiation: {
-        principal: vehicle.purchase_value,
-        installments: vehicle.installments,
-        installmentValue: vehicle.installment_value,
-        totalToReceive: vehicle.purchase_value,
-        startDate: vehicle.purchase_date,
-        downPayment: vehicle.down_payment || 0,
-        costValue: vehicle.cost_value || 0,
-      },
-      dueDates: vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id).map(p => p.due_date),
-      vehicleInfo: {
-        brand: vehicle.brand,
-        model: vehicle.model,
-        year: vehicle.year,
-        color: vehicle.color || undefined,
-        plate: vehicle.plate || undefined,
-        chassis: vehicle.chassis || undefined,
-      },
-    };
-    setReceiptPreviewData(receiptData);
-    setIsReceiptPreviewOpen(true);
-  };
 
   const handleGenerateContractReceipt = (contract: Contract) => {
     const payments = contractPayments[contract.id] || [];
@@ -906,11 +726,6 @@ export default function ProductSales() {
     contract.bill_type === 'receivable'
   );
 
-  const filteredVehicles = vehicles.filter(vehicle =>
-    vehicle.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (vehicle.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const getBillStatus = (bill: Bill) => {
     if (bill.status === 'paid') return 'paid';
@@ -1011,7 +826,7 @@ export default function ProductSales() {
     totalAmount: bills.filter((b) => getBillStatus(b) !== 'paid').reduce((acc, b) => acc + b.amount, 0),
   };
 
-  const isLoading = salesLoading || billsLoading || contractsLoading || vehiclesLoading;
+  const isLoading = salesLoading || billsLoading || contractsLoading;
 
   if (isLoading) {
     return (
@@ -1796,22 +1611,6 @@ export default function ProductSales() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Vehicle Dialog */}
-        <Dialog open={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Editar Veículo</DialogTitle></DialogHeader>
-            <VehicleForm
-              billType="receivable"
-              onSubmit={async (data) => {
-                if (!editingVehicle) return;
-                await updateVehicle.mutateAsync({ id: editingVehicle.id, data });
-                setIsEditVehicleOpen(false);
-                setEditingVehicle(null);
-              }}
-              isPending={updateVehicle.isPending}
-            />
-          </DialogContent>
-        </Dialog>
 
         {/* Edit Bill Dialog */}
         <Dialog open={isEditBillOpen} onOpenChange={setIsEditBillOpen}>
@@ -1938,18 +1737,6 @@ export default function ProductSales() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={!!deleteVehicleId} onOpenChange={() => setDeleteVehicleId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Veículo</AlertDialogTitle>
-              <AlertDialogDescription>Tem certeza que deseja excluir este veículo? Esta ação não pode ser desfeita.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteVehicle} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         <AlertDialog open={!!deleteBillId} onOpenChange={() => setDeleteBillId(null)}>
           <AlertDialogContent>
@@ -1979,50 +1766,6 @@ export default function ProductSales() {
           clientPhone={paymentClientPhone || undefined}
         />
 
-        {/* Vehicle Payment Confirmation Dialog */}
-        <Dialog open={vehiclePaymentDialogOpen} onOpenChange={setVehiclePaymentDialogOpen}>
-          <DialogContent className="w-[95vw] max-w-md animate-scale-in">
-            <DialogHeader>
-              <DialogTitle>Confirmar Pagamento</DialogTitle>
-            </DialogHeader>
-            
-            {selectedVehiclePaymentData && (
-              <div className="space-y-4">
-                <div className="bg-muted rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Veículo:</span>
-                    <span className="font-medium">{selectedVehiclePaymentData.vehicle.brand} {selectedVehiclePaymentData.vehicle.model}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Comprador:</span>
-                    <span className="font-medium">{selectedVehiclePaymentData.vehicle.buyer_name || selectedVehiclePaymentData.vehicle.seller_name}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Parcela:</span>
-                    <span className="font-medium">{selectedVehiclePaymentData.payment.installment_number}ª de {selectedVehiclePaymentData.vehicle.installments}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Vencimento:</span>
-                    <span className="font-medium">{format(parseISO(selectedVehiclePaymentData.payment.due_date), "dd/MM/yyyy")}</span>
-                  </div>
-                  <div className="flex justify-between text-lg pt-2 border-t">
-                    <span className="text-muted-foreground">Valor:</span>
-                    <span className="font-bold text-primary">{formatCurrency(selectedVehiclePaymentData.payment.amount)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => setVehiclePaymentDialogOpen(false)} className="flex-1">
-                Cancelar
-              </Button>
-              <Button onClick={confirmVehiclePaymentWithReceipt} disabled={markVehiclePaymentAsPaid.isPending} className="flex-1">
-                {markVehiclePaymentAsPaid.isPending ? 'Processando...' : 'Confirmar Pagamento'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Product Installments Dialog */}
         <ProductInstallmentsDialog
