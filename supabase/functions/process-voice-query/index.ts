@@ -79,12 +79,25 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Determine audio format for Gemini
-    let audioFormat = 'ogg';
-    if (mimeType?.includes('mp3')) audioFormat = 'mp3';
-    else if (mimeType?.includes('wav')) audioFormat = 'wav';
-    else if (mimeType?.includes('webm')) audioFormat = 'webm';
+    // Clean audioBase64 - remove prefix if present
+    let cleanAudioBase64 = audioBase64;
+    if (audioBase64.includes('base64,')) {
+      cleanAudioBase64 = audioBase64.split('base64,')[1];
+    }
 
+    // Determine proper MIME type
+    let audioMimeType = mimeType || 'audio/ogg';
+    if (!audioMimeType.startsWith('audio/')) {
+      audioMimeType = `audio/${audioMimeType}`;
+    }
+
+    console.log('🎵 Audio details:', {
+      mimeType: audioMimeType,
+      base64Length: cleanAudioBase64?.length || 0,
+      base64Preview: cleanAudioBase64?.substring(0, 50) + '...',
+    });
+
+    // Use inline_data format for Gemini multimodal
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -99,11 +112,14 @@ serve(async (req) => {
             role: 'user', 
             content: [
               {
-                type: 'input_audio',
-                input_audio: {
-                  data: audioBase64,
-                  format: audioFormat,
+                type: 'image_url',
+                image_url: {
+                  url: `data:${audioMimeType};base64,${cleanAudioBase64}`,
                 },
+              },
+              {
+                type: 'text',
+                text: 'Transcreva e interprete este áudio de acordo com as instruções do sistema.',
               },
             ],
           },
