@@ -220,19 +220,44 @@ export default function Settings() {
   };
 
   const handleToggleVoiceAssistant = async (enabled: boolean) => {
+    if (!user?.id) return;
+    
     setTogglingVoice(true);
     setVoiceAssistantEnabled(enabled);
     
-    const { error } = await updateProfile({
-      voice_assistant_enabled: enabled,
-    });
+    try {
+      // Configure webhook on Evolution API
+      const { data: webhookResult, error: webhookError } = await supabase.functions.invoke('whatsapp-configure-voice-webhook', {
+        body: { userId: user.id, enabled }
+      });
 
-    if (error) {
-      toast.error('Erro ao salvar configuração');
+      if (webhookError) {
+        console.error('Error configuring webhook:', webhookError);
+        toast.error('Erro ao configurar webhook');
+        setVoiceAssistantEnabled(!enabled);
+        setTogglingVoice(false);
+        return;
+      }
+
+      console.log('Webhook configuration result:', webhookResult);
+
+      // Save preference in profile
+      const { error: profileError } = await updateProfile({
+        voice_assistant_enabled: enabled,
+      });
+
+      if (profileError) {
+        toast.error('Erro ao salvar configuração');
+        setVoiceAssistantEnabled(!enabled);
+      } else {
+        toast.success(enabled ? 'Assistente de voz ativado!' : 'Assistente de voz desativado');
+      }
+    } catch (error) {
+      console.error('Error toggling voice assistant:', error);
+      toast.error('Erro ao configurar assistente de voz');
       setVoiceAssistantEnabled(!enabled);
-    } else {
-      toast.success(enabled ? 'Assistente de voz ativado!' : 'Assistente de voz desativado');
     }
+    
     setTogglingVoice(false);
   };
 

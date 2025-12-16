@@ -98,9 +98,10 @@ serve(async (req) => {
       // If connected, try to get the phone number
       let phoneNumber = profile.whatsapp_connected_phone;
       
-      if (isConnected && !phoneNumber) {
-        // Try to fetch instance info to get phone number
+      if (isConnected) {
+        // Always try to fetch the phone number if connected (even if we have one stored)
         try {
+          // Method 1: Try fetchInstances
           const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
             method: 'GET',
             headers: {
@@ -110,26 +111,63 @@ serve(async (req) => {
           
           if (fetchResponse.ok) {
             const instances = await fetchResponse.json();
+            console.log('Fetch instances response:', JSON.stringify(instances));
             const instance = Array.isArray(instances) ? instances[0] : instances;
-            if (instance?.instance?.owner) {
-              phoneNumber = instance.instance.owner.replace('@s.whatsapp.net', '');
+            
+            // Try multiple paths to find the phone number
+            const owner = instance?.instance?.owner || 
+                          instance?.owner || 
+                          stateData?.instance?.owner ||
+                          stateData?.owner;
+            
+            if (owner) {
+              phoneNumber = owner.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+              console.log('Found phone number:', phoneNumber);
             }
           }
         } catch (e) {
-          console.log('Could not fetch phone number:', e);
+          console.log('Could not fetch phone number from fetchInstances:', e);
         }
 
-        // Update profile with connection info - ALWAYS enable whatsapp_to_clients_enabled when connected
-        if (isConnected) {
-          await supabase
-            .from('profiles')
-            .update({ 
-              whatsapp_connected_phone: phoneNumber || null,
-              whatsapp_connected_at: profile.whatsapp_connected_at || new Date().toISOString(),
-              whatsapp_to_clients_enabled: true,
-            })
-            .eq('id', userId);
+        // Method 2: Try to get from connection state if not found
+        if (!phoneNumber) {
+          try {
+            const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': evolutionApiKey,
+              },
+            });
+            
+            if (connectResponse.ok) {
+              const connectData = await connectResponse.json();
+              console.log('Connect response:', JSON.stringify(connectData));
+              const owner = connectData?.instance?.owner || connectData?.owner;
+              if (owner) {
+                phoneNumber = owner.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+                console.log('Found phone number from connect:', phoneNumber);
+              }
+            }
+          } catch (e) {
+            console.log('Could not fetch phone number from connect:', e);
+          }
         }
+
+        // Update profile with connection info
+        const updateData: Record<string, unknown> = {
+          whatsapp_connected_at: profile.whatsapp_connected_at || new Date().toISOString(),
+          whatsapp_to_clients_enabled: true,
+        };
+        
+        // Only update phone if we found one
+        if (phoneNumber) {
+          updateData.whatsapp_connected_phone = phoneNumber;
+        }
+        
+        await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('id', userId);
       }
 
       return new Response(JSON.stringify({ 
