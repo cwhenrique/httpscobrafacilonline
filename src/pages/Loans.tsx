@@ -3797,18 +3797,29 @@ export default function Loans() {
                     };
                     
                     // Verificar se parcela está paga (totalmente ou parcialmente)
+                    const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
+                    
                     const getInstallmentStatus = (index: number) => {
                       const installmentValue = getInstallmentValue(index);
                       const paidAmount = partialPayments[index] || 0;
                       const remaining = installmentValue - paidAmount;
                       const excess = paidAmount > installmentValue ? paidAmount - installmentValue : 0;
                       
-                      if (paidAmount >= installmentValue * 0.99) {
-                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, excess };
-                      } else if (paidAmount > 0) {
-                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0 };
+                      // Verificar se há sub-parcelas pendentes para esta parcela
+                      const pendingSubparcelas = advanceSubparcelas.filter(s => s.originalIndex === index);
+                      const hasSubparcelas = pendingSubparcelas.length > 0;
+                      
+                      // Se há sub-parcelas pendentes, NÃO considerar como totalmente quitada
+                      if (hasSubparcelas) {
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: pendingSubparcelas };
                       }
-                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, excess: 0 };
+                      
+                      if (paidAmount >= installmentValue * 0.99) {
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, excess, subparcelas: [] as typeof pendingSubparcelas };
+                      } else if (paidAmount > 0) {
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: [] as typeof pendingSubparcelas };
+                      }
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, excess: 0, subparcelas: [] as typeof pendingSubparcelas };
                     };
                     
                     if (dates.length === 0) {
@@ -3818,8 +3829,6 @@ export default function Loans() {
                         </div>
                       );
                     }
-                    
-                    const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
                     
                     const toggleInstallment = (index: number) => {
                       const current = paymentData.selected_installments;
@@ -3862,111 +3871,115 @@ export default function Loans() {
                               const isOverdue = !status.isPaid && dateObj < today;
                               const isSelected = paymentData.selected_installments.includes(index);
                               const installmentValue = getInstallmentValue(index);
+                              const hasSubparcelas = status.subparcelas.length > 0;
                               
                               return (
-                                <Button
-                                  key={index}
-                                  type="button"
-                                  variant={isSelected ? 'default' : 'outline'}
-                                  className={`w-full justify-between text-sm h-auto py-2 ${
-                                    status.isPaid 
-                                      ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
-                                      : status.isPartial
-                                        ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
-                                        : isOverdue && !isSelected
-                                          ? 'border-destructive text-destructive' 
-                                          : ''
-                                  }`}
-                                  onClick={() => {
-                                    if (!status.isPaid) {
-                                      toggleInstallment(index);
-                                    }
-                                  }}
-                                  disabled={status.isPaid}
-                                >
-                                  <span className="flex flex-col items-start gap-0.5">
-                                    <span className="flex items-center gap-2">
-                                      {isSelected && <span className="text-primary-foreground">✓</span>}
-                                      <span>
-                                        Parcela {index + 1}/{dates.length}
-                                        {status.isPaid && ' ✓'}
-                                        {isOverdue && !status.isPaid && ' (Atrasada)'}
-                                      </span>
-                                    </span>
-                                    {status.isPartial && (
-                                      <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                                        Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
-                                      </span>
-                                    )}
-                                    {status.isPaid && (
-                                      <span className="text-xs text-green-600 dark:text-green-400">
-                                        Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)}
-                                        {status.excess > 0 && ` (+${formatCurrency(status.excess)})`}
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span className="flex flex-col items-end gap-0.5">
-                                    <span className="text-xs opacity-70">{formatDate(date)}</span>
-                                    <span className="font-medium">
-                                      {status.isPaid 
-                                        ? formatCurrency(status.paidAmount)
-                                        : status.isPartial 
-                                          ? formatCurrency(status.remaining) 
-                                          : formatCurrency(installmentValue)
+                                <div key={index} className="space-y-1">
+                                  {/* Parcela Principal */}
+                                  <Button
+                                    type="button"
+                                    variant={isSelected ? 'default' : 'outline'}
+                                    className={`w-full justify-between text-sm h-auto py-2 ${
+                                      status.isPaid 
+                                        ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
+                                        : hasSubparcelas
+                                          ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                                          : status.isPartial
+                                            ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
+                                            : isOverdue && !isSelected
+                                              ? 'border-destructive text-destructive' 
+                                              : ''
+                                    }`}
+                                    onClick={() => {
+                                      if (!status.isPaid && !hasSubparcelas) {
+                                        toggleInstallment(index);
                                       }
+                                    }}
+                                    disabled={status.isPaid || hasSubparcelas}
+                                  >
+                                    <span className="flex flex-col items-start gap-0.5">
+                                      <span className="flex items-center gap-2">
+                                        {isSelected && <span className="text-primary-foreground">✓</span>}
+                                        <span>
+                                          Parcela {index + 1}/{dates.length}
+                                          {status.isPaid && ' ✓'}
+                                          {hasSubparcelas && ` (${status.subparcelas.length} sub-parcela${status.subparcelas.length > 1 ? 's' : ''} pendente${status.subparcelas.length > 1 ? 's' : ''})`}
+                                          {isOverdue && !status.isPaid && !hasSubparcelas && ' (Atrasada)'}
+                                        </span>
+                                      </span>
+                                      {status.isPartial && !hasSubparcelas && (
+                                        <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                                          Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
+                                        </span>
+                                      )}
+                                      {hasSubparcelas && (
+                                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                                          Pago antecipado: {formatCurrency(status.paidAmount)} | Selecione a sub-parcela abaixo
+                                        </span>
+                                      )}
+                                      {status.isPaid && (
+                                        <span className="text-xs text-green-600 dark:text-green-400">
+                                          Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)}
+                                          {status.excess > 0 && ` (+${formatCurrency(status.excess)})`}
+                                        </span>
+                                      )}
                                     </span>
-                                  </span>
-                                </Button>
+                                    <span className="flex flex-col items-end gap-0.5">
+                                      <span className="text-xs opacity-70">{formatDate(date)}</span>
+                                      <span className="font-medium">
+                                        {status.isPaid 
+                                          ? formatCurrency(status.paidAmount)
+                                          : hasSubparcelas
+                                            ? formatCurrency(status.subparcelas.reduce((sum, s) => sum + s.amount, 0))
+                                            : status.isPartial 
+                                              ? formatCurrency(status.remaining) 
+                                              : formatCurrency(installmentValue)
+                                        }
+                                      </span>
+                                    </span>
+                                  </Button>
+                                  
+                                  {/* Sub-parcelas agrupadas sob a parcela */}
+                                  {hasSubparcelas && (
+                                    <div className="ml-4 border-l-2 border-amber-500 pl-2 space-y-1">
+                                      {status.subparcelas.map((sub, subIdx) => {
+                                        const subDateObj = new Date(sub.dueDate + 'T12:00:00');
+                                        const isSubOverdue = subDateObj < today;
+                                        const globalSubIdx = advanceSubparcelas.findIndex(s => s === sub);
+                                        const negativeIndex = -1 - globalSubIdx;
+                                        const isSubSelected = paymentData.selected_installments.includes(negativeIndex);
+                                        
+                                        return (
+                                          <Button
+                                            key={`sub-${index}-${subIdx}`}
+                                            type="button"
+                                            variant={isSubSelected ? 'default' : 'outline'}
+                                            className={`w-full justify-between text-xs h-auto py-1.5 ${
+                                              isSubOverdue 
+                                                ? 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300' 
+                                                : 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
+                                            }`}
+                                            onClick={() => toggleInstallment(negativeIndex)}
+                                          >
+                                            <span className="flex items-center gap-2">
+                                              {isSubSelected && <span className="text-primary-foreground">✓</span>}
+                                              <span>
+                                                ↳ Sub-parcela {index + 1}.{subIdx + 1}/{dates.length}
+                                                {isSubOverdue && ' (Atrasada)'}
+                                              </span>
+                                            </span>
+                                            <span className="flex items-center gap-2">
+                                              <span className="opacity-70">{formatDate(sub.dueDate)}</span>
+                                              <span className="font-medium">{formatCurrency(sub.amount)}</span>
+                                            </span>
+                                          </Button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })}
-                            
-                            {/* Sub-parcelas de adiantamento */}
-                            {advanceSubparcelas.length > 0 && (
-                              <>
-                                <div className="border-t border-amber-500/30 my-2 pt-2">
-                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Sub-parcelas de Adiantamento</span>
-                                </div>
-                                {advanceSubparcelas.map((sub, subIdx) => {
-                                  const dateObj = new Date(sub.dueDate + 'T12:00:00');
-                                  const today = new Date();
-                                  today.setHours(0, 0, 0, 0);
-                                  const isOverdue = dateObj < today;
-                                  const negativeIndex = -1 - subIdx; // Índice negativo para sub-parcelas
-                                  const isSelected = paymentData.selected_installments.includes(negativeIndex);
-                                  
-                                  return (
-                                    <Button
-                                      key={`advance-${subIdx}`}
-                                      type="button"
-                                      variant={isSelected ? 'default' : 'outline'}
-                                      className={`w-full justify-between text-sm h-auto py-2 ${
-                                        isOverdue 
-                                          ? 'bg-red-500/20 border-red-500 text-red-700 dark:text-red-300' 
-                                          : 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
-                                      }`}
-                                      onClick={() => toggleInstallment(negativeIndex)}
-                                    >
-                                      <span className="flex flex-col items-start gap-0.5">
-                                        <span className="flex items-center gap-2">
-                                          {isSelected && <span className="text-primary-foreground">✓</span>}
-                                          <span>
-                                            Sub-parcela (Adiant. P{sub.originalIndex + 1})
-                                            {isOverdue && ' (Atrasada)'}
-                                          </span>
-                                        </span>
-                                        <span className="text-xs opacity-80">
-                                          Valor restante do adiantamento
-                                        </span>
-                                      </span>
-                                      <span className="flex flex-col items-end gap-0.5">
-                                        <span className="text-xs opacity-70">{formatDate(sub.dueDate)}</span>
-                                        <span className="font-medium">{formatCurrency(sub.amount)}</span>
-                                      </span>
-                                    </Button>
-                                  );
-                                })}
-                              </>
-                            )}
                           </div>
                         </ScrollArea>
                         
