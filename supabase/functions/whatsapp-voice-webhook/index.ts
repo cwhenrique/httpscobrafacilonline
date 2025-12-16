@@ -48,18 +48,31 @@ serve(async (req) => {
       });
     }
 
-    // Get sender's phone number
+    // Get sender's phone number - check senderPn first (real phone when remoteJid is LID)
     const remoteJid = key?.remoteJid || messageData.key?.remoteJid;
-    if (!remoteJid) {
-      console.log('❌ No remoteJid found');
-      return new Response(JSON.stringify({ error: 'No sender phone found' }), {
-        status: 400,
+    const senderPn = key?.senderPn || messageData.key?.senderPn;
+    
+    let senderPhone = '';
+    
+    // Try senderPn first (contains real phone number when remoteJid is LID format)
+    if (senderPn && senderPn.includes('@s.whatsapp.net')) {
+      senderPhone = senderPn.split('@')[0];
+      console.log('📞 Using senderPn:', senderPhone);
+    } else if (remoteJid && remoteJid.includes('@s.whatsapp.net')) {
+      // Fallback to remoteJid if it's a real phone (not LID)
+      senderPhone = remoteJid.split('@')[0];
+      console.log('📞 Using remoteJid:', senderPhone);
+    } else {
+      // If both are LID or invalid, cannot identify user
+      console.log('⏭️ Cannot extract phone number - remoteJid:', remoteJid, 'senderPn:', senderPn);
+      return new Response(JSON.stringify({ 
+        status: 'ignored', 
+        reason: 'LID format without senderPn not supported' 
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    // Extract phone number from JID (format: 5517991050811@s.whatsapp.net)
-    const senderPhone = remoteJid.split('@')[0];
+    
     console.log('📞 Sender phone:', senderPhone);
 
     // Initialize Supabase client
