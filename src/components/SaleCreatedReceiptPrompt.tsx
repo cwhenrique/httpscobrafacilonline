@@ -219,7 +219,7 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  const canSendToClient = profile?.whatsapp_to_clients_enabled && sale.client_phone;
+  const canSendToClient = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && sale.client_phone;
 
   return (
     <>

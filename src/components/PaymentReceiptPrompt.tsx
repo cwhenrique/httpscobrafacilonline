@@ -188,7 +188,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   };
 
   const isFullyPaid = data.remainingBalance <= 0;
-  const canSendToClient = profile?.whatsapp_to_clients_enabled && clientPhone;
+  const canSendToClient = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && clientPhone;
 
   return (
     <>

@@ -16,6 +16,10 @@ export interface Profile {
   evolution_api_key: string | null;
   evolution_instance_name: string | null;
   whatsapp_to_clients_enabled: boolean;
+  // WhatsApp QR code connection
+  whatsapp_instance_id: string | null;
+  whatsapp_connected_at: string | null;
+  whatsapp_connected_phone: string | null;
 }
 
 export function useProfile() {
