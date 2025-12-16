@@ -76,6 +76,14 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productName.includes('vitalício') ||
     productName.includes('vitalicio') ||
     productName.includes('lifetime') ||
+    productName.includes('único') ||
+    productName.includes('unico') ||
+    productName.includes('pagamento único') ||
+    productName.includes('pagamento unico') ||
+    productName.includes('acesso completo') ||
+    productName.includes('completo') ||
+    productName.includes('forever') ||
+    productName.includes('permanente') ||
     productId.includes('lifetime') ||
     productId.includes('vitalicio')
   ) {
@@ -123,13 +131,10 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
       return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
     
-    // R$299 range: Could be annual OR lifetime - DEFAULT TO ANNUAL (safer, forces renewal)
-    // Lifetime MUST be explicitly detected by name containing "vitalício/lifetime"
+    // R$299 range: DEFAULT TO LIFETIME (most common plan at this price)
     if (price >= 250 && price <= 350) {
-      console.log('WARNING: R$299 detected but no lifetime keyword in name. Defaulting to ANNUAL (safer)');
-      const expiresAt = new Date(now);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+      console.log('R$299 detected - defaulting to LIFETIME');
+      return { plan: 'lifetime', expiresAt: null };
     }
   }
 
