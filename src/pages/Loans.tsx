@@ -4174,22 +4174,34 @@ export default function Loans() {
                           if (!showAdvanceOption) return null;
                           
                           return (
-                            <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
-                              <Checkbox
-                                id="is_advance_payment"
-                                checked={paymentData.is_advance_payment}
-                                onCheckedChange={(checked) => setPaymentData({ ...paymentData, is_advance_payment: !!checked })}
-                              />
-                              <div className="flex-1">
-                                <label htmlFor="is_advance_payment" className="text-sm font-medium cursor-pointer text-amber-700 dark:text-amber-300">
-                                  É um adiantamento de pagamento?
-                                </label>
-                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                  Se marcado, o valor restante ({formatCurrency(remainderAmount)}) 
-                                  continuará vencendo em {formatDate(installmentDueDate)}
-                                </p>
+                            <>
+                              <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
+                                <Checkbox
+                                  id="is_advance_payment"
+                                  checked={paymentData.is_advance_payment}
+                                  onCheckedChange={(checked) => setPaymentData({ ...paymentData, is_advance_payment: !!checked })}
+                                />
+                                <div className="flex-1">
+                                  <label htmlFor="is_advance_payment" className="text-sm font-medium cursor-pointer text-amber-700 dark:text-amber-300">
+                                    É um adiantamento de pagamento?
+                                  </label>
+                                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                    Se marcado, o valor restante ({formatCurrency(remainderAmount)}) 
+                                    continuará vencendo em {formatDate(installmentDueDate)}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
+                              {paymentData.is_advance_payment && (
+                                <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                                  <p className="text-muted-foreground">
+                                    📅 A sub-parcela manterá a data de vencimento original da parcela: 
+                                    <span className="font-medium text-foreground ml-1">
+                                      {formatDate(installmentDueDate)}
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
+                            </>
                           );
                         })()}
                       </div>
@@ -4206,22 +4218,7 @@ export default function Loans() {
                     <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
                   </div>
                   
-                  {paymentData.is_advance_payment ? (
-                    <div className="bg-muted/50 rounded-lg p-3 text-sm">
-                      <p className="text-muted-foreground">
-                        📅 A sub-parcela manterá a data de vencimento original da parcela: 
-                        <span className="font-medium text-foreground ml-1">
-                          {(() => {
-                            // Priorizar partial_installment_index (modo Parcial) sobre selected_installments (modo Parcela)
-                            const installmentIndex = paymentData.partial_installment_index ?? paymentData.selected_installments[0] ?? 0;
-                            const installmentDates = selectedLoan?.installment_dates as string[] | undefined;
-                            const targetDate = installmentDates?.[installmentIndex];
-                            return targetDate ? formatDate(targetDate) : formatDate(selectedLoan?.due_date || '');
-                          })()}
-                        </span>
-                      </p>
-                    </div>
-                  ) : (
+                  {!paymentData.is_advance_payment && (
                     <div className="space-y-2">
                       <Label>Nova Data de Vencimento</Label>
                       <Input 
