@@ -318,7 +318,7 @@ const Affiliate = () => {
                 <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="text-left">
-                <div className="font-bold text-primary text-sm sm:text-lg">TESTE GRÁTIS POR 1 DIA</div>
+                <div className="font-bold text-primary text-sm sm:text-lg">VENHA FAZER PARTE DO NOSSO SISTEMA</div>
                 <div className="text-xs sm:text-sm text-muted-foreground">Solicite pelo WhatsApp agora mesmo</div>
               </div>
             </a>
