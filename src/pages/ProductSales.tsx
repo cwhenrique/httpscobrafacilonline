@@ -34,11 +34,9 @@ import {
 import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
 import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
-import { useVehicles, useVehiclePayments, Vehicle, CreateVehicleData } from '@/hooks/useVehicles';
-import { VehicleForm } from '@/components/VehicleForm';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, Car, FileSignature, FileText, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -170,13 +168,10 @@ export default function ProductSales() {
   // Contracts hooks
   const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
   
-  // Vehicles hooks
-  const { vehicles, isLoading: vehiclesLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
-  const { payments: vehiclePaymentsList, markAsPaid: markVehiclePaymentAsPaid } = useVehiclePayments();
   const { profile } = useProfile();
 
   // Main tab state
-  const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'vehicles' | 'bills'>('products');
+  const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'bills'>('products');
   
   // Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -211,22 +206,6 @@ export default function ProductSales() {
     amount_to_receive: 0,
     notes: '',
   });
-
-  // Vehicles states
-  const [isVehicleOpen, setIsVehicleOpen] = useState(false);
-  const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
-  const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
-  
-  // Vehicle payment dialog states
-  const [vehiclePaymentDialogOpen, setVehiclePaymentDialogOpen] = useState(false);
-  const [selectedVehiclePaymentData, setSelectedVehiclePaymentData] = useState<{
-    paymentId: string;
-    vehicleId: string;
-    payment: { id: string; amount: number; installment_number: number; due_date: string };
-    vehicle: Vehicle;
-  } | null>(null);
 
   // Bills states
   const [isBillOpen, setIsBillOpen] = useState(false);
@@ -1049,11 +1028,11 @@ export default function ProductSales() {
       <div className="space-y-4 sm:space-y-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-display font-bold">Vendas e Gestão Financeira</h1>
-          <p className="text-sm text-muted-foreground">Gerencie vendas, contratos, veículos e contas</p>
+          <p className="text-sm text-muted-foreground">Gerencie vendas, contratos e contas</p>
         </div>
 
         <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="products" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <ShoppingBag className="w-4 h-4" />
               <span>Produtos</span>
@@ -1061,10 +1040,6 @@ export default function ProductSales() {
             <TabsTrigger value="contracts" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <FileSignature className="w-4 h-4" />
               <span>Contratos</span>
-            </TabsTrigger>
-            <TabsTrigger value="vehicles" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
-              <Car className="w-4 h-4" />
-              <span>Veículos</span>
             </TabsTrigger>
             <TabsTrigger value="bills" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <FileText className="w-4 h-4" />
@@ -1607,152 +1582,8 @@ export default function ProductSales() {
             )}
           </TabsContent>
 
-          {/* VEÍCULOS TAB */}
-          <TabsContent value="vehicles" className="mt-4 space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar por marca, modelo ou comprador..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-              </div>
-              <Dialog open={isVehicleOpen} onOpenChange={setIsVehicleOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Veículo</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Cadastrar Veículo</DialogTitle></DialogHeader>
-                  <VehicleForm billType="receivable" onSubmit={handleCreateVehicle} isPending={createVehicle.isPending} />
-                </DialogContent>
-              </Dialog>
-            </div>
 
-            {filteredVehicles.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Car className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-semibold mb-2">Nenhum veículo cadastrado</h3>
-                  <p className="text-muted-foreground text-sm">Cadastre veículos vendidos para controlar os recebimentos</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredVehicles.map((vehicle) => {
-                  const vehiclePaymentsForCard = vehiclePaymentsList.filter(p => p.vehicle_id === vehicle.id);
-                  const hasOverdue = vehiclePaymentsForCard.some(p => p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date)));
-                  
-                  return (
-                    <Card key={vehicle.id} className={cn(
-                      "transition-all",
-                      vehicle.status === 'paid' && 'bg-primary/10 border-primary/40',
-                      hasOverdue && vehicle.status !== 'paid' && 'bg-destructive/10 border-destructive/40'
-                    )}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                              <Car className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-semibold">{vehicle.brand} {vehicle.model}</p>
-                              <p className="text-xs text-muted-foreground">{vehicle.year} {vehicle.color && `• ${vehicle.color}`}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="h-6 text-[10px] px-2"
-                              onClick={() => handleGenerateVehicleReceipt(vehicle)}
-                            >
-                              <FileText className="w-3 h-3 mr-1" />
-                              Comprovante
-                            </Button>
-                            <Badge variant={vehicle.status === 'paid' ? 'default' : 'secondary'}>{vehicle.status === 'paid' ? 'Quitado' : `${vehicle.installments}x`}</Badge>
-                          </div>
-                        </div>
-                        {vehicle.plate && <div className="mb-2 p-2 bg-muted rounded text-center font-mono font-bold text-sm">{vehicle.plate}</div>}
-                        <div className="space-y-2 mb-3">
-                          {vehicle.buyer_name && (
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-muted-foreground">Comprador</span>
-                              <span className="font-medium truncate max-w-[50%]">{vehicle.buyer_name}</span>
-                            </div>
-                          )}
-                          {(vehicle.cost_value || 0) > 0 && (
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-muted-foreground">Custo</span>
-                              <span className="font-medium">{formatCurrency(vehicle.cost_value || 0)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Valor venda</span>
-                            <span className="font-bold">{formatCurrency(vehicle.purchase_value)}</span>
-                          </div>
-                          {(vehicle.cost_value || 0) > 0 && (
-                            <div className={cn("flex justify-between items-center p-2 rounded-lg", 
-                              vehicle.purchase_value - (vehicle.cost_value || 0) >= 0 ? "bg-emerald-500/10" : "bg-destructive/10"
-                            )}>
-                              <span className="text-sm text-muted-foreground">Lucro</span>
-                              <span className={cn("font-bold", 
-                                vehicle.purchase_value - (vehicle.cost_value || 0) >= 0 ? "text-emerald-500" : "text-destructive"
-                              )}>
-                                {formatCurrency(vehicle.purchase_value - (vehicle.cost_value || 0))}
-                                <span className="ml-1 text-xs font-normal">
-                                  ({(vehicle.cost_value || 0) > 0 ? (((vehicle.purchase_value - (vehicle.cost_value || 0)) / (vehicle.cost_value || 1)) * 100).toFixed(1) : 0}%)
-                                </span>
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center p-2 rounded-lg bg-primary/10">
-                            <span className="text-sm text-muted-foreground">Recebido</span>
-                            <span className="font-bold text-primary">{formatCurrency(vehicle.total_paid)}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-2 rounded-lg bg-orange-500/10">
-                            <span className="text-sm text-muted-foreground">Falta</span>
-                            <span className="font-bold text-orange-600">{formatCurrency(vehicle.remaining_balance)}</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleVehicleExpand(vehicle.id)}>
-                            {expandedVehicle === vehicle.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
-                            Parcelas
-                          </Button>
-                          <Button size="icon" variant="outline" onClick={() => openEditVehicleDialog(vehicle)}><Edit className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteVehicleId(vehicle.id)}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                        {expandedVehicle === vehicle.id && (
-                          <div className="mt-4 pt-4 border-t">
-                            <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1">
-                              {vehiclePaymentsForCard.map((payment) => (
-                                <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
-                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' :
-                                  isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
-                                )}>
-                                  <div>
-                                    <span className="font-medium">{payment.installment_number}ª</span>
-                                    <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold">{formatCurrency(payment.amount)}</span>
-                                    {payment.status !== 'paid' ? (
-                                      <Button size="sm" variant="default" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
-                                        Pagar
-                                      </Button>
-                                    ) : (
-                                      <Check className="w-4 h-4 text-primary" />
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
+
 
           {/* CONTAS A PAGAR TAB */}
           <TabsContent value="bills" className="mt-4 space-y-4">
