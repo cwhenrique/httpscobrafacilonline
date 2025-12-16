@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateVehicleData, InstallmentDate } from '@/hooks/useVehicles';
-import { addMonths, format, setDate, getDate } from 'date-fns';
+import { addMonths, format, setDate, getDate, parseISO } from 'date-fns';
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -151,7 +151,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
   // Generate installment dates when relevant fields change
   useEffect(() => {
     if (form.first_due_date && form.installments > 0 && form.installment_value > 0) {
-      const firstDate = new Date(form.first_due_date);
+      const firstDate = parseISO(form.first_due_date);
       const dayOfMonth = getDate(firstDate);
       
       const dates: InstallmentDate[] = [];
