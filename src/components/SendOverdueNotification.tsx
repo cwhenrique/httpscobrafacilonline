@@ -56,7 +56,7 @@ export default function SendOverdueNotification({
   const { profile } = useProfile();
   const { user } = useAuth();
 
-  const canSend = profile?.whatsapp_to_clients_enabled && data.clientPhone;
+  const canSend = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && data.clientPhone;
 
   const generateOverdueMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);

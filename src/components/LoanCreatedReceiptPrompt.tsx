@@ -238,7 +238,7 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  const canSendToClient = profile?.whatsapp_to_clients_enabled && loan.clientPhone;
+  const canSendToClient = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && loan.clientPhone;
 
   return (
     <>
