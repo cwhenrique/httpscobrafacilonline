@@ -119,8 +119,8 @@ const AffiliateId = () => {
     },
     {
       icon: MessageCircle,
-      title: "Alertas WhatsApp",
-      description: "Receba avisos de vencimento e atraso direto no seu WhatsApp",
+      title: "WhatsApp Integrado",
+      description: "Receba alertas E envie cobranças direto para seus clientes pelo WhatsApp",
     },
     {
       icon: Calendar,
@@ -170,8 +170,12 @@ const AffiliateId = () => {
       answer: "Sim! Utilizamos criptografia de ponta e servidores seguros. Seus dados são isolados e só você tem acesso.",
     },
     {
-      question: "Como recebo os alertas no WhatsApp?",
-      answer: "Basta cadastrar seu número de telefone no perfil. O sistema envia automaticamente resumos diários, alertas de vencimento e avisos de atraso.",
+      question: "Como funcionam os alertas no WhatsApp?",
+      answer: "O CobraFácil oferece duas formas de alertas: (1) Você recebe resumos diários, alertas de vencimento e avisos de atraso no seu WhatsApp automaticamente. (2) NOVO: Você também pode enviar cobranças e comprovantes direto para o WhatsApp dos seus clientes conectando seu número via QR Code.",
+    },
+    {
+      question: "Posso enviar cobranças diretamente para meus clientes?",
+      answer: "Sim! Basta conectar seu WhatsApp escaneando um QR Code nas configurações. Depois você pode enviar cobranças, comprovantes de pagamento e avisos de atraso diretamente para o WhatsApp dos seus clientes com apenas um clique.",
     },
   ];
 
@@ -179,7 +183,8 @@ const AffiliateId = () => {
     "Clientes ilimitados",
     "Empréstimos ilimitados",
     "Cálculo automático de juros",
-    "Alertas WhatsApp",
+    "Alertas WhatsApp para você",
+    "Cobranças WhatsApp para clientes",
     "Calendário de cobranças",
     "Score de clientes",
     "Simulador de empréstimos",
@@ -857,7 +862,7 @@ const AffiliateId = () => {
             </div>
           </motion.div>
 
-          {/* Feature 4 - Alertas WhatsApp */}
+          {/* Feature 4 - WhatsApp Integrado */}
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -866,25 +871,36 @@ const AffiliateId = () => {
             className="grid md:grid-cols-2 gap-8 items-center mb-16"
           >
             <div className="order-2">
-              <Badge className="mb-4 bg-primary/10 text-primary border-primary/30">WhatsApp</Badge>
+              <div className="flex items-center gap-2 mb-4">
+                <Badge className="bg-primary/10 text-primary border-primary/30">WhatsApp PRO</Badge>
+                <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 animate-pulse">🆕 NOVO</Badge>
+              </div>
               <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
-                Alertas Automáticos no WhatsApp
+                Cobre Seus Clientes Direto pelo WhatsApp
               </h3>
               <p className="text-muted-foreground mb-6">
-                Receba resumos diários, alertas de vencimento e avisos de atraso direto no seu WhatsApp. Você sempre informado.
+                Conecte seu WhatsApp em segundos e envie cobranças, comprovantes e avisos de atraso diretamente para seus clientes. Sem app extra, sem custo adicional.
               </p>
               <ul className="space-y-3">
                 <li className="flex items-center gap-3 text-muted-foreground">
                   <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                  <span>Resumo diário às 8h</span>
+                  <span>Conecte escaneando QR Code (sem configuração)</span>
                 </li>
                 <li className="flex items-center gap-3 text-muted-foreground">
                   <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                  <span>Alertas de vencimento no dia</span>
+                  <span>Envie cobranças de atraso com 1 clique</span>
                 </li>
                 <li className="flex items-center gap-3 text-muted-foreground">
                   <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-                  <span>Avisos progressivos de atraso</span>
+                  <span>Comprovantes de pagamento para clientes</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Recibos de novos contratos automáticos</span>
+                </li>
+                <li className="flex items-center gap-3 text-muted-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                  <span>Continue recebendo seus alertas diários</span>
                 </li>
               </ul>
             </div>
