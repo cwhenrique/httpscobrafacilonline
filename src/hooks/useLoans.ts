@@ -192,20 +192,32 @@ export function useLoans() {
       const clientName = (data.client as any)?.full_name || 'Cliente';
       const numInstallments = loan.installments || 1;
       
-      // Calculate total interest based on interest_mode
+      // Calculate total interest and per-installment values based on loan type
       let totalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
+      let totalPerInstallment = 0;
+      let totalToReceive = 0;
+      
+      if (loan.payment_type === 'daily') {
+        // For daily loans: total_interest stores the daily amount directly
+        const dailyAmount = loan.total_interest || 0;
+        totalToReceive = dailyAmount * numInstallments;
+        totalInterest = totalToReceive - loan.principal_amount;
+        totalPerInstallment = dailyAmount;
+      } else if (loan.interest_mode === 'on_total') {
         totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+        const interestPerInstallment = totalInterest / numInstallments;
+        const principalPerInstallment = loan.principal_amount / numInstallments;
+        totalPerInstallment = principalPerInstallment + interestPerInstallment;
+        totalToReceive = loan.principal_amount + totalInterest;
       } else {
         totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+        const interestPerInstallment = totalInterest / numInstallments;
+        const principalPerInstallment = loan.principal_amount / numInstallments;
+        totalPerInstallment = principalPerInstallment + interestPerInstallment;
+        totalToReceive = loan.principal_amount + totalInterest;
       }
       
-      const interestPerInstallment = totalInterest / numInstallments;
-      const principalPerInstallment = loan.principal_amount / numInstallments;
-      const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-      
       const contractId = `EMP-${data?.id?.substring(0, 4).toUpperCase() || '0000'}`;
-      const totalToReceive = loan.principal_amount + totalInterest;
       const progressPercent = 0;
       
       let modalidade = 'Padrão';
@@ -225,12 +237,14 @@ export function useLoans() {
       message += `- Modalidade: ${modalidade}\n\n`;
       
       if (loan.payment_type === 'daily') {
-        const dailyAmount = loan.total_interest || (loan.principal_amount / numInstallments);
+        // For daily loans: total_interest stores the daily amount directly
+        const dailyAmount = loan.total_interest || 0;
         const totalToReceiveDaily = dailyAmount * numInstallments;
         const profit = totalToReceiveDaily - loan.principal_amount;
         message += `📊 *Detalhes Diário:*\n`;
         message += `- Valor diário: ${formatCurrency(dailyAmount)}\n`;
         message += `- Dias: ${numInstallments}\n`;
+        message += `- Total a receber: ${formatCurrency(totalToReceiveDaily)}\n`;
         message += `- Lucro: ${formatCurrency(profit)}\n\n`;
       }
       
