@@ -182,7 +182,7 @@ export default function Vehicles() {
         downPayment: vehicle.down_payment || 0,
         costValue: vehicle.cost_value || 0,
       },
-      dueDates: vehiclePaymentsList?.filter(p => p.vehicle_id === vehicle.id).map(p => p.due_date) || [],
+      dueDates: vehiclePaymentsList?.filter(p => p.vehicle_id === vehicle.id).map(p => ({ date: p.due_date, isPaid: p.status === 'paid' })) || [],
       vehicleInfo: {
         brand: vehicle.brand,
         model: vehicle.model,
