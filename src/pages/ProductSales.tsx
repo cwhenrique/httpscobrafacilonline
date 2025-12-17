@@ -678,7 +678,7 @@ export default function ProductSales() {
         totalToReceive: contract.amount_to_receive,
         startDate: contract.first_payment_date,
       },
-      dueDates: payments.map(p => p.due_date),
+      dueDates: payments.map(p => ({ date: p.due_date, isPaid: p.status === 'paid' })),
     };
     setReceiptPreviewData(receiptData);
     setIsReceiptPreviewOpen(true);

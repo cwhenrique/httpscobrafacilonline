@@ -1630,7 +1630,15 @@ export default function Loans() {
         totalToReceive: totalToReceive,
         startDate: loan.start_date,
       },
-      dueDates: (loan.installment_dates as string[]) || [loan.due_date],
+      dueDates: (() => {
+        const dates = (loan.installment_dates as string[]) || [loan.due_date];
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        return dates.map((date, index) => {
+          const paidAmount = partialPayments[index] || 0;
+          const isPaid = paidAmount >= installmentValue * 0.99;
+          return { date, isPaid };
+        });
+      })(),
       interestOnlyPayment: interestOnlyPayment ? {
         amountPaid: interestOnlyPayment.amountPaid,
         paymentDate: format(new Date(), 'yyyy-MM-dd'),
