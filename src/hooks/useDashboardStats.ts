@@ -93,39 +93,46 @@ export function useDashboardStats() {
       supabase.from('contract_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr),
     ]);
 
-    let totalLoaned = 0;
-    let totalReceived = 0;
-    let totalToReceive = 0;
+    let totalLoaned = 0; // Capital na Rua - apenas empréstimos ATIVOS
+    let totalReceived = 0; // Total recebido de todos os empréstimos
+    let totalPending = 0; // Pendente - remaining_balance do banco (ativos)
+    let totalToReceive = 0; // Total a receber (principal + juros de ativos)
     let overdueCount = 0;
     let upcomingDue = 0;
     let dueToday = 0;
 
     if (loans) {
       loans.forEach(loan => {
-        totalLoaned += Number(loan.principal_amount);
-        totalReceived += Number(loan.total_paid || 0);
+        const principal = Number(loan.principal_amount);
+        const totalPaid = Number(loan.total_paid || 0);
+        const remainingBalance = Number(loan.remaining_balance);
         
-        let loanTotalToReceive = 0;
+        // Total recebido de TODOS os empréstimos (histórico)
+        totalReceived += totalPaid;
         
-        if (loan.payment_type === 'daily') {
-          loanTotalToReceive = Number(loan.remaining_balance) + Number(loan.total_paid || 0);
-        } else {
-          const principal = Number(loan.principal_amount);
-          const rate = Number(loan.interest_rate);
-          const numInstallments = Number(loan.installments) || 1;
-          const interestMode = loan.interest_mode || 'per_installment';
+        // Apenas empréstimos ATIVOS contam para "Na Rua" e "Pendente"
+        if (loan.status !== 'paid') {
+          totalLoaned += principal; // Na Rua = principal de ativos
+          totalPending += remainingBalance; // Pendente = remaining_balance do banco
           
-          let totalInterest = 0;
-          if (interestMode === 'per_installment') {
-            totalInterest = principal * (rate / 100) * numInstallments;
+          // Total a receber (principal + juros) apenas de ativos
+          if (loan.payment_type === 'daily') {
+            totalToReceive += remainingBalance + totalPaid;
           } else {
-            totalInterest = principal * (rate / 100);
+            const rate = Number(loan.interest_rate);
+            const numInstallments = Number(loan.installments) || 1;
+            const interestMode = loan.interest_mode || 'per_installment';
+            
+            let totalInterest = 0;
+            if (interestMode === 'per_installment') {
+              totalInterest = principal * (rate / 100) * numInstallments;
+            } else {
+              totalInterest = principal * (rate / 100);
+            }
+            
+            totalToReceive += principal + totalInterest;
           }
-          
-          loanTotalToReceive = principal + totalInterest;
         }
-        
-        totalToReceive += loanTotalToReceive;
         
         if (loan.status === 'overdue') {
           overdueCount++;
@@ -154,8 +161,6 @@ export function useDashboardStats() {
         }
       });
     }
-
-    const totalPending = totalToReceive - totalReceived;
 
     if (monthlyPayments) {
       monthlyPayments.forEach(payment => {
