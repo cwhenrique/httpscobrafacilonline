@@ -2429,14 +2429,77 @@ export default function Loans() {
                       <p className="text-[10px] text-muted-foreground">Quando foi fechado</p>
                     </div>
                     <div className="space-y-1 sm:space-y-2">
-                      <Label className="text-xs sm:text-sm">1ª Cobrança</Label>
-                      <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="h-9 sm:h-10 text-sm" />
+                      <Label className="text-xs sm:text-sm">1ª Cobrança *</Label>
+                      <Input 
+                        type="date" 
+                        value={formData.start_date} 
+                        onChange={(e) => {
+                          const newStartDate = e.target.value;
+                          setFormData({ ...formData, start_date: newStartDate });
+                          // Auto-generate dates when start_date changes and we have installments count
+                          if (newStartDate && formData.daily_period && parseInt(formData.daily_period) > 0) {
+                            const newDates = generateDailyDates(newStartDate, parseInt(formData.daily_period));
+                            setInstallmentDates(newDates);
+                            if (newDates.length > 0) {
+                              setFormData(prev => ({
+                                ...prev,
+                                start_date: newStartDate,
+                                due_date: newDates[newDates.length - 1],
+                                installments: newDates.length.toString()
+                              }));
+                            }
+                          }
+                        }} 
+                        className="h-9 sm:h-10 text-sm" 
+                      />
                       <p className="text-[10px] text-muted-foreground">Quando começa</p>
                     </div>
                   </div>
                   <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Datas de Cobrança ({installmentDates.length} dias)</Label>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Clique nas datas para selecionar os dias de cobrança</p>
+                    <Label className="text-xs sm:text-sm">Nº de Parcelas *</Label>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      max="365"
+                      value={formData.daily_period || ''} 
+                      onChange={(e) => {
+                        const count = e.target.value;
+                        setFormData({ ...formData, daily_period: count, installments: count });
+                        // Auto-generate dates when count changes and we have start_date
+                        if (formData.start_date && count && parseInt(count) > 0) {
+                          const newDates = generateDailyDates(formData.start_date, parseInt(count));
+                          setInstallmentDates(newDates);
+                          if (newDates.length > 0) {
+                            setFormData(prev => ({
+                              ...prev,
+                              daily_period: count,
+                              installments: count,
+                              due_date: newDates[newDates.length - 1]
+                            }));
+                          }
+                        } else {
+                          setInstallmentDates([]);
+                        }
+                      }} 
+                      placeholder="Ex: 20, 25, 30..."
+                      className="h-9 sm:h-10 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Quantas parcelas diárias</p>
+                  </div>
+                  {installmentDates.length > 0 && (
+                    <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-2 sm:p-3 border border-emerald-200 dark:border-emerald-700">
+                      <p className="text-xs sm:text-sm font-medium text-emerald-900 dark:text-emerald-100 flex items-center gap-1">
+                        <Check className="h-3.5 w-3.5" />
+                        {installmentDates.length} parcelas geradas
+                      </p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                        {formatDate(installmentDates[0])} até {formatDate(installmentDates[installmentDates.length - 1])}
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Calendário (visualização)</Label>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Datas geradas automaticamente - clique para ajustar se necessário</p>
                     <div className="border rounded-md p-2 sm:p-3 bg-background text-foreground">
                       <Calendar
                         mode="multiple"
@@ -2460,12 +2523,6 @@ export default function Loans() {
                         className="pointer-events-auto text-xs sm:text-sm"
                       />
                     </div>
-                    {installmentDates.length > 0 && formData.daily_amount && (
-                      <div className="bg-sky-50 dark:bg-sky-900/30 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border border-sky-200 dark:border-sky-700">
-                        <p className="text-xs sm:text-sm font-medium text-sky-900 dark:text-sky-100">Resumo:</p>
-                        <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
-                      </div>
-                    )}
                   </div>
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Observações</Label>
