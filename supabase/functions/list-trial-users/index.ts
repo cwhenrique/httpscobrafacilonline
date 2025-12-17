@@ -18,19 +18,18 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Fetch all profiles with trial_expires_at set
+    // Fetch all users (not just trial users)
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active')
-      .not('trial_expires_at', 'is', null)
-      .order('trial_expires_at', { ascending: false });
+      .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active, subscription_plan, subscription_expires_at, created_at')
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching trial users:', error);
+      console.error('Error fetching users:', error);
       throw error;
     }
 
-    console.log(`Found ${data?.length || 0} trial users`);
+    console.log(`Found ${data?.length || 0} users`);
 
     return new Response(
       JSON.stringify({ success: true, users: data || [] }),
