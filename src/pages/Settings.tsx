@@ -43,6 +43,7 @@ export default function Settings() {
   const [sendToClientsEnabled, setSendToClientsEnabled] = useState(false);
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
   const [togglingVoice, setTogglingVoice] = useState(false);
+  const [testingVoice, setTestingVoice] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -269,6 +270,50 @@ export default function Settings() {
       setVoiceAssistantEnabled(!enabled);
     } finally {
       setTogglingVoice(false);
+    }
+  };
+
+  const handleTestVoiceAssistant = async () => {
+    if (!profile?.phone) {
+      toast.error('Configure seu número de WhatsApp primeiro');
+      return;
+    }
+
+    setTestingVoice(true);
+    try {
+      const phoneDigits = profile.phone.replace(/\D/g, '');
+      const formattedPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
+
+      const message = `🎤 *Assistente de Voz CobraFácil Ativado!*
+
+Olá ${profile.full_name || 'usuário'}! Seu assistente de voz está funcionando.
+
+📱 *Como usar:*
+Envie um áudio para este mesmo número com sua pergunta.
+
+🎤 *Comandos disponíveis:*
+• "Quanto o [nome] me deve?"
+• "Qual o contrato do [nome]?"
+• "O que vence hoje/amanhã/esta semana?"
+• "Quem está atrasado?"
+• "Me dá um resumo"
+
+A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
+
+      const { error } = await supabase.functions.invoke('send-whatsapp', {
+        body: { 
+          phone: formattedPhone, 
+          message 
+        }
+      });
+
+      if (error) throw error;
+      toast.success('Mensagem de teste enviada para seu WhatsApp!');
+    } catch (error) {
+      console.error('Error testing voice assistant:', error);
+      toast.error('Erro ao enviar mensagem de teste');
+    } finally {
+      setTestingVoice(false);
     }
   };
 
@@ -625,19 +670,40 @@ export default function Settings() {
             </div>
 
             {voiceAssistantEnabled && (
-              <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                <p className="font-medium text-sm mb-2">📱 Como usar:</p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Envie um áudio para o <strong>mesmo número do CobraFácil</strong> que você recebe as notificações diárias. A resposta virá em texto no mesmo chat.
-                </p>
-                <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• "Quanto o João me deve?"</li>
-                  <li>• "Qual o contrato do Pedro?"</li>
-                  <li>• "O que vence hoje/amanhã?"</li>
-                  <li>• "Quem está atrasado?"</li>
-                  <li>• "Me dá um resumo"</li>
-                </ul>
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                  <p className="font-medium text-sm mb-2">📱 Como usar:</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Envie um áudio para o <strong>mesmo número do CobraFácil</strong> que você recebe as notificações diárias. A resposta virá em texto no mesmo chat.
+                  </p>
+                  <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• "Quanto o João me deve?"</li>
+                    <li>• "Qual o contrato do Pedro?"</li>
+                    <li>• "O que vence hoje/amanhã?"</li>
+                    <li>• "Quem está atrasado?"</li>
+                    <li>• "Me dá um resumo"</li>
+                  </ul>
+                </div>
+                
+                <Button
+                  onClick={handleTestVoiceAssistant}
+                  disabled={testingVoice}
+                  variant="outline"
+                  className="w-full border-purple-500/30 text-purple-600 hover:bg-purple-500/10"
+                >
+                  {testingVoice ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4 mr-2" />
+                      Testar Assistente de Voz
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </CardContent>
