@@ -863,10 +863,13 @@ export default function Loans() {
       profit,
     });
     
+    // Calculate actual interest percentage for daily loans
+    const interestPercentage = principalAmount > 0 ? (profit / principalAmount) * 100 : 0;
+    
     const loanData = {
       client_id: formData.client_id,
       principal_amount: principalAmount,
-      interest_rate: profit,
+      interest_rate: interestPercentage, // Store actual percentage, not absolute profit
       interest_type: 'simple' as const,
       interest_mode: 'per_installment' as const,
       payment_type: 'daily' as const,
@@ -1135,13 +1138,28 @@ export default function Loans() {
     if (!selectedLoan) return;
     
     const numInstallments = selectedLoan.installments || 1;
+    const isDaily = selectedLoan.payment_type === 'daily';
     
-    // Calculate total interest based on interest_mode
+    // Calculate total interest based on loan type and interest_mode
     let totalInterest = 0;
-    if (selectedLoan.interest_mode === 'on_total') {
+    let baseInstallmentValue = 0;
+    
+    if (isDaily) {
+      // For daily loans: total_interest stores the daily amount directly
+      const dailyAmount = selectedLoan.total_interest || 0;
+      const totalToReceiveDaily = dailyAmount * numInstallments;
+      totalInterest = totalToReceiveDaily - selectedLoan.principal_amount;
+      baseInstallmentValue = dailyAmount;
+    } else if (selectedLoan.interest_mode === 'on_total') {
       totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+      const interestPerInstallment = totalInterest / numInstallments;
+      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+      baseInstallmentValue = principalPerInstallment + interestPerInstallment;
     } else {
       totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+      const interestPerInstallment = totalInterest / numInstallments;
+      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+      baseInstallmentValue = principalPerInstallment + interestPerInstallment;
     }
     
     const interestPerInstallment = totalInterest / numInstallments;
@@ -1149,7 +1167,6 @@ export default function Loans() {
     const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
     
     const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-    const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
     
     // Verificar se há taxa de renovação aplicada em uma parcela específica
     // Suporta formato novo e antigo
