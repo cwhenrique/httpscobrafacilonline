@@ -239,6 +239,8 @@ async function sendWhatsAppMessage(apiUrl: string, apiKey: string, instance: str
   }
 }
 
+// ==================== FORMATTING HELPERS ====================
+
 // Format currency
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -250,11 +252,90 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('pt-BR');
 }
 
+// Format date with weekday
+function formatDateWithWeekday(dateStr: string): string {
+  const date = new Date(dateStr + 'T12:00:00');
+  const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  return `${weekdays[date.getDay()]}, ${date.toLocaleDateString('pt-BR')}`;
+}
+
 // Calculate days between dates
 function daysBetween(date1: string, date2: string): number {
   const d1 = new Date(date1 + 'T12:00:00');
   const d2 = new Date(date2 + 'T12:00:00');
   return Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Get current timestamp
+function getCurrentTimestamp(): string {
+  const now = new Date();
+  const date = now.toLocaleDateString('pt-BR');
+  const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${date} • ${time}`;
+}
+
+// Generate unique consultation ID
+function generateConsultaId(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const time = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  return `#CF-${year}${month}${day}-${time}`;
+}
+
+// Create professional header
+function createHeader(title: string, icon: string = '📊'): string {
+  return `🏦 *COBRAFÁCIL* │ Assistente Inteligente
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${icon} ${title}
+📅 ${getCurrentTimestamp()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+}
+
+// Create footer
+function createFooter(): string {
+  return `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 *Assistente CobraFácil Premium*
+     Consulta ${generateConsultaId()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+}
+
+// Create progress bar (0-100%)
+function createProgressBar(percentage: number, length: number = 12): string {
+  const filled = Math.round((percentage / 100) * length);
+  const empty = length - filled;
+  return '▓'.repeat(filled) + '░'.repeat(empty);
+}
+
+// Create section box
+function createSection(title: string, content: string): string {
+  return `╭─────────────────────────────╮
+│  ${title}
+╰─────────────────────────────╯
+${content}`;
+}
+
+// Create simple divider
+function createDivider(): string {
+  return `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`;
+}
+
+// Get risk emoji based on days overdue
+function getRiskEmoji(daysOverdue: number): string {
+  if (daysOverdue > 30) return '🔴';
+  if (daysOverdue > 14) return '🟠';
+  if (daysOverdue > 7) return '🟡';
+  return '⚠️';
+}
+
+// Get health score text
+function getHealthScore(percentage: number): { emoji: string; text: string; bar: string } {
+  const bar = createProgressBar(percentage, 16);
+  if (percentage >= 90) return { emoji: '🟢', text: 'Excelente', bar };
+  if (percentage >= 70) return { emoji: '🟡', text: 'Bom', bar };
+  if (percentage >= 50) return { emoji: '🟠', text: 'Regular', bar };
+  return { emoji: '🔴', text: 'Crítico', bar };
 }
 
 // Calculate overdue installment info for a loan (DYNAMIC calculation)
@@ -266,10 +347,8 @@ function calculateLoanOverdueInfo(loan: any): { isOverdue: boolean; installmentN
   const installmentValue = totalContract / numInstallments;
   const totalPaid = Number(loan.total_paid) || 0;
   
-  // Calculate how many installments should be paid
   const paidInstallments = Math.floor(totalPaid / installmentValue);
   
-  // Check each unpaid installment
   for (let i = paidInstallments; i < numInstallments; i++) {
     const dueDate = installmentDates[i];
     if (dueDate && dueDate < today) {
@@ -287,33 +366,40 @@ function calculateLoanOverdueInfo(loan: any): { isOverdue: boolean; installmentN
   return null;
 }
 
+// ==================== HANDLER FUNCTIONS ====================
+
 // CONSULTA_CLIENTE: Get client debt summary with details
 async function handleConsultaCliente(supabase: any, userId: string, nomeCliente: string | null): Promise<string> {
   if (!nomeCliente) {
-    return '❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente. Ex: "Quanto o João me deve?"';
+    return createHeader('Consulta de Cliente', '👤') +
+      `\n❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente.\n\n💡 *Exemplo:* "Quanto o João me deve?"` +
+      createFooter();
   }
 
-  // Search for client by name (case insensitive, partial match)
   const { data: clients, error } = await supabase
     .from('clients')
-    .select('id, full_name, phone')
+    .select('id, full_name, phone, score')
     .eq('user_id', userId)
     .ilike('full_name', `%${nomeCliente}%`)
     .limit(5);
 
   if (error || !clients?.length) {
-    return `❌ *Cliente não encontrado*\n\nNão encontrei nenhum cliente com o nome "${nomeCliente}".`;
+    return createHeader('Consulta de Cliente', '👤') +
+      `\n❌ *Cliente não encontrado*\n\nNão encontrei nenhum cliente com o nome "${nomeCliente}".` +
+      createFooter();
   }
 
   if (clients.length > 1) {
-    const names = clients.map((c: any, i: number) => `${i + 1}. ${c.full_name}`).join('\n');
-    return `🔍 *Múltiplos clientes encontrados*\n\n${names}\n\nSeja mais específico com o nome.`;
+    const names = clients.map((c: any, i: number) => `   ${i + 1}. ${c.full_name}`).join('\n');
+    return createHeader('Múltiplos Resultados', '🔍') +
+      `\n🔎 *Clientes encontrados:*\n\n${names}\n\n💡 Seja mais específico com o nome.` +
+      createFooter();
   }
 
   const client = clients[0];
   const today = new Date().toISOString().split('T')[0];
 
-  // Get loans for this client with all details needed
+  // Get loans
   const { data: loans } = await supabase
     .from('loans')
     .select('id, principal_amount, total_interest, remaining_balance, status, due_date, installments, installment_dates, total_paid, notes')
@@ -321,15 +407,14 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
     .eq('client_id', client.id)
     .neq('status', 'paid');
 
-  // Get product sales for this client
+  // Get product sales
   const { data: products } = await supabase
     .from('product_sales')
-    .select('id, product_name, total_amount, remaining_balance, status, installments, first_due_date')
+    .select('id, product_name, total_amount, remaining_balance, status, installments, first_due_date, total_paid')
     .eq('user_id', userId)
     .ilike('client_name', `%${client.full_name}%`)
     .neq('status', 'paid');
 
-  // Get product sale payments (pending/overdue)
   const productIds = products?.map((p: any) => p.id) || [];
   let productPayments: any[] = [];
   if (productIds.length > 0) {
@@ -343,15 +428,14 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
     productPayments = data || [];
   }
 
-  // Get vehicles for this client
+  // Get vehicles
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, brand, model, purchase_value, remaining_balance, status, installments, first_due_date')
+    .select('id, brand, model, purchase_value, remaining_balance, status, installments, first_due_date, total_paid')
     .eq('user_id', userId)
     .ilike('buyer_name', `%${client.full_name}%`)
     .neq('status', 'paid');
 
-  // Get vehicle payments (pending/overdue)
   const vehicleIds = vehicles?.map((v: any) => v.id) || [];
   let vehiclePayments: any[] = [];
   if (vehicleIds.length > 0) {
@@ -366,120 +450,254 @@ async function handleConsultaCliente(supabase: any, userId: string, nomeCliente:
   }
 
   let totalDevido = 0;
-  let activeContracts: string[] = [];
+  let totalPago = 0;
+  let totalContrato = 0;
+  let contractDetails: string[] = [];
+  let overdueCount = 0;
+  let nextDueDate = '';
+  let nextDueAmount = 0;
 
-  // Process loans with dynamic overdue calculation
+  // Process loans
   if (loans?.length) {
     loans.forEach((loan: any) => {
-      // Skip historical contracts
       if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
       
+      const loanTotal = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      totalContrato += loanTotal;
       totalDevido += Number(loan.remaining_balance) || 0;
+      totalPago += Number(loan.total_paid) || 0;
       
       const overdueInfo = calculateLoanOverdueInfo(loan);
-      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
-      const numInstallments = (loan.installment_dates || [loan.due_date]).length;
+      const installmentDates: string[] = loan.installment_dates || [loan.due_date];
+      const numInstallments = installmentDates.length;
+      const paidCount = Math.floor((Number(loan.total_paid) || 0) / (loanTotal / numInstallments));
+      const progress = Math.round((Number(loan.total_paid || 0) / loanTotal) * 100);
       
       if (overdueInfo) {
-        activeContracts.push(
-          `🔴 *Empréstimo* (${formatCurrency(totalContract)})\n` +
-          `   📋 Parcela ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments} em atraso\n` +
-          `   💰 Valor: ${formatCurrency(overdueInfo.installmentValue)}\n` +
-          `   📅 Venceu: ${formatDate(overdueInfo.dueDate)} (${overdueInfo.daysOverdue} dias)\n` +
-          `   ⏳ Saldo: ${formatCurrency(loan.remaining_balance)}`
+        overdueCount++;
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🔴 *EMPRÉSTIMO EM ATRASO*      │
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(loanTotal).padEnd(16)}│
+│ 📊 Progresso: ${createProgressBar(progress, 10)} ${progress}%│
+│                                 │
+│ 🚨 *PARCELA ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments} ATRASADA*│
+│ 💰 Valor: ${formatCurrency(overdueInfo.installmentValue).padEnd(18)}│
+│ 📅 Venceu: ${formatDate(overdueInfo.dueDate).padEnd(17)}│
+│ ⏰ *${overdueInfo.daysOverdue} dias de atraso*${' '.repeat(Math.max(0, 13 - String(overdueInfo.daysOverdue).length))}│
+│                                 │
+│ ⏳ Saldo: *${formatCurrency(loan.remaining_balance)}*│
+└─────────────────────────────┘`
         );
       } else {
-        // Get next due date
-        const installmentDates: string[] = loan.installment_dates || [loan.due_date];
-        const paidCount = Math.floor((Number(loan.total_paid) || 0) / (totalContract / numInstallments));
-        const nextDueDate = installmentDates[Math.min(paidCount, installmentDates.length - 1)];
-        
-        activeContracts.push(
-          `🟡 *Empréstimo* (${formatCurrency(totalContract)})\n` +
-          `   📋 Parcela ${paidCount + 1}/${numInstallments}\n` +
-          `   📅 Próximo venc.: ${formatDate(nextDueDate)}\n` +
-          `   ⏳ Saldo: ${formatCurrency(loan.remaining_balance)}`
+        const nextDate = installmentDates[Math.min(paidCount, installmentDates.length - 1)];
+        if (!nextDueDate || nextDate < nextDueDate) {
+          nextDueDate = nextDate;
+          nextDueAmount = loanTotal / numInstallments;
+        }
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🟢 *EMPRÉSTIMO*                 │
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(loanTotal).padEnd(16)}│
+│ 📊 ${createProgressBar(progress, 10)} ${progress}% pago│
+│ 🔢 Parcelas: ${paidCount}/${numInstallments} pagas${' '.repeat(Math.max(0, 10 - String(paidCount).length - String(numInstallments).length))}│
+│ 📅 Próx. venc.: ${formatDate(nextDate)}       │
+│ ⏳ Saldo: ${formatCurrency(loan.remaining_balance).padEnd(18)}│
+└─────────────────────────────┘`
         );
       }
     });
   }
 
-  // Process products with payment details
+  // Process products
   if (products?.length) {
     products.forEach((product: any) => {
+      totalContrato += Number(product.total_amount) || 0;
       totalDevido += Number(product.remaining_balance) || 0;
+      totalPago += Number(product.total_paid) || 0;
       
-      // Find next/overdue payment for this product
       const payments = productPayments.filter((p: any) => p.product_sale_id === product.id);
       const overduePayment = payments.find((p: any) => p.due_date < today);
       const nextPayment = payments.find((p: any) => p.due_date >= today);
+      const paidCount = product.installments - payments.length;
+      const progress = Math.round((Number(product.total_paid || 0) / Number(product.total_amount)) * 100);
       
       if (overduePayment) {
+        overdueCount++;
         const daysOverdue = daysBetween(overduePayment.due_date, today);
-        activeContracts.push(
-          `🔴 *${product.product_name}* (${formatCurrency(product.total_amount)})\n` +
-          `   📋 Parcela ${overduePayment.installment_number}/${product.installments} em atraso\n` +
-          `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n` +
-          `   📅 Venceu: ${formatDate(overduePayment.due_date)} (${daysOverdue} dias)\n` +
-          `   ⏳ Saldo: ${formatCurrency(product.remaining_balance)}`
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🔴 *${(product.product_name || 'PRODUTO').toUpperCase().substring(0, 20)}* EM ATRASO│
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(product.total_amount).padEnd(16)}│
+│ 📊 ${createProgressBar(progress, 10)} ${progress}% pago│
+│                                 │
+│ 🚨 *PARCELA ${overduePayment.installment_number}/${product.installments} ATRASADA*│
+│ 💰 Valor: ${formatCurrency(overduePayment.amount).padEnd(18)}│
+│ 📅 Venceu: ${formatDate(overduePayment.due_date).padEnd(17)}│
+│ ⏰ *${daysOverdue} dias de atraso*${' '.repeat(Math.max(0, 13 - String(daysOverdue).length))}│
+│                                 │
+│ ⏳ Saldo: *${formatCurrency(product.remaining_balance)}*│
+└─────────────────────────────┘`
         );
       } else if (nextPayment) {
-        activeContracts.push(
-          `🟡 *${product.product_name}* (${formatCurrency(product.total_amount)})\n` +
-          `   📋 Parcela ${nextPayment.installment_number}/${product.installments}\n` +
-          `   📅 Próximo venc.: ${formatDate(nextPayment.due_date)}\n` +
-          `   ⏳ Saldo: ${formatCurrency(product.remaining_balance)}`
+        if (!nextDueDate || nextPayment.due_date < nextDueDate) {
+          nextDueDate = nextPayment.due_date;
+          nextDueAmount = nextPayment.amount;
+        }
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🟢 *${(product.product_name || 'PRODUTO').toUpperCase().substring(0, 20)}*│
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(product.total_amount).padEnd(16)}│
+│ 📊 ${createProgressBar(progress, 10)} ${progress}% pago│
+│ 🔢 Parcelas: ${paidCount}/${product.installments} pagas│
+│ 📅 Próx. venc.: ${formatDate(nextPayment.due_date)}│
+│ ⏳ Saldo: ${formatCurrency(product.remaining_balance).padEnd(18)}│
+└─────────────────────────────┘`
         );
       }
     });
   }
 
-  // Process vehicles with payment details
+  // Process vehicles
   if (vehicles?.length) {
     vehicles.forEach((vehicle: any) => {
+      totalContrato += Number(vehicle.purchase_value) || 0;
       totalDevido += Number(vehicle.remaining_balance) || 0;
+      totalPago += Number(vehicle.total_paid) || 0;
       
-      // Find next/overdue payment for this vehicle
       const payments = vehiclePayments.filter((p: any) => p.vehicle_id === vehicle.id);
       const overduePayment = payments.find((p: any) => p.due_date < today);
       const nextPayment = payments.find((p: any) => p.due_date >= today);
+      const paidCount = vehicle.installments - payments.length;
+      const progress = Math.round((Number(vehicle.total_paid || 0) / Number(vehicle.purchase_value)) * 100);
+      const vehicleName = `${vehicle.brand} ${vehicle.model}`.substring(0, 18);
       
       if (overduePayment) {
+        overdueCount++;
         const daysOverdue = daysBetween(overduePayment.due_date, today);
-        activeContracts.push(
-          `🔴 *${vehicle.brand} ${vehicle.model}* (${formatCurrency(vehicle.purchase_value)})\n` +
-          `   📋 Parcela ${overduePayment.installment_number}/${vehicle.installments} em atraso\n` +
-          `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n` +
-          `   📅 Venceu: ${formatDate(overduePayment.due_date)} (${daysOverdue} dias)\n` +
-          `   ⏳ Saldo: ${formatCurrency(vehicle.remaining_balance)}`
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🔴 *🚗 ${vehicleName}* ATRASO│
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(vehicle.purchase_value).padEnd(16)}│
+│ 📊 ${createProgressBar(progress, 10)} ${progress}% pago│
+│                                 │
+│ 🚨 *PARCELA ${overduePayment.installment_number}/${vehicle.installments} ATRASADA*│
+│ 💰 Valor: ${formatCurrency(overduePayment.amount).padEnd(18)}│
+│ 📅 Venceu: ${formatDate(overduePayment.due_date).padEnd(17)}│
+│ ⏰ *${daysOverdue} dias de atraso*│
+│                                 │
+│ ⏳ Saldo: *${formatCurrency(vehicle.remaining_balance)}*│
+└─────────────────────────────┘`
         );
       } else if (nextPayment) {
-        activeContracts.push(
-          `🟡 *${vehicle.brand} ${vehicle.model}* (${formatCurrency(vehicle.purchase_value)})\n` +
-          `   📋 Parcela ${nextPayment.installment_number}/${vehicle.installments}\n` +
-          `   📅 Próximo venc.: ${formatDate(nextPayment.due_date)}\n` +
-          `   ⏳ Saldo: ${formatCurrency(vehicle.remaining_balance)}`
+        if (!nextDueDate || nextPayment.due_date < nextDueDate) {
+          nextDueDate = nextPayment.due_date;
+          nextDueAmount = nextPayment.amount;
+        }
+        contractDetails.push(
+          `┌─────────────────────────────┐
+│  🟢 *🚗 ${vehicleName}*│
+├─────────────────────────────┤
+│ 💵 Contrato: ${formatCurrency(vehicle.purchase_value).padEnd(16)}│
+│ 📊 ${createProgressBar(progress, 10)} ${progress}% pago│
+│ 🔢 Parcelas: ${paidCount}/${vehicle.installments} pagas│
+│ 📅 Próx. venc.: ${formatDate(nextPayment.due_date)}│
+│ ⏳ Saldo: ${formatCurrency(vehicle.remaining_balance).padEnd(18)}│
+└─────────────────────────────┘`
         );
       }
     });
   }
 
-  if (activeContracts.length === 0) {
-    return `✅ *${client.full_name}*\n\nEsse cliente não possui débitos pendentes.`;
+  if (contractDetails.length === 0) {
+    return createHeader('Relatório de Cliente', '👤') +
+      `\n╔═══════════════════════════════╗
+║        ✅ *SITUAÇÃO LIMPA*         ║
+╚═══════════════════════════════╝
+
+👤 *${client.full_name}*
+
+Este cliente não possui débitos pendentes.
+
+💡 *Dica:* Cliente sem pendências é um bom candidato para novo negócio!` +
+      createFooter();
   }
 
-  let message = `📊 *Situação do Cliente*\n\n`;
-  message += `👤 *${client.full_name}*\n`;
-  message += `💰 Total devido: *${formatCurrency(totalDevido)}*\n\n`;
-  message += `📋 *Contratos:*\n\n${activeContracts.join('\n\n')}`;
+  // Calculate score health
+  const paymentProgress = totalContrato > 0 ? Math.round((totalPago / totalContrato) * 100) : 0;
+  const health = getHealthScore(paymentProgress);
+  const clientScore = client.score || 100;
+  
+  let message = createHeader('Relatório de Cliente', '👤');
+  
+  message += `\n╔═══════════════════════════════╗
+║     👤 *${client.full_name.toUpperCase().substring(0, 22)}*     ║
+╚═══════════════════════════════╝
 
+`;
+
+  // Situação Geral
+  message += `╭─────── SITUAÇÃO GERAL ───────╮
+│ 💰 Total Devido: *${formatCurrency(totalDevido)}*
+│ 📋 Contratos Ativos: ${contractDetails.length}
+│ ${overdueCount > 0 ? `🔴 Em Atraso: ${overdueCount} parcela${overdueCount > 1 ? 's' : ''}` : '✅ Nenhum atraso'}
+╰────────────────────────────────╯
+
+`;
+
+  // Progresso de Pagamento
+  message += `📊 *PROGRESSO DE PAGAMENTO*
+${createProgressBar(paymentProgress, 12)} ${paymentProgress}%
+${formatCurrency(totalPago)} pagos de ${formatCurrency(totalContrato)}
+
+`;
+
+  // Score do Cliente
+  const scoreEmoji = clientScore >= 120 ? '⭐⭐⭐⭐⭐' : clientScore >= 100 ? '⭐⭐⭐⭐☆' : clientScore >= 80 ? '⭐⭐⭐☆☆' : clientScore >= 60 ? '⭐⭐☆☆☆' : '⭐☆☆☆☆';
+  message += `📈 *SCORE DO CLIENTE*
+${scoreEmoji} (${clientScore} pts)
+
+`;
+
+  // Contratos
+  message += `📋 *CONTRATOS DETALHADOS*\n\n`;
+  message += contractDetails.join('\n\n');
+
+  // Análise Inteligente
+  message += `\n\n💡 *ANÁLISE INTELIGENTE*`;
+  if (overdueCount > 0) {
+    message += `\n• ⚠️ Cliente com ${overdueCount} parcela${overdueCount > 1 ? 's' : ''} em atraso`;
+    message += `\n• 📱 Recomendação: Enviar cobrança via WhatsApp`;
+  } else if (nextDueDate) {
+    const daysUntil = daysBetween(today, nextDueDate);
+    if (daysUntil <= 3) {
+      message += `\n• ⏰ Próximo vencimento em ${daysUntil} dia${daysUntil > 1 ? 's' : ''}`;
+      message += `\n• 💰 Valor: ${formatCurrency(nextDueAmount)}`;
+      message += `\n• 📱 Considere enviar lembrete amigável`;
+    } else {
+      message += `\n• ✅ Cliente em dia com os pagamentos`;
+      message += `\n• 📅 Próximo vencimento: ${formatDate(nextDueDate)}`;
+    }
+  }
+  
+  message += `\n• 📊 Taxa de pagamento: ${paymentProgress}%`;
+
+  message += createFooter();
+  
   return message;
 }
 
 // CONSULTA_CONTRATO: Get specific contract details
 async function handleConsultaContrato(supabase: any, userId: string, nomeCliente: string | null, tipoContrato: string | null): Promise<string> {
   if (!nomeCliente) {
-    return '❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente. Ex: "Qual o contrato do João?"';
+    return createHeader('Consulta de Contrato', '📄') +
+      `\n❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente.\n\n💡 *Exemplo:* "Qual o contrato do João?"` +
+      createFooter();
   }
 
   const today = new Date().toISOString().split('T')[0];
@@ -491,7 +709,7 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
     .select(`
       id, principal_amount, interest_rate, total_interest, remaining_balance, 
       status, due_date, start_date, installments, installment_dates, total_paid, payment_type, notes,
-      clients!inner(full_name)
+      clients!inner(full_name, score)
     `)
     .eq('user_id', userId)
     .ilike('clients.full_name', `%${nomeCliente}%`);
@@ -503,6 +721,7 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
         label: 'Empréstimo',
         data: loan,
         clientName: loan.clients?.full_name,
+        clientScore: loan.clients?.score,
       });
     });
   }
@@ -516,7 +735,6 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
 
   if (products?.length) {
     for (const product of products) {
-      // Get payments for this product
       const { data: payments } = await supabase
         .from('product_sale_payments')
         .select('*')
@@ -541,7 +759,6 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
 
   if (vehicles?.length) {
     for (const vehicle of vehicles) {
-      // Get payments for this vehicle
       const { data: payments } = await supabase
         .from('vehicle_payments')
         .select('*')
@@ -558,21 +775,27 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
   }
 
   if (contracts.length === 0) {
-    return `❌ *Nenhum contrato encontrado*\n\nNão encontrei contratos para "${nomeCliente}".`;
+    return createHeader('Consulta de Contrato', '📄') +
+      `\n❌ *Nenhum contrato encontrado*\n\nNão encontrei contratos para "${nomeCliente}".` +
+      createFooter();
   }
 
-  // Filter by type if specified
   let filtered = contracts;
   if (tipoContrato) {
     filtered = contracts.filter(c => c.type === tipoContrato);
     if (filtered.length === 0) {
-      return `❌ *Nenhum ${tipoContrato} encontrado*\n\nO cliente "${nomeCliente}" não possui ${tipoContrato}s.`;
+      return createHeader('Consulta de Contrato', '📄') +
+        `\n❌ *Nenhum ${tipoContrato} encontrado*\n\nO cliente "${nomeCliente}" não possui ${tipoContrato}s.` +
+        createFooter();
     }
   }
 
-  // If multiple contracts and no type specified, list them with details
+  // If multiple contracts, list them
   if (filtered.length > 1 && !tipoContrato) {
-    let message = `🔍 *Múltiplos contratos de ${filtered[0].clientName}*\n\n`;
+    let message = createHeader('Múltiplos Contratos', '🔍');
+    message += `\n╔═══════════════════════════════╗
+║     📋 *CONTRATOS DE ${filtered[0].clientName.toUpperCase().substring(0, 14)}*     ║
+╚═══════════════════════════════╝\n\n`;
     
     filtered.forEach((c, i) => {
       const d = c.data;
@@ -584,23 +807,30 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
         if (d.status === 'paid') {
           status = '✅'; statusText = 'Pago';
         } else if (overdueInfo) {
-          status = '🔴'; statusText = `Atraso (Parc. ${overdueInfo.installmentNumber})`;
+          status = '🔴'; statusText = `Parc. ${overdueInfo.installmentNumber} atrasada`;
         }
       } else {
         const overduePayment = d.payments?.find((p: any) => p.due_date < today && p.status !== 'paid');
         if (d.status === 'paid') {
           status = '✅'; statusText = 'Pago';
         } else if (overduePayment) {
-          status = '🔴'; statusText = `Atraso (Parc. ${overduePayment.installment_number})`;
+          status = '🔴'; statusText = `Parc. ${overduePayment.installment_number} atrasada`;
         }
       }
       
-      message += `${i + 1}. ${status} *${c.label}*\n`;
-      message += `   💰 Saldo: ${formatCurrency(d.remaining_balance || 0)}\n`;
-      message += `   📊 ${statusText}\n\n`;
+      const balance = Number(d.remaining_balance) || 0;
+      const progress = d.total_paid && d.total_amount ? Math.round((d.total_paid / d.total_amount) * 100) : 0;
+      
+      message += `┌─────────────────────────────┐
+│ ${i + 1}. ${status} *${c.label.substring(0, 22)}*
+├─────────────────────────────┤
+│ 💰 Saldo: ${formatCurrency(balance)}
+│ 📊 Status: ${statusText}
+└─────────────────────────────┘\n\n`;
     });
     
-    message += `Diga o tipo específico. Ex: "Me fala do empréstimo do ${nomeCliente}"`;
+    message += `💡 Diga o tipo específico.\nEx: "Me fala do empréstimo do ${nomeCliente}"`;
+    message += createFooter();
     return message;
   }
 
@@ -611,92 +841,153 @@ async function handleConsultaContrato(supabase: any, userId: string, nomeCliente
   let statusEmoji = '🟡';
   let statusText = 'Pendente';
   let overdueDetails = '';
+  let priority = '🟢 Normal';
 
   if (contract.type === 'emprestimo') {
     const overdueInfo = calculateLoanOverdueInfo(d);
     if (d.status === 'paid') {
-      statusEmoji = '✅'; statusText = 'Pago';
+      statusEmoji = '✅'; statusText = 'Quitado';
     } else if (overdueInfo) {
       statusEmoji = '🔴'; 
       statusText = 'Em Atraso';
-      overdueDetails = `\n🚨 *Parcela em atraso:* ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments}\n`;
-      overdueDetails += `   💰 Valor: ${formatCurrency(overdueInfo.installmentValue)}\n`;
-      overdueDetails += `   📅 Venceu: ${formatDate(overdueInfo.dueDate)}\n`;
-      overdueDetails += `   ⏰ ${overdueInfo.daysOverdue} dias de atraso`;
+      priority = overdueInfo.daysOverdue > 30 ? '🔴 Crítica' : overdueInfo.daysOverdue > 14 ? '🟠 Alta' : '🟡 Média';
+      overdueDetails = `\n🚨 *PARCELA EM ATRASO*
+┌─────────────────────────────┐
+│ 📋 Parcela: ${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments}
+│ 💰 Valor: ${formatCurrency(overdueInfo.installmentValue)}
+│ 📅 Venceu: ${formatDate(overdueInfo.dueDate)}
+│ ⏰ *${overdueInfo.daysOverdue} dias de atraso*
+│ ⚠️ Prioridade: ${priority}
+└─────────────────────────────┘`;
     }
   } else {
     const overduePayment = d.payments?.find((p: any) => p.due_date < today && p.status !== 'paid');
     if (d.status === 'paid') {
-      statusEmoji = '✅'; statusText = 'Pago';
+      statusEmoji = '✅'; statusText = 'Quitado';
     } else if (overduePayment) {
       statusEmoji = '🔴';
       statusText = 'Em Atraso';
       const daysOverdue = daysBetween(overduePayment.due_date, today);
-      overdueDetails = `\n🚨 *Parcela em atraso:* ${overduePayment.installment_number}/${d.installments}\n`;
-      overdueDetails += `   💰 Valor: ${formatCurrency(overduePayment.amount)}\n`;
-      overdueDetails += `   📅 Venceu: ${formatDate(overduePayment.due_date)}\n`;
-      overdueDetails += `   ⏰ ${daysOverdue} dias de atraso`;
+      priority = daysOverdue > 30 ? '🔴 Crítica' : daysOverdue > 14 ? '🟠 Alta' : '🟡 Média';
+      overdueDetails = `\n🚨 *PARCELA EM ATRASO*
+┌─────────────────────────────┐
+│ 📋 Parcela: ${overduePayment.installment_number}/${d.installments}
+│ 💰 Valor: ${formatCurrency(overduePayment.amount)}
+│ 📅 Venceu: ${formatDate(overduePayment.due_date)}
+│ ⏰ *${daysOverdue} dias de atraso*
+│ ⚠️ Prioridade: ${priority}
+└─────────────────────────────┘`;
     }
   }
 
-  let message = `📄 *Detalhes do Contrato*\n\n`;
-  message += `👤 *${contract.clientName}*\n`;
-  message += `📌 ${contract.label}\n`;
-  message += `${statusEmoji} Status: ${statusText}\n`;
-  message += overdueDetails;
-  message += `\n`;
+  let message = createHeader('Detalhes do Contrato', '📄');
+  
+  message += `\n╔═══════════════════════════════╗
+║     📄 *CONTRATO DETALHADO*        ║
+╚═══════════════════════════════╝
+
+👤 *Cliente:* ${contract.clientName}
+📌 *Tipo:* ${contract.label}
+${statusEmoji} *Status:* ${statusText}
+${overdueDetails}
+`;
 
   if (contract.type === 'emprestimo') {
     const totalContrato = Number(d.principal_amount) + Number(d.total_interest || 0);
     const numInstallments = (d.installment_dates || [d.due_date]).length;
     const paidCount = Math.floor((Number(d.total_paid) || 0) / (totalContrato / numInstallments));
+    const progress = Math.round((Number(d.total_paid || 0) / totalContrato) * 100);
     
-    message += `💵 Principal: ${formatCurrency(d.principal_amount)}\n`;
-    message += `📈 Juros: ${d.interest_rate}% (${formatCurrency(d.total_interest || 0)})\n`;
-    message += `💰 Total do Contrato: *${formatCurrency(totalContrato)}*\n`;
-    message += `✅ Total Pago: ${formatCurrency(d.total_paid || 0)}\n`;
-    message += `⏳ Saldo Restante: *${formatCurrency(d.remaining_balance)}*\n`;
-    message += `🔢 Parcelas Pagas: ${paidCount}/${numInstallments}\n`;
-    message += `📅 Vencimento Final: ${formatDate(d.due_date)}`;
+    message += `
+╭─────── VALORES DO CONTRATO ───────╮
+│ 💵 Principal: ${formatCurrency(d.principal_amount)}
+│ 📈 Taxa de Juros: ${d.interest_rate}% ao mês
+│ 💰 Juros Total: ${formatCurrency(d.total_interest || 0)}
+│ 
+│ 💎 *TOTAL DO CONTRATO: ${formatCurrency(totalContrato)}*
+╰────────────────────────────────────╯
+
+╭─────── PROGRESSO DE PAGAMENTO ───────╮
+│ ${createProgressBar(progress, 14)} ${progress}%
+│ 
+│ ✅ Total Pago: ${formatCurrency(d.total_paid || 0)}
+│ ⏳ Saldo Restante: *${formatCurrency(d.remaining_balance)}*
+│ 🔢 Parcelas: ${paidCount}/${numInstallments} quitadas
+╰────────────────────────────────────╯
+
+📅 *Início:* ${formatDate(d.start_date)}
+📅 *Vencimento Final:* ${formatDate(d.due_date)}`;
   } else {
     const paidPayments = d.payments?.filter((p: any) => p.status === 'paid').length || 0;
     const nextPayment = d.payments?.find((p: any) => p.status !== 'paid' && p.due_date >= today);
+    const totalAmount = Number(d.total_amount || d.purchase_value);
+    const progress = Math.round((Number(d.total_paid || 0) / totalAmount) * 100);
     
-    message += `💰 Valor Total: *${formatCurrency(d.total_amount || d.purchase_value)}*\n`;
-    message += `✅ Total Pago: ${formatCurrency(d.total_paid || 0)}\n`;
-    message += `⏳ Saldo Restante: *${formatCurrency(d.remaining_balance)}*\n`;
-    message += `🔢 Parcelas Pagas: ${paidPayments}/${d.installments}\n`;
+    message += `
+╭─────── VALORES DO CONTRATO ───────╮
+│ 💎 *TOTAL: ${formatCurrency(totalAmount)}*
+│ ✅ Pago: ${formatCurrency(d.total_paid || 0)}
+│ ⏳ Saldo: *${formatCurrency(d.remaining_balance)}*
+╰────────────────────────────────────╯
+
+╭─────── PROGRESSO DE PAGAMENTO ───────╮
+│ ${createProgressBar(progress, 14)} ${progress}%
+│ 
+│ 🔢 Parcelas quitadas: ${paidPayments}/${d.installments}
+╰────────────────────────────────────╯`;
     
     if (nextPayment) {
-      message += `\n📅 *Próxima Parcela:*\n`;
-      message += `   Parcela ${nextPayment.installment_number}/${d.installments}\n`;
-      message += `   Valor: ${formatCurrency(nextPayment.amount)}\n`;
-      message += `   Vencimento: ${formatDate(nextPayment.due_date)}`;
+      message += `\n\n📅 *PRÓXIMA PARCELA*
+┌─────────────────────────────┐
+│ 📋 Parcela ${nextPayment.installment_number}/${d.installments}
+│ 💰 Valor: ${formatCurrency(nextPayment.amount)}
+│ 📅 Vencimento: ${formatDateWithWeekday(nextPayment.due_date)}
+└─────────────────────────────┘`;
     }
   }
 
+  // Insights
+  message += `\n\n💡 *ANÁLISE DO CONTRATO*`;
+  if (statusText === 'Em Atraso') {
+    message += `\n• ⚠️ Contrato requer atenção imediata`;
+    message += `\n• 📱 Envie cobrança via WhatsApp`;
+  } else if (statusText === 'Quitado') {
+    message += `\n• ✅ Contrato finalizado com sucesso`;
+    message += `\n• 💡 Cliente elegível para novo negócio`;
+  } else {
+    message += `\n• ✅ Pagamentos em dia`;
+    message += `\n• 📊 Contrato saudável`;
+  }
+
+  message += createFooter();
+  
   return message;
 }
 
 // CONSULTA_VENCIMENTOS: List due dates
 async function handleConsultaVencimentos(supabase: any, userId: string, periodo: string): Promise<string> {
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   let startDate = new Date(today);
   let endDate = new Date(today);
   let periodoLabel = '';
+  let periodoIcon = '📅';
 
   switch (periodo) {
     case 'hoje':
-      periodoLabel = `Hoje (${formatDate(today.toISOString().split('T')[0])})`;
+      periodoLabel = `Hoje (${formatDate(todayStr)})`;
+      periodoIcon = '📆';
       break;
     case 'amanha':
       startDate.setDate(startDate.getDate() + 1);
       endDate.setDate(endDate.getDate() + 1);
       periodoLabel = `Amanhã (${formatDate(startDate.toISOString().split('T')[0])})`;
+      periodoIcon = '📆';
       break;
     case 'semana':
       endDate.setDate(endDate.getDate() + 7);
       periodoLabel = `Próximos 7 dias`;
+      periodoIcon = '🗓️';
       break;
     default:
       periodoLabel = `Hoje`;
@@ -707,7 +998,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
 
   const vencimentos: any[] = [];
 
-  // Get loan installments due (calculate dynamically)
+  // Get loan installments due
   const { data: loans } = await supabase
     .from('loans')
     .select(`
@@ -725,7 +1016,6 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
       const installmentValue = totalContract / dates.length;
       const paidInstallments = Math.floor((Number(loan.total_paid) || 0) / installmentValue);
       
-      // Only check unpaid installments
       for (let i = paidInstallments; i < dates.length; i++) {
         const date = dates[i];
         if (date >= startStr && date <= endStr) {
@@ -733,6 +1023,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
             date,
             name: loan.clients?.full_name,
             type: 'Empréstimo',
+            typeIcon: '💳',
             amount: installmentValue,
             installment: `${i + 1}/${dates.length}`,
             balance: loan.remaining_balance,
@@ -760,6 +1051,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
         date: payment.due_date,
         name: payment.product_sales?.client_name,
         type: payment.product_sales?.product_name || 'Produto',
+        typeIcon: '📦',
         amount: payment.amount,
         installment: `${payment.installment_number}/${payment.product_sales?.installments}`,
         balance: payment.product_sales?.remaining_balance,
@@ -785,6 +1077,7 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
         date: payment.due_date,
         name: payment.vehicles?.buyer_name,
         type: `${payment.vehicles?.brand} ${payment.vehicles?.model}`,
+        typeIcon: '🚗',
         amount: payment.amount,
         installment: `${payment.installment_number}/${payment.vehicles?.installments}`,
         balance: payment.vehicles?.remaining_balance,
@@ -792,58 +1085,97 @@ async function handleConsultaVencimentos(supabase: any, userId: string, periodo:
     });
   }
 
-  // Sort by date
   vencimentos.sort((a, b) => a.date.localeCompare(b.date));
 
+  let message = createHeader(`Agenda de Cobranças`, periodoIcon);
+  
+  message += `\n╔═══════════════════════════════╗
+║     ${periodoIcon} *${periodoLabel.toUpperCase()}*     ║
+╚═══════════════════════════════╝\n`;
+
   if (vencimentos.length === 0) {
-    return `📅 *Vencimentos - ${periodoLabel}*\n\n✅ Nenhum vencimento para este período.`;
+    message += `\n╭─────────────────────────────╮
+│     ✅ *AGENDA LIVRE*          │
+├─────────────────────────────┤
+│ Nenhum vencimento para       │
+│ este período.                 │
+│                               │
+│ 🎉 Aproveite para prospectar │
+│    novos clientes!            │
+╰─────────────────────────────╯`;
+    message += createFooter();
+    return message;
   }
 
-  let message = `📅 *Vencimentos - ${periodoLabel}*\n\n`;
   let total = 0;
+  let currentDate = '';
 
   vencimentos.forEach((v, i) => {
-    message += `${i + 1}️⃣ *${v.name}*\n`;
-    message += `   📋 ${v.type} (Parcela ${v.installment})\n`;
-    message += `   💰 Valor: ${formatCurrency(v.amount)}\n`;
-    message += `   📅 Vence: ${formatDate(v.date)}\n`;
-    message += `   ⏳ Saldo total: ${formatCurrency(v.balance)}\n\n`;
+    if (periodo === 'semana' && v.date !== currentDate) {
+      currentDate = v.date;
+      message += `\n┄┄┄ ${formatDateWithWeekday(v.date)} ┄┄┄\n`;
+    }
+
+    message += `\n┌─────────────────────────────┐
+│ ${v.typeIcon} *${v.name?.substring(0, 20) || 'Cliente'}*
+├─────────────────────────────┤
+│ 📋 ${v.type.substring(0, 20)} (Parc. ${v.installment})
+│ 💰 *Valor: ${formatCurrency(v.amount)}*
+${periodo !== 'semana' ? `│ 📅 Vencimento: ${formatDate(v.date)}\n` : ''}│ ⏳ Saldo total: ${formatCurrency(v.balance)}
+└─────────────────────────────┘`;
     total += v.amount;
   });
 
-  message += `━━━━━━━━━━━━━━━━\n`;
-  message += `💰 *Total a receber: ${formatCurrency(total)}*\n`;
-  message += `📊 ${vencimentos.length} cobrança${vencimentos.length > 1 ? 's' : ''}`;
+  // Summary
+  message += `\n\n╔═══════════════════════════════╗
+║     📊 *RESUMO DO PERÍODO*        ║
+╠═══════════════════════════════╣
+║ 📋 Cobranças: ${String(vencimentos.length).padEnd(16)}║
+║ 💰 *Total: ${formatCurrency(total).padEnd(17)}*║
+╚═══════════════════════════════╝`;
 
+  // Insights
+  message += `\n\n💡 *INSIGHTS*`;
+  if (vencimentos.length >= 5) {
+    message += `\n• 📈 Período movimentado: ${vencimentos.length} cobranças`;
+    message += `\n• 📱 Prepare os lembretes de pagamento`;
+  }
+  if (total > 1000) {
+    message += `\n• 💰 Valor expressivo a receber`;
+  }
+
+  message += createFooter();
+  
   return message;
 }
 
-// CONSULTA_ATRASADOS: List overdue clients (DYNAMIC calculation)
+// CONSULTA_ATRASADOS: List overdue clients
 async function handleConsultaAtrasados(supabase: any, userId: string): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
   const atrasados: any[] = [];
 
-  // Get ALL non-paid loans and calculate overdue dynamically
+  // Get overdue loans
   const { data: loans } = await supabase
     .from('loans')
     .select(`
       id, due_date, remaining_balance, notes, principal_amount, total_interest, 
       installment_dates, total_paid, installments,
-      clients!inner(full_name)
+      clients!inner(full_name, phone)
     `)
     .eq('user_id', userId)
     .neq('status', 'paid');
 
   if (loans?.length) {
     loans.forEach((loan: any) => {
-      // Skip historical contracts
       if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
       
       const overdueInfo = calculateLoanOverdueInfo(loan);
       if (overdueInfo) {
         atrasados.push({
           name: loan.clients?.full_name,
+          phone: loan.clients?.phone,
           type: 'Empréstimo',
+          typeIcon: '💳',
           installment: `${overdueInfo.installmentNumber}/${overdueInfo.totalInstallments}`,
           installmentValue: overdueInfo.installmentValue,
           dueDate: overdueInfo.dueDate,
@@ -854,12 +1186,12 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
     });
   }
 
-  // Get overdue product payments (status check + date check for pending)
+  // Get overdue product payments
   const { data: productPayments } = await supabase
     .from('product_sale_payments')
     .select(`
       id, due_date, amount, installment_number, status,
-      product_sales!inner(client_name, product_name, installments, remaining_balance)
+      product_sales!inner(client_name, client_phone, product_name, installments, remaining_balance)
     `)
     .eq('user_id', userId)
     .neq('status', 'paid')
@@ -870,7 +1202,9 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
       const daysOverdue = daysBetween(payment.due_date, today);
       atrasados.push({
         name: payment.product_sales?.client_name,
+        phone: payment.product_sales?.client_phone,
         type: payment.product_sales?.product_name || 'Produto',
+        typeIcon: '📦',
         installment: `${payment.installment_number}/${payment.product_sales?.installments}`,
         installmentValue: payment.amount,
         dueDate: payment.due_date,
@@ -885,7 +1219,7 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
     .from('vehicle_payments')
     .select(`
       id, due_date, amount, installment_number, status,
-      vehicles!inner(buyer_name, brand, model, installments, remaining_balance)
+      vehicles!inner(buyer_name, buyer_phone, brand, model, installments, remaining_balance)
     `)
     .eq('user_id', userId)
     .neq('status', 'paid')
@@ -896,7 +1230,9 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
       const daysOverdue = daysBetween(payment.due_date, today);
       atrasados.push({
         name: payment.vehicles?.buyer_name,
+        phone: payment.vehicles?.buyer_phone,
         type: `${payment.vehicles?.brand} ${payment.vehicles?.model}`,
+        typeIcon: '🚗',
         installment: `${payment.installment_number}/${payment.vehicles?.installments}`,
         installmentValue: payment.amount,
         dueDate: payment.due_date,
@@ -906,39 +1242,97 @@ async function handleConsultaAtrasados(supabase: any, userId: string): Promise<s
     });
   }
 
-  // Sort by days overdue (most overdue first)
   atrasados.sort((a, b) => b.daysOverdue - a.daysOverdue);
 
+  let message = createHeader('Relatório de Inadimplência', '🚨');
+
   if (atrasados.length === 0) {
-    return `🎉 *Clientes em Atraso*\n\n✅ Parabéns! Nenhum cliente em atraso no momento!`;
+    message += `\n╔═══════════════════════════════╗
+║     🎉 *PARABÉNS!*                 ║
+╠═══════════════════════════════╣
+║                               ║
+║   ✅ Nenhum cliente em        ║
+║      atraso no momento!       ║
+║                               ║
+║   📈 Sua carteira está        ║
+║      100% em dia!             ║
+║                               ║
+╚═══════════════════════════════╝
+
+💡 *Dica:* Continue monitorando os vencimentos para manter essa excelente performance!`;
+    message += createFooter();
+    return message;
   }
 
-  let message = `🚨 *Clientes em Atraso*\n\n`;
   let totalInstallments = 0;
   let totalBalance = 0;
+  let critical = 0;
+  let high = 0;
+  let medium = 0;
 
-  atrasados.forEach((a, i) => {
-    message += `${i + 1}️⃣ *${a.name}*\n`;
-    message += `   📋 ${a.type}\n`;
-    message += `   🔴 Parcela ${a.installment} em atraso\n`;
-    message += `   💰 Valor parcela: ${formatCurrency(a.installmentValue)}\n`;
-    message += `   📅 Venceu: ${formatDate(a.dueDate)}\n`;
-    message += `   ⏰ ${a.daysOverdue} dia${a.daysOverdue > 1 ? 's' : ''} de atraso\n`;
-    message += `   ⏳ Saldo total: ${formatCurrency(a.totalBalance)}\n\n`;
+  atrasados.forEach(a => {
     totalInstallments += a.installmentValue;
     totalBalance += a.totalBalance;
+    if (a.daysOverdue > 30) critical++;
+    else if (a.daysOverdue > 14) high++;
+    else medium++;
   });
 
-  message += `━━━━━━━━━━━━━━━━\n`;
-  message += `📊 *Resumo:*\n`;
-  message += `• ${atrasados.length} parcela${atrasados.length > 1 ? 's' : ''} em atraso\n`;
-  message += `• Valor das parcelas: ${formatCurrency(totalInstallments)}\n`;
-  message += `• Saldo total devido: ${formatCurrency(totalBalance)}`;
+  // Summary header
+  message += `\n╔═══════════════════════════════╗
+║     🚨 *ALERTAS DE ATRASO*        ║
+╠═══════════════════════════════╣
+║ 📊 Total em atraso: ${String(atrasados.length).padEnd(9)}║
+║ 💰 Valor parcelas: ${formatCurrency(totalInstallments).padEnd(10)}║
+║ 💎 Saldo total: ${formatCurrency(totalBalance).padEnd(13)}║
+╚═══════════════════════════════╝
 
+`;
+
+  // Priority breakdown
+  if (critical > 0 || high > 0) {
+    message += `⚠️ *PRIORIDADE DE COBRANÇA*
+┌─────────────────────────────┐
+${critical > 0 ? `│ 🔴 Crítico (>30 dias): ${critical} cliente${critical > 1 ? 's' : ''}\n` : ''}${high > 0 ? `│ 🟠 Alto (15-30 dias): ${high} cliente${high > 1 ? 's' : ''}\n` : ''}${medium > 0 ? `│ 🟡 Médio (<15 dias): ${medium} cliente${medium > 1 ? 's' : ''}\n` : ''}└─────────────────────────────┘
+
+`;
+  }
+
+  message += `📋 *LISTA DETALHADA*\n`;
+
+  atrasados.forEach((a, i) => {
+    const riskEmoji = getRiskEmoji(a.daysOverdue);
+    const priority = a.daysOverdue > 30 ? 'CRÍTICO' : a.daysOverdue > 14 ? 'ALTO' : 'MÉDIO';
+    
+    message += `
+┌─────────────────────────────┐
+│ ${riskEmoji} *${(a.name || 'Cliente').substring(0, 22)}*
+├─────────────────────────────┤
+│ ${a.typeIcon} ${a.type.substring(0, 20)}
+│ 📋 Parcela ${a.installment} em atraso
+│ 💰 Valor: *${formatCurrency(a.installmentValue)}*
+│ 📅 Venceu: ${formatDate(a.dueDate)}
+│ ⏰ *${a.daysOverdue} dia${a.daysOverdue > 1 ? 's' : ''} de atraso*
+│ ⚠️ Prioridade: ${priority}
+│ ⏳ Saldo total: ${formatCurrency(a.totalBalance)}
+└─────────────────────────────┘`;
+  });
+
+  // Insights
+  message += `\n\n💡 *RECOMENDAÇÕES*`;
+  if (critical > 0) {
+    message += `\n• 🔴 ${critical} cliente${critical > 1 ? 's' : ''} requer${critical > 1 ? 'em' : ''} ação URGENTE`;
+  }
+  message += `\n• 📱 Envie cobranças via WhatsApp`;
+  message += `\n• 📞 Considere ligação para casos críticos`;
+  message += `\n• 📋 Avalie renegociação se necessário`;
+
+  message += createFooter();
+  
   return message;
 }
 
-// CONSULTA_RESUMO: General summary (includes all contract types)
+// CONSULTA_RESUMO: General summary
 async function handleConsultaResumo(supabase: any, userId: string): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
   
@@ -991,7 +1385,6 @@ async function handleConsultaResumo(supabase: any, userId: string): Promise<stri
     });
   }
 
-  // Get overdue product payments
   const { data: overdueProductPayments } = await supabase
     .from('product_sale_payments')
     .select('id, amount')
@@ -1020,7 +1413,6 @@ async function handleConsultaResumo(supabase: any, userId: string): Promise<stri
     });
   }
 
-  // Get overdue vehicle payments
   const { data: overdueVehiclePayments } = await supabase
     .from('vehicle_payments')
     .select('id, amount')
@@ -1037,35 +1429,107 @@ async function handleConsultaResumo(supabase: any, userId: string): Promise<stri
   const totalOverdueCount = loanOverdueCount + productOverdueCount + vehicleOverdueCount;
   const totalOverdueAmount = loanOverdueAmount + productOverdueAmount + vehicleOverdueAmount;
   const totalActiveContracts = loanActiveCount + productActiveCount + vehicleActiveCount;
+  const totalToReceive = totalCapital + loanInterest - totalReceived;
+  
+  // Calculate health score
+  const healthPercentage = totalCapital > 0 ? Math.round(((totalCapital - totalOverdueAmount) / totalCapital) * 100) : 100;
+  const health = getHealthScore(healthPercentage);
 
-  // Get active clients count
   const { count: clientesAtivos } = await supabase
     .from('clients')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId);
 
-  let message = `📊 *Resumo da Operação*\n\n`;
+  let message = createHeader('Dashboard Executivo', '📊');
   
-  message += `💰 *Valores Gerais:*\n`;
-  message += `• Capital na rua: *${formatCurrency(totalCapital)}*\n`;
-  message += `• Juros a receber: *${formatCurrency(loanInterest)}*\n`;
-  message += `• Total recebido: *${formatCurrency(totalReceived)}*\n\n`;
-  
-  message += `📋 *Contratos Ativos:*\n`;
-  message += `• Empréstimos: ${loanActiveCount} (${formatCurrency(loanCapital + loanInterest)})\n`;
-  message += `• Produtos: ${productActiveCount} (${formatCurrency(productTotal)})\n`;
-  message += `• Veículos: ${vehicleActiveCount} (${formatCurrency(vehicleTotal)})\n`;
-  message += `• *Total: ${totalActiveContracts} contratos*\n\n`;
-  
-  if (totalOverdueCount > 0) {
-    message += `🚨 *Em Atraso:*\n`;
-    message += `• ${totalOverdueCount} parcela${totalOverdueCount > 1 ? 's' : ''} atrasada${totalOverdueCount > 1 ? 's' : ''}\n`;
-    message += `• Valor: ${formatCurrency(totalOverdueAmount)}\n\n`;
-  } else {
-    message += `✅ *Nenhum atraso!*\n\n`;
-  }
-  
-  message += `👥 ${clientesAtivos || 0} cliente${(clientesAtivos || 0) !== 1 ? 's' : ''} cadastrado${(clientesAtivos || 0) !== 1 ? 's' : ''}`;
+  message += `\n╔═══════════════════════════════╗
+║     💰 *CAPITAL NA RUA*           ║
+║                               ║
+║      *${formatCurrency(totalCapital).padStart(15)}*      ║
+║                               ║
+╚═══════════════════════════════╝
 
+`;
+
+  // Financial Metrics
+  message += `📊 *MÉTRICAS FINANCEIRAS*
+┌──────────────────────────────┐
+│ 💵 Capital Investido  ${formatCurrency(loanCapital).padStart(10)}
+│ 📈 Juros a Receber    ${formatCurrency(loanInterest).padStart(10)}
+│ ✅ Total Recebido     ${formatCurrency(totalReceived).padStart(10)}
+│ ⏳ Falta Receber      ${formatCurrency(totalToReceive).padStart(10)}
+└──────────────────────────────┘
+
+`;
+
+  // Contract Portfolio
+  message += `📋 *CARTEIRA DE CONTRATOS*
+┌──────────────────────────────┐
+│ 💳 Empréstimos    ${String(loanActiveCount).padStart(3)} contratos
+│    └ Valor: ${formatCurrency(loanCapital + loanInterest).padStart(15)}
+│
+│ 📦 Produtos       ${String(productActiveCount).padStart(3)} contratos
+│    └ Valor: ${formatCurrency(productTotal).padStart(15)}
+│
+│ 🚗 Veículos       ${String(vehicleActiveCount).padStart(3)} contratos
+│    └ Valor: ${formatCurrency(vehicleTotal).padStart(15)}
+├──────────────────────────────┤
+│ 📊 *TOTAL: ${String(totalActiveContracts).padStart(3)} contratos ativos*
+└──────────────────────────────┘
+
+`;
+
+  // Alerts
+  if (totalOverdueCount > 0) {
+    message += `⚠️ *ALERTAS DE COBRANÇA*
+┌──────────────────────────────┐
+│ 🔴 ${totalOverdueCount} parcela${totalOverdueCount > 1 ? 's' : ''} em atraso
+│ 💰 Valor em atraso: ${formatCurrency(totalOverdueAmount)}
+│
+│ 📱 Ação recomendada: Enviar
+│    cobranças via WhatsApp
+└──────────────────────────────┘
+
+`;
+  } else {
+    message += `✅ *SITUAÇÃO DE COBRANÇA*
+┌──────────────────────────────┐
+│ 🎉 Nenhum atraso!            │
+│ 📈 Carteira 100% em dia      │
+└──────────────────────────────┘
+
+`;
+  }
+
+  // Health Index
+  message += `📈 *ÍNDICE DE SAÚDE DA OPERAÇÃO*
+${health.bar} ${healthPercentage}%
+${health.emoji} Status: *${health.text}*
+
+`;
+
+  // Quick Stats
+  message += `╭─────── ESTATÍSTICAS ───────╮
+│ 👥 ${clientesAtivos || 0} cliente${(clientesAtivos || 0) !== 1 ? 's' : ''} cadastrado${(clientesAtivos || 0) !== 1 ? 's' : ''}
+│ 📋 ${totalActiveContracts} contrato${totalActiveContracts !== 1 ? 's' : ''} ativo${totalActiveContracts !== 1 ? 's' : ''}
+${totalOverdueCount > 0 ? `│ ⚠️ ${totalOverdueCount} parcela${totalOverdueCount > 1 ? 's' : ''} em atraso\n` : ''}╰────────────────────────────╯`;
+
+  // Insights
+  message += `\n\n💡 *INSIGHTS AUTOMÁTICOS*`;
+  if (totalOverdueCount > 0) {
+    const overduePercentage = Math.round((totalOverdueAmount / totalCapital) * 100);
+    message += `\n• ⚠️ ${overduePercentage}% do capital está em atraso`;
+    message += `\n• 📱 Priorize as cobranças hoje`;
+  }
+  if (loanInterest > 0) {
+    message += `\n• 💰 Juros potenciais: ${formatCurrency(loanInterest)}`;
+  }
+  if (totalReceived > 0) {
+    const returnRate = Math.round((totalReceived / (totalCapital + loanInterest)) * 100);
+    message += `\n• 📊 Taxa de retorno: ${returnRate}%`;
+  }
+
+  message += createFooter();
+  
   return message;
 }
