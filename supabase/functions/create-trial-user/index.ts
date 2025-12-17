@@ -18,7 +18,7 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { email, password, full_name, phone } = await req.json();
+    const { email, password, full_name, phone, subscription_plan = 'trial' } = await req.json();
 
     if (!email || !password || !full_name || !phone) {
       return new Response(
@@ -27,9 +27,27 @@ serve(async (req) => {
       );
     }
 
-    // Calculate trial expiration (24 hours from now)
-    const trialExpiresAt = new Date();
-    trialExpiresAt.setHours(trialExpiresAt.getHours() + 24);
+    // Calculate expiration based on plan
+    let expiresAt: Date | null = new Date();
+    let planDescription = '';
+
+    switch (subscription_plan) {
+      case 'monthly':
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        planDescription = '30 dias (Mensal)';
+        break;
+      case 'annual':
+        expiresAt.setDate(expiresAt.getDate() + 365);
+        planDescription = '1 ano (Anual)';
+        break;
+      case 'lifetime':
+        expiresAt = null; // Lifetime never expires
+        planDescription = 'VITALÍCIO';
+        break;
+      default: // trial
+        expiresAt.setHours(expiresAt.getHours() + 24);
+        planDescription = '24 horas (Trial)';
+    }
 
     // Create user
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
@@ -47,15 +65,30 @@ serve(async (req) => {
       );
     }
 
-    // Update profile with phone, trial expiration and temp password
+    // Update profile with plan-specific fields
+    const profileUpdate: Record<string, any> = {
+      full_name,
+      phone,
+      temp_password: password,
+      subscription_plan: subscription_plan,
+    };
+
+    // Set expiration dates based on plan type
+    if (subscription_plan === 'trial') {
+      profileUpdate.trial_expires_at = expiresAt?.toISOString();
+      profileUpdate.subscription_expires_at = null;
+    } else if (subscription_plan === 'lifetime') {
+      profileUpdate.trial_expires_at = null;
+      profileUpdate.subscription_expires_at = null;
+    } else {
+      // monthly or annual
+      profileUpdate.trial_expires_at = null;
+      profileUpdate.subscription_expires_at = expiresAt?.toISOString();
+    }
+
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({
-        full_name,
-        phone,
-        trial_expires_at: trialExpiresAt.toISOString(),
-        temp_password: password
-      })
+      .update(profileUpdate)
       .eq('id', userData.user.id);
 
     if (profileError) {
@@ -72,20 +105,34 @@ serve(async (req) => {
       const formattedPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
       const phoneWithCountry = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
 
-      const message = `🎉 *Bem-vindo ao CobraFácil!*
+      // Different message for lifetime vs expiring plans
+      const message = subscription_plan === 'lifetime'
+        ? `🎉 *Bem-vindo ao CobraFácil!*
 
 Olá ${full_name}!
 
-Seu acesso trial de *24 horas* foi ativado com sucesso!
+Seu acesso *VITALÍCIO* foi ativado! 🎊
+Aproveite o sistema para sempre, sem preocupações!
 
 📧 *Email:* ${email}
 🔑 *Senha:* ${password}
 
 🔗 Acesse agora: https://cobrafacil.online/auth
 
-Aproveite para conhecer todas as funcionalidades do sistema!
+Qualquer dúvida, estamos à disposição!`
+        : `🎉 *Bem-vindo ao CobraFácil!*
 
-⏰ Seu acesso expira em 24 horas.`;
+Olá ${full_name}!
+
+Seu acesso de *${planDescription}* foi ativado com sucesso!
+
+📧 *Email:* ${email}
+🔑 *Senha:* ${password}
+
+🔗 Acesse agora: https://cobrafacil.online/auth
+
+${subscription_plan === 'trial' ? '⏰ Seu acesso expira em 24 horas.' : ''}
+Aproveite para conhecer todas as funcionalidades do sistema!`;
 
       const cleanUrl = evolutionApiUrl.replace(/\/+$/, '').replace(/\/message\/sendText$/, '');
       const apiUrl = `${cleanUrl}/message/sendText/${evolutionInstance}`;
@@ -113,14 +160,15 @@ Aproveite para conhecer todas as funcionalidades do sistema!
         const formattedAdminPhone = adminPhone.replace(/\D/g, '').replace(/^0+/, '');
         const adminPhoneWithCountry = formattedAdminPhone.startsWith('55') ? formattedAdminPhone : `55${formattedAdminPhone}`;
         
-        const adminMessage = `📋 *Novo usuário trial criado!*
+        const adminMessage = `📋 *Novo usuário criado!*
 
 👤 *Nome:* ${full_name}
 📧 *Email:* ${email}
 📱 *Telefone:* ${phone}
 🔑 *Senha:* ${password}
+📦 *Plano:* ${planDescription}
 
-⏰ Expira em: 24 horas`;
+${expiresAt ? `⏰ Expira em: ${planDescription}` : '♾️ Acesso vitalício'}`;
 
         try {
           await fetch(apiUrl, {
@@ -141,13 +189,14 @@ Aproveite para conhecer todas as funcionalidades do sistema!
       }
     }
 
-    console.log('Trial user created:', email, 'expires:', trialExpiresAt.toISOString());
+    console.log('User created:', email, 'plan:', subscription_plan, 'expires:', expiresAt?.toISOString() || 'never');
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         user_id: userData.user.id,
-        trial_expires_at: trialExpiresAt.toISOString()
+        subscription_plan,
+        expires_at: expiresAt?.toISOString() || null
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
