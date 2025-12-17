@@ -30,10 +30,6 @@ function generateExtraDailyDates(existingDates: string[], extraCount: number): s
   let currentDate = new Date(lastDate);
   for (let i = 0; i < extraCount; i++) {
     currentDate.setDate(currentDate.getDate() + 1);
-    // Pula domingo (dia 0)
-    if (currentDate.getDay() === 0) {
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const day = String(currentDate.getDate()).padStart(2, '0');
