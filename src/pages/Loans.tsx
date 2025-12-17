@@ -1090,7 +1090,7 @@ export default function Loans() {
       ...formData,
       principal_amount: principal,
       interest_rate: rate,
-      installments: numInstallments,
+      installments: formData.payment_type === 'single' ? 1 : numInstallments,
       total_interest: totalInterest,
       remaining_balance: principal + totalInterest,
       due_date: finalDueDate,
