@@ -18,11 +18,15 @@ Ações disponíveis:
 - consulta_vencimentos: Listar vencimentos de hoje, amanhã ou da semana
 - consulta_atrasados: Listar clientes/contratos em atraso
 - consulta_resumo: Resumo geral da operação
+- consulta_resumo_diario: Resumo do dia atual (pagamentos recebidos, vencimentos, contratos criados)
+- consulta_resumo_semanal: Resumo da semana atual
+- consulta_resumo_mensal: Resumo do mês atual
+- consulta_parcelas: Status detalhado das parcelas de um cliente específico (quantas parcelas tem, qual está, quanto pagou)
 
 Retorne SEMPRE um JSON válido no formato:
 {
   "transcricao": "texto transcrito do áudio",
-  "acao": "consulta_cliente" | "consulta_contrato" | "consulta_vencimentos" | "consulta_atrasados" | "consulta_resumo" | "nao_entendi",
+  "acao": "consulta_cliente" | "consulta_contrato" | "consulta_vencimentos" | "consulta_atrasados" | "consulta_resumo" | "consulta_resumo_diario" | "consulta_resumo_semanal" | "consulta_resumo_mensal" | "consulta_parcelas" | "nao_entendi",
   "parametros": {
     "nome_cliente": "nome se mencionado ou null",
     "periodo": "hoje" | "amanha" | "semana" | null,
@@ -39,6 +43,19 @@ Exemplos de comandos válidos:
 - "Quem tá atrasado?" → consulta_atrasados
 - "Quem são os caloteiros?" → consulta_atrasados
 - "Me dá um resumo" → consulta_resumo
+- "Como foi meu dia hoje?" → consulta_resumo_diario
+- "Resumo do dia" → consulta_resumo_diario
+- "O que recebi hoje?" → consulta_resumo_diario
+- "Como foi minha semana?" → consulta_resumo_semanal
+- "Resumo da semana" → consulta_resumo_semanal
+- "O que aconteceu essa semana?" → consulta_resumo_semanal
+- "Como foi meu mês?" → consulta_resumo_mensal
+- "Resumo do mês" → consulta_resumo_mensal
+- "Balanço mensal" → consulta_resumo_mensal
+- "Qual parcela está o João?" → consulta_parcelas, nome_cliente: "João"
+- "Quantas parcelas o Pedro já pagou?" → consulta_parcelas, nome_cliente: "Pedro"
+- "Em que parcela está o empréstimo da Maria?" → consulta_parcelas, nome_cliente: "Maria"
+- "Status das parcelas do Carlos" → consulta_parcelas, nome_cliente: "Carlos"
 
 Se o usuário pedir para registrar pagamento, criar empréstimo ou qualquer ação que MODIFIQUE dados,
 retorne acao="nao_entendi" com mensagem explicando que apenas consultas são suportadas por voz.`;
@@ -198,6 +215,18 @@ serve(async (req) => {
         break;
       case 'consulta_resumo':
         responseMessage = await handleConsultaResumo(supabase, userId);
+        break;
+      case 'consulta_resumo_diario':
+        responseMessage = await handleConsultaResumoDiario(supabase, userId);
+        break;
+      case 'consulta_resumo_semanal':
+        responseMessage = await handleConsultaResumoSemanal(supabase, userId);
+        break;
+      case 'consulta_resumo_mensal':
+        responseMessage = await handleConsultaResumoMensal(supabase, userId);
+        break;
+      case 'consulta_parcelas':
+        responseMessage = await handleConsultaParcelas(supabase, userId, parametros?.nome_cliente);
         break;
       default:
         responseMessage = '❓ *Comando não reconhecido*\n\nTente: "Quanto o João me deve?" ou "O que vence hoje?"';
@@ -1528,6 +1557,886 @@ ${totalOverdueCount > 0 ? `│ ⚠️ ${totalOverdueCount} parcela${totalOverdue
     const returnRate = Math.round((totalReceived / (totalCapital + loanInterest)) * 100);
     message += `\n• 📊 Taxa de retorno: ${returnRate}%`;
   }
+
+  message += createFooter();
+  
+  return message;
+}
+
+// CONSULTA_RESUMO_DIARIO: Daily summary
+async function handleConsultaResumoDiario(supabase: any, userId: string): Promise<string> {
+  const today = new Date().toISOString().split('T')[0];
+  const todayStart = today + 'T00:00:00';
+  const todayEnd = today + 'T23:59:59';
+
+  // Get payments received today
+  const { data: loanPayments } = await supabase
+    .from('loan_payments')
+    .select('id, amount, payment_date, interest_paid')
+    .eq('user_id', userId)
+    .eq('payment_date', today);
+
+  const { data: productPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .eq('paid_date', today);
+
+  const { data: vehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .eq('paid_date', today);
+
+  // Get contracts created today
+  const { data: loansCreated } = await supabase
+    .from('loans')
+    .select('id, principal_amount')
+    .eq('user_id', userId)
+    .gte('created_at', todayStart)
+    .lte('created_at', todayEnd);
+
+  const { data: productsCreated } = await supabase
+    .from('product_sales')
+    .select('id, total_amount')
+    .eq('user_id', userId)
+    .gte('created_at', todayStart)
+    .lte('created_at', todayEnd);
+
+  const { data: vehiclesCreated } = await supabase
+    .from('vehicles')
+    .select('id, purchase_value')
+    .eq('user_id', userId)
+    .gte('created_at', todayStart)
+    .lte('created_at', todayEnd);
+
+  // Get due dates for today
+  const { data: loansDueToday } = await supabase
+    .from('loans')
+    .select('id, due_date, installment_dates, principal_amount, total_interest, total_paid, remaining_balance, clients!inner(full_name)')
+    .eq('user_id', userId)
+    .neq('status', 'paid');
+
+  const { data: productsDueToday } = await supabase
+    .from('product_sale_payments')
+    .select('id, due_date, amount, product_sales!inner(client_name)')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .eq('due_date', today);
+
+  const { data: vehiclesDueToday } = await supabase
+    .from('vehicle_payments')
+    .select('id, due_date, amount, vehicles!inner(buyer_name)')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .eq('due_date', today);
+
+  // Calculate totals
+  const loanPaymentsTotal = loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+  const productPaymentsTotal = productPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+  const vehiclePaymentsTotal = vehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0;
+  const totalReceived = loanPaymentsTotal + productPaymentsTotal + vehiclePaymentsTotal;
+  const totalPaymentsCount = (loanPayments?.length || 0) + (productPayments?.length || 0) + (vehiclePayments?.length || 0);
+
+  const interestReceived = loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.interest_paid) || 0), 0) || 0;
+
+  const contractsCreated = (loansCreated?.length || 0) + (productsCreated?.length || 0) + (vehiclesCreated?.length || 0);
+  const contractsValue = (loansCreated?.reduce((sum: number, l: any) => sum + (Number(l.principal_amount) || 0), 0) || 0) +
+                         (productsCreated?.reduce((sum: number, p: any) => sum + (Number(p.total_amount) || 0), 0) || 0) +
+                         (vehiclesCreated?.reduce((sum: number, v: any) => sum + (Number(v.purchase_value) || 0), 0) || 0);
+
+  // Calculate loan due dates for today
+  let loansDueTodayList: any[] = [];
+  if (loansDueToday?.length) {
+    loansDueToday.forEach((loan: any) => {
+      const dates: string[] = loan.installment_dates || [loan.due_date];
+      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      const installmentValue = totalContract / dates.length;
+      const paidInstallments = Math.floor((Number(loan.total_paid) || 0) / installmentValue);
+      
+      for (let i = paidInstallments; i < dates.length; i++) {
+        if (dates[i] === today) {
+          loansDueTodayList.push({
+            name: loan.clients?.full_name,
+            amount: installmentValue,
+            installment: `${i + 1}/${dates.length}`,
+          });
+        }
+      }
+    });
+  }
+
+  const dueTodayCount = loansDueTodayList.length + (productsDueToday?.length || 0) + (vehiclesDueToday?.length || 0);
+  const dueTodayAmount = loansDueTodayList.reduce((sum, l) => sum + l.amount, 0) +
+                         (productsDueToday?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                         (vehiclesDueToday?.reduce((sum: number, v: any) => sum + (Number(v.amount) || 0), 0) || 0);
+
+  let message = createHeader('Resumo do Dia', '📆');
+  
+  const todayFormatted = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  
+  message += `\n╔═══════════════════════════════╗
+║     📆 *${todayFormatted.toUpperCase()}*     ║
+╚═══════════════════════════════╝
+
+`;
+
+  // Received Today
+  message += `💵 *RECEBIDO HOJE*
+┌─────────────────────────────┐
+│ ✅ ${totalPaymentsCount} pagamento${totalPaymentsCount !== 1 ? 's' : ''} recebido${totalPaymentsCount !== 1 ? 's' : ''}
+│ 💰 *Total: ${formatCurrency(totalReceived)}*
+${interestReceived > 0 ? `│ 📈 Juros: ${formatCurrency(interestReceived)}\n` : ''}└─────────────────────────────┘
+
+`;
+
+  if (totalPaymentsCount > 0) {
+    message += `   💳 Empréstimos: ${loanPayments?.length || 0} (${formatCurrency(loanPaymentsTotal)})
+   📦 Produtos: ${productPayments?.length || 0} (${formatCurrency(productPaymentsTotal)})
+   🚗 Veículos: ${vehiclePayments?.length || 0} (${formatCurrency(vehiclePaymentsTotal)})
+
+`;
+  }
+
+  // Due Today
+  message += `📅 *VENCIMENTOS DE HOJE*
+┌─────────────────────────────┐
+│ ⏳ ${dueTodayCount} cobrança${dueTodayCount !== 1 ? 's' : ''} pendente${dueTodayCount !== 1 ? 's' : ''}
+│ 💰 Valor: ${formatCurrency(dueTodayAmount)}
+└─────────────────────────────┘
+
+`;
+
+  // Contracts Created
+  if (contractsCreated > 0) {
+    message += `📋 *CONTRATOS CRIADOS HOJE*
+┌─────────────────────────────┐
+│ 🆕 ${contractsCreated} novo${contractsCreated !== 1 ? 's' : ''} contrato${contractsCreated !== 1 ? 's' : ''}
+│ 💰 Valor total: ${formatCurrency(contractsValue)}
+└─────────────────────────────┘
+
+`;
+  }
+
+  // Day Assessment
+  const dayEmoji = totalReceived > 1000 ? '🔥' : totalReceived > 500 ? '👍' : totalReceived > 0 ? '✅' : '📭';
+  const dayText = totalReceived > 1000 ? 'Dia excelente!' : totalReceived > 500 ? 'Bom dia!' : totalReceived > 0 ? 'Dia produtivo' : 'Sem recebimentos ainda';
+  
+  message += `💡 *AVALIAÇÃO DO DIA*
+${dayEmoji} ${dayText}
+`;
+
+  if (dueTodayCount > 0 && totalPaymentsCount === 0) {
+    message += `\n⚠️ Há ${dueTodayCount} cobrança${dueTodayCount > 1 ? 's' : ''} pendente${dueTodayCount > 1 ? 's' : ''} para hoje!`;
+  }
+
+  message += createFooter();
+  
+  return message;
+}
+
+// CONSULTA_RESUMO_SEMANAL: Weekly summary
+async function handleConsultaResumoSemanal(supabase: any, userId: string): Promise<string> {
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
+
+  const startStr = startOfWeek.toISOString().split('T')[0];
+  const endStr = endOfWeek.toISOString().split('T')[0];
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Previous week for comparison
+  const prevWeekStart = new Date(startOfWeek);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(endOfWeek);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+  const prevStartStr = prevWeekStart.toISOString().split('T')[0];
+  const prevEndStr = prevWeekEnd.toISOString().split('T')[0];
+
+  // Get payments this week
+  const { data: loanPayments } = await supabase
+    .from('loan_payments')
+    .select('id, amount, payment_date, interest_paid')
+    .eq('user_id', userId)
+    .gte('payment_date', startStr)
+    .lte('payment_date', endStr);
+
+  const { data: productPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', startStr)
+    .lte('paid_date', endStr);
+
+  const { data: vehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', startStr)
+    .lte('paid_date', endStr);
+
+  // Get payments previous week
+  const { data: prevLoanPayments } = await supabase
+    .from('loan_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .gte('payment_date', prevStartStr)
+    .lte('payment_date', prevEndStr);
+
+  const { data: prevProductPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', prevStartStr)
+    .lte('paid_date', prevEndStr);
+
+  const { data: prevVehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', prevStartStr)
+    .lte('paid_date', prevEndStr);
+
+  // Get contracts created this week
+  const { data: loansCreated } = await supabase
+    .from('loans')
+    .select('id, principal_amount')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  const { data: productsCreated } = await supabase
+    .from('product_sales')
+    .select('id, total_amount')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  const { data: vehiclesCreated } = await supabase
+    .from('vehicles')
+    .select('id, purchase_value')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  // Get overdue items
+  const { data: overdueProducts } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .lt('due_date', todayStr);
+
+  const { data: overdueVehicles } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .lt('due_date', todayStr);
+
+  // Get loans and calculate overdue
+  const { data: loans } = await supabase
+    .from('loans')
+    .select('id, installment_dates, due_date, principal_amount, total_interest, total_paid, remaining_balance, notes')
+    .eq('user_id', userId)
+    .neq('status', 'paid');
+
+  let loanOverdueCount = 0;
+  let loanOverdueAmount = 0;
+  if (loans?.length) {
+    loans.forEach((loan: any) => {
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
+      const overdueInfo = calculateLoanOverdueInfo(loan);
+      if (overdueInfo) {
+        loanOverdueCount++;
+        loanOverdueAmount += overdueInfo.installmentValue;
+      }
+    });
+  }
+
+  // Calculate totals
+  const totalReceived = (loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (productPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (vehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0);
+
+  const prevTotalReceived = (prevLoanPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                            (prevProductPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                            (prevVehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0);
+
+  const interestReceived = loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.interest_paid) || 0), 0) || 0;
+  const totalPaymentsCount = (loanPayments?.length || 0) + (productPayments?.length || 0) + (vehiclePayments?.length || 0);
+
+  const contractsCreated = (loansCreated?.length || 0) + (productsCreated?.length || 0) + (vehiclesCreated?.length || 0);
+  const contractsValue = (loansCreated?.reduce((sum: number, l: any) => sum + (Number(l.principal_amount) || 0), 0) || 0) +
+                         (productsCreated?.reduce((sum: number, p: any) => sum + (Number(p.total_amount) || 0), 0) || 0) +
+                         (vehiclesCreated?.reduce((sum: number, v: any) => sum + (Number(v.purchase_value) || 0), 0) || 0);
+
+  const overdueCount = loanOverdueCount + (overdueProducts?.length || 0) + (overdueVehicles?.length || 0);
+  const overdueAmount = loanOverdueAmount + 
+                        (overdueProducts?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (overdueVehicles?.reduce((sum: number, v: any) => sum + (Number(v.amount) || 0), 0) || 0);
+
+  // Comparison
+  const variation = prevTotalReceived > 0 ? Math.round(((totalReceived - prevTotalReceived) / prevTotalReceived) * 100) : 0;
+  const variationEmoji = variation > 0 ? '📈' : variation < 0 ? '📉' : '➡️';
+
+  let message = createHeader('Resumo da Semana', '📅');
+  
+  message += `\n╔═══════════════════════════════╗
+║     📅 *SEMANA ATUAL*            ║
+║  ${formatDate(startStr)} - ${formatDate(endStr)}  ║
+╚═══════════════════════════════╝
+
+`;
+
+  // Received This Week
+  message += `💵 *RECEBIDO NA SEMANA*
+┌─────────────────────────────┐
+│ ✅ ${totalPaymentsCount} pagamento${totalPaymentsCount !== 1 ? 's' : ''}
+│ 💰 *Total: ${formatCurrency(totalReceived)}*
+${interestReceived > 0 ? `│ 📈 Juros: ${formatCurrency(interestReceived)}\n` : ''}│
+│ ${variationEmoji} ${variation >= 0 ? '+' : ''}${variation}% vs semana anterior
+└─────────────────────────────┘
+
+`;
+
+  // Contracts Created
+  message += `📋 *CONTRATOS CRIADOS*
+┌─────────────────────────────┐
+│ 🆕 ${contractsCreated} contrato${contractsCreated !== 1 ? 's' : ''} novo${contractsCreated !== 1 ? 's' : ''}
+│ 💰 Valor: ${formatCurrency(contractsValue)}
+└─────────────────────────────┘
+
+`;
+
+  // Overdue Status
+  if (overdueCount > 0) {
+    message += `⚠️ *PARCELAS EM ATRASO*
+┌─────────────────────────────┐
+│ 🔴 ${overdueCount} parcela${overdueCount !== 1 ? 's' : ''} em atraso
+│ 💰 Valor: ${formatCurrency(overdueAmount)}
+│ 📱 Recomendado: Enviar cobranças
+└─────────────────────────────┘
+
+`;
+  } else {
+    message += `✅ *INADIMPLÊNCIA*
+┌─────────────────────────────┐
+│ 🎉 Nenhuma parcela em atraso!
+│ 📈 Carteira 100% em dia
+└─────────────────────────────┘
+
+`;
+  }
+
+  // Week Assessment
+  const weekEmoji = totalReceived > 5000 ? '🔥' : totalReceived > 2000 ? '👍' : totalReceived > 500 ? '✅' : '📊';
+  const weekText = totalReceived > 5000 ? 'Semana excepcional!' : totalReceived > 2000 ? 'Ótima semana!' : totalReceived > 500 ? 'Semana produtiva' : 'Semana tranquila';
+  
+  message += `💡 *AVALIAÇÃO DA SEMANA*
+${weekEmoji} ${weekText}
+`;
+
+  message += createFooter();
+  
+  return message;
+}
+
+// CONSULTA_RESUMO_MENSAL: Monthly summary
+async function handleConsultaResumoMensal(supabase: any, userId: string): Promise<string> {
+  const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  
+  const startStr = startOfMonth.toISOString().split('T')[0];
+  const endStr = endOfMonth.toISOString().split('T')[0];
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Previous month for comparison
+  const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+  const prevStartStr = prevMonthStart.toISOString().split('T')[0];
+  const prevEndStr = prevMonthEnd.toISOString().split('T')[0];
+
+  // Get payments this month
+  const { data: loanPayments } = await supabase
+    .from('loan_payments')
+    .select('id, amount, payment_date, interest_paid')
+    .eq('user_id', userId)
+    .gte('payment_date', startStr)
+    .lte('payment_date', endStr);
+
+  const { data: productPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', startStr)
+    .lte('paid_date', endStr);
+
+  const { data: vehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount, paid_date')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', startStr)
+    .lte('paid_date', endStr);
+
+  // Get payments previous month
+  const { data: prevLoanPayments } = await supabase
+    .from('loan_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .gte('payment_date', prevStartStr)
+    .lte('payment_date', prevEndStr);
+
+  const { data: prevProductPayments } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', prevStartStr)
+    .lte('paid_date', prevEndStr);
+
+  const { data: prevVehiclePayments } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_date', prevStartStr)
+    .lte('paid_date', prevEndStr);
+
+  // Get contracts created this month
+  const { data: loansCreated } = await supabase
+    .from('loans')
+    .select('id, principal_amount, total_interest')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  const { data: productsCreated } = await supabase
+    .from('product_sales')
+    .select('id, total_amount')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  const { data: vehiclesCreated } = await supabase
+    .from('vehicles')
+    .select('id, purchase_value')
+    .eq('user_id', userId)
+    .gte('created_at', startStr + 'T00:00:00')
+    .lte('created_at', endStr + 'T23:59:59');
+
+  // Get remaining due dates this month
+  const { data: pendingProducts } = await supabase
+    .from('product_sale_payments')
+    .select('id, amount, due_date')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .gte('due_date', todayStr)
+    .lte('due_date', endStr);
+
+  const { data: pendingVehicles } = await supabase
+    .from('vehicle_payments')
+    .select('id, amount, due_date')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .gte('due_date', todayStr)
+    .lte('due_date', endStr);
+
+  // Get loans for pending calculation
+  const { data: loans } = await supabase
+    .from('loans')
+    .select('id, installment_dates, due_date, principal_amount, total_interest, total_paid, notes')
+    .eq('user_id', userId)
+    .neq('status', 'paid');
+
+  let pendingLoanAmount = 0;
+  let pendingLoanCount = 0;
+  if (loans?.length) {
+    loans.forEach((loan: any) => {
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return;
+      const dates: string[] = loan.installment_dates || [loan.due_date];
+      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      const installmentValue = totalContract / dates.length;
+      const paidInstallments = Math.floor((Number(loan.total_paid) || 0) / installmentValue);
+      
+      for (let i = paidInstallments; i < dates.length; i++) {
+        if (dates[i] >= todayStr && dates[i] <= endStr) {
+          pendingLoanCount++;
+          pendingLoanAmount += installmentValue;
+        }
+      }
+    });
+  }
+
+  // Calculate totals
+  const totalReceived = (loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (productPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (vehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0);
+
+  const prevTotalReceived = (prevLoanPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                            (prevProductPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                            (prevVehiclePayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0);
+
+  const interestReceived = loanPayments?.reduce((sum: number, p: any) => sum + (Number(p.interest_paid) || 0), 0) || 0;
+  const totalPaymentsCount = (loanPayments?.length || 0) + (productPayments?.length || 0) + (vehiclePayments?.length || 0);
+
+  const contractsCreated = (loansCreated?.length || 0) + (productsCreated?.length || 0) + (vehiclesCreated?.length || 0);
+  const contractsValue = (loansCreated?.reduce((sum: number, l: any) => sum + (Number(l.principal_amount) || 0), 0) || 0) +
+                         (productsCreated?.reduce((sum: number, p: any) => sum + (Number(p.total_amount) || 0), 0) || 0) +
+                         (vehiclesCreated?.reduce((sum: number, v: any) => sum + (Number(v.purchase_value) || 0), 0) || 0);
+
+  const newLoansInterest = loansCreated?.reduce((sum: number, l: any) => sum + (Number(l.total_interest) || 0), 0) || 0;
+
+  const pendingAmount = pendingLoanAmount + 
+                        (pendingProducts?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) || 0) +
+                        (pendingVehicles?.reduce((sum: number, v: any) => sum + (Number(v.amount) || 0), 0) || 0);
+  const pendingCount = pendingLoanCount + (pendingProducts?.length || 0) + (pendingVehicles?.length || 0);
+
+  // Comparison
+  const variation = prevTotalReceived > 0 ? Math.round(((totalReceived - prevTotalReceived) / prevTotalReceived) * 100) : 0;
+  const variationEmoji = variation > 0 ? '📈' : variation < 0 ? '📉' : '➡️';
+
+  // Month name
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const monthName = monthNames[today.getMonth()];
+
+  let message = createHeader('Resumo do Mês', '📆');
+  
+  message += `\n╔═══════════════════════════════╗
+║     📆 *${monthName.toUpperCase()} ${today.getFullYear()}*     ║
+╚═══════════════════════════════╝
+
+`;
+
+  // Received This Month
+  message += `💵 *RECEBIDO NO MÊS*
+┌─────────────────────────────┐
+│ ✅ ${totalPaymentsCount} pagamento${totalPaymentsCount !== 1 ? 's' : ''}
+│ 💰 *Total: ${formatCurrency(totalReceived)}*
+${interestReceived > 0 ? `│ 📈 Lucro (Juros): ${formatCurrency(interestReceived)}\n` : ''}│
+│ ${variationEmoji} ${variation >= 0 ? '+' : ''}${variation}% vs mês anterior
+└─────────────────────────────┘
+
+`;
+
+  // Contracts Created
+  message += `📋 *NOVOS CONTRATOS*
+┌─────────────────────────────┐
+│ 🆕 ${contractsCreated} contrato${contractsCreated !== 1 ? 's' : ''} criado${contractsCreated !== 1 ? 's' : ''}
+│ 💰 Capital: ${formatCurrency(contractsValue)}
+${newLoansInterest > 0 ? `│ 📈 Juros previstos: ${formatCurrency(newLoansInterest)}\n` : ''}└─────────────────────────────┘
+
+`;
+
+  // Projection for rest of month
+  message += `🔮 *PROJEÇÃO RESTANTE DO MÊS*
+┌─────────────────────────────┐
+│ 📅 ${pendingCount} cobrança${pendingCount !== 1 ? 's' : ''} pendente${pendingCount !== 1 ? 's' : ''}
+│ 💰 A receber: ${formatCurrency(pendingAmount)}
+│
+│ 💎 *Projeção total: ${formatCurrency(totalReceived + pendingAmount)}*
+└─────────────────────────────┘
+
+`;
+
+  // Month progress
+  const daysInMonth = endOfMonth.getDate();
+  const dayOfMonth = today.getDate();
+  const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
+  
+  message += `📊 *PROGRESSO DO MÊS*
+${createProgressBar(monthProgress, 12)} ${monthProgress}%
+Dia ${dayOfMonth} de ${daysInMonth}
+
+`;
+
+  // Month Assessment
+  const monthEmoji = totalReceived > 10000 ? '🏆' : totalReceived > 5000 ? '🔥' : totalReceived > 2000 ? '👍' : '📊';
+  const monthText = totalReceived > 10000 ? 'Mês excepcional!' : totalReceived > 5000 ? 'Excelente mês!' : totalReceived > 2000 ? 'Bom mês!' : 'Mês em andamento';
+  
+  message += `💡 *AVALIAÇÃO*
+${monthEmoji} ${monthText}
+`;
+
+  message += createFooter();
+  
+  return message;
+}
+
+// CONSULTA_PARCELAS: Detailed installment status for a specific client
+async function handleConsultaParcelas(supabase: any, userId: string, nomeCliente: string | null): Promise<string> {
+  if (!nomeCliente) {
+    return createHeader('Status de Parcelas', '📋') +
+      `\n❓ *Nome não identificado*\n\nPor favor, diga o nome do cliente.\n\n💡 *Exemplo:* "Qual parcela está o João?" ou "Quantas parcelas o Pedro pagou?"` +
+      createFooter();
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  // Search for client
+  const { data: clients, error } = await supabase
+    .from('clients')
+    .select('id, full_name')
+    .eq('user_id', userId)
+    .ilike('full_name', `%${nomeCliente}%`)
+    .limit(5);
+
+  if (error || !clients?.length) {
+    return createHeader('Status de Parcelas', '📋') +
+      `\n❌ *Cliente não encontrado*\n\nNão encontrei nenhum cliente com o nome "${nomeCliente}".` +
+      createFooter();
+  }
+
+  if (clients.length > 1) {
+    const names = clients.map((c: any, i: number) => `   ${i + 1}. ${c.full_name}`).join('\n');
+    return createHeader('Múltiplos Resultados', '🔍') +
+      `\n🔎 *Clientes encontrados:*\n\n${names}\n\n💡 Seja mais específico com o nome.` +
+      createFooter();
+  }
+
+  const client = clients[0];
+  const contracts: any[] = [];
+
+  // Get loans
+  const { data: loans } = await supabase
+    .from('loans')
+    .select('id, principal_amount, total_interest, remaining_balance, status, total_paid, installments, installment_dates, due_date, notes, start_date')
+    .eq('user_id', userId)
+    .eq('client_id', client.id);
+
+  if (loans?.length) {
+    loans.forEach((loan: any) => {
+      const totalContract = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+      const dates: string[] = loan.installment_dates || [loan.due_date];
+      const installmentValue = totalContract / dates.length;
+      const paidInstallments = Math.floor((Number(loan.total_paid) || 0) / installmentValue);
+      const progress = Math.round((Number(loan.total_paid || 0) / totalContract) * 100);
+      
+      // Find next due and overdue
+      let nextDue: string | null = null;
+      let overdueDue: string | null = null;
+      let overdueInstallment = 0;
+      
+      for (let i = paidInstallments; i < dates.length; i++) {
+        if (dates[i] < today && !overdueDue) {
+          overdueDue = dates[i];
+          overdueInstallment = i + 1;
+        } else if (dates[i] >= today && !nextDue) {
+          nextDue = dates[i];
+        }
+      }
+
+      contracts.push({
+        type: 'emprestimo',
+        label: 'Empréstimo',
+        icon: '💳',
+        totalContract,
+        totalPaid: loan.total_paid || 0,
+        remainingBalance: loan.remaining_balance,
+        totalInstallments: dates.length,
+        paidInstallments,
+        currentInstallment: Math.min(paidInstallments + 1, dates.length),
+        installmentValue,
+        progress,
+        nextDue,
+        overdueDue,
+        overdueInstallment,
+        status: loan.status,
+        startDate: loan.start_date,
+      });
+    });
+  }
+
+  // Get product sales
+  const { data: products } = await supabase
+    .from('product_sales')
+    .select('id, product_name, total_amount, remaining_balance, status, total_paid, installments, first_due_date, installment_value, sale_date')
+    .eq('user_id', userId)
+    .ilike('client_name', `%${client.full_name}%`);
+
+  if (products?.length) {
+    for (const product of products) {
+      const { data: payments } = await supabase
+        .from('product_sale_payments')
+        .select('id, due_date, amount, installment_number, status')
+        .eq('product_sale_id', product.id)
+        .order('due_date');
+
+      const paidPayments = payments?.filter((p: any) => p.status === 'paid') || [];
+      const pendingPayments = payments?.filter((p: any) => p.status !== 'paid') || [];
+      const overduePayment = pendingPayments.find((p: any) => p.due_date < today);
+      const nextPayment = pendingPayments.find((p: any) => p.due_date >= today);
+      const progress = Math.round((Number(product.total_paid || 0) / Number(product.total_amount)) * 100);
+
+      contracts.push({
+        type: 'produto',
+        label: product.product_name || 'Produto',
+        icon: '📦',
+        totalContract: product.total_amount,
+        totalPaid: product.total_paid || 0,
+        remainingBalance: product.remaining_balance,
+        totalInstallments: product.installments,
+        paidInstallments: paidPayments.length,
+        currentInstallment: paidPayments.length + 1,
+        installmentValue: product.installment_value,
+        progress,
+        nextDue: nextPayment?.due_date,
+        overdueDue: overduePayment?.due_date,
+        overdueInstallment: overduePayment?.installment_number,
+        status: product.status,
+        startDate: product.sale_date,
+      });
+    }
+  }
+
+  // Get vehicles
+  const { data: vehicles } = await supabase
+    .from('vehicles')
+    .select('id, brand, model, purchase_value, remaining_balance, status, total_paid, installments, first_due_date, installment_value, purchase_date')
+    .eq('user_id', userId)
+    .ilike('buyer_name', `%${client.full_name}%`);
+
+  if (vehicles?.length) {
+    for (const vehicle of vehicles) {
+      const { data: payments } = await supabase
+        .from('vehicle_payments')
+        .select('id, due_date, amount, installment_number, status')
+        .eq('vehicle_id', vehicle.id)
+        .order('due_date');
+
+      const paidPayments = payments?.filter((p: any) => p.status === 'paid') || [];
+      const pendingPayments = payments?.filter((p: any) => p.status !== 'paid') || [];
+      const overduePayment = pendingPayments.find((p: any) => p.due_date < today);
+      const nextPayment = pendingPayments.find((p: any) => p.due_date >= today);
+      const progress = Math.round((Number(vehicle.total_paid || 0) / Number(vehicle.purchase_value)) * 100);
+
+      contracts.push({
+        type: 'veiculo',
+        label: `${vehicle.brand} ${vehicle.model}`,
+        icon: '🚗',
+        totalContract: vehicle.purchase_value,
+        totalPaid: vehicle.total_paid || 0,
+        remainingBalance: vehicle.remaining_balance,
+        totalInstallments: vehicle.installments,
+        paidInstallments: paidPayments.length,
+        currentInstallment: paidPayments.length + 1,
+        installmentValue: vehicle.installment_value,
+        progress,
+        nextDue: nextPayment?.due_date,
+        overdueDue: overduePayment?.due_date,
+        overdueInstallment: overduePayment?.installment_number,
+        status: vehicle.status,
+        startDate: vehicle.purchase_date,
+      });
+    }
+  }
+
+  if (contracts.length === 0) {
+    return createHeader('Status de Parcelas', '📋') +
+      `\n╔═══════════════════════════════╗
+║     ✅ *SEM CONTRATOS*           ║
+╚═══════════════════════════════╝
+
+👤 *${client.full_name}*
+
+Este cliente não possui contratos ativos.` +
+      createFooter();
+  }
+
+  let message = createHeader('Status de Parcelas', '📋');
+  
+  message += `\n╔═══════════════════════════════╗
+║     👤 *${client.full_name.toUpperCase().substring(0, 22)}*     ║
+╚═══════════════════════════════╝
+
+`;
+
+  // Summary
+  const totalContracts = contracts.length;
+  const activeContracts = contracts.filter(c => c.status !== 'paid').length;
+  const overdueContracts = contracts.filter(c => c.overdueDue).length;
+  const totalPaid = contracts.reduce((sum, c) => sum + c.totalPaid, 0);
+  const totalRemaining = contracts.reduce((sum, c) => sum + c.remainingBalance, 0);
+
+  message += `📊 *RESUMO GERAL*
+┌─────────────────────────────┐
+│ 📋 ${totalContracts} contrato${totalContracts !== 1 ? 's' : ''} (${activeContracts} ativo${activeContracts !== 1 ? 's' : ''})
+│ ✅ Total pago: ${formatCurrency(totalPaid)}
+│ ⏳ Falta: ${formatCurrency(totalRemaining)}
+${overdueContracts > 0 ? `│ 🔴 ${overdueContracts} em atraso\n` : ''}└─────────────────────────────┘
+
+`;
+
+  // Detail each contract
+  message += `📋 *DETALHES POR CONTRATO*\n`;
+
+  contracts.forEach((c, i) => {
+    const statusEmoji = c.status === 'paid' ? '✅' : c.overdueDue ? '🔴' : '🟡';
+    const statusText = c.status === 'paid' ? 'Quitado' : c.overdueDue ? 'Em Atraso' : 'Pendente';
+    
+    message += `
+┌─────────────────────────────┐
+│ ${c.icon} *${c.label.substring(0, 22)}*
+├─────────────────────────────┤
+│ 📊 *PROGRESSO*
+│ ${createProgressBar(c.progress, 10)} ${c.progress}%
+│
+│ 🔢 *STATUS DAS PARCELAS*
+│ ├ Parcela atual: *${c.currentInstallment}/${c.totalInstallments}*
+│ ├ Pagas: ${c.paidInstallments} parcela${c.paidInstallments !== 1 ? 's' : ''}
+│ └ Pendentes: ${c.totalInstallments - c.paidInstallments} parcela${(c.totalInstallments - c.paidInstallments) !== 1 ? 's' : ''}
+│
+│ 💰 *VALORES*
+│ ├ Valor parcela: ${formatCurrency(c.installmentValue)}
+│ ├ Total pago: ${formatCurrency(c.totalPaid)}
+│ └ Saldo: ${formatCurrency(c.remainingBalance)}
+│`;
+
+    if (c.overdueDue) {
+      const daysOverdue = daysBetween(c.overdueDue, today);
+      message += `
+│ 🚨 *PARCELA EM ATRASO*
+│ ├ Parcela ${c.overdueInstallment}/${c.totalInstallments}
+│ ├ Venceu: ${formatDate(c.overdueDue)}
+│ └ *${daysOverdue} dia${daysOverdue !== 1 ? 's' : ''} de atraso*
+│`;
+    } else if (c.nextDue && c.status !== 'paid') {
+      const daysUntil = daysBetween(today, c.nextDue);
+      message += `
+│ 📅 *PRÓXIMA PARCELA*
+│ ├ Parcela ${c.currentInstallment}/${c.totalInstallments}
+│ ├ Vence: ${formatDate(c.nextDue)}
+│ └ Em ${daysUntil} dia${daysUntil !== 1 ? 's' : ''}
+│`;
+    }
+
+    message += `
+│ 📌 Status: ${statusEmoji} ${statusText}
+└─────────────────────────────┘`;
+  });
+
+  // Insights
+  message += `\n\n💡 *INSIGHTS*`;
+  if (overdueContracts > 0) {
+    message += `\n• 🔴 ${overdueContracts} contrato${overdueContracts > 1 ? 's' : ''} com parcela em atraso`;
+    message += `\n• 📱 Recomendado: Enviar cobrança`;
+  } else {
+    message += `\n• ✅ Cliente em dia com todos os contratos`;
+  }
+  
+  const avgProgress = contracts.length > 0 ? Math.round(contracts.reduce((sum, c) => sum + c.progress, 0) / contracts.length) : 0;
+  message += `\n• 📊 Progresso médio: ${avgProgress}%`;
 
   message += createFooter();
   
