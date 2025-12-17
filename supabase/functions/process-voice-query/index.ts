@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Emails com acesso privilegiado ao assistente de voz (independente do plano)
+const VOICE_PRIVILEGED_EMAILS = [
+  'clau_pogian@hotmail.com',
+  'maicon.francoso1@gmail.com',
+];
+
 // System prompt for voice command interpretation
 const SYSTEM_PROMPT = `Você é um assistente de voz para o CobraFácil, um sistema de gestão de empréstimos e cobranças.
 Analise o áudio do usuário e identifique a intenção de consulta.
@@ -88,6 +94,55 @@ serve(async (req) => {
     const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')!;
     
     console.log('📱 Using central instance:', instanceName);
+
+    // Check user eligibility for voice assistant
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('email, subscription_plan, is_active')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      console.log('⛔ User not found:', userId);
+      return new Response(JSON.stringify({ error: 'User not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userEmail = userData.email?.toLowerCase() || '';
+    const userPlan = userData.subscription_plan;
+    
+    // Verify if user can use voice assistant
+    const canUseVoice = 
+      VOICE_PRIVILEGED_EMAILS.includes(userEmail) ||
+      userPlan === 'monthly' || 
+      userPlan === 'annual';
+
+    if (!canUseVoice) {
+      console.log('⛔ User not eligible for voice assistant:', { email: userEmail, plan: userPlan });
+      
+      // Send message informing access restriction
+      await sendWhatsAppMessage(
+        evolutionApiUrl, 
+        evolutionApiKey, 
+        instanceName, 
+        senderPhone,
+        '⛔ *Acesso Restrito*\n\n' +
+        'O Assistente de Voz está disponível apenas para assinantes dos planos *Mensal* ou *Anual*.\n\n' +
+        '💬 Entre em contato para fazer upgrade do seu plano!'
+      );
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Voice assistant not available for this plan' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('✅ User eligible for voice assistant:', { email: userEmail, plan: userPlan });
 
     // Send audio to Lovable AI for transcription and interpretation
     console.log('🤖 Sending audio to Lovable AI...');
