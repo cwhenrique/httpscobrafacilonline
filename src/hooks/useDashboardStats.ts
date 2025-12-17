@@ -87,10 +87,10 @@ export function useDashboardStats() {
       supabase.from('vehicles').select('id, purchase_date').gte('purchase_date', weekAgoStr),
       supabase.from('contracts').select('id, status, contract_date'),
       supabase.from('contracts').select('id, contract_date').gte('contract_date', weekAgoStr),
-      supabase.from('loan_payments').select('amount, payment_date').gte('payment_date', weekAgoStr),
-      supabase.from('product_sale_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr),
-      supabase.from('vehicle_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr),
-      supabase.from('contract_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr),
+      supabase.from('loan_payments').select('amount, payment_date').gte('payment_date', weekAgoStr).lte('payment_date', todayStr),
+      supabase.from('product_sale_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+      supabase.from('vehicle_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+      supabase.from('contract_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
     ]);
 
     let totalLoaned = 0; // Capital na Rua - apenas empréstimos ATIVOS
