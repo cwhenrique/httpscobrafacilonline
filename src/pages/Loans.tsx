@@ -133,7 +133,7 @@ export default function Loans() {
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'interest_only'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'biweekly' | 'interest_only'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -805,11 +805,13 @@ export default function Loans() {
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily' && loan.payment_type !== 'weekly';
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily' && loan.payment_type !== 'weekly' && loan.payment_type !== 'biweekly';
       case 'daily':
         return loan.payment_type === 'daily';
       case 'weekly':
         return loan.payment_type === 'weekly';
+      case 'biweekly':
+        return loan.payment_type === 'biweekly';
       case 'interest_only':
         return isInterestOnlyPayment && !isOverdue;
       default:
@@ -3062,6 +3064,23 @@ export default function Loans() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p>Empréstimos com cobrança semanal</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={statusFilter === 'biweekly' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('biweekly')}
+                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'biweekly' ? 'bg-teal-500' : 'border-teal-500 text-teal-600 hover:bg-teal-500/10'}`}
+                  >
+                    <CalendarIcon className="w-3 h-3 mr-1" />
+                    <span className="hidden xs:inline">Quinzenal</span><span className="xs:hidden">Quin.</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Empréstimos com cobrança quinzenal (a cada 15 dias)</p>
                 </TooltipContent>
               </Tooltip>
               
