@@ -21,9 +21,27 @@ interface WhatsAppStatus {
   connectedAt?: string;
 }
 
+// Emails com acesso privilegiado ao assistente de voz (independente do plano)
+const VOICE_PRIVILEGED_EMAILS = [
+  'clau_pogian@hotmail.com',
+  'maicon.francoso1@gmail.com',
+];
+
 export default function Settings() {
   const { user } = useAuth();
   const { profile, isProfileComplete, updateProfile } = useProfile();
+
+  // Check if user can access voice assistant (only recurring plans or privileged emails)
+  const canAccessVoiceAssistant = (): boolean => {
+    const email = profile?.email?.toLowerCase() || '';
+    
+    // Privileged emails always have access
+    if (VOICE_PRIVILEGED_EMAILS.includes(email)) return true;
+    
+    // Only monthly and annual plans have access
+    const plan = profile?.subscription_plan;
+    return plan === 'monthly' || plan === 'annual';
+  };
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -628,7 +646,8 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
           </CardContent>
         </Card>
 
-        {/* Voice Assistant - Now independent of WhatsApp connection */}
+        {/* Voice Assistant - Only for recurring plans or privileged emails */}
+        {canAccessVoiceAssistant() && (
         <Card className="shadow-soft border-purple-500/20">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -708,6 +727,7 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* QR Code Modal */}
