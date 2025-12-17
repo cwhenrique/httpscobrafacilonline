@@ -1053,6 +1053,9 @@ export default function Loans() {
           .from('loans')
           .update({ notes: updatedNotes })
           .eq('id', loanId);
+        
+        // Recarregar loans para refletir as notas atualizadas com tags PARTIAL_PAID
+        await fetchLoans();
       }
       
       toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
