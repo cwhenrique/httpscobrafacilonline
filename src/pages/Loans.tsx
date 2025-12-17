@@ -141,6 +141,45 @@ export default function Loans() {
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [installmentDates, setInstallmentDates] = useState<string[]>([]);
+  const [dailyDateMode, setDailyDateMode] = useState<'auto' | 'manual'>('auto');
+  const [dailyFirstDate, setDailyFirstDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
+  
+  // Generate daily dates skipping Sundays
+  const generateDailyDates = (startDate: string, count: number): string[] => {
+    const dates: string[] = [];
+    let currentDate = new Date(startDate + 'T12:00:00');
+    
+    for (let i = 0; i < count; i++) {
+      // Skip Sunday (day 0)
+      while (currentDate.getDay() === 0) {
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      dates.push(format(currentDate, 'yyyy-MM-dd'));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return dates;
+  };
+  
+  // Auto-generate dates when auto mode is active
+  useEffect(() => {
+    if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
+      const count = parseInt(dailyInstallmentCount) || 0;
+      if (count > 0) {
+        const generatedDates = generateDailyDates(dailyFirstDate, count);
+        setInstallmentDates(generatedDates);
+        if (generatedDates.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            start_date: generatedDates[0],
+            due_date: generatedDates[generatedDates.length - 1],
+            installments: count.toString(),
+            daily_period: count.toString()
+          }));
+        }
+      }
+    }
+  }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount]);
   const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
   const [renegotiateData, setRenegotiateData] = useState({
     promised_amount: '',
@@ -684,10 +723,16 @@ export default function Loans() {
   // Reset dates when switching to daily payment type
   useEffect(() => {
     if (formData.payment_type === 'daily') {
-      // Clear previous dates to allow manual selection
-      setInstallmentDates([]);
+      // In auto mode, generate dates; in manual mode, clear for manual selection
+      if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
+        const count = parseInt(dailyInstallmentCount) || 20;
+        const generatedDates = generateDailyDates(dailyFirstDate, count);
+        setInstallmentDates(generatedDates);
+      } else {
+        setInstallmentDates([]);
+      }
     }
-  }, [formData.payment_type]);
+  }, [formData.payment_type, dailyDateMode]);
 
   const updateInstallmentDate = (index: number, date: string) => {
     const newDates = [...installmentDates];
@@ -1487,6 +1532,9 @@ export default function Loans() {
     setInstallmentDates([]);
     setInstallmentValue('');
     setSelectedPastInstallments([]);
+    setDailyDateMode('auto');
+    setDailyFirstDate(format(new Date(), 'yyyy-MM-dd'));
+    setDailyInstallmentCount('20');
   };
 
   const openRenegotiateDialog = (loanId: string) => {
@@ -2803,43 +2851,104 @@ export default function Loans() {
                   </div>
                 )}
                 {formData.payment_type === 'daily' && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
-                    <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar/remover os dias de cobrança</p>
-                    <div className="border rounded-md p-3">
-                      <Calendar
-                        mode="multiple"
-                        selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
-                        onSelect={(dates) => {
-                          if (dates) {
-                            const sortedDates = dates
-                              .map(d => format(d, 'yyyy-MM-dd'))
-                              .sort();
-                            setInstallmentDates(sortedDates);
-                            if (sortedDates.length > 0) {
-                              setFormData(prev => ({
-                                ...prev,
-                                due_date: sortedDates[sortedDates.length - 1],
-                                installments: sortedDates.length.toString(),
-                                daily_period: sortedDates.length.toString()
-                              }));
-                            }
-                          } else {
-                            setInstallmentDates([]);
-                          }
-                        }}
-                        className="pointer-events-auto"
-                      />
+                    
+                    {/* Mode toggle */}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={dailyDateMode === 'auto' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDailyDateMode('auto')}
+                        className="flex-1"
+                      >
+                        Gerar Automaticamente
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={dailyDateMode === 'manual' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDailyDateMode('manual')}
+                        className="flex-1"
+                      >
+                        Selecionar Manual
+                      </Button>
                     </div>
+                    
+                    {dailyDateMode === 'auto' ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Selecione a primeira data e o número de parcelas. Domingos serão pulados automaticamente.
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Data da 1ª Parcela</Label>
+                            <Input
+                              type="date"
+                              value={dailyFirstDate}
+                              onChange={(e) => setDailyFirstDate(e.target.value)}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Nº de Parcelas</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="365"
+                              value={dailyInstallmentCount}
+                              onChange={(e) => setDailyInstallmentCount(e.target.value)}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar/remover os dias de cobrança</p>
+                        <div className="border rounded-md p-3">
+                          <Calendar
+                            mode="multiple"
+                            selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
+                            onSelect={(dates) => {
+                              if (dates) {
+                                const sortedDates = dates
+                                  .map(d => format(d, 'yyyy-MM-dd'))
+                                  .sort();
+                                setInstallmentDates(sortedDates);
+                                if (sortedDates.length > 0) {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    due_date: sortedDates[sortedDates.length - 1],
+                                    installments: sortedDates.length.toString(),
+                                    daily_period: sortedDates.length.toString()
+                                  }));
+                                }
+                              } else {
+                                setInstallmentDates([]);
+                              }
+                            }}
+                            className="pointer-events-auto"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
                     {installmentDates.length > 0 && (
-                      <ScrollArea className="h-[100px] rounded-md border p-3">
+                      <ScrollArea className="h-[120px] rounded-md border p-3 bg-muted/30">
                         <div className="space-y-1">
-                          {installmentDates.map((date, index) => (
-                            <div key={index} className="flex items-center gap-3 text-sm">
-                              <span className="font-medium w-16">Dia {index + 1}</span>
-                              <span className="text-muted-foreground">{formatDate(date)}</span>
-                            </div>
-                          ))}
+                          {installmentDates.map((date, index) => {
+                            const dateObj = new Date(date + 'T12:00:00');
+                            const dayName = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
+                            return (
+                              <div key={index} className="flex items-center gap-3 text-sm">
+                                <span className="font-medium w-16 text-primary">Dia {index + 1}</span>
+                                <span className="text-muted-foreground">{formatDate(date)}</span>
+                                <span className="text-xs text-muted-foreground/70">({dayName})</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </ScrollArea>
                     )}
