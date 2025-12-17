@@ -1,7 +1,7 @@
 export type ClientType = 'loan' | 'monthly' | 'both';
 export type PaymentStatus = 'paid' | 'pending' | 'overdue';
 export type InterestType = 'simple' | 'compound';
-export type LoanPaymentType = 'single' | 'installment' | 'daily' | 'weekly';
+export type LoanPaymentType = 'single' | 'installment' | 'daily' | 'weekly' | 'biweekly';
 
 export interface Profile {
   id: string;
