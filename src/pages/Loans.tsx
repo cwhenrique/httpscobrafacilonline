@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,7 @@ import LoanCreatedReceiptPrompt from '@/components/LoanCreatedReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
+import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -129,7 +130,7 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
 };
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
@@ -311,6 +312,10 @@ export default function Loans() {
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingPaymentDate, setEditingPaymentDate] = useState<Date | undefined>(undefined);
+  
+  // Extra installments dialog state (for daily loans)
+  const [isExtraInstallmentsOpen, setIsExtraInstallmentsOpen] = useState(false);
+  const [extraInstallmentsLoan, setExtraInstallmentsLoan] = useState<any>(null);
   
   // Tutorial states - Single page tutorial (8 steps)
   const [pageTutorialRun, setPageTutorialRun] = useState(false);
@@ -3768,6 +3773,27 @@ export default function Loans() {
                                 <p>Alterar dados do empréstimo, datas e valores</p>
                               </TooltipContent>
                             </Tooltip>
+                            {/* Botão de adicionar parcelas extras - apenas para empréstimos diários ativos */}
+                            {isDaily && !isPaid && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                    onClick={() => {
+                                      setExtraInstallmentsLoan(loan);
+                                      setIsExtraInstallmentsOpen(true);
+                                    }}
+                                  >
+                                    <ListPlus className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Adicionar parcelas extras (cliente atrasou)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -5663,6 +5689,26 @@ export default function Loans() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        
+        {/* Dialog para adicionar parcelas extras em empréstimos diários */}
+        {extraInstallmentsLoan && (
+          <AddExtraInstallmentsDialog
+            isOpen={isExtraInstallmentsOpen}
+            onClose={() => {
+              setIsExtraInstallmentsOpen(false);
+              setExtraInstallmentsLoan(null);
+            }}
+            loan={{
+              id: extraInstallmentsLoan.id,
+              installments: extraInstallmentsLoan.installments || 1,
+              installment_dates: (extraInstallmentsLoan.installment_dates as string[]) || [],
+              total_interest: extraInstallmentsLoan.total_interest || 0,
+              principal_amount: extraInstallmentsLoan.principal_amount,
+              client: extraInstallmentsLoan.client,
+            }}
+            onConfirm={addExtraInstallments}
+          />
+        )}
       </div>
     </DashboardLayout>
   );
