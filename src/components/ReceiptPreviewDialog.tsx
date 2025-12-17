@@ -111,13 +111,12 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   if (data.dueDates.length > 0) {
     message += `\n📅 *VENCIMENTOS*\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
-    const maxDates = Math.min(data.dueDates.length, 6);
-    for (let i = 0; i < maxDates; i++) {
-      message += `${i + 1}ª parcela: ${formatDate(data.dueDates[i])}\n`;
-    }
-    if (data.dueDates.length > 6) {
-      message += `... e mais ${data.dueDates.length - 6} parcela(s)\n`;
-    }
+    data.dueDates.forEach((item, index) => {
+      const date = typeof item === 'string' ? item : item.date;
+      const isPaid = typeof item === 'object' && item.isPaid;
+      const checkmark = isPaid ? '✅ ' : '';
+      message += `${checkmark}${index + 1}ª parcela: ${formatDate(date)}\n`;
+    });
   }
   
   message += `\n━━━━━━━━━━━━━━━━\n`;
@@ -336,16 +335,16 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
               <div className="bg-primary/5 rounded-lg p-3">
                 <h5 className="font-semibold text-primary text-sm mb-2">DATAS DE VENCIMENTO</h5>
                 <div className="grid grid-cols-3 gap-2 text-xs">
-                  {data.dueDates.slice(0, 9).map((date, index) => (
-                    <div key={index} className="bg-background rounded p-1 text-center">
-                      <span className="font-medium">{index + 1}ª:</span> {formatDate(date)}
-                    </div>
-                  ))}
-                  {data.dueDates.length > 9 && (
-                    <div className="col-span-3 text-center text-muted-foreground">
-                      ... e mais {data.dueDates.length - 9} parcela(s)
-                    </div>
-                  )}
+                  {data.dueDates.map((item, index) => {
+                    const date = typeof item === 'string' ? item : item.date;
+                    const isPaid = typeof item === 'object' && item.isPaid;
+                    return (
+                      <div key={index} className={`rounded p-1 text-center ${isPaid ? 'bg-green-500/20' : 'bg-background'}`}>
+                        {isPaid && <span className="text-green-500">✅ </span>}
+                        <span className="font-medium">{index + 1}ª:</span> {formatDate(date)}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
