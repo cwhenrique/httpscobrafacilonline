@@ -221,30 +221,55 @@ export default function Settings() {
 
   const handleToggleVoiceAssistant = async (enabled: boolean) => {
     if (!user?.id) return;
-    
+
     setTogglingVoice(true);
     setVoiceAssistantEnabled(enabled);
-    
-    try {
-      // Save preference in profile - no webhook configuration needed anymore
-      // The central CobraFácil number already has the webhook configured
-      const { error: profileError } = await updateProfile({
-        voice_assistant_enabled: enabled,
-      });
 
-      if (profileError) {
-        toast.error('Erro ao salvar configuração');
-        setVoiceAssistantEnabled(!enabled);
+    try {
+      // Ensure phone is saved (voice assistant identifies the user by their WhatsApp number)
+      const currentDigits = (profile?.phone || '').replace(/\D/g, '');
+      const formDigits = (formData.phone || '').replace(/\D/g, '');
+      const phoneToSave = currentDigits || formDigits;
+
+      if (enabled) {
+        if (!phoneToSave || phoneToSave.length < 10) {
+          toast.error('Informe seu WhatsApp e salve o perfil para usar o assistente de voz');
+          setVoiceAssistantEnabled(false);
+          return;
+        }
+
+        // Save preference in profile - no webhook configuration needed anymore
+        // The central CobraFácil number already has the webhook configured
+        const { error: profileError } = await updateProfile({
+          voice_assistant_enabled: true,
+          ...(currentDigits ? {} : { phone: phoneToSave }),
+        });
+
+        if (profileError) {
+          toast.error('Erro ao salvar configuração');
+          setVoiceAssistantEnabled(false);
+        } else {
+          toast.success('Assistente de voz ativado!');
+        }
       } else {
-        toast.success(enabled ? 'Assistente de voz ativado!' : 'Assistente de voz desativado');
+        const { error: profileError } = await updateProfile({
+          voice_assistant_enabled: false,
+        });
+
+        if (profileError) {
+          toast.error('Erro ao salvar configuração');
+          setVoiceAssistantEnabled(true);
+        } else {
+          toast.success('Assistente de voz desativado');
+        }
       }
     } catch (error) {
       console.error('Error toggling voice assistant:', error);
       toast.error('Erro ao configurar assistente de voz');
       setVoiceAssistantEnabled(!enabled);
+    } finally {
+      setTogglingVoice(false);
     }
-    
-    setTogglingVoice(false);
   };
 
   const formatPhone = (value: string) => {
