@@ -4030,13 +4030,26 @@ export default function Loans() {
             if (!selectedLoan) return null;
             const numInstallments = selectedLoan.installments || 1;
             const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+            const isDaily = selectedLoan.payment_type === 'daily';
             
-            // Usar total_interest do banco (já calculado) para cenário geral
-            const totalInterest = selectedLoan.total_interest || 0;
-            const interestPerInstallment = totalInterest / numInstallments;
+            // Para empréstimos diários: total_interest armazena o valor da parcela diária
+            // Para outros: total_interest é o juros total do contrato
+            let totalInterest: number;
+            let interestPerInstallment: number;
+            let totalPerInstallment: number;
             
-            // Valor "teórico" por parcela a partir de principal + juros cadastrados
-            let totalPerInstallment = principalPerInstallment + interestPerInstallment;
+            if (isDaily) {
+              // Para diários: total_interest É o valor da parcela diária (ex: R$30)
+              const dailyAmount = selectedLoan.total_interest || 0;
+              totalPerInstallment = dailyAmount;
+              const totalToReceive = dailyAmount * numInstallments;
+              totalInterest = totalToReceive - selectedLoan.principal_amount;
+              interestPerInstallment = totalInterest / numInstallments;
+            } else {
+              totalInterest = selectedLoan.total_interest || 0;
+              interestPerInstallment = totalInterest / numInstallments;
+              totalPerInstallment = principalPerInstallment + interestPerInstallment;
+            }
             
             // Porém o valor realmente devido deve sempre respeitar o remaining_balance,
             // que já considera renegociações, taxa de renovação, etc.
@@ -4044,7 +4057,7 @@ export default function Loans() {
             
             // Para contratos de 1 parcela (caso típico de renovação), a próxima parcela
             // deve ser exatamente o remaining_balance (ex: 300 após taxa de renovação)
-            if (numInstallments === 1) {
+            if (numInstallments === 1 && !isDaily) {
               totalPerInstallment = remainingToReceive;
             }
               
@@ -4064,7 +4077,11 @@ export default function Loans() {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Parcela: {formatCurrency(totalPerInstallment)} ({formatCurrency(principalPerInstallment)} + {formatCurrency(interestPerInstallment)} juros)
+                      {isDaily ? (
+                        <>Parcela Diária: {formatCurrency(totalPerInstallment)} (Lucro: {formatCurrency(totalInterest)})</>
+                      ) : (
+                        <>Parcela: {formatCurrency(totalPerInstallment)} ({formatCurrency(principalPerInstallment)} + {formatCurrency(interestPerInstallment)} juros)</>
+                      )}
                     </div>
                   </div>
                   
