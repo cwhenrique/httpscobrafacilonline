@@ -649,7 +649,7 @@ export default function ProductSales() {
         downPayment: sale.down_payment || 0,
         costValue: sale.cost_value || 0,
       },
-      dueDates: getSalePayments(sale.id).map(p => p.due_date),
+      dueDates: getSalePayments(sale.id).map(p => ({ date: p.due_date, isPaid: p.status === 'paid' })),
       productInfo: { name: sale.product_name, description: sale.product_description || undefined },
     };
     setReceiptPreviewData(receiptData);

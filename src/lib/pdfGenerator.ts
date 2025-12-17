@@ -85,7 +85,7 @@ export interface ContractReceiptData {
     costValue?: number;
     profit?: number;
   };
-  dueDates: string[];
+  dueDates: (string | { date: string; isPaid?: boolean })[];
   vehicleInfo?: {
     brand: string;
     model: string;
@@ -437,13 +437,15 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
     let dateY = currentY + 15;
     const colWidth = (pageWidth - 2 * margin) / 3;
     
-    data.dueDates.slice(0, 15).forEach((date, index) => {
+    data.dueDates.slice(0, 15).forEach((item, index) => {
       const col = index % 3;
       const row = Math.floor(index / 3);
       const x = margin + 5 + col * colWidth;
       const y = dateY + row * 7;
-      
-      doc.text(`${index + 1}ª: ${formatDate(date)}`, x, y);
+      const dateStr = typeof item === 'string' ? item : item.date;
+      const isPaid = typeof item === 'object' && item.isPaid;
+      const prefix = isPaid ? '✓ ' : '';
+      doc.text(`${prefix}${index + 1}ª: ${formatDate(dateStr)}`, x, y);
     });
 
     if (data.dueDates.length > 15) {
