@@ -176,13 +176,13 @@ const PricingSection = ({
                   </div>
                   <Badge className="mb-4 bg-primary text-primary-foreground font-bold px-4 py-1">Vitalício</Badge>
                   <div className="text-lg text-muted-foreground line-through mb-1">
-                    De R$ 599,00
+                    De R$ 999,00
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-primary mb-1">
-                    R$ 299<span className="text-xl sm:text-2xl">,00</span>
+                    R$ 499<span className="text-xl sm:text-2xl">,00</span>
                   </div>
                   <p className="text-sm text-muted-foreground">à vista</p>
-                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 34,76</p>
+                  <p className="text-xs sm:text-sm text-foreground font-medium mt-1">ou 12x de R$ 46,05</p>
                   <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 sm:px-4 py-2">
                     <Star className="w-4 h-4 text-primary fill-primary" />
                     <span className="text-xs sm:text-sm font-semibold text-primary">Acesso para sempre!</span>
