@@ -145,16 +145,12 @@ export default function Loans() {
   const [dailyFirstDate, setDailyFirstDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
   
-  // Generate daily dates skipping Sundays
+  // Generate daily dates (consecutive days)
   const generateDailyDates = (startDate: string, count: number): string[] => {
     const dates: string[] = [];
     let currentDate = new Date(startDate + 'T12:00:00');
     
     for (let i = 0; i < count; i++) {
-      // Skip Sunday (day 0)
-      while (currentDate.getDay() === 0) {
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
       dates.push(format(currentDate, 'yyyy-MM-dd'));
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -2937,7 +2933,7 @@ export default function Loans() {
                         
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Check className="h-3 w-3 text-primary" />
-                          {dailyInstallmentCount} parcelas serão geradas (domingos pulados)
+                          {dailyInstallmentCount} parcelas serão geradas (dias consecutivos)
                         </p>
                       </div>
                     ) : (
