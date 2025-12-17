@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.whatsapp-configure-voice-webhook]
 verify_jwt = true
+
+[functions.admin-reset-password]
+verify_jwt = false
