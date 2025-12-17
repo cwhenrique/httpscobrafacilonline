@@ -148,7 +148,7 @@ Para continuar usando o sistema:
 ✅ Score de Clientes
 
 💰 *Renove agora:*
-https://pay.cakto.com.br/fhwfptb
+https://pay.cakto.com.br/37et5v3
 
 Dúvidas? Responda esta mensagem!`;
 
