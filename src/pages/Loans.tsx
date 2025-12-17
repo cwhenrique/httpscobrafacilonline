@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle } from 'lucide-react';
+import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -411,6 +411,9 @@ export default function Loans() {
     }
     setCreatingClient(false);
   };
+
+  // Expanded card state
+  const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
 
 
   const handleAvatarUpload = async (clientId: string, file: File) => {
@@ -3330,6 +3333,19 @@ export default function Loans() {
                                 <FileText className="w-3 h-3 sm:mr-1" />
                                 <span className="hidden sm:inline">Comprovante</span>
                               </Button>
+                              <Button 
+                                variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                size="sm" 
+                                className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
+                              >
+                                {expandedLoanId === loan.id ? (
+                                  <ChevronUp className="w-3 h-3 sm:mr-1" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3 sm:mr-1" />
+                                )}
+                                <span className="hidden sm:inline">Detalhes</span>
+                              </Button>
                               <Badge className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                                 {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                               </Badge>
@@ -3720,6 +3736,191 @@ export default function Loans() {
                           </div>
                         </TooltipProvider>
                       </div>
+                      
+                      {/* Área Expandida com Informações Detalhadas */}
+                      {expandedLoanId === loan.id && (() => {
+                        const dates = (loan.installment_dates as string[]) || [];
+                        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+                        const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+                        const paidAdvanceSubparcelas = getPaidAdvanceSubparcelasFromNotes(loan.notes);
+                        
+                        // Contar parcelas pagas
+                        let paidInstallmentsCount = 0;
+                        for (let i = 0; i < numInstallments; i++) {
+                          const paidAmount = partialPayments[i] || 0;
+                          const pendingSubs = advanceSubparcelas.filter(s => s.originalIndex === i);
+                          if (paidAmount >= totalPerInstallment * 0.99 && pendingSubs.length === 0) {
+                            paidInstallmentsCount++;
+                          }
+                        }
+                        
+                        const progressPercentage = numInstallments > 0 ? Math.round((paidInstallmentsCount / numInstallments) * 100) : 0;
+                        
+                        // Limpar notas de tags internas
+                        const cleanNotes = (notes: string | null) => {
+                          if (!notes) return null;
+                          return notes
+                            .replace(/\[HISTORICAL_CONTRACT\]/g, '')
+                            .replace(/\[RENEGOTIATED\]/g, '')
+                            .replace(/\[INTEREST_ONLY_PAYMENT\]/g, '')
+                            .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g, '')
+                            .replace(/\[ADVANCE_SUBPARCELA:\d+:[0-9.]+:[^\]]+\]/g, '')
+                            .replace(/\[ADVANCE_SUBPARCELA_PAID:\d+:[0-9.]+:[^\]]+\]/g, '')
+                            .replace(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+(?::[0-9.]+)?\]/g, '')
+                            .replace(/\[ORIGINAL_PRINCIPAL:[0-9.]+\]/g, '')
+                            .replace(/\[ORIGINAL_RATE:[0-9.]+\]/g, '')
+                            .replace(/\[ORIGINAL_INSTALLMENTS:\d+\]/g, '')
+                            .replace(/\[ORIGINAL_INTEREST_MODE:[^\]]+\]/g, '')
+                            .replace(/\[ORIGINAL_TOTAL_INTEREST:[0-9.]+\]/g, '')
+                            .replace(/\[HISTORICAL_PAID:[0-9.]+\]/g, '')
+                            .replace(/\[HISTORICAL_INTEREST_PAID:[0-9.]+\]/g, '')
+                            .replace(/\[RENEGOTIATION_DATE:[^\]]+\]/g, '')
+                            .trim();
+                        };
+                        
+                        const displayNotes = cleanNotes(loan.notes);
+                        
+                        // Calcular status de cada parcela
+                        const getInstallmentStatusForDisplay = (index: number, dueDate: string) => {
+                          const paidAmount = partialPayments[index] || 0;
+                          const pendingSubs = advanceSubparcelas.filter(s => s.originalIndex === index);
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const due = new Date(dueDate + 'T12:00:00');
+                          
+                          if (paidAmount >= totalPerInstallment * 0.99 && pendingSubs.length === 0) {
+                            return { status: 'paid', label: 'Paga', color: 'text-emerald-500' };
+                          } else if (pendingSubs.length > 0 || paidAmount > 0) {
+                            return { status: 'partial', label: 'Parcial', color: 'text-amber-500' };
+                          } else if (today > due) {
+                            return { status: 'overdue', label: 'Atrasada', color: 'text-destructive' };
+                          }
+                          return { status: 'pending', label: 'Pendente', color: 'text-muted-foreground' };
+                        };
+                        
+                        return (
+                          <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                            {/* Progresso de Parcelas */}
+                            <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                              <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📊 Progresso</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-primary transition-all" 
+                                    style={{ width: `${progressPercentage}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{progressPercentage}%</span>
+                              </div>
+                              <p className={`text-xs ${hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}`}>
+                                {paidInstallmentsCount} de {numInstallments} parcela(s) paga(s) • {numInstallments - paidInstallmentsCount} restante(s)
+                              </p>
+                            </div>
+                            
+                            {/* Cronograma de Parcelas */}
+                            {dates.length > 0 && (
+                              <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📅 Cronograma de Parcelas</p>
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                  {dates.map((date, idx) => {
+                                    const statusInfo = getInstallmentStatusForDisplay(idx, date);
+                                    return (
+                                      <div key={idx} className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
+                                        <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
+                                          Parcela {idx + 1}/{numInstallments}
+                                        </span>
+                                        <span className={hasSpecialStyle ? 'text-white' : ''}>
+                                          {formatCurrency(totalPerInstallment)}
+                                        </span>
+                                        <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
+                                          {formatDate(date)}
+                                        </span>
+                                        <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
+                                          {statusInfo.label}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Dados do Cliente */}
+                            {loan.client && (loan.client.phone || loan.client.address || loan.client.email) && (
+                              <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>👤 Contato do Cliente</p>
+                                <div className="space-y-1.5">
+                                  {loan.client.phone && (
+                                    <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                      <Phone className="w-3 h-3" />
+                                      <span>{loan.client.phone}</span>
+                                    </div>
+                                  )}
+                                  {loan.client.email && (
+                                    <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                      <Mail className="w-3 h-3" />
+                                      <span>{loan.client.email}</span>
+                                    </div>
+                                  )}
+                                  {loan.client.address && (
+                                    <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                      <MapPin className="w-3 h-3" />
+                                      <span>{loan.client.address}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Detalhes do Contrato */}
+                            <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                              <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📋 Detalhes do Contrato</p>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {loan.contract_date && (
+                                  <div>
+                                    <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Data do Contrato</p>
+                                    <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatDate(loan.contract_date)}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Início</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatDate(loan.start_date)}</p>
+                                </div>
+                                <div>
+                                  <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Tipo de Juros</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.interest_type === 'simple' ? 'Simples' : 'Composto'}</p>
+                                </div>
+                                <div>
+                                  <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Modo de Juros</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.interest_mode === 'on_total' ? 'Sobre o Total' : 'Por Parcela'}</p>
+                                </div>
+                                <div>
+                                  <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Total de Juros</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatCurrency(effectiveTotalInterest)}</p>
+                                </div>
+                                <div>
+                                  <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Tipo de Pagamento</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>
+                                    {loan.payment_type === 'single' ? 'Parcela Única' : 
+                                     loan.payment_type === 'installment' ? 'Parcelado' :
+                                     loan.payment_type === 'daily' ? 'Diário' : 'Semanal'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Notas/Observações */}
+                            {displayNotes && (
+                              <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📝 Observações</p>
+                                <p className={`text-xs whitespace-pre-wrap ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                  {displayNotes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 );
