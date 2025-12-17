@@ -2774,7 +2774,7 @@ export default function Loans() {
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-payment-type">
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
-                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
+                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v, installments: v === 'single' ? '1' : formData.installments })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                         <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
@@ -2790,7 +2790,7 @@ export default function Loans() {
                 {formData.payment_type === 'daily' && (
                   <div className="space-y-2">
                     <Label>Modalidade</Label>
-                    <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
+                    <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v, installments: v === 'single' ? '1' : formData.installments })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="single">Pagamento Único</SelectItem>
