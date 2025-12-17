@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -2877,32 +2877,68 @@ export default function Loans() {
                     </div>
                     
                     {dailyDateMode === 'auto' ? (
-                      <div className="space-y-3">
-                        <p className="text-xs text-muted-foreground">
-                          Selecione a primeira data e o número de parcelas. Domingos serão pulados automaticamente.
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Data da 1ª Parcela</Label>
-                            <Input
-                              type="date"
-                              value={dailyFirstDate}
-                              onChange={(e) => setDailyFirstDate(e.target.value)}
-                              className="text-sm"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Nº de Parcelas</Label>
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Data da 1ª Parcela</Label>
+                          <Input
+                            type="date"
+                            value={dailyFirstDate}
+                            onChange={(e) => setDailyFirstDate(e.target.value)}
+                            className="text-sm"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-xs">Quantas parcelas?</Label>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10"
+                              onClick={() => setDailyInstallmentCount(prev => Math.max(1, parseInt(prev || '1') - 1).toString())}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
                             <Input
                               type="number"
                               min="1"
                               max="365"
                               value={dailyInstallmentCount}
                               onChange={(e) => setDailyInstallmentCount(e.target.value)}
-                              className="text-sm"
+                              className="text-center text-lg font-bold w-20"
                             />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10"
+                              onClick={() => setDailyInstallmentCount(prev => Math.min(365, parseInt(prev || '1') + 1).toString())}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {[10, 15, 20, 25, 30].map(num => (
+                              <Button
+                                key={num}
+                                type="button"
+                                variant={dailyInstallmentCount === num.toString() ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setDailyInstallmentCount(num.toString())}
+                                className="min-w-[48px]"
+                              >
+                                {num}
+                              </Button>
+                            ))}
                           </div>
                         </div>
+                        
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Check className="h-3 w-3 text-primary" />
+                          {dailyInstallmentCount} parcelas serão geradas (domingos pulados)
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-2">
