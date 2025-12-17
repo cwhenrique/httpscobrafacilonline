@@ -1030,7 +1030,7 @@ export default function Loans() {
     
     // Para pagamento diário no formulário regular, não permitir - redirecionar para "Novo Diário"
     if (formData.payment_type === 'daily') {
-      toast.error('Use o botão "Novo Diário" para criar empréstimos diários');
+      toast.error('Use o botão "Empréstimo Diário" para criar empréstimos diários');
       return;
     }
     
@@ -2364,7 +2364,7 @@ export default function Loans() {
                   <TooltipTrigger asChild>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm" className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
-                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Diário
+                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Empréstimo </span>Diário
                       </Button>
                     </DialogTrigger>
                   </TooltipTrigger>
