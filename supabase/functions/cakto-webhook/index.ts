@@ -131,10 +131,12 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
       return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
     
-    // R$299 range: DEFAULT TO LIFETIME (most common plan at this price)
+    // R$299 range: DEFAULT TO ANNUAL (safer - forces renewal, lifetime detected by name keywords)
     if (price >= 250 && price <= 350) {
-      console.log('R$299 detected - defaulting to LIFETIME');
-      return { plan: 'lifetime', expiresAt: null };
+      console.log('R$299 detected - defaulting to ANNUAL (lifetime must have explicit keywords in name)');
+      const expiresAt = new Date(now);
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
     }
   }
 
