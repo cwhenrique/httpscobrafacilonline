@@ -938,7 +938,12 @@ export type Database = {
       client_type: "loan" | "monthly" | "both"
       interest_mode: "per_installment" | "on_total"
       interest_type: "simple" | "compound"
-      loan_payment_type: "single" | "installment" | "daily" | "weekly"
+      loan_payment_type:
+        | "single"
+        | "installment"
+        | "daily"
+        | "weekly"
+        | "biweekly"
       payment_status: "paid" | "pending" | "overdue"
     }
     CompositeTypes: {
@@ -1070,7 +1075,13 @@ export const Constants = {
       client_type: ["loan", "monthly", "both"],
       interest_mode: ["per_installment", "on_total"],
       interest_type: ["simple", "compound"],
-      loan_payment_type: ["single", "installment", "daily", "weekly"],
+      loan_payment_type: [
+        "single",
+        "installment",
+        "daily",
+        "weekly",
+        "biweekly",
+      ],
       payment_status: ["paid", "pending", "overdue"],
     },
   },

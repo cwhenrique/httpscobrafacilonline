@@ -240,7 +240,7 @@ export default function Loans() {
   
   // Auto-regenerate installment dates when number of installments changes in edit form
   useEffect(() => {
-    if (isEditDialogOpen && editFormData.payment_type === 'installment' && editFormData.start_date) {
+    if (isEditDialogOpen && (editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && editFormData.start_date) {
       const numInstallments = parseInt(editFormData.installments) || 1;
       const startDate = new Date(editFormData.start_date + 'T12:00:00');
       const startDay = startDate.getDate();
@@ -256,12 +256,19 @@ export default function Loans() {
           if (prev[i]) {
             newDates.push(prev[i]);
           } else {
-            // Generate new date based on month offset
+            // Generate new date based on payment type
             const date = new Date(startDate);
-            date.setMonth(date.getMonth() + i);
-            // Handle edge cases where the day doesn't exist in the target month
-            if (date.getDate() !== startDay) {
-              date.setDate(0);
+            if (editFormData.payment_type === 'weekly') {
+              date.setDate(date.getDate() + (i * 7));
+            } else if (editFormData.payment_type === 'biweekly') {
+              date.setDate(date.getDate() + (i * 15));
+            } else {
+              // Monthly (installment)
+              date.setMonth(date.getMonth() + i);
+              // Handle edge cases where the day doesn't exist in the target month
+              if (date.getDate() !== startDay) {
+                date.setDate(0);
+              }
             }
             newDates.push(format(date, 'yyyy-MM-dd'));
           }
@@ -281,7 +288,7 @@ export default function Loans() {
   useEffect(() => {
     if (isEditManuallyEditingInstallment) return;
     if (!isEditDialogOpen) return;
-    if (editFormData.payment_type !== 'installment') return;
+    if (editFormData.payment_type !== 'installment' && editFormData.payment_type !== 'weekly' && editFormData.payment_type !== 'biweekly') return;
     
     const principal = parseFloat(editFormData.principal_amount);
     const rate = parseFloat(editFormData.interest_rate);
@@ -495,7 +502,7 @@ export default function Loans() {
     today.setHours(0, 0, 0, 0);
     
     // Check installmentDates for installment, weekly, and daily payment types
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
       return installmentDates.some(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
@@ -517,7 +524,7 @@ export default function Loans() {
   useEffect(() => {
     if (isManuallyEditingInstallment) return;
     
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && formData.principal_amount && formData.interest_rate && formData.installments) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && formData.principal_amount && formData.interest_rate && formData.installments) {
       const principal = parseFloat(formData.principal_amount);
       const rate = parseFloat(formData.interest_rate);
       const numInstallments = parseInt(formData.installments) || 1;
@@ -542,7 +549,7 @@ export default function Loans() {
     let totalInterest: number | null = null;
 
     // Se o usuário editou o valor da parcela, usamos ele como base
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentValue) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
       const perInstallment = parseFloat(installmentValue);
       if (!perInstallment) return 'R$ 0,00';
       totalInterest = perInstallment * numInstallments - principal;
@@ -636,6 +643,28 @@ export default function Loans() {
         const date = new Date(startDate);
         // Add weeks (7 days) for each installment
         date.setDate(date.getDate() + (i * 7));
+        newDates.push(format(date, 'yyyy-MM-dd'));
+      }
+      
+      setInstallmentDates(newDates);
+      // Set the last installment date as the due_date
+      if (newDates.length > 0) {
+        setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
+      }
+    }
+  }, [formData.payment_type, formData.start_date, formData.installments]);
+
+  // Generate biweekly dates when start_date or installments change
+  useEffect(() => {
+    if (formData.payment_type === 'biweekly' && formData.start_date) {
+      const numInstallments = parseInt(formData.installments) || 1;
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      const newDates: string[] = [];
+      
+      for (let i = 0; i < numInstallments; i++) {
+        const date = new Date(startDate);
+        // Add 15 days for each installment (biweekly)
+        date.setDate(date.getDate() + (i * 15));
         newDates.push(format(date, 'yyyy-MM-dd'));
       }
       
@@ -867,7 +896,7 @@ export default function Loans() {
     const principal = parseFloat(formData.principal_amount) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
       const pastDates = installmentDates.filter(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
@@ -967,7 +996,7 @@ export default function Loans() {
     let finalDueDate = formData.due_date;
     if (formData.payment_type === 'single') {
       finalDueDate = formData.start_date;
-    } else if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0) {
+    } else if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentDates.length > 0) {
       finalDueDate = installmentDates[installmentDates.length - 1];
     }
     
@@ -988,7 +1017,7 @@ export default function Loans() {
     const numInstallments = parseInt(formData.installments) || 1;
     let totalInterest: number;
 
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentValue) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
       const perInstallment = parseFloat(installmentValue);
       const totalToReceive = perInstallment * numInstallments;
       totalInterest = totalToReceive - principal;
@@ -1357,7 +1386,7 @@ export default function Loans() {
       let updatedDates = [...currentDates];
       
       // Se for parcelado, atualizar a próxima parcela em aberto
-      if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && currentDates.length > 0) {
+      if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly' || selectedLoan.payment_type === 'biweekly') && currentDates.length > 0) {
         // Usar o updatedNotes que já foi salvo no banco, não o notes antigo do selectedLoan
         const loanWithUpdatedNotes = { 
           ...selectedLoan, 
@@ -1481,8 +1510,8 @@ export default function Loans() {
     
     setSelectedLoanId(loanId);
     const today = new Date();
-    // Default to 7 days for weekly, 30 days for others
-    today.setDate(today.getDate() + (loan.payment_type === 'weekly' ? 7 : 30));
+    // Default to 7 days for weekly, 15 days for biweekly, 30 days for others
+    today.setDate(today.getDate() + (loan.payment_type === 'weekly' ? 7 : loan.payment_type === 'biweekly' ? 15 : 30));
     setRenegotiateData({
       promised_amount: '',
       promised_date: format(today, 'yyyy-MM-dd'),
@@ -2615,8 +2644,9 @@ export default function Loans() {
                       <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
-                          <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
+                        <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
                           <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
+                          <SelectItem value="biweekly" className="text-xs sm:text-sm">Quinzenal</SelectItem>
                           <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>
                           <SelectItem value="daily" className="text-xs sm:text-sm">Diário</SelectItem>
                         </SelectContent>
@@ -2632,17 +2662,18 @@ export default function Loans() {
                       <SelectContent>
                         <SelectItem value="single">Pagamento Único</SelectItem>
                         <SelectItem value="installment">Parcelado</SelectItem>
+                        <SelectItem value="biweekly">Quinzenal</SelectItem>
                         <SelectItem value="weekly">Semanal</SelectItem>
                         <SelectItem value="daily">Diário</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 )}
-                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly') && (
+                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
                   <>
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Nº de {formData.payment_type === 'weekly' ? 'Semanas' : 'Parcelas'} *</Label>
+                        <Label className="text-xs sm:text-sm">Nº de {formData.payment_type === 'weekly' ? 'Semanas' : formData.payment_type === 'biweekly' ? 'Quinzenas' : 'Parcelas'} *</Label>
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                       </div>
                       <div className="space-y-1 sm:space-y-2">
@@ -2657,7 +2688,7 @@ export default function Loans() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Valor da {formData.payment_type === 'weekly' ? 'Semana' : 'Parcela'} (R$)</Label>
+                        <Label className="text-xs sm:text-sm">Valor da {formData.payment_type === 'weekly' ? 'Semana' : formData.payment_type === 'biweekly' ? 'Quinzena' : 'Parcela'} (R$)</Label>
                         <Input 
                           type="number" 
                           step="0.01"
@@ -2727,14 +2758,14 @@ export default function Loans() {
                     <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
                   </div>
                 </div>
-                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly') && installmentDates.length > 0 && (
+                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentDates.length > 0 && (
                   <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Vencimento das {formData.payment_type === 'weekly' ? 'Semanas' : 'Parcelas'}</Label>
+                    <Label className="text-xs sm:text-sm">Vencimento das {formData.payment_type === 'weekly' ? 'Semanas' : formData.payment_type === 'biweekly' ? 'Quinzenas' : 'Parcelas'}</Label>
                     <ScrollArea className="h-[120px] sm:h-[150px] rounded-md border p-2 sm:p-3">
                       <div className="space-y-1.5 sm:space-y-2">
                         {installmentDates.map((date, index) => (
                           <div key={index} className="flex items-center gap-2 sm:gap-3">
-                            <span className="text-xs sm:text-sm font-medium w-16 sm:w-20">{formData.payment_type === 'weekly' ? 'Sem.' : 'Parc.'} {index + 1}</span>
+                            <span className="text-xs sm:text-sm font-medium w-16 sm:w-20">{formData.payment_type === 'weekly' ? 'Sem.' : formData.payment_type === 'biweekly' ? 'Quinz.' : 'Parc.'} {index + 1}</span>
                             <Input 
                               type="date" 
                               value={date} 
@@ -4607,7 +4638,7 @@ export default function Loans() {
                         <p className="text-sm text-muted-foreground">
                           Saldo devedor: {formatCurrency(actualRemaining)}
                         </p>
-                        {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
+                        {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly' || selectedLoan.payment_type === 'biweekly') && (
                           <p className="text-xs text-muted-foreground">
                             Valor por parcela: {formatCurrency(installmentValue)}
                           </p>
@@ -4644,7 +4675,7 @@ export default function Loans() {
                         </div>
                       </button>
                       
-                      {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly') && (
+                      {(selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly' || selectedLoan.payment_type === 'biweekly') && (
                         <button
                           type="button"
                           onClick={() => {

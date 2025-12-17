@@ -211,6 +211,7 @@ export function useLoans() {
       let modalidade = 'Padrão';
       if (loan.payment_type === 'daily') modalidade = 'Diário';
       else if (loan.payment_type === 'weekly') modalidade = 'Semanal';
+      else if (loan.payment_type === 'biweekly') modalidade = 'Quinzenal';
       else if (loan.payment_type === 'installment') modalidade = 'Parcelado';
       else if (loan.payment_type === 'single') modalidade = 'Único';
       

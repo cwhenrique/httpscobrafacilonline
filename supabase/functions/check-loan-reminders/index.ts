@@ -205,7 +205,7 @@ const handler = async (req: Request): Promise<Response> => {
         message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
         message += `• Taxa de Juros: ${loan.interest_rate}%\n`;
         message += `• Data Início: ${formatDate(new Date(loan.start_date))}\n`;
-        message += `• Modalidade: ${loan.payment_type === 'daily' ? 'Diário' : loan.payment_type === 'weekly' ? 'Semanal' : loan.payment_type === 'installment' ? 'Parcelado' : 'Único'}\n\n`;
+        message += `• Modalidade: ${loan.payment_type === 'daily' ? 'Diário' : loan.payment_type === 'weekly' ? 'Semanal' : loan.payment_type === 'biweekly' ? 'Quinzenal' : loan.payment_type === 'installment' ? 'Parcelado' : 'Único'}\n\n`;
         
         message += `📊 *Status das Parcelas:*\n`;
         message += `✅ Pagas: ${loan.paidInstallments} de ${loan.totalInstallments} parcelas (${formatCurrency(loan.totalPaid)})\n`;
