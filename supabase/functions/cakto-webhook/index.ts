@@ -131,20 +131,17 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
       return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
     
-    // R$299 range: DEFAULT TO ANNUAL (safer - forces renewal, lifetime detected by name keywords)
+    // R$299 range: DEFAULT TO LIFETIME (primary product is lifetime plan)
+    // Only detect as annual if product name explicitly contains annual keywords (checked above)
     if (price >= 250 && price <= 350) {
-      console.log('R$299 detected - defaulting to ANNUAL (lifetime must have explicit keywords in name)');
-      const expiresAt = new Date(now);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+      console.log('R$299 detected - defaulting to LIFETIME (annual must have explicit keywords in name)');
+      return { plan: 'lifetime', expiresAt: null };
     }
   }
 
-  // SAFE DEFAULT: Monthly (forces renewal, safer than giving free lifetime)
-  console.log('WARNING: No plan pattern matched! Defaulting to MONTHLY for safety');
-  const expiresAt = new Date(now);
-  expiresAt.setMonth(expiresAt.getMonth() + 1);
-  return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+  // SAFE DEFAULT: Lifetime for unknown prices (benefit of the doubt for customers)
+  console.log('WARNING: No plan pattern matched! Defaulting to LIFETIME');
+  return { plan: 'lifetime', expiresAt: null };
 }
 
 // Send WhatsApp message via Evolution API
