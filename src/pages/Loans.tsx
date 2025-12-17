@@ -3430,10 +3430,9 @@ export default function Loans() {
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
-                } else if (isDaily) {
-                  remainingToReceive = Math.max(0, (loan.remaining_balance || 0) - (loan.total_paid || 0));
                 } else {
                   // SEMPRE usar remaining_balance do banco como fonte de verdade
+                  // (funciona para diários e não-diários)
                   remainingToReceive = Math.max(0, loan.remaining_balance);
                 }
                 
