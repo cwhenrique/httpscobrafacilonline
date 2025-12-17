@@ -1036,6 +1036,25 @@ export default function Loans() {
         });
       }
       
+      // Add PARTIAL_PAID tags to loan notes so getInstallmentStatus recognizes them as paid
+      const partialPaidTags = selectedPastInstallments
+        .map(idx => {
+          const installment = installmentsList.find(i => i.index === idx);
+          return installment ? `[PARTIAL_PAID:${idx}:${installment.value}]` : null;
+        })
+        .filter(Boolean)
+        .join(' ');
+      
+      if (partialPaidTags) {
+        const currentNotes = notes || '';
+        const updatedNotes = currentNotes ? `${currentNotes} ${partialPaidTags}` : partialPaidTags;
+        
+        await supabase
+          .from('loans')
+          .update({ notes: updatedNotes })
+          .eq('id', loanId);
+      }
+      
       toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
     }
     
