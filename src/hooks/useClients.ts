@@ -44,6 +44,8 @@ export function useClients() {
     city?: string;
     state?: string;
     avatar_url?: string;
+    instagram?: string;
+    facebook?: string;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
 

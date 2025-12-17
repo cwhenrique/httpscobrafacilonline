@@ -111,8 +111,10 @@ export type Database = {
           cpf: string | null
           created_at: string
           email: string | null
+          facebook: string | null
           full_name: string
           id: string
+          instagram: string | null
           late_payments: number | null
           neighborhood: string | null
           notes: string | null
@@ -139,8 +141,10 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           email?: string | null
+          facebook?: string | null
           full_name: string
           id?: string
+          instagram?: string | null
           late_payments?: number | null
           neighborhood?: string | null
           notes?: string | null
@@ -167,8 +171,10 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           email?: string | null
+          facebook?: string | null
           full_name?: string
           id?: string
+          instagram?: string | null
           late_payments?: number | null
           neighborhood?: string | null
           notes?: string | null

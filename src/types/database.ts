@@ -42,6 +42,9 @@ export interface Client {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  // Social media
+  instagram: string | null;
+  facebook: string | null;
 }
 
 export type InterestMode = 'per_installment' | 'on_total';

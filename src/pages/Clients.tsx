@@ -44,7 +44,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
-import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, Instagram, Globe } from 'lucide-react';
 import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 import { ClientDocuments } from '@/components/ClientDocuments';
 import { getAvatarUrl, getInitials } from '@/lib/avatarUtils';
@@ -74,6 +74,8 @@ interface FormData {
   neighborhood: string;
   city: string;
   state: string;
+  instagram: string;
+  facebook: string;
 }
 
 const initialFormData: FormData = {
@@ -91,6 +93,8 @@ const initialFormData: FormData = {
   neighborhood: '',
   city: '',
   state: '',
+  instagram: '',
+  facebook: '',
 };
 
 export default function Clients() {
@@ -245,6 +249,8 @@ export default function Clients() {
       neighborhood: client.neighborhood || '',
       city: client.city || '',
       state: client.state || '',
+      instagram: client.instagram || '',
+      facebook: client.facebook || '',
     });
     setAvatarPreview(null);
     setActiveTab('dados');
@@ -424,6 +430,34 @@ export default function Clients() {
                             value={formData.phone}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             placeholder="(00) 00000-0000"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Social Media Fields */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="instagram" className="flex items-center gap-2">
+                            <Instagram className="w-4 h-4" />
+                            Instagram
+                          </Label>
+                          <Input
+                            id="instagram"
+                            value={formData.instagram}
+                            onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
+                            placeholder="@usuario"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="facebook" className="flex items-center gap-2">
+                            <Globe className="w-4 h-4" />
+                            Facebook
+                          </Label>
+                          <Input
+                            id="facebook"
+                            value={formData.facebook}
+                            onChange={(e) => setFormData({ ...formData, facebook: e.target.value })}
+                            placeholder="Nome ou URL do perfil"
                           />
                         </div>
                       </div>
