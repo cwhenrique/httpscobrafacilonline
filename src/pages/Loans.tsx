@@ -1043,7 +1043,7 @@ export default function Loans() {
       total_interest: totalInterest,
       remaining_balance: principal + totalInterest,
       due_date: finalDueDate,
-      installment_dates: formData.payment_type === 'installment' ? installmentDates : [],
+      installment_dates: ['installment', 'weekly', 'biweekly', 'daily'].includes(formData.payment_type) ? installmentDates : [],
       notes: notes || undefined,
       send_creation_notification: formData.send_creation_notification,
     });
@@ -1112,7 +1112,7 @@ export default function Loans() {
         dueDate: finalDueDate,
         paymentType: formData.payment_type,
       });
-      setLoanCreatedInstallmentDates(formData.payment_type === 'installment' ? installmentDates : []);
+      setLoanCreatedInstallmentDates(['installment', 'weekly', 'biweekly', 'daily'].includes(formData.payment_type) ? installmentDates : []);
       setIsLoanCreatedOpen(true);
     }
     
