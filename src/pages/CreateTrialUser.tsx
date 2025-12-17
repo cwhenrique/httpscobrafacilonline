@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users } from 'lucide-react';
@@ -40,7 +41,8 @@ export default function CreateTrialUser() {
     full_name: '',
     email: '',
     phone: '',
-    password: ''
+    password: '',
+    subscription_plan: 'trial' as 'trial' | 'monthly' | 'annual' | 'lifetime'
   });
 
   useEffect(() => {
@@ -129,7 +131,8 @@ export default function CreateTrialUser() {
           email: formData.email,
           password: formData.password,
           full_name: formData.full_name,
-          phone: formData.phone
+          phone: formData.phone,
+          subscription_plan: formData.subscription_plan
         }
       });
 
@@ -139,16 +142,24 @@ export default function CreateTrialUser() {
         throw new Error(data.error);
       }
 
+      const planLabels = {
+        trial: '24 horas (Trial)',
+        monthly: '30 dias (Mensal)',
+        annual: '1 ano (Anual)',
+        lifetime: 'Vitalício'
+      };
+
       toast({
         title: 'Usuário criado com sucesso!',
-        description: `Acesso de 24 horas concedido para ${formData.full_name}`,
+        description: `Acesso ${planLabels[formData.subscription_plan]} concedido para ${formData.full_name}`,
       });
 
       setFormData({
         full_name: '',
         email: '',
         phone: '',
-        password: ''
+        password: '',
+        subscription_plan: 'trial'
       });
 
       // Refresh the list
@@ -335,9 +346,9 @@ export default function CreateTrialUser() {
               <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
                 <UserPlus className="w-6 h-6 text-primary" />
               </div>
-              <CardTitle className="text-2xl">Criar Acesso Trial</CardTitle>
+              <CardTitle className="text-2xl">Criar Novo Usuário</CardTitle>
               <CardDescription>
-                O usuário terá acesso por 24 horas
+                Escolha o tipo de plano abaixo
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -390,6 +401,27 @@ export default function CreateTrialUser() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Tipo de Plano</Label>
+                  <Select
+                    value={formData.subscription_plan}
+                    onValueChange={(value: 'trial' | 'monthly' | 'annual' | 'lifetime') => 
+                      setFormData(prev => ({ ...prev, subscription_plan: value }))
+                    }
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
+                      <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
+                      <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
+                      <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
                     <>
@@ -399,7 +431,10 @@ export default function CreateTrialUser() {
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4 mr-2" />
-                      Criar Usuário Trial
+                      {formData.subscription_plan === 'trial' && 'Criar Usuário Trial'}
+                      {formData.subscription_plan === 'monthly' && 'Criar Usuário Mensal'}
+                      {formData.subscription_plan === 'annual' && 'Criar Usuário Anual'}
+                      {formData.subscription_plan === 'lifetime' && 'Criar Usuário Vitalício'}
                     </>
                   )}
                 </Button>
