@@ -731,6 +731,86 @@ export function useLoans() {
     return { success: true };
   };
 
+  // Add extra installments to a daily loan
+  const addExtraInstallments = async (
+    loanId: string,
+    extraCount: number,
+    newDates: string[]
+  ) => {
+    if (!user) return { error: new Error('Usuário não autenticado') };
+
+    // 1. Fetch current loan data
+    const { data: loanData, error: fetchError } = await supabase
+      .from('loans')
+      .select('*, clients(full_name)')
+      .eq('id', loanId)
+      .single();
+
+    if (fetchError || !loanData) {
+      toast.error('Erro ao buscar dados do empréstimo');
+      return { error: fetchError || new Error('Empréstimo não encontrado') };
+    }
+
+    // 2. Calculate new values
+    const currentDates = (loanData.installment_dates as string[]) || [];
+    const allDates = [...currentDates, ...newDates];
+    const newInstallments = loanData.installments + extraCount;
+    const dailyAmount = loanData.total_interest || 0;
+    const extraValue = dailyAmount * extraCount;
+    const newRemainingBalance = loanData.remaining_balance + extraValue;
+    const newDueDate = allDates[allDates.length - 1] || loanData.due_date;
+
+    // 3. Add tag to notes for history tracking
+    const today = new Date().toISOString().split('T')[0];
+    const extraTag = `[EXTRA_INSTALLMENTS:${extraCount}:${today}]`;
+    const newNotes = loanData.notes 
+      ? `${loanData.notes}\n${extraTag}` 
+      : extraTag;
+
+    // 4. Update the loan
+    const { error: updateError } = await supabase
+      .from('loans')
+      .update({
+        installments: newInstallments,
+        installment_dates: allDates,
+        remaining_balance: newRemainingBalance,
+        due_date: newDueDate,
+        notes: newNotes,
+        status: 'pending', // Reset to pending if was overdue
+      })
+      .eq('id', loanId);
+
+    if (updateError) {
+      toast.error('Erro ao adicionar parcelas extras');
+      return { error: updateError };
+    }
+
+    toast.success(`${extraCount} parcela(s) extra(s) adicionada(s)!`);
+
+    // 5. Send WhatsApp notification
+    const phone = await getUserPhone(user.id);
+    if (phone) {
+      const clientName = (loanData.clients as any)?.full_name || 'Cliente';
+      let message = `➕ *Parcelas Extras Adicionadas*\n\n`;
+      message += `👤 Cliente: *${clientName}*\n`;
+      message += `📊 Parcelas adicionadas: *${extraCount}*\n`;
+      message += `💰 Valor por parcela: *${formatCurrency(dailyAmount)}*\n`;
+      message += `💵 Valor total extra: *${formatCurrency(extraValue)}*\n\n`;
+      message += `📅 *Novas datas:*\n`;
+      newDates.forEach((date, idx) => {
+        message += `• Parcela ${loanData.installments + idx + 1}: ${formatDate(date)}\n`;
+      });
+      message += `\n📊 Total de parcelas agora: *${newInstallments}*\n`;
+      message += `💵 Novo saldo devedor: *${formatCurrency(newRemainingBalance)}*\n\n`;
+      message += `_CobraFácil - Registro automático_`;
+
+      await sendWhatsAppNotification(phone, message);
+    }
+
+    await fetchLoans();
+    return { success: true };
+  };
+
   useEffect(() => {
     fetchLoans();
   }, [user]);
@@ -747,5 +827,6 @@ export function useLoans() {
     renegotiateLoan,
     updateLoan,
     updatePaymentDate,
+    addExtraInstallments,
   };
 }
