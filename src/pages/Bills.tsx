@@ -467,47 +467,70 @@ export default function Bills() {
               const CategoryIcon = categoryInfo.icon;
               const status = getBillStatus(bill);
 
+              // Cores sólidas para diferenciar de empréstimos (que usam transparência)
+              const getCardStyle = () => {
+                switch (status) {
+                  case 'overdue':
+                    return 'bg-red-600 border-red-700';
+                  case 'today':
+                    return 'bg-amber-500 border-amber-600';
+                  case 'paid':
+                    return 'bg-emerald-600 border-emerald-700';
+                  default:
+                    return 'bg-slate-700 border-slate-600 dark:bg-slate-800 dark:border-slate-700';
+                }
+              };
+
               return (
                 <Card 
                   key={bill.id} 
-                  className={`relative overflow-hidden transition-all hover:shadow-md ${
-                    status === 'overdue' ? 'border-red-500/50 bg-red-500/5' :
-                    status === 'today' ? 'border-yellow-500/50 bg-yellow-500/5' :
-                    status === 'paid' ? 'border-green-500/50 bg-green-500/5' : ''
-                  }`}
+                  className={`relative overflow-hidden transition-all hover:shadow-lg hover:scale-[1.02] ${getCardStyle()} text-white`}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg bg-muted ${categoryInfo.color}`}>
-                          <CategoryIcon className="h-5 w-5" />
+                        <div className="p-2 rounded-lg bg-white/20">
+                          <CategoryIcon className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <CardTitle className="text-base">{bill.description}</CardTitle>
-                          <p className="text-sm text-muted-foreground">{bill.payee_name}</p>
+                          <CardTitle className="text-base text-white">{bill.description}</CardTitle>
+                          <p className="text-sm text-white/80">{bill.payee_name}</p>
                         </div>
                       </div>
-                      {getStatusBadge(bill)}
+                      <Badge 
+                        className={`${
+                          status === 'paid' ? 'bg-white/20 text-white border-white/30' :
+                          status === 'overdue' ? 'bg-white/20 text-white border-white/30' :
+                          status === 'today' ? 'bg-white/20 text-white border-white/30' :
+                          'bg-white/20 text-white border-white/30'
+                        }`}
+                      >
+                        {status === 'paid' ? 'Pago' :
+                         status === 'overdue' ? 'Atrasado' :
+                         status === 'today' ? 'Vence Hoje' : 'Pendente'}
+                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         {bill.category === 'cartao' && Number(bill.amount) === 0 ? (
-                          <p className="text-lg font-medium text-muted-foreground flex items-center gap-2">
+                          <p className="text-lg font-medium text-white/80 flex items-center gap-2">
                             <CreditCard className="h-4 w-4" />
                             Aguardando fatura
                           </p>
                         ) : (
-                          <p className="text-2xl font-bold">R$ {Number(bill.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-2xl font-bold text-white">R$ {Number(bill.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         )}
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1 text-sm text-white/70">
                           <Calendar className="h-3 w-3" />
                           <span>Vence {format(parseISO(bill.due_date), "dd 'de' MMM", { locale: ptBR })}</span>
                         </div>
                       </div>
                       {bill.is_recurring && (
-                        <Badge variant="outline" className="text-xs">Recorrente</Badge>
+                        <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/30">
+                          Recorrente
+                        </Badge>
                       )}
                     </div>
 
@@ -515,7 +538,8 @@ export default function Bills() {
                       {status !== 'paid' && (
                         <Button 
                           size="sm" 
-                          className="flex-1"
+                          className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30"
+                          variant="outline"
                           onClick={() => markAsPaid.mutateAsync(bill.id)}
                           disabled={markAsPaid.isPending}
                         >
@@ -526,13 +550,14 @@ export default function Bills() {
                       <Button 
                         size="sm" 
                         variant="outline"
+                        className="bg-white/10 hover:bg-white/20 text-white border-white/30"
                         onClick={() => openEditDialog(bill)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                          <Button size="sm" variant="outline" className="bg-white/10 hover:bg-red-500/50 text-white border-white/30">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
