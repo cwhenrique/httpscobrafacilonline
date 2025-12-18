@@ -155,13 +155,25 @@ export default function Loans() {
   const [dailyDateMode, setDailyDateMode] = useState<'auto' | 'manual'>('auto');
   const [dailyFirstDate, setDailyFirstDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
+  const [skipSaturday, setSkipSaturday] = useState(false);
+  const [skipSunday, setSkipSunday] = useState(false);
   
-  // Generate daily dates (consecutive days)
-  const generateDailyDates = (startDate: string, count: number): string[] => {
+  // Generate daily dates (consecutive days, optionally skipping weekends)
+  const generateDailyDates = (startDate: string, count: number, skipSat = false, skipSun = false): string[] => {
     const dates: string[] = [];
     let currentDate = new Date(startDate + 'T12:00:00');
     
-    for (let i = 0; i < count; i++) {
+    while (dates.length < count) {
+      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
+      const isSaturday = dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
+      
+      // Skip if it's a day we should skip
+      if ((skipSat && isSaturday) || (skipSun && isSunday)) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
       dates.push(format(currentDate, 'yyyy-MM-dd'));
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -173,7 +185,7 @@ export default function Loans() {
     if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
       const count = parseInt(dailyInstallmentCount) || 0;
       if (count > 0) {
-        const generatedDates = generateDailyDates(dailyFirstDate, count);
+        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday);
         setInstallmentDates(generatedDates);
         if (generatedDates.length > 0) {
           setFormData(prev => ({
@@ -186,7 +198,7 @@ export default function Loans() {
         }
       }
     }
-  }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount]);
+  }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount, skipSaturday, skipSunday]);
   const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
   const [renegotiateData, setRenegotiateData] = useState({
     promised_amount: '',
@@ -759,7 +771,7 @@ export default function Loans() {
       // In auto mode, generate dates; in manual mode, clear for manual selection
       if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
         const count = parseInt(dailyInstallmentCount) || 20;
-        const generatedDates = generateDailyDates(dailyFirstDate, count);
+        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday);
         setInstallmentDates(generatedDates);
       } else {
         setInstallmentDates([]);
@@ -983,11 +995,19 @@ export default function Loans() {
       due_date: installmentDates[installmentDates.length - 1],
       remaining_balance: totalToReceive,
       total_interest: dailyAmount,
-      notes: formData.is_historical_contract 
-        ? `[HISTORICAL_CONTRACT]\n${formData.notes ? formData.notes + '\n' : ''}Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`
-        : (formData.notes 
-          ? `${formData.notes}\nValor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}` 
-          : `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`),
+      notes: (() => {
+        let baseNotes = formData.notes || '';
+        const skipTags = [];
+        if (skipSaturday) skipTags.push('[SKIP_SATURDAY]');
+        if (skipSunday) skipTags.push('[SKIP_SUNDAY]');
+        const skipTagsStr = skipTags.length > 0 ? skipTags.join(' ') + '\n' : '';
+        const details = `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`;
+        
+        if (formData.is_historical_contract) {
+          return `[HISTORICAL_CONTRACT]\n${skipTagsStr}${baseNotes ? baseNotes + '\n' : ''}${details}`;
+        }
+        return `${skipTagsStr}${baseNotes ? baseNotes + '\n' : ''}${details}`;
+      })(),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
     };
@@ -1634,6 +1654,8 @@ export default function Loans() {
     setDailyDateMode('auto');
     setDailyFirstDate(format(new Date(), 'yyyy-MM-dd'));
     setDailyInstallmentCount('20');
+    setSkipSaturday(false);
+    setSkipSunday(false);
   };
 
   const openRenegotiateDialog = (loanId: string) => {
@@ -3179,9 +3201,39 @@ export default function Loans() {
                           </div>
                         </div>
                         
+                        {/* Opções de pular dias */}
+                        <div className="space-y-2 pt-2 border-t border-border/50">
+                          <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
+                          <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={skipSaturday}
+                                onChange={(e) => setSkipSaturday(e.target.checked)}
+                                className="rounded border-border"
+                              />
+                              <span className="text-sm">Sábado</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={skipSunday}
+                                onChange={(e) => setSkipSunday(e.target.checked)}
+                                className="rounded border-border"
+                              />
+                              <span className="text-sm">Domingo</span>
+                            </label>
+                          </div>
+                          {(skipSaturday || skipSunday) && (
+                            <p className="text-xs text-amber-500">
+                              ⚠️ {skipSaturday && skipSunday ? 'Sábados e domingos' : skipSaturday ? 'Sábados' : 'Domingos'} serão pulados na geração das datas
+                            </p>
+                          )}
+                        </div>
+                        
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Check className="h-3 w-3 text-primary" />
-                          {dailyInstallmentCount} parcelas serão geradas (dias consecutivos)
+                          {dailyInstallmentCount} parcelas serão geradas {skipSaturday || skipSunday ? '(pulando ' + (skipSaturday && skipSunday ? 'sáb/dom' : skipSaturday ? 'sábados' : 'domingos') + ')' : '(dias consecutivos)'}
                         </p>
                       </div>
                     ) : (
