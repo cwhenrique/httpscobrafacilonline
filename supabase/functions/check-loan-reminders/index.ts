@@ -124,14 +124,21 @@ const handler = async (req: Request): Promise<Response> => {
       let totalInterest = loan.total_interest || 0;
       if (totalInterest === 0) {
         // Fallback: calculate only if not stored
-        if (loan.interest_mode === 'on_total') {
-          totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-        } else if (loan.interest_mode === 'compound') {
-          // Juros compostos: M = P(1+i)^n - P
-          totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else if (loan.interest_mode === 'compound') {
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const i = loan.interest_rate / 100;
+        if (i === 0 || !isFinite(i)) {
+          totalInterest = 0;
         } else {
-          totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+          const factor = Math.pow(1 + i, numInstallments);
+          const pmt = loan.principal_amount * (i * factor) / (factor - 1);
+          totalInterest = (pmt * numInstallments) - loan.principal_amount;
         }
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
       }
       
       // remaining_balance from DB is the source of truth

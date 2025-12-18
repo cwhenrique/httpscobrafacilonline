@@ -71,8 +71,14 @@ export function LoanSimulator() {
         return p * (rate / 100) * n;
       case 'on_total':
         return p * (rate / 100);
-      case 'compound':
-        return p * Math.pow(1 + (rate / 100), n) - p;
+      case 'compound': {
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const i = rate / 100;
+        if (i === 0 || !isFinite(i)) return 0;
+        const factor = Math.pow(1 + i, n);
+        const pmt = p * (i * factor) / (factor - 1);
+        return (pmt * n) - p;
+      }
       default:
         return 0;
     }

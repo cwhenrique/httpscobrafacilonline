@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -95,7 +95,8 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
-    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+    // Usar fórmula PMT de amortização (Sistema Price)
+    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
@@ -620,8 +621,10 @@ export default function Loans() {
       if (formData.interest_mode === 'per_installment') {
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
-        // Juros compostos: M = P(1+i)^n - P
-        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const pmt = calculatePMT(principal, rate, numInstallments);
+        setInstallmentValue(pmt.toFixed(2));
+        return; // Já calculado diretamente
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -653,8 +656,8 @@ export default function Loans() {
       if (formData.interest_mode === 'per_installment') {
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
-        // Juros compostos: M = P(1+i)^n - P
-        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        // Usar fórmula PMT de amortização (Sistema Price)
+        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -682,9 +685,8 @@ export default function Loans() {
     if (formData.interest_mode === 'per_installment') {
       newRate = (totalInterest / principal / numInstallments) * 100;
     } else if (formData.interest_mode === 'compound') {
-      // Inverter a fórmula de juros compostos para encontrar a taxa
-      // totalInterest = P * (1+r)^n - P => r = ((totalInterest/P) + 1)^(1/n) - 1
-      newRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+      // Usar Newton-Raphson para encontrar a taxa a partir do PMT
+      newRate = calculateRateFromPMT(newInstallmentValue, principal, numInstallments);
     } else {
       // on_total
       newRate = (totalInterest / principal) * 100;
@@ -833,7 +835,8 @@ export default function Loans() {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
       totalToReceive = loan.principal_amount + totalInterest;
     } else if (loan.interest_mode === 'compound') {
-      totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+      // Usar fórmula PMT de amortização (Sistema Price)
+      totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
       totalToReceive = loan.principal_amount + totalInterest;
     } else {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
