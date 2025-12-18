@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.check-overdue-loans]
 verify_jwt = false
 
+[functions.morning-greeting]
+verify_jwt = false
+
 [functions.daily-summary]
 verify_jwt = false
 
