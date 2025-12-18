@@ -559,8 +559,9 @@ export default function Loans() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Check installmentDates for installment, weekly, and daily payment types
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
+    // Check installmentDates for installment, weekly, daily payment types, or when daily dialog is open
+    // Note: isDailyDialogOpen is needed because payment_type is only set to 'daily' on submit
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily' || isDailyDialogOpen) && installmentDates.length > 0) {
       return installmentDates.some(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
@@ -1020,8 +1021,8 @@ export default function Loans() {
       let principalPerInstallment: number;
       let interestPerInstallment: number;
       
-      // For daily loans, use daily_amount directly
-      if (formData.payment_type === 'daily' && formData.daily_amount) {
+      // For daily loans (or when daily dialog is open), use daily_amount directly
+      if ((formData.payment_type === 'daily' || isDailyDialogOpen) && formData.daily_amount) {
         const dailyAmount = parseFloat(formData.daily_amount);
         const totalToReceive = dailyAmount * numInstallments;
         const profit = totalToReceive - principal;
