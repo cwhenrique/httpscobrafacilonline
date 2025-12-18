@@ -83,6 +83,15 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Parse request body to check if this is a reminder (12h) or report (8h)
+    let isReminder = false;
+    try {
+      const body = await req.json();
+      isReminder = body.isReminder === true;
+    } catch {
+      // No body or invalid JSON, default to report mode
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -91,7 +100,7 @@ const handler = async (req: Request): Promise<Response> => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    console.log("Generating daily summary for:", todayStr);
+    console.log(`Generating ${isReminder ? 'reminder (12h)' : 'report (8h)'} for:`, todayStr);
 
     // Get all ACTIVE users with phone configured
     const { data: profiles, error: profilesError } = await supabase
@@ -291,14 +300,23 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build message
-      let message = `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
-      message += `📊 *Resumo Financeiro - ${formatDate(today)}*\n`;
+      // Build message - different header for report vs reminder
+      let message = '';
+      
+      if (isReminder) {
+        message += `🔔 *LEMBRETE DE COBRANÇAS - ${formatDate(today)}*\n`;
+      } else {
+        message += `📋 *RELATÓRIO DE COBRANÇAS - ${formatDate(today)}*\n`;
+      }
       message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-      // VENCE HOJE
+      // VENCE HOJE / AINDA PENDENTE HOJE
       if (hasDueToday) {
-        message += `⏰ *VENCE HOJE:*\n\n`;
+        if (isReminder) {
+          message += `⏰ *AINDA PENDENTE HOJE:*\n\n`;
+        } else {
+          message += `⏰ *VENCE HOJE:*\n\n`;
+        }
 
         if (dueTodayLoans.length > 0) {
           // Separar diários dos outros
@@ -388,9 +406,13 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `_CobraFácil - Resumo às 8h_`;
+      if (isReminder) {
+        message += `_CobraFácil - Lembrete às 12h_`;
+      } else {
+        message += `_CobraFácil - Relatório às 8h_`;
+      }
 
-      console.log(`Sending daily summary to user ${profile.id}`);
+      console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
       
       const sent = await sendWhatsApp(profile.phone, message);
       if (sent) {
@@ -398,13 +420,14 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(`Sent ${sentCount} daily summaries`);
+    console.log(`Sent ${sentCount} ${isReminder ? 'reminders' : 'reports'}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         sentCount,
-        usersChecked: profiles?.length || 0 
+        usersChecked: profiles?.length || 0,
+        type: isReminder ? 'reminder' : 'report'
       }),
       {
         status: 200,
