@@ -4,6 +4,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { PaymentStatus } from '@/types/database';
 
+export type BillCategory = 
+  | 'energia'
+  | 'agua'
+  | 'internet'
+  | 'telefone'
+  | 'cartao'
+  | 'aluguel'
+  | 'financiamento'
+  | 'seguro'
+  | 'servicos'
+  | 'streaming'
+  | 'supermercado'
+  | 'saude'
+  | 'educacao'
+  | 'outros';
+
 export interface Bill {
   id: string;
   user_id: string;
@@ -14,6 +30,8 @@ export interface Bill {
   status: PaymentStatus;
   paid_date: string | null;
   notes: string | null;
+  category: BillCategory;
+  is_recurring: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +41,8 @@ export interface CreateBillData {
   payee_name: string;
   amount: number;
   due_date: string;
+  category?: BillCategory;
+  is_recurring?: boolean;
   notes?: string;
 }
 
@@ -33,6 +53,8 @@ export interface UpdateBillData {
   due_date?: string;
   status?: PaymentStatus;
   paid_date?: string | null;
+  category?: BillCategory;
+  is_recurring?: boolean;
   notes?: string;
 }
 
@@ -69,6 +91,8 @@ export function useBills() {
           payee_name: data.payee_name,
           amount: data.amount,
           due_date: data.due_date,
+          category: data.category || 'outros',
+          is_recurring: data.is_recurring || false,
           notes: data.notes || null,
           status: 'pending',
         })

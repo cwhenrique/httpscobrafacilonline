@@ -17,10 +17,12 @@ export type Database = {
       bills: {
         Row: {
           amount: number
+          category: string | null
           created_at: string
           description: string
           due_date: string
           id: string
+          is_recurring: boolean | null
           notes: string | null
           paid_date: string | null
           payee_name: string
@@ -30,10 +32,12 @@ export type Database = {
         }
         Insert: {
           amount: number
+          category?: string | null
           created_at?: string
           description: string
           due_date: string
           id?: string
+          is_recurring?: boolean | null
           notes?: string | null
           paid_date?: string | null
           payee_name: string
@@ -43,10 +47,12 @@ export type Database = {
         }
         Update: {
           amount?: number
+          category?: string | null
           created_at?: string
           description?: string
           due_date?: string
           id?: string
+          is_recurring?: boolean | null
           notes?: string | null
           paid_date?: string | null
           payee_name?: string
