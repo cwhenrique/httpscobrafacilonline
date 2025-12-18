@@ -79,6 +79,15 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Parse request body to check for testPhone parameter
+    let testPhone: string | null = null;
+    try {
+      const body = await req.json();
+      testPhone = body.testPhone || null;
+    } catch {
+      // No body or invalid JSON
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -88,13 +97,26 @@ const handler = async (req: Request): Promise<Response> => {
     const todayStr = today.toISOString().split('T')[0];
 
     console.log("Generating morning greeting for:", todayStr);
+    if (testPhone) {
+      console.log("TEST MODE - sending only to:", testPhone);
+    }
 
     // Get all ACTIVE users with phone configured
-    const { data: profiles, error: profilesError } = await supabase
+    let profilesQuery = supabase
       .from('profiles')
       .select('id, phone, full_name')
       .eq('is_active', true)
       .not('phone', 'is', null);
+
+    // Filter by testPhone if provided
+    if (testPhone) {
+      let cleanTestPhone = testPhone.replace(/\D/g, '');
+      if (!cleanTestPhone.startsWith('55')) cleanTestPhone = '55' + cleanTestPhone;
+      // Match last 9 digits
+      profilesQuery = profilesQuery.ilike('phone', `%${cleanTestPhone.slice(-9)}%`);
+    }
+
+    const { data: profiles, error: profilesError } = await profilesQuery;
 
     if (profilesError) {
       console.error("Error fetching profiles:", profilesError);
