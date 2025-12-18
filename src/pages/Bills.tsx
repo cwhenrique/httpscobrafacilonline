@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Categorias com ícones e cores
@@ -544,6 +544,38 @@ export default function Bills() {
                         </Badge>
                       )}
                     </div>
+
+                    {/* PIX Key Section */}
+                    {bill.pix_key && (
+                      <div className="mb-4 p-3 rounded-lg bg-white/10 border border-white/20">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-white/60 uppercase tracking-wider mb-1">
+                              Chave PIX
+                            </p>
+                            <p className="text-sm font-mono text-white truncate">
+                              {bill.pix_key}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-2 h-8 w-8 p-0 bg-white/10 hover:bg-white/20 text-white shrink-0"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(bill.pix_key!);
+                                toast.success('Chave PIX copiada!');
+                              } catch {
+                                toast.error('Não foi possível copiar');
+                              }
+                            }}
+                            title="Copiar chave PIX"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex gap-2">
                       {status !== 'paid' && (
