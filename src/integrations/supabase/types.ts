@@ -739,6 +739,8 @@ export type Database = {
           is_active: boolean
           payment_link: string | null
           phone: string | null
+          pix_key: string | null
+          pix_key_type: string | null
           subscription_expires_at: string | null
           subscription_plan: string | null
           temp_password: string | null
@@ -764,6 +766,8 @@ export type Database = {
           is_active?: boolean
           payment_link?: string | null
           phone?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null
           temp_password?: string | null
@@ -789,6 +793,8 @@ export type Database = {
           is_active?: boolean
           payment_link?: string | null
           phone?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null
           temp_password?: string | null

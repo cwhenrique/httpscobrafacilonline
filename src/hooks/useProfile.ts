@@ -24,6 +24,9 @@ export interface Profile {
   voice_assistant_enabled: boolean;
   // Payment link
   payment_link: string | null;
+  // PIX key
+  pix_key: string | null;
+  pix_key_type: string | null;
 }
 
 export function useProfile() {
