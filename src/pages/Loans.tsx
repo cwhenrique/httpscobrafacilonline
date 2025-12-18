@@ -3499,6 +3499,7 @@ export default function Loans() {
               {filteredLoans.map((loan, loanIndex) => {
                 const isDaily = loan.payment_type === 'daily';
                 const isWeekly = loan.payment_type === 'weekly';
+                const isBiweekly = loan.payment_type === 'biweekly';
                 const numInstallments = loan.installments || 1;
                 
                 // For daily loans: 
@@ -3725,7 +3726,7 @@ export default function Loans() {
                 
                 const isCompound = loan.interest_mode === 'compound';
                 const hasDueTodayStyle = isDueToday && !isOverdue;
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isDaily || isCompound || hasDueTodayStyle;
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
@@ -3741,12 +3742,28 @@ export default function Loans() {
                   if (isDaily && isOverdue) {
                     return 'bg-gradient-to-r from-red-500/30 to-blue-500/30 border-red-400 dark:from-red-500/40 dark:to-blue-500/40';
                   }
+                  // Semanal em atraso: gradiente vermelho→laranja
+                  if (isWeekly && isOverdue) {
+                    return 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400 dark:from-red-500/40 dark:to-orange-500/40';
+                  }
+                  // Quinzenal em atraso: gradiente vermelho→ciano
+                  if (isBiweekly && isOverdue) {
+                    return 'bg-gradient-to-r from-red-500/30 to-cyan-500/30 border-red-400 dark:from-red-500/40 dark:to-cyan-500/40';
+                  }
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
                   }
                   // Diário + Vence hoje: gradiente azul→amarelo
                   if (isDaily && hasDueTodayStyle) {
                     return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
+                  }
+                  // Semanal + Vence hoje: gradiente laranja→amarelo
+                  if (isWeekly && hasDueTodayStyle) {
+                    return 'bg-gradient-to-r from-orange-500/30 to-amber-500/30 border-amber-400 dark:from-orange-500/40 dark:to-amber-500/40';
+                  }
+                  // Quinzenal + Vence hoje: gradiente ciano→amarelo
+                  if (isBiweekly && hasDueTodayStyle) {
+                    return 'bg-gradient-to-r from-cyan-500/30 to-amber-500/30 border-amber-400 dark:from-cyan-500/40 dark:to-amber-500/40';
                   }
                   // Vence hoje: amarelo/âmbar
                   if (hasDueTodayStyle) {
@@ -3758,13 +3775,16 @@ export default function Loans() {
                   if (isWeekly) {
                     return 'bg-orange-500/20 border-orange-400 dark:bg-orange-500/30 dark:border-orange-400';
                   }
+                  if (isBiweekly) {
+                    return 'bg-cyan-500/20 border-cyan-400 dark:bg-cyan-500/30 dark:border-cyan-400';
+                  }
                   if (isDaily) {
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
                   }
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : isBiweekly ? 'text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
