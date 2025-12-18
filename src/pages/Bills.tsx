@@ -40,6 +40,157 @@ const getCategoryInfo = (category: BillCategory) => {
 
 type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today';
 
+// Interface para props do BillForm
+interface BillFormProps {
+  formData: CreateBillData;
+  setFormData: React.Dispatch<React.SetStateAction<CreateBillData>>;
+  onSubmit: () => void;
+  submitLabel: string;
+  isLoading: boolean;
+}
+
+// BillForm movido para fora do componente Bills para evitar perda de foco
+const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading }: BillFormProps) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
+      <div className="col-span-2">
+        <Label>Nome da Conta *</Label>
+        <Input
+          placeholder="Ex: Luz de Janeiro, Cartão Nubank..."
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+        />
+      </div>
+      <div className="col-span-2">
+        <Label>Fornecedor/Empresa *</Label>
+        <Input
+          placeholder="Ex: CEMIG, Vivo, Nubank..."
+          value={formData.payee_name}
+          onChange={(e) => setFormData({ ...formData, payee_name: e.target.value })}
+        />
+      </div>
+      <div className="col-span-2">
+        <Label>Chave PIX do Fornecedor (opcional)</Label>
+        <Input
+          placeholder="CPF, CNPJ, E-mail, Telefone ou Chave Aleatória"
+          value={formData.pix_key || ''}
+          onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3 text-yellow-500" />
+          A chave PIX será incluída nos lembretes. Verifique se está correta — a responsabilidade é sua.
+        </p>
+      </div>
+      <div>
+        <Label>
+          {formData.category === 'cartao' ? 'Valor da Fatura (opcional)' : 'Valor *'}
+        </Label>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder={formData.category === 'cartao' ? 'Deixe vazio se não souber ainda' : '0,00'}
+          value={formData.amount || ''}
+          onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+        />
+        {formData.category === 'cartao' && (
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+            <CreditCard className="h-3 w-3" />
+            Você pode atualizar o valor quando a fatura fechar
+          </p>
+        )}
+      </div>
+      <div>
+        <Label>Vencimento *</Label>
+        <Input
+          type="date"
+          value={formData.due_date}
+          onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+        />
+      </div>
+      <div className="col-span-2">
+        <Label>Categoria</Label>
+        <Select
+          value={formData.category}
+          onValueChange={(value: BillCategory) => setFormData({ ...formData, category: value })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione a categoria" />
+          </SelectTrigger>
+          <SelectContent>
+            {BILL_CATEGORIES.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <SelectItem key={cat.value} value={cat.value}>
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-4 w-4 ${cat.color}`} />
+                    <span>{cat.label}</span>
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="col-span-2 space-y-3">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={formData.is_recurring}
+            onCheckedChange={(checked) => setFormData({ 
+              ...formData, 
+              is_recurring: checked,
+              recurrence_months: checked ? formData.recurrence_months : null
+            })}
+          />
+          <Label className="cursor-pointer" onClick={() => setFormData({ 
+            ...formData, 
+            is_recurring: !formData.is_recurring,
+            recurrence_months: !formData.is_recurring ? formData.recurrence_months : null
+          })}>
+            Conta recorrente (mensal)
+          </Label>
+        </div>
+        
+        {formData.is_recurring && (
+          <div className="ml-8 space-y-2 p-3 bg-muted/50 rounded-lg">
+            <Label className="text-sm text-muted-foreground">
+              Por quantos meses? (deixe vazio para sempre)
+            </Label>
+            <Input
+              type="number"
+              min="1"
+              max="120"
+              placeholder="Sempre (infinito)"
+              value={formData.recurrence_months || ''}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                recurrence_months: e.target.value ? parseInt(e.target.value) : null 
+              })}
+              className="w-40"
+            />
+            <p className="text-xs text-muted-foreground">
+              {formData.recurrence_months 
+                ? `A conta será criada por ${formData.recurrence_months} meses` 
+                : 'A conta será criada todo mês automaticamente'}
+            </p>
+          </div>
+        )}
+      </div>
+      <div className="col-span-2">
+        <Label>Observações</Label>
+        <Textarea
+          placeholder="Anotações adicionais..."
+          value={formData.notes || ''}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+        />
+      </div>
+    </div>
+    <Button onClick={onSubmit} className="w-full" disabled={isLoading}>
+      {isLoading ? 'Salvando...' : submitLabel}
+    </Button>
+  </div>
+);
+
 export default function Bills() {
   const { bills, isLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills();
   const [searchTerm, setSearchTerm] = useState('');
@@ -201,146 +352,6 @@ export default function Bills() {
     }
   };
 
-  const BillForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <Label>Nome da Conta *</Label>
-          <Input
-            placeholder="Ex: Luz de Janeiro, Cartão Nubank..."
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          />
-        </div>
-        <div className="col-span-2">
-          <Label>Fornecedor/Empresa *</Label>
-          <Input
-            placeholder="Ex: CEMIG, Vivo, Nubank..."
-            value={formData.payee_name}
-            onChange={(e) => setFormData({ ...formData, payee_name: e.target.value })}
-          />
-        </div>
-        <div className="col-span-2">
-          <Label>Chave PIX do Fornecedor (opcional)</Label>
-          <Input
-            placeholder="CPF, CNPJ, E-mail, Telefone ou Chave Aleatória"
-            value={formData.pix_key || ''}
-            onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3 text-yellow-500" />
-            A chave PIX será incluída nos lembretes. Verifique se está correta — a responsabilidade é sua.
-          </p>
-        </div>
-        <div>
-          <Label>
-            {formData.category === 'cartao' ? 'Valor da Fatura (opcional)' : 'Valor *'}
-          </Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder={formData.category === 'cartao' ? 'Deixe vazio se não souber ainda' : '0,00'}
-            value={formData.amount || ''}
-            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-          />
-          {formData.category === 'cartao' && (
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <CreditCard className="h-3 w-3" />
-              Você pode atualizar o valor quando a fatura fechar
-            </p>
-          )}
-        </div>
-        <div>
-          <Label>Vencimento *</Label>
-          <Input
-            type="date"
-            value={formData.due_date}
-            onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-          />
-        </div>
-        <div className="col-span-2">
-          <Label>Categoria</Label>
-          <Select
-            value={formData.category}
-            onValueChange={(value: BillCategory) => setFormData({ ...formData, category: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {BILL_CATEGORIES.map((cat) => {
-                const Icon = cat.icon;
-                return (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    <div className="flex items-center gap-2">
-                      <Icon className={`h-4 w-4 ${cat.color}`} />
-                      <span>{cat.label}</span>
-                    </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2 space-y-3">
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={formData.is_recurring}
-              onCheckedChange={(checked) => setFormData({ 
-                ...formData, 
-                is_recurring: checked,
-                recurrence_months: checked ? formData.recurrence_months : null
-              })}
-            />
-            <Label className="cursor-pointer" onClick={() => setFormData({ 
-              ...formData, 
-              is_recurring: !formData.is_recurring,
-              recurrence_months: !formData.is_recurring ? formData.recurrence_months : null
-            })}>
-              Conta recorrente (mensal)
-            </Label>
-          </div>
-          
-          {formData.is_recurring && (
-            <div className="ml-8 space-y-2 p-3 bg-muted/50 rounded-lg">
-              <Label className="text-sm text-muted-foreground">
-                Por quantos meses? (deixe vazio para sempre)
-              </Label>
-              <Input
-                type="number"
-                min="1"
-                max="120"
-                placeholder="Sempre (infinito)"
-                value={formData.recurrence_months || ''}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  recurrence_months: e.target.value ? parseInt(e.target.value) : null 
-                })}
-                className="w-40"
-              />
-              <p className="text-xs text-muted-foreground">
-                {formData.recurrence_months 
-                  ? `A conta será criada por ${formData.recurrence_months} meses` 
-                  : 'A conta será criada todo mês automaticamente'}
-              </p>
-            </div>
-          )}
-        </div>
-        <div className="col-span-2">
-          <Label>Observações</Label>
-          <Textarea
-            placeholder="Anotações adicionais..."
-            value={formData.notes || ''}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          />
-        </div>
-      </div>
-      <Button onClick={onSubmit} className="w-full" disabled={createBill.isPending || updateBill.isPending}>
-        {createBill.isPending || updateBill.isPending ? 'Salvando...' : submitLabel}
-      </Button>
-    </div>
-  );
 
   return (
     <DashboardLayout>
@@ -362,7 +373,7 @@ export default function Bills() {
               <DialogHeader>
                 <DialogTitle>Adicionar Nova Conta</DialogTitle>
               </DialogHeader>
-              <BillForm onSubmit={handleCreate} submitLabel="Cadastrar Conta" />
+              <BillForm formData={formData} setFormData={setFormData} onSubmit={handleCreate} submitLabel="Cadastrar Conta" isLoading={createBill.isPending} />
             </DialogContent>
           </Dialog>
         </div>
@@ -590,7 +601,7 @@ export default function Bills() {
             <DialogHeader>
               <DialogTitle>Editar Conta</DialogTitle>
             </DialogHeader>
-            <BillForm onSubmit={handleEdit} submitLabel="Salvar Alterações" />
+            <BillForm formData={formData} setFormData={setFormData} onSubmit={handleEdit} submitLabel="Salvar Alterações" isLoading={updateBill.isPending} />
           </DialogContent>
         </Dialog>
       </div>
