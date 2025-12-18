@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
-import { useBills, Bill, CreateBillData } from '@/hooks/useBills';
+
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -162,8 +162,6 @@ export default function ProductSales() {
   const { sales, isLoading: salesLoading, createSale, updateSale, deleteSale } = useProductSales();
   const { payments: allSalePayments, markAsPaid: markSalePaymentAsPaid, markAsPaidFlexible } = useProductSalePayments();
   
-  // Bills hooks
-  const { bills, isLoading: billsLoading, createBill, updateBill, deleteBill, markAsPaid: markBillAsPaid } = useBills();
   
   // Contracts hooks
   const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
@@ -171,7 +169,7 @@ export default function ProductSales() {
   const { profile } = useProfile();
 
   // Main tab state
-  const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'bills'>('products');
+  const [mainTab, setMainTab] = useState<'products' | 'contracts'>('products');
   
   // Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -207,12 +205,6 @@ export default function ProductSales() {
     notes: '',
   });
 
-  // Bills states
-  const [isBillOpen, setIsBillOpen] = useState(false);
-  const [isEditBillOpen, setIsEditBillOpen] = useState(false);
-  const [deleteBillId, setDeleteBillId] = useState<string | null>(null);
-  const [editingBill, setEditingBill] = useState<Bill | null>(null);
-  const [billFilter, setBillFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -269,13 +261,6 @@ export default function ProductSales() {
   });
 
 
-  const [billForm, setBillForm] = useState<CreateBillData>({
-    description: '',
-    payee_name: '',
-    amount: 0,
-    due_date: '',
-    notes: '',
-  });
 
   // Reset functions
   const resetForm = () => {
@@ -323,15 +308,6 @@ export default function ProductSales() {
   };
 
 
-  const resetBillForm = () => {
-    setBillForm({
-      description: '',
-      payee_name: '',
-      amount: 0,
-      due_date: '',
-      notes: '',
-    });
-  };
 
   // Generate installment dates for product sales
   useEffect(() => {
@@ -589,42 +565,6 @@ export default function ProductSales() {
   };
 
 
-  // Bill handlers
-  const handleCreateBill = async () => {
-    if (!billForm.payee_name || !billForm.amount || !billForm.due_date) return;
-    await createBill.mutateAsync(billForm);
-    setIsBillOpen(false);
-    resetBillForm();
-  };
-
-  const openEditBillDialog = (bill: Bill) => {
-    setEditingBill(bill);
-    setBillForm({
-      description: bill.description,
-      payee_name: bill.payee_name,
-      amount: bill.amount,
-      due_date: bill.due_date,
-      notes: bill.notes || '',
-    });
-    setIsEditBillOpen(true);
-  };
-
-  const handleEditBill = async () => {
-    if (!editingBill) return;
-    await updateBill.mutateAsync({
-      id: editingBill.id,
-      data: billForm,
-    });
-    setIsEditBillOpen(false);
-    setEditingBill(null);
-    resetBillForm();
-  };
-
-  const handleDeleteBill = async () => {
-    if (!deleteBillId) return;
-    await deleteBill.mutateAsync(deleteBillId);
-    setDeleteBillId(null);
-  };
 
   // Receipt generation functions
   const handleGenerateProductReceipt = (sale: ProductSale) => {
@@ -727,22 +667,6 @@ export default function ProductSales() {
   );
 
 
-  const getBillStatus = (bill: Bill) => {
-    if (bill.status === 'paid') return 'paid';
-    const dueDate = parseISO(bill.due_date);
-    if (isPast(dueDate) && !isToday(dueDate)) return 'overdue';
-    return 'pending';
-  };
-
-  const filteredBills = bills.filter((bill) => {
-    const matchesSearch = bill.payee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bill.description.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
-    const status = getBillStatus(bill);
-    if (billFilter === 'all') return true;
-    if (billFilter === 'overdue') return status === 'overdue';
-    return status === billFilter;
-  });
 
   const getSalePayments = (saleId: string) => {
     return allSalePayments?.filter(p => p.product_sale_id === saleId) || [];
@@ -819,14 +743,7 @@ export default function ProductSales() {
     pending: filteredSales.reduce((acc, s) => acc + s.remaining_balance, 0),
   };
 
-  const billsStats = {
-    total: bills.length,
-    pending: bills.filter((b) => getBillStatus(b) === 'pending').length,
-    overdue: bills.filter((b) => getBillStatus(b) === 'overdue').length,
-    totalAmount: bills.filter((b) => getBillStatus(b) !== 'paid').reduce((acc, b) => acc + b.amount, 0),
-  };
-
-  const isLoading = salesLoading || billsLoading || contractsLoading;
+  const isLoading = salesLoading || contractsLoading;
 
   if (isLoading) {
     return (
@@ -843,11 +760,11 @@ export default function ProductSales() {
       <div className="space-y-4 sm:space-y-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-display font-bold">Vendas e Gestão Financeira</h1>
-          <p className="text-sm text-muted-foreground">Gerencie vendas, contratos e contas</p>
+          <p className="text-sm text-muted-foreground">Gerencie vendas de produtos e contratos</p>
         </div>
 
         <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsList className="grid w-full grid-cols-2 h-auto">
             <TabsTrigger value="products" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <ShoppingBag className="w-4 h-4" />
               <span>Produtos</span>
@@ -855,10 +772,6 @@ export default function ProductSales() {
             <TabsTrigger value="contracts" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <FileSignature className="w-4 h-4" />
               <span>Contratos</span>
-            </TabsTrigger>
-            <TabsTrigger value="bills" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
-              <FileText className="w-4 h-4" />
-              <span>Contas</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1396,167 +1309,6 @@ export default function ProductSales() {
               </div>
             )}
           </TabsContent>
-
-
-
-
-          {/* CONTAS A PAGAR TAB */}
-          <TabsContent value="bills" className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{billsStats.total}</p>
-                      <p className="text-xs text-muted-foreground">Contas</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-yellow-600" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{billsStats.pending}</p>
-                      <p className="text-xs text-muted-foreground">Pendentes</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
-                      <DollarSign className="w-4 h-4 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{billsStats.overdue}</p>
-                      <p className="text-xs text-muted-foreground">Atrasadas</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Total a Pagar</p>
-                  <p className="text-sm font-bold text-orange-600 truncate">{formatCurrency(billsStats.totalAmount)}</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button variant={billFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('all')}>Todas</Button>
-                <Button variant={billFilter === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('pending')}>Pendentes</Button>
-                <Button variant={billFilter === 'overdue' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('overdue')}>Atrasadas</Button>
-                <Button variant={billFilter === 'paid' ? 'default' : 'outline'} size="sm" onClick={() => setBillFilter('paid')}>Pagas</Button>
-              </div>
-              <Dialog open={isBillOpen} onOpenChange={setIsBillOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2"><Plus className="w-4 h-4" />Nova Conta</Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Nova Conta a Pagar</DialogTitle></DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Pagar para *</Label>
-                      <Input placeholder="Nome da pessoa ou empresa" value={billForm.payee_name} onChange={(e) => setBillForm({ ...billForm, payee_name: e.target.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Descrição *</Label>
-                      <Input placeholder="Ex: Aluguel, Conta de luz..." value={billForm.description} onChange={(e) => setBillForm({ ...billForm, description: e.target.value })} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Valor (R$) *</Label>
-                        <Input type="number" step="0.01" min="0" value={billForm.amount || ''} onChange={(e) => setBillForm({ ...billForm, amount: parseFloat(e.target.value) || 0 })} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Vencimento *</Label>
-                        <Input type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Observações</Label>
-                      <Textarea placeholder="Notas adicionais..." value={billForm.notes} onChange={(e) => setBillForm({ ...billForm, notes: e.target.value })} />
-                    </div>
-                    <Button onClick={handleCreateBill} disabled={!billForm.payee_name || !billForm.description || !billForm.amount || !billForm.due_date || createBill.isPending} className="w-full">
-                      {createBill.isPending ? 'Salvando...' : 'Cadastrar Conta'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            {filteredBills.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-semibold mb-2">Nenhuma conta encontrada</h3>
-                  <p className="text-muted-foreground text-sm">Clique em "Nova Conta" para cadastrar</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredBills.map((bill) => {
-                  const status = getBillStatus(bill);
-                  return (
-                    <Card key={bill.id} className={cn("transition-all",
-                      status === 'paid' && 'bg-primary/10 border-primary/40',
-                      status === 'overdue' && 'bg-destructive/10 border-destructive/40'
-                    )}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                              <FileText className="w-5 h-5 text-muted-foreground" />
-                            </div>
-                            <div>
-                              <p className="font-semibold">{bill.payee_name}</p>
-                              <p className="text-xs text-muted-foreground">{bill.description}</p>
-                            </div>
-                          </div>
-                          {getStatusBadge(status)}
-                        </div>
-                        <div className="space-y-2 mb-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Valor</span>
-                            <span className="font-bold">{formatCurrency(bill.amount)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Vencimento</span>
-                            <span className={cn("font-medium", status === 'overdue' && 'text-destructive')}>
-                              {format(parseISO(bill.due_date), 'dd/MM/yyyy', { locale: ptBR })}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {status !== 'paid' && (
-                            <Button size="sm" className="flex-1" onClick={() => markBillAsPaid.mutateAsync(bill.id)} disabled={markBillAsPaid.isPending}>
-                              <Check className="w-3 h-3 mr-1" />
-                              Pagar
-                            </Button>
-                          )}
-                          <Button size="icon" variant="outline" onClick={() => openEditBillDialog(bill)}><Edit className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteBillId(bill.id)}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
         </Tabs>
 
         {/* Edit Sale Dialog */}
@@ -1611,34 +1363,6 @@ export default function ProductSales() {
           </DialogContent>
         </Dialog>
 
-
-        {/* Edit Bill Dialog */}
-        <Dialog open={isEditBillOpen} onOpenChange={setIsEditBillOpen}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Editar Conta</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Pagar para</Label>
-                <Input value={billForm.payee_name} onChange={(e) => setBillForm({ ...billForm, payee_name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Input value={billForm.description} onChange={(e) => setBillForm({ ...billForm, description: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Valor (R$)</Label>
-                  <Input type="number" step="0.01" value={billForm.amount || ''} onChange={(e) => setBillForm({ ...billForm, amount: parseFloat(e.target.value) || 0 })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vencimento</Label>
-                  <Input type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} />
-                </div>
-              </div>
-              <Button onClick={handleEditBill} disabled={updateBill.isPending} className="w-full">{updateBill.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Payment Registration Dialog */}
         <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
@@ -1737,19 +1461,6 @@ export default function ProductSales() {
           </AlertDialogContent>
         </AlertDialog>
 
-
-        <AlertDialog open={!!deleteBillId} onOpenChange={() => setDeleteBillId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Conta</AlertDialogTitle>
-              <AlertDialogDescription>Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteBill} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {/* Receipt Preview Dialog */}
         <ReceiptPreviewDialog 
