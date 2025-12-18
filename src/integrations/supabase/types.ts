@@ -26,6 +26,7 @@ export type Database = {
           notes: string | null
           paid_date: string | null
           payee_name: string
+          pix_key: string | null
           recurrence_months: number | null
           status: Database["public"]["Enums"]["payment_status"]
           updated_at: string
@@ -42,6 +43,7 @@ export type Database = {
           notes?: string | null
           paid_date?: string | null
           payee_name: string
+          pix_key?: string | null
           recurrence_months?: number | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string
@@ -58,6 +60,7 @@ export type Database = {
           notes?: string | null
           paid_date?: string | null
           payee_name?: string
+          pix_key?: string | null
           recurrence_months?: number | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string

@@ -56,6 +56,7 @@ export default function Bills() {
     category: 'outros',
     is_recurring: false,
     recurrence_months: null,
+    pix_key: '',
     notes: '',
   });
 
@@ -68,6 +69,7 @@ export default function Bills() {
       category: 'outros',
       is_recurring: false,
       recurrence_months: null,
+      pix_key: '',
       notes: '',
     });
   };
@@ -152,6 +154,7 @@ export default function Bills() {
         category: formData.category,
         is_recurring: formData.is_recurring,
         recurrence_months: formData.recurrence_months,
+        pix_key: formData.pix_key,
         notes: formData.notes,
       }
     });
@@ -168,6 +171,7 @@ export default function Bills() {
       category: bill.category || 'outros',
       is_recurring: bill.is_recurring || false,
       recurrence_months: bill.recurrence_months ?? null,
+      pix_key: bill.pix_key || '',
       notes: bill.notes || '',
     });
     setEditingBill(bill);
@@ -213,6 +217,18 @@ export default function Bills() {
             value={formData.payee_name}
             onChange={(e) => setFormData({ ...formData, payee_name: e.target.value })}
           />
+        </div>
+        <div className="col-span-2">
+          <Label>Chave PIX do Fornecedor (opcional)</Label>
+          <Input
+            placeholder="CPF, CNPJ, E-mail, Telefone ou Chave Aleatória"
+            value={formData.pix_key || ''}
+            onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3 text-yellow-500" />
+            A chave PIX será incluída nos lembretes. Verifique se está correta — a responsabilidade é sua.
+          </p>
         </div>
         <div>
           <Label>Valor *</Label>
