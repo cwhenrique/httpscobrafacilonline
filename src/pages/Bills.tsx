@@ -239,16 +239,30 @@ export default function Bills() {
 
   // Estatísticas
   const stats = useMemo(() => {
+    const totalCount = currentMonthBills.length;
     const total = currentMonthBills.reduce((acc, bill) => acc + Number(bill.amount), 0);
-    const pending = currentMonthBills.filter(b => b.status === 'pending');
+    const pending = currentMonthBills.filter(b => b.status === 'pending' && !isPast(parseISO(b.due_date)));
     const paid = currentMonthBills.filter(b => b.status === 'paid');
     const overdue = currentMonthBills.filter(b => b.status === 'overdue' || (b.status === 'pending' && isPast(parseISO(b.due_date)) && !isToday(parseISO(b.due_date))));
     const dueToday = currentMonthBills.filter(b => b.status === 'pending' && isToday(parseISO(b.due_date)));
     
     const pendingTotal = pending.reduce((acc, bill) => acc + Number(bill.amount), 0);
     const paidTotal = paid.reduce((acc, bill) => acc + Number(bill.amount), 0);
+    const overdueTotal = overdue.reduce((acc, bill) => acc + Number(bill.amount), 0);
+    const dueTodayTotal = dueToday.reduce((acc, bill) => acc + Number(bill.amount), 0);
     
-    return { total, pending: pending.length, paid: paid.length, overdue: overdue.length, dueToday: dueToday.length, pendingTotal, paidTotal };
+    return { 
+      total, 
+      totalCount,
+      pendingCount: pending.length, 
+      paidCount: paid.length, 
+      overdueCount: overdue.length, 
+      dueTodayCount: dueToday.length, 
+      pendingTotal, 
+      paidTotal,
+      overdueTotal,
+      dueTodayTotal
+    };
   }, [currentMonthBills]);
 
   // Filtrar contas
@@ -379,51 +393,78 @@ export default function Bills() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-primary">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Total do Mês */}
+          <Card className="border-l-4 border-l-primary col-span-2 lg:col-span-1">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <DollarSign className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Total do Mês</p>
                   <p className="text-xl font-bold">R$ {stats.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-muted-foreground">{stats.totalCount} conta{stats.totalCount !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+          
+          {/* Pendentes */}
           <Card className="border-l-4 border-l-yellow-500">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <Clock className="h-8 w-8 text-yellow-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Pendentes</p>
-                  <p className="text-xl font-bold">{stats.pending}</p>
+                  <p className="text-xl font-bold">R$ {stats.pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-muted-foreground">{stats.pendingCount} conta{stats.pendingCount !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+          
+          {/* Atrasadas */}
           <Card className="border-l-4 border-l-red-500">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-8 w-8 text-red-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Atrasadas</p>
-                  <p className="text-xl font-bold">{stats.overdue}</p>
+                  <p className="text-xl font-bold">R$ {stats.overdueTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-muted-foreground">{stats.overdueCount} conta{stats.overdueCount !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+          
+          {/* Pagas */}
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Pagas</p>
-                  <p className="text-xl font-bold">{stats.paid}</p>
+                  <p className="text-xl font-bold">R$ {stats.paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-muted-foreground">{stats.paidCount} conta{stats.paidCount !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+          
+          {/* Vencem Hoje */}
+          {stats.dueTodayCount > 0 && (
+            <Card className="border-l-4 border-l-orange-500">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-8 w-8 text-orange-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Vence Hoje</p>
+                    <p className="text-xl font-bold">R$ {stats.dueTodayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">{stats.dueTodayCount} conta{stats.dueTodayCount !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Filters */}
