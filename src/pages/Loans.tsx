@@ -1031,6 +1031,64 @@ export default function Loans() {
     console.log('loanData being passed to createLoan:', loanData);
     
     await createLoan(loanData);
+    
+    // Se contrato antigo com parcelas selecionadas, registrar como pagas
+    if (formData.is_historical_contract && selectedPastInstallments.length > 0) {
+      // Buscar o empréstimo recém-criado
+      const { data: newLoans } = await supabase
+        .from('loans')
+        .select('id, notes')
+        .eq('client_id', formData.client_id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (newLoans && newLoans[0]) {
+        const loanId = newLoans[0].id;
+        const installmentsList = pastInstallmentsData.pastInstallmentsList || [];
+        
+        // Calcular valores por parcela
+        const principalPerInstallment = principalAmount / numDays;
+        const interestPerInstallment = dailyAmount - principalPerInstallment;
+        
+        // Registrar cada parcela selecionada como pagamento
+        for (const idx of selectedPastInstallments) {
+          const installment = installmentsList.find(i => i.index === idx);
+          if (!installment) continue;
+          
+          await registerPayment({
+            loan_id: loanId,
+            amount: dailyAmount,
+            principal_paid: principalPerInstallment,
+            interest_paid: interestPerInstallment,
+            payment_date: installment.date,
+            notes: `[CONTRATO_ANTIGO] Parcela ${idx + 1} - ${format(new Date(installment.date + 'T12:00:00'), 'dd/MM/yyyy')}`,
+          });
+        }
+        
+        // Adicionar tags PARTIAL_PAID nas notas
+        const partialPaidTags = selectedPastInstallments
+          .map(idx => {
+            return `[PARTIAL_PAID:${idx}:${dailyAmount}]`;
+          })
+          .join(' ');
+        
+        if (partialPaidTags) {
+          const updatedNotes = newLoans[0].notes 
+            ? `${newLoans[0].notes} ${partialPaidTags}` 
+            : partialPaidTags;
+          
+          await supabase
+            .from('loans')
+            .update({ notes: updatedNotes })
+            .eq('id', loanId);
+          
+          await fetchLoans();
+        }
+        
+        toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) como pagas`);
+      }
+    }
+    
     setIsDailyDialogOpen(false);
     resetForm();
   };
