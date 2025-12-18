@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,6 +63,18 @@ export function LoanSimulator() {
   const [interestMode, setInterestMode] = useState<InterestMode>('per_installment');
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [showComparison, setShowComparison] = useState(false);
+
+  // Estados intermediários para permitir campo vazio durante digitação
+  const [principalInput, setPrincipalInput] = useState('1000');
+  const [interestRateInput, setInterestRateInput] = useState('10');
+  const [installmentsInput, setInstallmentsInput] = useState('6');
+
+  // Sincronizar inputs quando valores mudam externamente (ex: slider)
+  const syncInputs = () => {
+    if (Number(principalInput) !== principal) setPrincipalInput(String(principal));
+    if (Number(interestRateInput) !== interestRate) setInterestRateInput(String(interestRate));
+    if (Number(installmentsInput) !== installments) setInstallmentsInput(String(installments));
+  };
 
   // Calculate interest based on mode
   const calculateInterest = (mode: InterestMode, p: number, rate: number, n: number) => {
@@ -191,6 +203,19 @@ export function LoanSimulator() {
       },
     };
   }, [principal, interestRate, installments, paymentType]);
+
+  // Sincronizar inputs quando valores mudam via slider ou handlePaymentTypeChange
+  useEffect(() => {
+    setPrincipalInput(String(principal));
+  }, [principal]);
+
+  useEffect(() => {
+    setInterestRateInput(String(interestRate));
+  }, [interestRate]);
+
+  useEffect(() => {
+    setInstallmentsInput(String(installments));
+  }, [installments]);
 
   const handlePaymentTypeChange = (value: PaymentType) => {
     setPaymentType(value);
@@ -323,8 +348,21 @@ export function LoanSimulator() {
               <div className="flex gap-2">
                 <Input
                   type="number"
-                  value={installments}
-                  onChange={(e) => setInstallments(Math.max(1, Math.min(getMaxInstallments(paymentType), Number(e.target.value))))}
+                  value={installmentsInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setInstallmentsInput(value);
+                    const numValue = Number(value);
+                    if (value !== '' && !isNaN(numValue) && numValue >= 1) {
+                      setInstallments(Math.min(getMaxInstallments(paymentType), numValue));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (installmentsInput === '' || Number(installmentsInput) < 1) {
+                      setInstallmentsInput('1');
+                      setInstallments(1);
+                    }
+                  }}
                   min={1}
                   max={getMaxInstallments(paymentType)}
                   disabled={paymentType === 'single'}
@@ -348,8 +386,21 @@ export function LoanSimulator() {
               </Label>
               <Input
                 type="number"
-                value={principal}
-                onChange={(e) => setPrincipal(Math.max(100, Number(e.target.value)))}
+                value={principalInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPrincipalInput(value);
+                  const numValue = Number(value);
+                  if (value !== '' && !isNaN(numValue) && numValue >= 100) {
+                    setPrincipal(numValue);
+                  }
+                }}
+                onBlur={() => {
+                  if (principalInput === '' || Number(principalInput) < 100) {
+                    setPrincipalInput('100');
+                    setPrincipal(100);
+                  }
+                }}
                 min={100}
                 className="text-lg font-semibold"
               />
@@ -371,8 +422,21 @@ export function LoanSimulator() {
               </Label>
               <Input
                 type="number"
-                value={interestRate}
-                onChange={(e) => setInterestRate(Math.max(0, Number(e.target.value)))}
+                value={interestRateInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInterestRateInput(value);
+                  const numValue = Number(value);
+                  if (value !== '' && !isNaN(numValue) && numValue >= 0) {
+                    setInterestRate(numValue);
+                  }
+                }}
+                onBlur={() => {
+                  if (interestRateInput === '' || Number(interestRateInput) < 0) {
+                    setInterestRateInput('0');
+                    setInterestRate(0);
+                  }
+                }}
                 min={0}
                 step={paymentType === 'daily' ? 1 : 0.5}
                 className="text-lg font-semibold"
