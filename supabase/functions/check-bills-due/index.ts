@@ -6,6 +6,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Configuração de categorias com emojis e dicas personalizadas
+const CATEGORY_CONFIG: Record<string, { emoji: string; name: string; tip: string }> = {
+  energia: { emoji: '⚡', name: 'Energia/Luz', tip: 'Não fique no escuro!' },
+  agua: { emoji: '💧', name: 'Água', tip: 'Mantenha a torneira aberta!' },
+  internet: { emoji: '📡', name: 'Internet', tip: 'Continue conectado!' },
+  telefone: { emoji: '📱', name: 'Telefone', tip: 'Mantenha sua linha ativa!' },
+  cartao: { emoji: '💳', name: 'Cartão de Crédito', tip: 'Evite juros do rotativo!' },
+  aluguel: { emoji: '🏠', name: 'Aluguel', tip: 'Mantenha seu lar em dia!' },
+  financiamento: { emoji: '🚗', name: 'Financiamento', tip: 'Evite atrasos no financiamento!' },
+  seguro: { emoji: '🛡️', name: 'Seguro', tip: 'Mantenha sua proteção ativa!' },
+  servicos: { emoji: '✂️', name: 'Serviços', tip: '' },
+  streaming: { emoji: '📺', name: 'Streaming', tip: 'Suas séries dependem disso!' },
+  supermercado: { emoji: '🛒', name: 'Supermercado', tip: '' },
+  saude: { emoji: '❤️', name: 'Saúde', tip: 'Cuide da sua saúde!' },
+  educacao: { emoji: '🎓', name: 'Educação', tip: 'Invista no seu futuro!' },
+  outros: { emoji: '📦', name: 'Outros', tip: '' }
+};
+
+const getCategoryConfig = (category: string | null) => {
+  return CATEGORY_CONFIG[category || 'outros'] || CATEGORY_CONFIG['outros'];
+};
+
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -15,6 +37,18 @@ const formatCurrency = (value: number): string => {
 
 const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
+};
+
+// Constrói linha da conta com PIX se disponível
+const buildBillLine = (bill: any): string => {
+  const cat = getCategoryConfig(bill.category);
+  let line = `${cat.emoji} *${bill.payee_name}*: ${formatCurrency(bill.amount)}\n   📋 ${bill.description}`;
+  
+  if (bill.pix_key) {
+    line += `\n   🔑 PIX: \`${bill.pix_key}\``;
+  }
+  
+  return line;
 };
 
 const cleanApiUrl = (url: string): string => {
@@ -149,9 +183,10 @@ const handler = async (req: Request): Promise<Response> => {
         
         // Still create in-app notification even without phone
         for (const bill of userBills) {
+          const cat = getCategoryConfig(bill.category);
           notifications.push({
             user_id: userId,
-            title: '💸 Conta vence hoje!',
+            title: `${cat.emoji} ${cat.name} vence hoje!`,
             message: `${bill.payee_name}: ${formatCurrency(bill.amount)} - ${bill.description}`,
             type: 'warning',
           });
@@ -159,14 +194,32 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build the message
-      const billsList = userBills.map(b => 
-        `• *${b.payee_name}*: ${formatCurrency(b.amount)}\n  ${b.description}`
-      ).join('\n\n');
+      // Agrupar contas por categoria para mensagem organizada
+      const billsByCategory = new Map<string, any[]>();
+      for (const bill of userBills) {
+        const cat = bill.category || 'outros';
+        if (!billsByCategory.has(cat)) {
+          billsByCategory.set(cat, []);
+        }
+        billsByCategory.get(cat)!.push(bill);
+      }
+
+      // Construir lista organizada por categoria
+      let billsList = '';
+      for (const [category, categoryBills] of billsByCategory) {
+        const cat = getCategoryConfig(category);
+        billsList += `\n*${cat.emoji} ${cat.name}*\n`;
+        for (const bill of categoryBills) {
+          billsList += buildBillLine(bill) + '\n';
+        }
+        if (cat.tip) {
+          billsList += `_💡 ${cat.tip}_\n`;
+        }
+      }
 
       const totalAmount = userBills.reduce((sum, b) => sum + b.amount, 0);
 
-      const message = `💸 *CONTAS A PAGAR HOJE!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${userBills.length} conta${userBills.length > 1 ? 's' : ''}* que vence${userBills.length > 1 ? 'm' : ''} *HOJE* (${formatDate(today)}):\n\n${billsList}\n\n💰 *Total a pagar: ${formatCurrency(totalAmount)}*\n\nNão esqueça de realizar o${userBills.length > 1 ? 's' : ''} pagamento${userBills.length > 1 ? 's' : ''}!\n\n_CobraFácil - Alerta automático_`;
+      const message = `💸 *CONTAS A PAGAR HOJE!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}! 👋\n\nVocê tem *${userBills.length} conta${userBills.length > 1 ? 's' : ''}* que vence${userBills.length > 1 ? 'm' : ''} *HOJE* (${formatDate(today)}):${billsList}\n━━━━━━━━━━━━━━━━\n💰 *TOTAL: ${formatCurrency(totalAmount)}*\n━━━━━━━━━━━━━━━━\n\n✅ Pague agora e fique em dia!\n\n_CobraFácil - Alerta automático_`;
 
       console.log(`Sending bills reminder to user ${userId}`);
       
@@ -175,11 +228,12 @@ const handler = async (req: Request): Promise<Response> => {
         sentCount++;
       }
 
-      // Create in-app notifications for each bill
+      // Create in-app notifications for each bill with category-specific titles
       for (const bill of userBills) {
+        const cat = getCategoryConfig(bill.category);
         notifications.push({
           user_id: userId,
-          title: '💸 Conta vence hoje!',
+          title: `${cat.emoji} ${cat.name} vence hoje!`,
           message: `${bill.payee_name}: ${formatCurrency(bill.amount)} - ${bill.description}`,
           type: 'warning',
         });
