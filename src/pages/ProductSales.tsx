@@ -32,6 +32,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useProductSales, useProductSalePayments, ProductSale, CreateProductSaleData, InstallmentDate } from '@/hooks/useProductSales';
+import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
+import { Client } from '@/types/database';
 
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
@@ -219,6 +221,7 @@ export default function ProductSales() {
   const [isSaleReceiptPromptOpen, setIsSaleReceiptPromptOpen] = useState(false);
   const [newCreatedSale, setNewCreatedSale] = useState<ProductSale | null>(null);
   const [newSaleInstallmentDates, setNewSaleInstallmentDates] = useState<InstallmentDate[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   // Forms
   const [formData, setFormData] = useState<CreateProductSaleData>({
@@ -285,6 +288,25 @@ export default function ProductSales() {
       is_historical: false,
     });
     setInstallmentDates([]);
+    setSelectedClientId(null);
+  };
+
+  // Handler for client selection
+  const handleClientSelect = (client: Client | null) => {
+    if (client) {
+      setSelectedClientId(client.id);
+      setFormData(prev => ({
+        ...prev,
+        client_name: client.full_name,
+        client_phone: client.phone || '',
+        client_cpf: client.cpf || '',
+        client_rg: client.rg || '',
+        client_email: client.email || '',
+        client_address: formatFullAddress(client),
+      }));
+    } else {
+      setSelectedClientId(null);
+    }
   };
 
   const resetContractForm = () => {
@@ -872,6 +894,19 @@ export default function ProductSales() {
                         placeholder="Detalhes do produto..."
                       />
                     </div>
+                    {/* Client Selector */}
+                    <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                      <Label className="text-primary font-medium">👤 Usar cliente cadastrado</Label>
+                      <ClientSelector
+                        onSelect={handleClientSelect}
+                        selectedClientId={selectedClientId}
+                        placeholder="Selecionar cliente..."
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Selecione um cliente para preencher os dados automaticamente, ou digite manualmente abaixo.
+                      </p>
+                    </div>
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Nome do Cliente *</Label>

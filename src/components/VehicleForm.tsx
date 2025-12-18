@@ -8,6 +8,8 @@ import { CreateVehicleData, InstallmentDate } from '@/hooks/useVehicles';
 import { addMonths, format, setDate, getDate, parseISO } from 'date-fns';
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
+import { Client } from '@/types/database';
 
 interface VehicleFormProps {
   billType: 'receivable' | 'payable';
@@ -122,6 +124,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
   const [showInstallments, setShowInstallments] = useState(false);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
   const [isHistorical, setIsHistorical] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     brand: '',
@@ -147,6 +150,24 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     notes: '',
     send_creation_notification: false,
   });
+
+  // Handler for client selection
+  const handleClientSelect = (client: Client | null) => {
+    if (client) {
+      setSelectedClientId(client.id);
+      setForm(prev => ({
+        ...prev,
+        buyer_name: client.full_name,
+        buyer_phone: client.phone || '',
+        buyer_cpf: client.cpf || '',
+        buyer_rg: client.rg || '',
+        buyer_email: client.email || '',
+        buyer_address: formatFullAddress(client),
+      }));
+    } else {
+      setSelectedClientId(null);
+    }
+  };
 
   // Generate installment dates when relevant fields change
   useEffect(() => {
@@ -275,6 +296,22 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
         <h4 className={cn("font-semibold mb-3", primaryColor)}>
           {isReceivable ? 'Dados da Venda' : 'Dados da Compra'}
         </h4>
+        
+        {/* Client Selector - only for receivable (sale) */}
+        {isReceivable && (
+          <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-4">
+            <Label className="text-primary font-medium">👤 Usar cliente cadastrado</Label>
+            <ClientSelector
+              onSelect={handleClientSelect}
+              selectedClientId={selectedClientId}
+              placeholder="Selecionar comprador..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Selecione um cliente para preencher os dados do comprador automaticamente.
+            </p>
+          </div>
+        )}
+        
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>{isReceivable ? 'Vendido para (Comprador) *' : 'Vendedor (Comprado de) *'}</Label>
