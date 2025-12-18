@@ -33,6 +33,7 @@ export interface Bill {
   category: BillCategory;
   is_recurring: boolean;
   recurrence_months: number | null;
+  pix_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +46,7 @@ export interface CreateBillData {
   category?: BillCategory;
   is_recurring?: boolean;
   recurrence_months?: number | null;
+  pix_key?: string;
   notes?: string;
 }
 
@@ -58,6 +60,7 @@ export interface UpdateBillData {
   category?: BillCategory;
   is_recurring?: boolean;
   recurrence_months?: number | null;
+  pix_key?: string;
   notes?: string;
 }
 
@@ -97,6 +100,7 @@ export function useBills() {
           category: data.category || 'outros',
           is_recurring: data.is_recurring || false,
           recurrence_months: data.recurrence_months ?? null,
+          pix_key: data.pix_key || null,
           notes: data.notes || null,
           status: 'pending',
         })
