@@ -146,7 +146,7 @@ export default function Loans() {
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'biweekly' | 'interest_only'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only'>('all');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -950,6 +950,10 @@ export default function Loans() {
         return loan.payment_type === 'weekly';
       case 'biweekly':
         return loan.payment_type === 'biweekly';
+      case 'installment':
+        return loan.payment_type === 'installment';
+      case 'single':
+        return loan.payment_type === 'single';
       case 'interest_only':
         return isInterestOnlyPayment && !isOverdue;
       default:
@@ -3480,6 +3484,40 @@ export default function Loans() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p>Empréstimos com cobrança diária</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={statusFilter === 'installment' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('installment')}
+                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'installment' ? 'bg-emerald-500' : 'border-emerald-500 text-emerald-600 hover:bg-emerald-500/10'}`}
+                  >
+                    <CalendarIcon className="w-3 h-3 mr-1" />
+                    <span className="hidden xs:inline">Mensal</span><span className="xs:hidden">Mens.</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Empréstimos com cobrança mensal parcelada</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={statusFilter === 'single' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('single')}
+                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'single' ? 'bg-gray-500' : 'border-gray-500 text-gray-600 hover:bg-gray-500/10'}`}
+                  >
+                    <DollarSign className="w-3 h-3 mr-1" />
+                    <span className="hidden xs:inline">Única</span><span className="xs:hidden">Ún.</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Empréstimos com pagamento em parcela única</p>
                 </TooltipContent>
               </Tooltip>
             </div>
