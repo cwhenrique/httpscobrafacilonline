@@ -7,6 +7,7 @@ import { Package, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, Lis
 import { cn } from '@/lib/utils';
 import { ProductSale, ProductSalePayment } from '@/hooks/useProductSales';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 
 interface ProductSaleCardProps {
   sale: ProductSale;
@@ -224,25 +225,43 @@ export default function ProductSaleCard({
         {/* Next Due Date (for non-overdue) */}
         {nextDuePayment && status !== 'paid' && status !== 'overdue' && (
           <div className={cn(
-            "flex items-center justify-between p-2.5 rounded-lg mb-3",
+            "p-2.5 rounded-lg mb-3",
             status === 'due_today' && "bg-yellow-500/10",
             status === 'pending' && "bg-muted/50"
           )}>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">
-                {nextDuePayment.installment_number}ª parcela
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm">
+                  {nextDuePayment.installment_number}ª parcela
+                </span>
+              </div>
+              <div className="text-right">
+                <p className={cn(
+                  "font-semibold text-sm",
+                  status === 'due_today' && "text-yellow-600"
+                )}>
+                  {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(nextDuePayment.amount)}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className={cn(
-                "font-semibold text-sm",
-                status === 'due_today' && "text-yellow-600"
-              )}>
-                {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
-              </p>
-              <p className="text-xs text-muted-foreground">{formatCurrency(nextDuePayment.amount)}</p>
-            </div>
+            {/* Due today notification button */}
+            {status === 'due_today' && sale.client_phone && (
+              <SendDueTodayNotification
+                data={{
+                  clientName: sale.client_name,
+                  clientPhone: sale.client_phone,
+                  contractType: 'product',
+                  installmentNumber: nextDuePayment.installment_number,
+                  totalInstallments: sale.installments,
+                  amount: nextDuePayment.amount,
+                  dueDate: nextDuePayment.due_date,
+                  loanId: sale.id,
+                }}
+                className="w-full mt-2"
+              />
+            )}
           </div>
         )}
 
