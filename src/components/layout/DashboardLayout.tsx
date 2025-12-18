@@ -30,6 +30,7 @@ import {
   ShoppingBag,
   Car,
   TrendingUp,
+  FileText,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -51,7 +52,8 @@ const navigation = [
   { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
   { name: 'Veículos Registrados', href: '/vehicles', icon: Car },
   { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
-  // Ferramentas
+  // Contas e Ferramentas
+  { name: 'Contas a Pagar', href: '/bills', icon: FileText },
   { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
