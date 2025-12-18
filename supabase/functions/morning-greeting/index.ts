@@ -192,27 +192,45 @@ const handler = async (req: Request): Promise<Response> => {
         const totalPerInstallment = totalToReceive / numInstallments;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
-        let nextDueDate: string | null = null;
-        let installmentAmount = totalPerInstallment;
-
-        if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
-          nextDueDate = installmentDates[paidInstallments];
-        } else {
-          nextDueDate = loan.due_date;
-          if (loan.payment_type === 'single') {
-            installmentAmount = remainingBalance;
+        // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
+        if (loan.payment_type === 'daily' && installmentDates.length > 0) {
+          const dailyAmount = loan.total_interest || totalPerInstallment;
+          
+          for (let i = paidInstallments; i < installmentDates.length; i++) {
+            const installmentDate = installmentDates[i];
+            const dueDate = new Date(installmentDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            if (installmentDate === todayStr) {
+              totalDueToday += dailyAmount;
+            } else if (dueDate < today) {
+              totalOverdue += dailyAmount;
+            }
           }
-        }
+        } else {
+          // Standard logic for non-daily loans
+          let nextDueDate: string | null = null;
+          let installmentAmount = totalPerInstallment;
 
-        if (!nextDueDate) continue;
+          if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
+            nextDueDate = installmentDates[paidInstallments];
+          } else {
+            nextDueDate = loan.due_date;
+            if (loan.payment_type === 'single') {
+              installmentAmount = remainingBalance;
+            }
+          }
 
-        const dueDate = new Date(nextDueDate);
-        dueDate.setHours(0, 0, 0, 0);
+          if (!nextDueDate) continue;
 
-        if (nextDueDate === todayStr) {
-          totalDueToday += installmentAmount;
-        } else if (dueDate < today) {
-          totalOverdue += installmentAmount;
+          const dueDate = new Date(nextDueDate);
+          dueDate.setHours(0, 0, 0, 0);
+
+          if (nextDueDate === todayStr) {
+            totalDueToday += installmentAmount;
+          } else if (dueDate < today) {
+            totalOverdue += installmentAmount;
+          }
         }
       }
 
