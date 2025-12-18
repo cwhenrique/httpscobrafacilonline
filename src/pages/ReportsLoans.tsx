@@ -184,34 +184,65 @@ export default function ReportsLoans() {
     });
   }, [stats.allLoans]);
 
-  // Calculate filtered stats using actual payment data
+  // Calculate comprehensive filtered stats
   const filteredStats = useMemo(() => {
-    let totalLent = 0;
-    let totalReceived = 0;
-    let totalProfit = 0;
+    const activeLoans = filteredLoans.filter(loan => loan.status !== 'paid');
+    const overdueLoans = filteredLoans.filter(loan => loan.status === 'overdue');
+    
+    // Capital na Rua (soma do principal dos empréstimos ativos)
+    const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    
+    // Juros a Receber (pendentes)
+    const pendingInterest = activeLoans.reduce((sum, loan) => {
+      const totalInterest = Number(loan.total_interest || 0);
+      const payments = (loan as any).payments || [];
+      const interestPaid = payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
+      return sum + Math.max(0, totalInterest - interestPaid);
+    }, 0);
+    
+    // Total Recebido (histórico)
+    const totalReceivedAllTime = filteredLoans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
+    
+    // Falta Receber
+    const pendingAmount = activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    
+    // Em Atraso
+    const overdueAmount = overdueLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    
+    // Lucro Realizado (juros já recebidos)
+    const realizedProfit = filteredLoans.reduce((sum, loan) => {
+      const payments = (loan as any).payments || [];
+      return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
+    }, 0);
 
-    filteredLoans.forEach((loan: any) => {
-      const principal = Number(loan.principal_amount);
-      const totalPaid = Number(loan.total_paid || 0);
-
-      totalLent += principal;
-      totalReceived += totalPaid;
-
-      // Usar interest_paid real dos pagamentos (igual ao useOperationalStats)
-      const payments = loan.payments || [];
-      const totalInterestReceived = payments.reduce(
-        (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
-        0
-      );
-      totalProfit += totalInterestReceived;
-    });
-
-    return { totalLent, totalReceived, totalProfit };
+    // Total emprestado no período
+    const totalLent = filteredLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    
+    return {
+      totalOnStreet,
+      pendingInterest,
+      totalReceivedAllTime,
+      pendingAmount,
+      overdueAmount,
+      realizedProfit,
+      activeLoansCount: activeLoans.length,
+      overdueCount: overdueLoans.length,
+      activeLoans,
+      overdueLoans,
+      totalLent,
+      totalProfit: realizedProfit,
+      totalReceived: totalReceivedAllTime,
+    };
   }, [filteredLoans]);
 
-  // Monthly evolution data
+  // Monthly evolution data - filtered by payment type
   const monthlyEvolution = useMemo(() => {
     const months: { month: string; naRua: number; recebido: number; lucro: number }[] = [];
+    
+    // Get base loans filtered by payment type only (not date range for evolution)
+    const baseLoans = paymentTypeFilter !== 'all' 
+      ? stats.allLoans.filter(loan => loan.payment_type === paymentTypeFilter)
+      : stats.allLoans;
     
     for (let i = 5; i >= 0; i--) {
       const monthDate = subMonths(new Date(), i);
@@ -223,7 +254,7 @@ export default function ReportsLoans() {
       let monthRecebido = 0;
       let monthPrincipal = 0;
 
-      stats.allLoans.forEach(loan => {
+      baseLoans.forEach(loan => {
         const loanDate = new Date(loan.start_date);
         if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
           if (loan.status !== 'paid') {
@@ -245,7 +276,7 @@ export default function ReportsLoans() {
     }
 
     return months;
-  }, [stats.allLoans]);
+  }, [stats.allLoans, paymentTypeFilter]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -460,7 +491,7 @@ export default function ReportsLoans() {
           </CardContent>
         </Card>
 
-        {/* Main Stats Grid - Real-time */}
+        {/* Main Stats Grid - Filtered */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
           {stats.loading ? (
             <>
@@ -475,16 +506,16 @@ export default function ReportsLoans() {
             <>
               <StatCard
                 label="💵 Capital na Rua"
-                value={formatCurrency(stats.totalOnStreet)}
+                value={formatCurrency(filteredStats.totalOnStreet)}
                 icon={Wallet}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`${stats.activeLoansCount} contratos ativos`}
+                subtitle={`${filteredStats.activeLoansCount} contratos ativos`}
                 compact
               />
               <StatCard
                 label="💰 Juros a Receber"
-                value={formatCurrency(stats.pendingInterest)}
+                value={formatCurrency(filteredStats.pendingInterest)}
                 icon={TrendingUp}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
@@ -493,7 +524,7 @@ export default function ReportsLoans() {
               />
               <StatCard
                 label="✅ Total Recebido"
-                value={formatCurrency(stats.totalReceivedAllTime)}
+                value={formatCurrency(filteredStats.totalReceivedAllTime)}
                 icon={CheckCircle}
                 iconColor="text-emerald-500"
                 bgColor="bg-emerald-500/10"
@@ -502,25 +533,25 @@ export default function ReportsLoans() {
               />
               <StatCard
                 label="⏳ Falta Receber"
-                value={formatCurrency(stats.pendingAmount)}
+                value={formatCurrency(filteredStats.pendingAmount)}
                 icon={Clock}
                 iconColor="text-yellow-500"
                 bgColor="bg-yellow-500/10"
-                subtitle="remaining_balance"
+                subtitle="Saldo restante"
                 compact
               />
               <StatCard
                 label="🚨 Em Atraso"
-                value={formatCurrency(stats.overdueAmount)}
+                value={formatCurrency(filteredStats.overdueAmount)}
                 icon={AlertTriangle}
                 iconColor="text-destructive"
                 bgColor="bg-destructive/10"
-                subtitle={`${stats.overdueCount} contratos`}
+                subtitle={`${filteredStats.overdueCount} contratos`}
                 compact
               />
               <StatCard
                 label="📊 Lucro Realizado"
-                value={formatCurrency(stats.realizedProfit)}
+                value={formatCurrency(filteredStats.realizedProfit)}
                 icon={Percent}
                 iconColor="text-purple-500"
                 bgColor="bg-purple-500/10"
@@ -607,10 +638,10 @@ export default function ReportsLoans() {
               <div className="h-[200px] sm:h-[250px] lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
-                    { name: 'Na Rua', value: stats.totalOnStreet, fill: 'hsl(var(--chart-1))' },
-                    { name: 'Recebido', value: stats.totalReceivedAllTime, fill: 'hsl(var(--chart-2))' },
-                    { name: 'Pendente', value: stats.pendingAmount, fill: 'hsl(var(--chart-3))' },
-                    { name: 'Atraso', value: stats.overdueAmount, fill: 'hsl(var(--destructive))' },
+                    { name: 'Na Rua', value: filteredStats.totalOnStreet, fill: 'hsl(var(--chart-1))' },
+                    { name: 'Recebido', value: filteredStats.totalReceivedAllTime, fill: 'hsl(var(--chart-2))' },
+                    { name: 'Pendente', value: filteredStats.pendingAmount, fill: 'hsl(var(--chart-3))' },
+                    { name: 'Atraso', value: filteredStats.overdueAmount, fill: 'hsl(var(--destructive))' },
                   ]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tick={{ fontSize: 9 }} />
@@ -639,7 +670,7 @@ export default function ReportsLoans() {
           </Card>
         </div>
 
-        {/* Active Loans Table */}
+        {/* Active Loans Table - Filtered */}
         <Card className="border-primary/30">
           <CardHeader className="p-3 sm:p-4 pb-2">
             <div className="flex items-center justify-between">
@@ -647,9 +678,14 @@ export default function ReportsLoans() {
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 <span className="hidden sm:inline">Contratos Ativos (Na Rua)</span>
                 <span className="sm:hidden">Ativos</span>
+                {paymentTypeFilter !== 'all' && (
+                  <Badge variant="outline" className="text-[10px] border-primary/50 text-primary ml-1">
+                    {paymentTypeLabels[paymentTypeFilter]}
+                  </Badge>
+                )}
               </CardTitle>
               <Badge variant="outline" className="text-primary border-primary text-[10px] sm:text-xs">
-                {stats.activeLoansCount}
+                {filteredStats.activeLoansCount}
               </Badge>
             </div>
           </CardHeader>
@@ -667,14 +703,14 @@ export default function ReportsLoans() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stats.activeLoans.length === 0 ? (
+                  {filteredStats.activeLoans.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-6 text-xs sm:text-sm">
-                        Nenhum contrato ativo
+                        Nenhum contrato ativo {paymentTypeFilter !== 'all' && `(${paymentTypeLabels[paymentTypeFilter]})`}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    stats.activeLoans.slice(0, 10).map((loan) => (
+                    filteredStats.activeLoans.slice(0, 10).map((loan) => (
                       <TableRow key={loan.id}>
                         <TableCell className="font-medium text-xs sm:text-sm max-w-[100px] sm:max-w-none truncate">
                           {loan.client?.full_name || 'N/A'}
@@ -699,17 +735,17 @@ export default function ReportsLoans() {
                   )}
                 </TableBody>
               </Table>
-              {stats.activeLoans.length > 10 && (
+              {filteredStats.activeLoans.length > 10 && (
                 <p className="text-center text-[10px] sm:text-sm text-muted-foreground py-3">
-                  +{stats.activeLoans.length - 10} contratos
+                  +{filteredStats.activeLoans.length - 10} contratos
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Overdue Loans Table */}
-        {stats.overdueLoans.length > 0 && (
+        {/* Overdue Loans Table - Filtered */}
+        {filteredStats.overdueLoans.length > 0 && (
           <Card className="border-destructive/30 bg-destructive/5">
             <CardHeader className="p-3 sm:p-4 pb-2">
               <div className="flex items-center justify-between">
@@ -717,9 +753,14 @@ export default function ReportsLoans() {
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="hidden sm:inline">Contratos em Atraso</span>
                   <span className="sm:hidden">Em Atraso</span>
+                  {paymentTypeFilter !== 'all' && (
+                    <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive ml-1">
+                      {paymentTypeLabels[paymentTypeFilter]}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <Badge className="bg-destructive text-destructive-foreground text-[10px] sm:text-xs">
-                  {stats.overdueCount}
+                  {filteredStats.overdueCount}
                 </Badge>
               </div>
             </CardHeader>
@@ -736,7 +777,7 @@ export default function ReportsLoans() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stats.overdueLoans.map((loan) => (
+                    {filteredStats.overdueLoans.map((loan) => (
                       <TableRow key={loan.id}>
                         <TableCell className="font-medium text-xs sm:text-sm max-w-[100px] sm:max-w-none truncate">
                           {loan.client?.full_name || 'N/A'}
