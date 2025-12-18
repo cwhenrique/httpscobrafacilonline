@@ -3754,6 +3754,10 @@ export default function Loans() {
                   if (isRenegotiated && !isOverdue) {
                     return 'bg-yellow-600/50 border-yellow-500 dark:bg-yellow-600/40 dark:border-yellow-500';
                   }
+                  // Diário em atraso: gradiente vermelho→azul para manter identidade
+                  if (isDaily && isOverdue) {
+                    return 'bg-gradient-to-r from-red-500/30 to-blue-500/30 border-red-400 dark:from-red-500/40 dark:to-blue-500/40';
+                  }
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
                   }
@@ -3839,6 +3843,11 @@ export default function Loans() {
                               {loan.interest_mode === 'compound' && (
                                 <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-purple-500/20 text-purple-300 border-purple-500/30">
                                   J. Compostos
+                                </Badge>
+                              )}
+                              {isDaily && (
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                                  📅 DIÁRIO
                                 </Badge>
                               )}
                             </div>
