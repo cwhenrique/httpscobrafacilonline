@@ -90,6 +90,16 @@ export default function SendDueTodayNotification({
     return () => clearInterval(interval);
   }, [data.loanId]);
 
+  const getPixKeyTypeLabel = (type: string | null): string => {
+    switch (type) {
+      case 'cpf': return 'CPF';
+      case 'telefone': return 'Telefone';
+      case 'email': return 'Email';
+      case 'aleatoria': return 'Chave Aleatória';
+      default: return 'PIX';
+    }
+  };
+
   const generateDueTodayMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo = data.installmentNumber && data.totalInstallments 
@@ -104,12 +114,22 @@ export default function SendDueTodayNotification({
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
     
+    // PIX key section with value
+    if (profile?.pix_key) {
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `💳 *PIX para pagamento:*\n`;
+      message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
+      message += `${profile.pix_key}\n\n`;
+      message += `💰 *Valor a pagar:* ${formatCurrency(data.amount)}\n\n`;
+      message += `_Copie a chave e faça o PIX no valor exato!_\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+    }
+    
     if (profile?.payment_link) {
-      message += `💳 *Link para pagamento:*\n${profile.payment_link}\n\n`;
+      message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
     }
     
     message += `Evite juros e multas pagando em dia!\n\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
     message += `_${profile?.company_name || 'CobraFácil'}_`;
 
     return message;

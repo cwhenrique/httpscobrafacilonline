@@ -34,8 +34,10 @@ import {
   Clock,
   Infinity,
   AlertCircle,
-  Link as LinkIcon
+  Link as LinkIcon,
+  QrCode
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Profile() {
@@ -49,6 +51,8 @@ export default function Profile() {
     phone: '',
     company_name: '',
     payment_link: '',
+    pix_key: '',
+    pix_key_type: 'cpf',
   });
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -78,6 +82,8 @@ export default function Profile() {
         phone: formatPhone(profile.phone || ''),
         company_name: profile.company_name || '',
         payment_link: profile.payment_link || '',
+        pix_key: profile.pix_key || '',
+        pix_key_type: profile.pix_key_type || 'cpf',
       });
     }
   }, [profile]);
@@ -146,6 +152,8 @@ export default function Profile() {
       phone: phoneNumbers,
       company_name: formData.company_name.trim() || null,
       payment_link: formData.payment_link.trim() || null,
+      pix_key: formData.pix_key.trim() || null,
+      pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
     });
 
     if (error) {
@@ -164,6 +172,8 @@ export default function Profile() {
       phone: formatPhone(profile?.phone || ''),
       company_name: profile?.company_name || '',
       payment_link: profile?.payment_link || '',
+      pix_key: profile?.pix_key || '',
+      pix_key_type: profile?.pix_key_type || 'cpf',
     });
     setIsEditing(false);
   };
@@ -574,17 +584,89 @@ export default function Profile() {
           </CardContent>
         </Card>
 
+        {/* PIX Key Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-green-500" />
+              Chave PIX para Cobranças
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Configure sua chave PIX. Ela será incluída automaticamente nas mensagens de cobrança com o valor exato da parcela.
+            </p>
+            
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pix_key_type">Tipo da Chave</Label>
+                  <Select
+                    value={formData.pix_key_type}
+                    onValueChange={(value) => setFormData({ ...formData, pix_key_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cpf">CPF</SelectItem>
+                      <SelectItem value="telefone">Telefone</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pix_key">Chave PIX</Label>
+                  <Input
+                    id="pix_key"
+                    value={formData.pix_key}
+                    onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+                    placeholder={
+                      formData.pix_key_type === 'cpf' ? '000.000.000-00' :
+                      formData.pix_key_type === 'telefone' ? '11999998888' :
+                      formData.pix_key_type === 'email' ? 'seu@email.com' :
+                      'sua-chave-aleatoria'
+                    }
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/10">
+                  <QrCode className="w-4 h-4 text-green-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Chave Cadastrada</p>
+                  {profile?.pix_key ? (
+                    <div>
+                      <p className="font-medium">
+                        {profile.pix_key}
+                      </p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        Tipo: {profile.pix_key_type || 'Não definido'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhuma chave cadastrada</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Payment Link Card */}
         <Card className="shadow-soft">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <LinkIcon className="w-4 h-4 text-primary" />
-              Link de Pagamento
+              Link de Pagamento (Opcional)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Configure seu link de pagamento (PIX, PagSeguro, Mercado Pago, etc). Ele será incluído automaticamente nas mensagens de cobrança enviadas aos clientes.
+              Configure um link de pagamento adicional (PagSeguro, Mercado Pago, etc). Será incluído nas mensagens junto com a chave PIX.
             </p>
             
             {isEditing ? (
@@ -597,9 +679,6 @@ export default function Profile() {
                   placeholder="https://seu-link-de-pagamento.com"
                   type="url"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Ex: Link do PagSeguro, Mercado Pago, PIX copia e cola, etc.
-                </p>
               </div>
             ) : (
               <div className="flex items-center gap-3">
