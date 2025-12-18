@@ -210,8 +210,15 @@ export function useLoans() {
         totalPerInstallment = principalPerInstallment + interestPerInstallment;
         totalToReceive = loan.principal_amount + totalInterest;
       } else if (loan.interest_mode === 'compound') {
-        // Juros compostos: M = P(1+i)^n - P
-        totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const i = loan.interest_rate / 100;
+        if (i === 0 || !isFinite(i)) {
+          totalInterest = 0;
+        } else {
+          const factor = Math.pow(1 + i, numInstallments);
+          const pmt = loan.principal_amount * (i * factor) / (factor - 1);
+          totalInterest = (pmt * numInstallments) - loan.principal_amount;
+        }
         const interestPerInstallment = totalInterest / numInstallments;
         const principalPerInstallment = loan.principal_amount / numInstallments;
         totalPerInstallment = principalPerInstallment + interestPerInstallment;
@@ -488,7 +495,15 @@ export function useLoans() {
       if (loanData.interest_mode === 'on_total') {
         totalInterest = loanData.principal_amount * (data.interest_rate / 100);
       } else if (loanData.interest_mode === 'compound') {
-        totalInterest = loanData.principal_amount * Math.pow(1 + (data.interest_rate / 100), numInstallments) - loanData.principal_amount;
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const i = data.interest_rate / 100;
+        if (i === 0 || !isFinite(i)) {
+          totalInterest = 0;
+        } else {
+          const factor = Math.pow(1 + i, numInstallments);
+          const pmt = loanData.principal_amount * (i * factor) / (factor - 1);
+          totalInterest = (pmt * numInstallments) - loanData.principal_amount;
+        }
       } else {
         totalInterest = loanData.principal_amount * (data.interest_rate / 100) * numInstallments;
       }
@@ -600,7 +615,15 @@ export function useLoans() {
       if (data.interest_mode === 'on_total') {
         totalInterest = data.principal_amount * (data.interest_rate / 100);
       } else if (data.interest_mode === 'compound') {
-        totalInterest = data.principal_amount * Math.pow(1 + (data.interest_rate / 100), numInstallments) - data.principal_amount;
+        // Usar fórmula PMT de amortização (Sistema Price)
+        const i = data.interest_rate / 100;
+        if (i === 0 || !isFinite(i)) {
+          totalInterest = 0;
+        } else {
+          const factor = Math.pow(1 + i, numInstallments);
+          const pmt = data.principal_amount * (i * factor) / (factor - 1);
+          totalInterest = (pmt * numInstallments) - data.principal_amount;
+        }
       } else {
         totalInterest = data.principal_amount * (data.interest_rate / 100) * numInstallments;
       }

@@ -183,8 +183,15 @@ const handler = async (req: Request): Promise<Response> => {
           if (loan.interest_mode === 'on_total') {
             totalInterest = loan.principal_amount * (loan.interest_rate / 100);
           } else if (loan.interest_mode === 'compound') {
-            // Juros compostos: M = P(1+i)^n - P
-            totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+            // Usar fórmula PMT de amortização (Sistema Price)
+            const i = loan.interest_rate / 100;
+            if (i === 0 || !isFinite(i)) {
+              totalInterest = 0;
+            } else {
+              const factor = Math.pow(1 + i, numInstallments);
+              const pmt = loan.principal_amount * (i * factor) / (factor - 1);
+              totalInterest = (pmt * numInstallments) - loan.principal_amount;
+            }
           } else {
             totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
           }
