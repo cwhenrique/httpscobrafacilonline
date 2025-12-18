@@ -22,8 +22,12 @@ import {
   ArrowDownRight,
   Wallet,
   CalendarIcon,
-  PiggyBank
+  PiggyBank,
+  Calendar as CalendarDays,
+  CalendarRange,
+  CalendarCheck
 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -112,6 +116,17 @@ export default function ReportsLoans() {
     from: subMonths(new Date(), 6),
     to: new Date(),
   });
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
+
+  // Payment type labels
+  const paymentTypeLabels: Record<string, string> = {
+    all: 'Todos',
+    daily: 'Diário',
+    weekly: 'Semanal',
+    biweekly: 'Quinzenal',
+    installment: 'Mensal',
+    single: 'Único',
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -120,15 +135,54 @@ export default function ReportsLoans() {
     setIsRefreshing(false);
   };
 
-  // Filter loans by date range
+  // Filter loans by date range and payment type
   const filteredLoans = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) return stats.allLoans;
+    let loans = stats.allLoans;
     
-    return stats.allLoans.filter(loan => {
-      const loanDate = new Date(loan.start_date);
-      return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
+    // Filter by date range
+    if (dateRange?.from && dateRange?.to) {
+      loans = loans.filter(loan => {
+        const loanDate = new Date(loan.start_date);
+        return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
+      });
+    }
+    
+    // Filter by payment type
+    if (paymentTypeFilter !== 'all') {
+      loans = loans.filter(loan => loan.payment_type === paymentTypeFilter);
+    }
+    
+    return loans;
+  }, [stats.allLoans, dateRange, paymentTypeFilter]);
+
+  // Stats by payment type (for the type cards)
+  const statsByPaymentType = useMemo(() => {
+    const types = ['daily', 'weekly', 'biweekly', 'installment', 'single'];
+    
+    return types.map(type => {
+      const typeLoans = stats.allLoans.filter(loan => loan.payment_type === type);
+      const activeLoans = typeLoans.filter(loan => loan.status !== 'paid');
+      const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+      const totalReceived = typeLoans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
+      
+      // Calculate realized profit from payments
+      let realizedProfit = 0;
+      typeLoans.forEach(loan => {
+        const payments = (loan as any).payments || [];
+        realizedProfit += payments.reduce((sum: number, p: any) => sum + Number(p.interest_paid || 0), 0);
+      });
+      
+      return {
+        type,
+        label: paymentTypeLabels[type],
+        count: activeLoans.length,
+        totalCount: typeLoans.length,
+        totalOnStreet,
+        totalReceived,
+        realizedProfit,
+      };
     });
-  }, [stats.allLoans, dateRange]);
+  }, [stats.allLoans]);
 
   // Calculate filtered stats using actual payment data
   const filteredStats = useMemo(() => {
@@ -278,16 +332,116 @@ export default function ReportsLoans() {
           </div>
         </div>
 
+        {/* Payment Type Filter Cards */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-muted-foreground">Filtrar por Tipo de Pagamento</h3>
+            {paymentTypeFilter !== 'all' && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setPaymentTypeFilter('all')}
+                className="text-xs text-muted-foreground h-7"
+              >
+                Ver todos
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+            {statsByPaymentType.map((typeStat) => {
+              const isActive = paymentTypeFilter === typeStat.type;
+              const typeIcons: Record<string, React.ElementType> = {
+                daily: CalendarDays,
+                weekly: CalendarRange,
+                biweekly: CalendarCheck,
+                installment: CalendarIcon,
+                single: DollarSign,
+              };
+              const TypeIcon = typeIcons[typeStat.type] || CalendarIcon;
+              
+              return (
+                <motion.div
+                  key={typeStat.type}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Card 
+                    className={cn(
+                      "cursor-pointer transition-all border-2",
+                      isActive 
+                        ? "border-primary bg-primary/10 shadow-lg" 
+                        : "border-border hover:border-primary/50 hover:bg-primary/5"
+                    )}
+                    onClick={() => setPaymentTypeFilter(isActive ? 'all' : typeStat.type)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={cn(
+                          "p-1.5 rounded-lg",
+                          isActive ? "bg-primary/20" : "bg-muted"
+                        )}>
+                          <TypeIcon className={cn(
+                            "w-3.5 h-3.5",
+                            isActive ? "text-primary" : "text-muted-foreground"
+                          )} />
+                        </div>
+                        <span className={cn(
+                          "text-xs font-medium",
+                          isActive ? "text-primary" : "text-foreground"
+                        )}>
+                          {typeStat.label}
+                        </span>
+                        {isActive && (
+                          <Badge className="ml-auto bg-primary text-primary-foreground text-[10px] px-1.5 py-0">
+                            Ativo
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-muted-foreground">Na Rua</span>
+                          <span className="text-xs font-bold text-blue-500">
+                            {formatCurrency(typeStat.totalOnStreet)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-muted-foreground">Lucro</span>
+                          <span className="text-xs font-bold text-emerald-500">
+                            {formatCurrency(typeStat.realizedProfit)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                          <span className="text-[10px] text-muted-foreground">Contratos</span>
+                          <span className="text-xs font-medium">
+                            {typeStat.count} ativos
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Period Stats - Filtered - Compact */}
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
           <CardContent className="p-2 sm:p-3">
-            <div className="flex items-center gap-1.5 mb-2">
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
               <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
               <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
                 {dateRange?.from && dateRange?.to ? (
                   `${format(dateRange.from, "dd/MM", { locale: ptBR })} - ${format(dateRange.to, "dd/MM", { locale: ptBR })}`
                 ) : 'Todo o período'}
               </p>
+              {paymentTypeFilter !== 'all' && (
+                <Badge variant="outline" className="text-[10px] border-primary/50 text-primary ml-1">
+                  {paymentTypeLabels[paymentTypeFilter]}
+                </Badge>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="text-center">
