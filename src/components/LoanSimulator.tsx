@@ -10,10 +10,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency, formatDate } from '@/lib/calculations';
-import { Calculator, TrendingUp, Calendar as CalendarIcon, Percent, DollarSign, GitCompare, Zap } from 'lucide-react';
+import { generateSimulationPDF } from '@/lib/pdfGenerator';
+import { Calculator, TrendingUp, Calendar as CalendarIcon, Percent, DollarSign, GitCompare, Zap, FileDown } from 'lucide-react';
 import { format, addDays, addMonths, addWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type PaymentType = 'single' | 'installment' | 'weekly' | 'biweekly' | 'daily';
 type InterestMode = 'per_installment' | 'on_total' | 'compound';
@@ -205,6 +207,32 @@ export function LoanSimulator() {
     if (interestMode === 'compound') return 'text-cyan-400';
     if (interestMode === 'on_total') return 'text-yellow-400';
     return 'text-primary';
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      await generateSimulationPDF({
+        principal: simulation.principal,
+        interestRate: simulation.interestRate,
+        installments: simulation.installments,
+        totalInterest: simulation.totalInterest,
+        totalAmount: simulation.totalAmount,
+        installmentValue: simulation.installmentValue,
+        paymentType: PAYMENT_TYPE_LABELS[paymentType],
+        interestMode: INTEREST_MODE_LABELS[interestMode],
+        effectiveRate: simulation.effectiveRate,
+        startDate: format(startDate, 'dd/MM/yyyy'),
+        schedule: simulation.schedule.map(item => ({
+          number: item.number,
+          dueDate: item.dueDate,
+          total: item.total,
+        })),
+      });
+      toast.success('PDF da simulação gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    }
   };
 
   return (
@@ -481,9 +509,15 @@ export function LoanSimulator() {
                 <TrendingUp className="w-4 h-4" />
                 Cronograma de Parcelas
               </h4>
-              <Badge variant="secondary">
-                {simulation.installments}x de {formatCurrency(simulation.installmentValue)}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportPDF}>
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Exportar PDF
+                </Button>
+                <Badge variant="secondary">
+                  {simulation.installments}x de {formatCurrency(simulation.installmentValue)}
+                </Badge>
+              </div>
             </div>
             
             <div className="rounded-lg border overflow-hidden">

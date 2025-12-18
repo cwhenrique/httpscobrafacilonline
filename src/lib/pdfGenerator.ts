@@ -1,6 +1,26 @@
 import jsPDF from 'jspdf';
 import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
 
+// Simulation PDF Data Interface
+export interface SimulationPDFData {
+  principal: number;
+  interestRate: number;
+  installments: number;
+  totalInterest: number;
+  totalAmount: number;
+  installmentValue: number;
+  paymentType: string;
+  interestMode: string;
+  effectiveRate: number;
+  startDate: string;
+  schedule: Array<{
+    number: number;
+    dueDate: string;
+    total: number;
+  }>;
+  companyName?: string;
+}
+
 // Theme colors (HSL converted to RGB)
 const PRIMARY_GREEN = { r: 34, g: 197, b: 94 }; // #22c55e
 const DARK_GREEN = { r: 22, g: 163, b: 74 }; // #16a34a
@@ -1333,5 +1353,271 @@ export const generateClientSaleReceipt = async (data: ClientSaleReceiptData): Pr
 
   // Download
   const fileName = `comprovante-venda-${data.contractId.substring(0, 8)}.pdf`;
+  doc.save(fileName);
+};
+
+// ===================== SIMULATION PDF =====================
+
+export const generateSimulationPDF = async (data: SimulationPDFData): Promise<void> => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let currentY = 0;
+
+  // Load logo
+  let logoBase64 = '';
+  try {
+    logoBase64 = await loadLogoAsBase64();
+  } catch (e) {
+    console.warn('Could not load logo:', e);
+  }
+
+  // Color definitions for interest modes
+  const CYAN = { r: 34, g: 211, b: 238 }; // cyan-400
+  const YELLOW = { r: 250, g: 204, b: 21 }; // yellow-400
+  const LIGHT_CYAN_BG = { r: 207, g: 250, b: 254 }; // cyan-100
+  const LIGHT_YELLOW_BG = { r: 254, g: 249, b: 195 }; // yellow-100
+
+  const getInterestModeColor = () => {
+    if (data.interestMode.includes('Compostos')) return CYAN;
+    if (data.interestMode.includes('Total')) return YELLOW;
+    return PRIMARY_GREEN;
+  };
+
+  const getInterestModeBg = () => {
+    if (data.interestMode.includes('Compostos')) return LIGHT_CYAN_BG;
+    if (data.interestMode.includes('Total')) return LIGHT_YELLOW_BG;
+    return LIGHT_GREEN_BG;
+  };
+
+  const modeColor = getInterestModeColor();
+  const modeBg = getInterestModeBg();
+
+  // === HEADER BAR ===
+  doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.rect(0, 0, pageWidth, 35, 'F');
+
+  // Logo
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', margin, 5, 40, 25);
+  } else {
+    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CobraFácil', margin, 22);
+  }
+
+  // Company name on the right
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (data.companyName) {
+    doc.text(data.companyName, pageWidth - margin, 15, { align: 'right' });
+  }
+  doc.text('Simulação de Empréstimo', pageWidth - margin, 25, { align: 'right' });
+
+  currentY = 45;
+
+  // === DOCUMENT TITLE ===
+  doc.setFillColor(modeBg.r, modeBg.g, modeBg.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 18, 3, 3, 'F');
+  
+  doc.setTextColor(modeColor.r, modeColor.g, modeColor.b);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SIMULAÇÃO DE EMPRÉSTIMO', pageWidth / 2, currentY + 8, { align: 'center' });
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Gerada em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, currentY + 14, { align: 'center' });
+
+  currentY += 28;
+
+  // === CONFIGURATION SECTION ===
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 32, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONFIGURAÇÃO', margin + 5, currentY + 8);
+
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(9);
+
+  const col1X = margin + 5;
+  const col2X = pageWidth / 2 + 5;
+  let configY = currentY + 16;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Tipo de Pagamento:', col1X, configY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.paymentType, col1X + 48, configY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Modo de Juros:', col2X, configY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.interestMode, col2X + 40, configY);
+
+  configY += 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Data Inicial:', col1X, configY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.startDate, col1X + 30, configY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nº de Parcelas:', col2X, configY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(data.installments), col2X + 40, configY);
+
+  currentY += 40;
+
+  // === SIMULATION DATA SECTION ===
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 28, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DADOS DA SIMULAÇÃO', margin + 5, currentY + 8);
+
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(9);
+
+  let dataY = currentY + 16;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Valor do Empréstimo:', col1X, dataY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(formatCurrency(data.principal), col1X + 50, dataY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Taxa de Juros:', col2X, dataY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${data.interestRate.toFixed(2)}%`, col2X + 38, dataY);
+
+  currentY += 36;
+
+  // === RESULTS SECTION ===
+  doc.setFillColor(modeBg.r, modeBg.g, modeBg.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 45, 2, 2, 'F');
+
+  doc.setTextColor(modeColor.r, modeColor.g, modeColor.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESULTADO', margin + 5, currentY + 8);
+
+  doc.setFontSize(10);
+
+  let resultY = currentY + 18;
+
+  // Row 1
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Valor da Parcela:', col1X, resultY);
+  doc.setTextColor(modeColor.r, modeColor.g, modeColor.b);
+  doc.setFontSize(12);
+  doc.text(formatCurrency(data.installmentValue), col1X + 45, resultY);
+
+  doc.setFontSize(10);
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total de Juros:', col2X, resultY);
+  doc.setTextColor(250, 204, 21); // warning color
+  doc.text(formatCurrency(data.totalInterest), col2X + 38, resultY);
+
+  resultY += 12;
+
+  // Row 2
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total a Receber:', col1X, resultY);
+  doc.setTextColor(34, 197, 94); // success color
+  doc.setFontSize(14);
+  doc.text(formatCurrency(data.totalAmount), col1X + 45, resultY);
+
+  doc.setFontSize(10);
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Taxa Efetiva:', col2X, resultY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${data.effectiveRate.toFixed(1)}%`, col2X + 32, resultY);
+
+  currentY += 55;
+
+  // === INSTALLMENT SCHEDULE ===
+  const scheduleHeight = Math.min(data.schedule.length * 7 + 20, 90);
+  
+  doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, scheduleHeight, 2, 2, 'S');
+
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CRONOGRAMA DE PARCELAS', margin + 5, currentY + 8);
+
+  doc.setFontSize(8);
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+
+  let scheduleY = currentY + 16;
+  const scheduleCol1 = margin + 10;
+  const scheduleCol2 = margin + 50;
+  const scheduleCol3 = margin + 100;
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.text('Parcela', scheduleCol1, scheduleY);
+  doc.text('Vencimento', scheduleCol2, scheduleY);
+  doc.text('Valor', scheduleCol3, scheduleY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+
+  scheduleY += 5;
+  const maxItems = Math.min(data.schedule.length, 10);
+  
+  for (let i = 0; i < maxItems; i++) {
+    const item = data.schedule[i];
+    scheduleY += 6;
+    doc.text(`${item.number}/${data.installments}`, scheduleCol1, scheduleY);
+    doc.text(item.dueDate, scheduleCol2, scheduleY);
+    doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+    doc.text(formatCurrency(item.total), scheduleCol3, scheduleY);
+    doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  }
+
+  if (data.schedule.length > 10) {
+    scheduleY += 6;
+    doc.text(`... e mais ${data.schedule.length - 10} parcela(s)`, scheduleCol1, scheduleY);
+  }
+
+  currentY += scheduleHeight + 10;
+
+  // === DISCLAIMER ===
+  doc.setFillColor(245, 245, 245);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 15, 2, 2, 'F');
+  
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.text('⚠️ Este documento é apenas uma simulação e não representa um contrato oficial.', pageWidth / 2, currentY + 6, { align: 'center' });
+  doc.text('Os valores podem variar no momento da contratação do empréstimo.', pageWidth / 2, currentY + 11, { align: 'center' });
+
+  // === FOOTER BAR ===
+  const footerY = doc.internal.pageSize.getHeight() - 15;
+  doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.rect(0, footerY, pageWidth, 15, 'F');
+
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('CobraFácil - Simulação de Empréstimo', margin, footerY + 9);
+  doc.text(`${data.installments}x de ${formatCurrency(data.installmentValue)} = ${formatCurrency(data.totalAmount)}`, pageWidth - margin, footerY + 9, { align: 'right' });
+
+  // Download
+  const fileName = `simulacao-emprestimo-${data.principal}-${data.installments}x.pdf`;
   doc.save(fileName);
 };
