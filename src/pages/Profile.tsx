@@ -33,7 +33,8 @@ import {
   Crown,
   Clock,
   Infinity,
-  AlertCircle
+  AlertCircle,
+  Link as LinkIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -47,6 +48,7 @@ export default function Profile() {
     full_name: '',
     phone: '',
     company_name: '',
+    payment_link: '',
   });
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -75,6 +77,7 @@ export default function Profile() {
         full_name: profile.full_name || '',
         phone: formatPhone(profile.phone || ''),
         company_name: profile.company_name || '',
+        payment_link: profile.payment_link || '',
       });
     }
   }, [profile]);
@@ -142,6 +145,7 @@ export default function Profile() {
       full_name: formData.full_name.trim(),
       phone: phoneNumbers,
       company_name: formData.company_name.trim() || null,
+      payment_link: formData.payment_link.trim() || null,
     });
 
     if (error) {
@@ -159,6 +163,7 @@ export default function Profile() {
       full_name: profile?.full_name || '',
       phone: formatPhone(profile?.phone || ''),
       company_name: profile?.company_name || '',
+      payment_link: profile?.payment_link || '',
     });
     setIsEditing(false);
   };
@@ -569,7 +574,59 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* WhatsApp Test Card */}
+        {/* Payment Link Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-primary" />
+              Link de Pagamento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Configure seu link de pagamento (PIX, PagSeguro, Mercado Pago, etc). Ele será incluído automaticamente nas mensagens de cobrança enviadas aos clientes.
+            </p>
+            
+            {isEditing ? (
+              <div className="space-y-2">
+                <Label htmlFor="payment_link">Link de Pagamento</Label>
+                <Input
+                  id="payment_link"
+                  value={formData.payment_link}
+                  onChange={(e) => setFormData({ ...formData, payment_link: e.target.value })}
+                  placeholder="https://seu-link-de-pagamento.com"
+                  type="url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ex: Link do PagSeguro, Mercado Pago, PIX copia e cola, etc.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-muted">
+                  <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Link Cadastrado</p>
+                  {profile?.payment_link ? (
+                    <a 
+                      href={profile.payment_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline truncate block"
+                    >
+                      {profile.payment_link}
+                    </a>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhum link cadastrado</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
         <Card className="shadow-soft">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">

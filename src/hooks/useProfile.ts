@@ -22,6 +22,8 @@ export interface Profile {
   whatsapp_connected_phone: string | null;
   // Voice assistant
   voice_assistant_enabled: boolean;
+  // Payment link
+  payment_link: string | null;
 }
 
 export function useProfile() {
