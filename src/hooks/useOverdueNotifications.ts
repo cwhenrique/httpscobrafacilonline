@@ -12,24 +12,41 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
     today.setHours(0, 0, 0, 0);
 
     return loans.filter((loan) => {
+      // Skip paid loans
       if (loan.status === 'paid') return false;
 
+      // Skip historical contracts
+      const isHistorical = (loan.notes || '').includes('[HISTORICAL_CONTRACT]');
+      if (isHistorical) return false;
+
+      const isDaily = loan.payment_type === 'daily';
       const numInstallments = loan.installments || 1;
-      const totalInterest = loan.total_interest || 0;
-      const totalToReceive = loan.principal_amount + totalInterest;
+      
+      // Calculate total to receive correctly based on loan type
+      let totalToReceive: number;
+      if (isDaily) {
+        // For daily loans, total_interest stores the daily installment amount
+        const dailyInstallmentAmount = loan.total_interest || 0;
+        totalToReceive = dailyInstallmentAmount * numInstallments;
+      } else {
+        const totalInterest = loan.total_interest || 0;
+        totalToReceive = loan.principal_amount + totalInterest;
+      }
+
       const remainingToReceive = totalToReceive - (loan.total_paid || 0);
 
+      // If nothing remaining, not overdue
       if (remainingToReceive <= 0) return false;
 
-      const principalPerInstallment = loan.principal_amount / numInstallments;
-      const interestPerInstallment = totalInterest / numInstallments;
-      const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      // Calculate installment value for payment tracking
+      const installmentValue = totalToReceive / numInstallments;
+      const paidInstallments = Math.floor((loan.total_paid || 0) / installmentValue);
       const dates = (loan.installment_dates as string[]) || [];
 
       if (dates.length > 0 && paidInstallments < dates.length) {
         const nextDueDate = new Date(dates[paidInstallments]);
         nextDueDate.setHours(0, 0, 0, 0);
+        // Only overdue if today is AFTER due date (not on due date)
         return today > nextDueDate;
       } else {
         const dueDate = new Date(loan.due_date);
@@ -41,6 +58,21 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
 
   const createOverdueNotification = async (overdueCount: number, totalAmount: number) => {
     if (!user) return;
+    
+    // Check if notification already exists for today to avoid duplicates
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: existingNotifications } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('title', '⚠️ Empréstimos em Atraso')
+      .gte('created_at', `${todayStr}T00:00:00`)
+      .limit(1);
+    
+    // Don't create if one already exists today
+    if (existingNotifications && existingNotifications.length > 0) {
+      return;
+    }
     
     const formattedAmount = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -101,14 +133,24 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
       const overdueLoans = getOverdueLoans(loans);
       
       if (overdueLoans.length > 0) {
+        // Calculate total amount correctly for all loan types
         const totalAmount = overdueLoans.reduce((sum, loan) => {
+          const isDaily = loan.payment_type === 'daily';
           const numInstallments = loan.installments || 1;
-          const interestPerInstallment = loan.principal_amount * (loan.interest_rate / 100);
-          const totalToReceive = loan.principal_amount + (interestPerInstallment * numInstallments);
+          
+          let totalToReceive: number;
+          if (isDaily) {
+            // For daily loans, total_interest is the daily installment amount
+            totalToReceive = (loan.total_interest || 0) * numInstallments;
+          } else {
+            const totalInterest = loan.total_interest || 0;
+            totalToReceive = loan.principal_amount + totalInterest;
+          }
+          
           return sum + (totalToReceive - (loan.total_paid || 0));
         }, 0);
 
-        // Create in-app notification
+        // Create in-app notification (with duplicate check inside)
         await createOverdueNotification(overdueLoans.length, totalAmount);
 
         // Also show browser notification
