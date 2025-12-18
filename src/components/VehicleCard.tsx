@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { Car, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 
 interface VehiclePayment {
   id: string;
@@ -267,25 +268,43 @@ export default function VehicleCard({
         {/* Next Due Date (for non-overdue) */}
         {nextDuePayment && status !== 'paid' && status !== 'overdue' && (
           <div className={cn(
-            "flex items-center justify-between p-2.5 rounded-lg mb-3",
+            "p-2.5 rounded-lg mb-3",
             status === 'due_today' && "bg-yellow-500/10",
             status === 'pending' && "bg-muted/50"
           )}>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">
-                {nextDuePayment.installment_number}ª parcela
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm">
+                  {nextDuePayment.installment_number}ª parcela
+                </span>
+              </div>
+              <div className="text-right">
+                <p className={cn(
+                  "font-semibold text-sm",
+                  status === 'due_today' && "text-yellow-600"
+                )}>
+                  {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(nextDuePayment.amount)}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className={cn(
-                "font-semibold text-sm",
-                status === 'due_today' && "text-yellow-600"
-              )}>
-                {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
-              </p>
-              <p className="text-xs text-muted-foreground">{formatCurrency(nextDuePayment.amount)}</p>
-            </div>
+            {/* Due today notification button */}
+            {status === 'due_today' && vehicle.buyer_phone && (
+              <SendDueTodayNotification
+                data={{
+                  clientName: vehicle.buyer_name || 'Cliente',
+                  clientPhone: vehicle.buyer_phone,
+                  contractType: 'vehicle',
+                  installmentNumber: nextDuePayment.installment_number,
+                  totalInstallments: vehicle.installments,
+                  amount: nextDuePayment.amount,
+                  dueDate: nextDuePayment.due_date,
+                  loanId: vehicle.id,
+                }}
+                className="w-full mt-2"
+              />
+            )}
           </div>
         )}
 
