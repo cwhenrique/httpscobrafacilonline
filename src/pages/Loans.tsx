@@ -1544,15 +1544,24 @@ export default function Loans() {
     const newRemainingBalance = selectedLoan.remaining_balance - amount;
     
     // Calculate total contract value (principal + interest)
-    let totalInterestForReceipt = 0;
-    if (selectedLoan.interest_mode === 'on_total') {
-      totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
-    } else if (selectedLoan.interest_mode === 'compound') {
-      totalInterestForReceipt = selectedLoan.principal_amount * Math.pow(1 + (selectedLoan.interest_rate / 100), numInstallments) - selectedLoan.principal_amount;
+    const isDailyForReceipt = selectedLoan.payment_type === 'daily';
+    let totalContractValue = 0;
+
+    if (isDailyForReceipt) {
+      // Para diário: total = parcela × quantidade
+      const dailyInstallment = selectedLoan.total_interest || 0;
+      totalContractValue = dailyInstallment * numInstallments;
     } else {
-      totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+      let totalInterestForReceipt = 0;
+      if (selectedLoan.interest_mode === 'on_total') {
+        totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
+      } else if (selectedLoan.interest_mode === 'compound') {
+        totalInterestForReceipt = selectedLoan.principal_amount * Math.pow(1 + (selectedLoan.interest_rate / 100), numInstallments) - selectedLoan.principal_amount;
+      } else {
+        totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
+      }
+      totalContractValue = selectedLoan.principal_amount + totalInterestForReceipt;
     }
-    const totalContractValue = selectedLoan.principal_amount + totalInterestForReceipt;
 
     // Save client phone before resetting selectedLoan
     setPaymentClientPhone(selectedLoan.client?.phone || null);
