@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Categorias com ícones e cores
@@ -31,6 +31,7 @@ const BILL_CATEGORIES: { value: BillCategory; label: string; icon: React.Compone
   { value: 'supermercado', label: 'Supermercado', icon: ShoppingCart, color: 'text-emerald-500' },
   { value: 'saude', label: 'Saúde/Plano', icon: Heart, color: 'text-red-400' },
   { value: 'educacao', label: 'Educação', icon: GraduationCap, color: 'text-indigo-500' },
+  { value: 'investimentos', label: 'Investimentos', icon: TrendingUp, color: 'text-emerald-600' },
   { value: 'outros', label: 'Outros', icon: Package, color: 'text-muted-foreground' },
 ];
 
@@ -251,6 +252,10 @@ export default function Bills() {
     const overdueTotal = overdue.reduce((acc, bill) => acc + Number(bill.amount), 0);
     const dueTodayTotal = dueToday.reduce((acc, bill) => acc + Number(bill.amount), 0);
     
+    // Falta pagar (não pagas = pendentes + atrasadas + vence hoje)
+    const unpaidCount = pending.length + overdue.length + dueToday.length;
+    const unpaidTotal = pendingTotal + overdueTotal + dueTodayTotal;
+    
     return { 
       total, 
       totalCount,
@@ -261,7 +266,9 @@ export default function Bills() {
       pendingTotal, 
       paidTotal,
       overdueTotal,
-      dueTodayTotal
+      dueTodayTotal,
+      unpaidCount,
+      unpaidTotal
     };
   }, [currentMonthBills]);
 
@@ -393,9 +400,9 @@ export default function Bills() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Total do Mês */}
-          <Card className="border-l-4 border-l-primary col-span-2 lg:col-span-1">
+          <Card className="border-l-4 border-l-primary">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <DollarSign className="h-8 w-8 text-primary" />
@@ -403,6 +410,20 @@ export default function Bills() {
                   <p className="text-sm text-muted-foreground">Total do Mês</p>
                   <p className="text-xl font-bold">R$ {stats.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   <p className="text-xs text-muted-foreground">{stats.totalCount} conta{stats.totalCount !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Falta Pagar */}
+          <Card className="border-l-4 border-l-violet-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Wallet className="h-8 w-8 text-violet-500" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Falta Pagar</p>
+                  <p className="text-xl font-bold">R$ {stats.unpaidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-muted-foreground">{stats.unpaidCount} conta{stats.unpaidCount !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </CardContent>
