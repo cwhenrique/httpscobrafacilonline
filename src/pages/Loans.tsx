@@ -3730,7 +3730,7 @@ export default function Loans() {
                 const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[1]) : 0;
                 
                 // Calculate days overdue
-                const overdueDateObj = new Date(overdueDate);
+                const overdueDateObj = new Date(overdueDate + 'T12:00:00');
                 overdueDateObj.setHours(0, 0, 0, 0);
                 const daysOverdue = today > overdueDateObj ? Math.ceil((today.getTime() - overdueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
                 
