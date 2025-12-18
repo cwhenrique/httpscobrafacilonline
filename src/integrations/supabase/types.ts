@@ -942,7 +942,7 @@ export type Database = {
     }
     Enums: {
       client_type: "loan" | "monthly" | "both"
-      interest_mode: "per_installment" | "on_total"
+      interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
         | "single"
@@ -1079,7 +1079,7 @@ export const Constants = {
   public: {
     Enums: {
       client_type: ["loan", "monthly", "both"],
-      interest_mode: ["per_installment", "on_total"],
+      interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],
       loan_payment_type: [
         "single",

@@ -84,7 +84,11 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   let totalInterest = 0;
   if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else if (loan.interest_mode === 'compound') {
+    // Juros compostos: M = P(1+i)^n - P
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else {
+    // per_installment (padrão)
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
@@ -256,7 +260,7 @@ export default function Loans() {
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
-    interest_mode: 'per_installment' as 'per_installment' | 'on_total',
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound',
     payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
     contract_date: '',
@@ -331,9 +335,16 @@ export default function Loans() {
     const numInstallments = parseInt(editFormData.installments) || 1;
     
     if (principal > 0 && rate >= 0) {
-      const totalInterest = editFormData.interest_mode === 'on_total' 
-        ? principal * (rate / 100)
-        : principal * (rate / 100) * numInstallments;
+      let totalInterest: number;
+      if (editFormData.interest_mode === 'on_total') {
+        totalInterest = principal * (rate / 100);
+      } else if (editFormData.interest_mode === 'compound') {
+        // Juros compostos: M = P(1+i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else {
+        // per_installment
+        totalInterest = principal * (rate / 100) * numInstallments;
+      }
       const total = principal + totalInterest;
       setEditInstallmentValue((total / numInstallments).toFixed(2));
     }
@@ -523,7 +534,7 @@ export default function Loans() {
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
-    interest_mode: 'per_installment' as 'per_installment' | 'on_total',
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound',
     payment_type: 'single' as LoanPaymentType | 'daily',
     installments: '1',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
@@ -568,9 +579,16 @@ export default function Loans() {
       const principal = parseFloat(formData.principal_amount);
       const rate = parseFloat(formData.interest_rate);
       const numInstallments = parseInt(formData.installments) || 1;
-      const totalInterest = formData.interest_mode === 'per_installment'
-        ? principal * (rate / 100) * numInstallments
-        : principal * (rate / 100);
+      let totalInterest: number;
+      if (formData.interest_mode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * numInstallments;
+      } else if (formData.interest_mode === 'compound') {
+        // Juros compostos: M = P(1+i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else {
+        // on_total
+        totalInterest = principal * (rate / 100);
+      }
       const total = principal + totalInterest;
       setInstallmentValue((total / numInstallments).toFixed(2));
     }
@@ -595,9 +613,15 @@ export default function Loans() {
       totalInterest = perInstallment * numInstallments - principal;
     } else if (formData.interest_rate) {
       const rate = parseFloat(formData.interest_rate);
-      totalInterest = formData.interest_mode === 'per_installment'
-        ? principal * (rate / 100) * numInstallments
-        : principal * (rate / 100);
+      if (formData.interest_mode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * numInstallments;
+      } else if (formData.interest_mode === 'compound') {
+        // Juros compostos: M = P(1+i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else {
+        // on_total
+        totalInterest = principal * (rate / 100);
+      }
     }
 
     if (totalInterest === null || !isFinite(totalInterest)) return 'R$ 0,00';
@@ -620,7 +644,12 @@ export default function Loans() {
     let newRate: number;
     if (formData.interest_mode === 'per_installment') {
       newRate = (totalInterest / principal / numInstallments) * 100;
+    } else if (formData.interest_mode === 'compound') {
+      // Inverter a fórmula de juros compostos para encontrar a taxa
+      // totalInterest = P * (1+r)^n - P => r = ((totalInterest/P) + 1)^(1/n) - 1
+      newRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
     } else {
+      // on_total
       newRate = (totalInterest / principal) * 100;
     }
     
@@ -753,7 +782,11 @@ export default function Loans() {
     let totalInterest = 0;
     if (loan.interest_mode === 'on_total') {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+    } else if (loan.interest_mode === 'compound') {
+      // Juros compostos: M = P(1+i)^n - P
+      totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
     } else {
+      // per_installment (padrão)
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
     }
     
@@ -1075,15 +1108,28 @@ export default function Loans() {
 
       // Recalcula a taxa de juros apenas para exibição, baseada no valor arredondado da parcela
       if (totalInterest >= 0) {
-        const computedRate = formData.interest_mode === 'per_installment'
-          ? (totalInterest / principal / numInstallments) * 100
-          : (totalInterest / principal) * 100;
+        let computedRate: number;
+        if (formData.interest_mode === 'per_installment') {
+          computedRate = (totalInterest / principal / numInstallments) * 100;
+        } else if (formData.interest_mode === 'compound') {
+          // Inverter a fórmula de juros compostos para encontrar a taxa
+          // totalInterest = P * (1+r)^n - P => totalInterest/P + 1 = (1+r)^n => r = (totalInterest/P + 1)^(1/n) - 1
+          computedRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+        } else {
+          computedRate = (totalInterest / principal) * 100;
+        }
         rate = parseFloat(computedRate.toFixed(2));
       }
     } else {
-      totalInterest = formData.interest_mode === 'per_installment'
-        ? principal * (rate / 100) * numInstallments
-        : principal * (rate / 100);
+      if (formData.interest_mode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * numInstallments;
+      } else if (formData.interest_mode === 'compound') {
+        // Juros compostos: M = P(1+i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else {
+        // on_total
+        totalInterest = principal * (rate / 100);
+      }
     }
     
     const result = await createLoan({
@@ -2151,9 +2197,14 @@ export default function Loans() {
       updateData.total_interest = dailyAmount;
       updateData.interest_rate = profit;
     } else {
-      const totalInterest = editFormData.interest_mode === 'per_installment'
-        ? principalAmount * (interestRate / 100) * numInstallments
-        : principalAmount * (interestRate / 100);
+      let totalInterest: number;
+      if (editFormData.interest_mode === 'per_installment') {
+        totalInterest = principalAmount * (interestRate / 100) * numInstallments;
+      } else if (editFormData.interest_mode === 'compound') {
+        totalInterest = principalAmount * Math.pow(1 + (interestRate / 100), numInstallments) - principalAmount;
+      } else {
+        totalInterest = principalAmount * (interestRate / 100);
+      }
       // For renegotiation, reset total_paid to 0 as it's a new contract
       if (editIsRenegotiation) {
         updateData.total_paid = 0;
@@ -2764,11 +2815,12 @@ export default function Loans() {
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
-                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total') => setFormData({ ...formData, interest_mode: v })}>
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total' | 'compound') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
                           <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
+                          <SelectItem value="compound" className="text-xs sm:text-sm">Juros Compostos</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3626,6 +3678,11 @@ export default function Loans() {
                               <Badge className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                                 {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                               </Badge>
+                              {loan.interest_mode === 'compound' && (
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-purple-500/20 text-purple-300 border-purple-500/30">
+                                  J. Compostos
+                                </Badge>
+                              )}
                             </div>
                           </div>
                           <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
@@ -5503,12 +5560,13 @@ export default function Loans() {
                     <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                     <Select 
                       value={editFormData.interest_mode} 
-                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' })}
+                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' | 'compound' })}
                     >
                       <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="per_installment">Por Parcela</SelectItem>
                         <SelectItem value="on_total">Sobre o Total</SelectItem>
+                        <SelectItem value="compound">Juros Compostos</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -5524,9 +5582,14 @@ export default function Loans() {
                               const principal = parseFloat(editFormData.principal_amount) || 0;
                               const rate = parseFloat(editFormData.interest_rate) || 0;
                               const numInst = parseInt(editFormData.installments) || 1;
-                              const totalInterest = editFormData.interest_mode === 'on_total' 
-                                ? principal * (rate / 100)
-                                : principal * (rate / 100) * numInst;
+                              let totalInterest: number;
+                              if (editFormData.interest_mode === 'on_total') {
+                                totalInterest = principal * (rate / 100);
+                              } else if (editFormData.interest_mode === 'compound') {
+                                totalInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+                              } else {
+                                totalInterest = principal * (rate / 100) * numInst;
+                              }
                               return formatCurrency(totalInterest);
                             })()}
                             className="bg-muted h-9 sm:h-10 text-sm"
@@ -5552,9 +5615,14 @@ export default function Loans() {
                                 const newTotalInterest = totalToReceive - principal;
                                 
                                 if (newTotalInterest >= 0) {
-                                  const newRate = editFormData.interest_mode === 'on_total'
-                                    ? (newTotalInterest / principal) * 100
-                                    : (newTotalInterest / principal / numInstallments) * 100;
+                                  let newRate: number;
+                                  if (editFormData.interest_mode === 'on_total') {
+                                    newRate = (newTotalInterest / principal) * 100;
+                                  } else if (editFormData.interest_mode === 'compound') {
+                                    newRate = (Math.pow((newTotalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+                                  } else {
+                                    newRate = (newTotalInterest / principal / numInstallments) * 100;
+                                  }
                                   setEditFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
                                 }
                               }
