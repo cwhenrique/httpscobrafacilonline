@@ -491,37 +491,26 @@ export function LoanSimulator() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th className="text-left p-3 font-medium">Parcela</th>
-                      <th className="text-left p-3 font-medium">Vencimento</th>
-                      <th className="text-right p-3 font-medium">Principal</th>
-                      <th className="text-right p-3 font-medium">Juros</th>
-                      <th className="text-right p-3 font-medium">Total</th>
-                      <th className="text-right p-3 font-medium">Saldo</th>
+                      <th className="text-center p-3 font-medium">Parcela</th>
+                      <th className="text-center p-3 font-medium">Vencimento</th>
+                      <th className="text-center p-3 font-medium">Valor da Parcela</th>
                     </tr>
                   </thead>
                   <tbody>
                     {simulation.schedule.map((item) => (
                       <tr key={item.number} className="border-t hover:bg-muted/30 transition-colors">
-                        <td className="p-3">
-                          <Badge variant="outline">{item.number}ª</Badge>
+                        <td className="p-3 text-center">
+                          <Badge variant="outline">{item.number}/{simulation.installments}</Badge>
                         </td>
-                        <td className="p-3 text-muted-foreground">{item.dueDate}</td>
-                        <td className="p-3 text-right">{formatCurrency(item.principal)}</td>
-                        <td className="p-3 text-right text-warning">{formatCurrency(item.interest)}</td>
-                        <td className="p-3 text-right font-semibold">{formatCurrency(item.total)}</td>
-                        <td className="p-3 text-right text-muted-foreground">
-                          {item.remainingBalance > 0 ? formatCurrency(item.remainingBalance) : '-'}
-                        </td>
+                        <td className="p-3 text-center text-muted-foreground">{item.dueDate}</td>
+                        <td className="p-3 text-center font-semibold text-primary">{formatCurrency(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-muted/50 font-semibold">
                     <tr className="border-t">
-                      <td colSpan={2} className="p-3">Total</td>
-                      <td className="p-3 text-right">{formatCurrency(simulation.principal)}</td>
-                      <td className="p-3 text-right text-warning">{formatCurrency(simulation.totalInterest)}</td>
-                      <td className="p-3 text-right text-primary">{formatCurrency(simulation.totalAmount)}</td>
-                      <td className="p-3 text-right">-</td>
+                      <td colSpan={2} className="p-3">Total a Receber</td>
+                      <td className="p-3 text-center text-primary">{formatCurrency(simulation.totalAmount)}</td>
                     </tr>
                   </tfoot>
                 </table>
