@@ -3735,7 +3735,7 @@ export default function Loans() {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
-                    return 'bg-yellow-600/50 border-yellow-500 dark:bg-yellow-600/40 dark:border-yellow-500';
+                    return 'bg-pink-500/20 border-pink-400 dark:bg-pink-500/30 dark:border-pink-400';
                   }
                   // Diário em atraso: gradiente vermelho→azul para manter identidade
                   if (isDaily && isOverdue) {
@@ -3743,6 +3743,10 @@ export default function Loans() {
                   }
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
+                  }
+                  // Diário + Vence hoje: gradiente azul→amarelo
+                  if (isDaily && hasDueTodayStyle) {
+                    return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
                   }
                   // Vence hoje: amarelo/âmbar
                   if (hasDueTodayStyle) {
@@ -3760,7 +3764,7 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
