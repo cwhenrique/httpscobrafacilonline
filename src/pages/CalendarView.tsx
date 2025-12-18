@@ -25,6 +25,16 @@ import {
 import { cn } from '@/lib/utils';
 import { Loan } from '@/types/database';
 
+// Helper para extrair pagamentos parciais do notes do loan
+const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
+  const payments: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    payments[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return payments;
+};
+
 interface DueDateInfo {
   loan?: Loan;
   vehiclePayment?: {
@@ -125,9 +135,26 @@ export default function CalendarView() {
           ? loan.installment_dates 
           : [];
         
+        // Extrair parcelas pagas do notes do empréstimo
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        
         installmentDates.forEach((dateStr, index) => {
           const dateKey = dateStr as string;
           const dueDate = parseISO(dateKey);
+          
+          // Verificar se a parcela foi paga
+          const paidAmount = partialPayments[index] || 0;
+          const installmentValue = loan.payment_type === 'daily' 
+            ? (loan.total_interest || 0)
+            : values.installmentValue;
+          
+          // Parcela está paga se o valor pago >= 99% do valor da parcela
+          const isInstallmentPaid = paidAmount >= installmentValue * 0.99;
+          
+          // Pular parcelas já pagas - não adicionar ao calendário
+          if (isInstallmentPaid) return;
+          
+          // Só é overdue se: data passou E parcela NÃO foi paga
           const isOverdue = isBefore(dueDate, today);
           
           if (!dates.has(dateKey)) {
