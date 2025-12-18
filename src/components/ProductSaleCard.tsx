@@ -213,6 +213,7 @@ export default function ProductSaleCard({
                   amount: overduePayment.amount,
                   dueDate: overduePayment.due_date,
                   daysOverdue: daysOverdue,
+                  loanId: sale.id,
                 }}
                 className="w-full mt-2"
               />
