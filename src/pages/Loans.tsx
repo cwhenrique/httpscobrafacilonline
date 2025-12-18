@@ -3649,11 +3649,8 @@ export default function Loans() {
                       const nextUnpaidDate = new Date(dates[paidInstallments] + 'T12:00:00');
                       nextUnpaidDate.setHours(0, 0, 0, 0);
                       // If the next unpaid installment is in the past, it's overdue
-                      if (isDaily) {
-                        isOverdue = today >= nextUnpaidDate;
-                      } else {
-                        isOverdue = today > nextUnpaidDate;
-                      }
+                      // Considerar em atraso apenas APÓS a data passar (>)
+                      isOverdue = today > nextUnpaidDate;
                     } else if (dates.length === 0) {
                       // No dates, use due_date
                       const dueDate = new Date(loan.due_date + 'T12:00:00');
@@ -3665,22 +3662,14 @@ export default function Loans() {
                     // Normal logic for non-historical contracts
                     if (dates.length > 0 && paidInstallments < dates.length) {
                       const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
-                      // Para empréstimos diários, considerar em atraso NO DIA do vencimento (>=)
-                      // Para outros tipos, considerar em atraso no dia seguinte (>)
-                      if (isDaily) {
-                        nextDueDate.setHours(0, 0, 0, 0);
-                        isOverdue = today >= nextDueDate;
-                      } else {
-                        isOverdue = today > nextDueDate;
-                      }
+                      // Considerar em atraso apenas APÓS a data passar (>)
+                      nextDueDate.setHours(0, 0, 0, 0);
+                      isOverdue = today > nextDueDate;
                     } else {
                       const dueDate = new Date(loan.due_date + 'T12:00:00');
-                      if (isDaily) {
-                        dueDate.setHours(0, 0, 0, 0);
-                        isOverdue = today >= dueDate;
-                      } else {
-                        isOverdue = today > dueDate;
-                      }
+                      dueDate.setHours(0, 0, 0, 0);
+                      // Considerar em atraso apenas APÓS a data passar (>)
+                      isOverdue = today > dueDate;
                     }
                   }
                 }
