@@ -53,8 +53,8 @@ const navigation = [
   { name: 'Veículos Registrados', href: '/vehicles', icon: Car },
   { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
   // Contas e Ferramentas
-  { name: 'Contas a Pagar', href: '/bills', icon: FileText },
   { name: 'Simulador', href: '/simulator', icon: Calculator },
+  { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
