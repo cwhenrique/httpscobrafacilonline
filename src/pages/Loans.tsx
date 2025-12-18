@@ -846,9 +846,19 @@ export default function Loans() {
             overdueDate = futureDates[0];
             daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
           }
-        } else if (dates.length === 0) {
+        } else if (dates.length > 0) {
+          // All dates are in the past - check if there are unpaid installments
+          if (paidInstallments < dates.length) {
+            isOverdue = true;
+            overdueInstallmentIndex = paidInstallments;
+            overdueDate = dates[paidInstallments];
+            const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
+            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
+        } else {
+          // No dates, use due_date
           const dueDate = new Date(loan.due_date + 'T12:00:00');
-          isOverdue = dueDate >= today ? false : today > dueDate;
+          isOverdue = today > dueDate;
           if (isOverdue) {
             overdueDate = loan.due_date;
             daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -3663,7 +3673,7 @@ export default function Loans() {
                   const dates = (loan.installment_dates as string[]) || [];
                   
                   if (isHistoricalContract) {
-                    // For historical contracts, only check future dates
+                    // For historical contracts, check future dates first
                     const futureDates = dates.filter(d => {
                       const date = new Date(d + 'T12:00:00');
                       return date >= today;
@@ -3672,7 +3682,13 @@ export default function Loans() {
                     if (futureDates.length > 0) {
                       const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
                       isOverdue = today > nextFutureDate;
-                    } else if (dates.length === 0) {
+                    } else if (dates.length > 0) {
+                      // All dates are in the past - check if there are unpaid installments
+                      if (paidInstallments < dates.length) {
+                        isOverdue = true;
+                      }
+                    } else {
+                      // No dates, use due_date
                       const dueDate = new Date(loan.due_date + 'T12:00:00');
                       isOverdue = dueDate < today;
                     }
