@@ -192,11 +192,32 @@ export default function ReportsLoans() {
     // Capital na Rua (soma do principal dos empréstimos ativos)
     const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
     
-    // Juros a Receber (pendentes)
+    // Juros a Receber (pendentes) - com tratamento especial para diários
     const pendingInterest = activeLoans.reduce((sum, loan) => {
-      const totalInterest = Number(loan.total_interest || 0);
+      const principal = Number(loan.principal_amount);
+      const remainingBalance = Number(loan.remaining_balance || 0);
+      const totalPaid = Number(loan.total_paid || 0);
+      const rate = Number(loan.interest_rate);
+      const installments = Number(loan.installments) || 1;
+      const interestMode = loan.interest_mode || 'per_installment';
+      const isDaily = loan.payment_type === 'daily';
+      
+      // Calcular juros já recebidos dos pagamentos
       const payments = (loan as any).payments || [];
-      const interestPaid = payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
+      const interestPaid = payments.reduce((s: number, p: any) => 
+        s + Number(p.interest_paid || 0), 0);
+      
+      // Calcular total de juros do contrato
+      let totalInterest = 0;
+      if (isDaily) {
+        // Para diários, juros está embutido no remaining_balance inicial
+        totalInterest = remainingBalance + totalPaid - principal;
+      } else {
+        totalInterest = interestMode === 'per_installment' 
+          ? principal * (rate / 100) * installments 
+          : principal * (rate / 100);
+      }
+      
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
