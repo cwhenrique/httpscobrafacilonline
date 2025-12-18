@@ -199,6 +199,22 @@ export default function Loans() {
       }
     }
   }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount, skipSaturday, skipSunday]);
+  
+  // Regenerate dates for the dedicated daily dialog when skip options change
+  useEffect(() => {
+    if (isDailyDialogOpen && formData.start_date && formData.daily_period && parseInt(formData.daily_period) > 0) {
+      const newDates = generateDailyDates(formData.start_date, parseInt(formData.daily_period), skipSaturday, skipSunday);
+      setInstallmentDates(newDates);
+      if (newDates.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          due_date: newDates[newDates.length - 1],
+          installments: newDates.length.toString()
+        }));
+      }
+    }
+  }, [skipSaturday, skipSunday, isDailyDialogOpen]);
+  
   const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
   const [renegotiateData, setRenegotiateData] = useState({
     promised_amount: '',
@@ -2613,7 +2629,7 @@ export default function Loans() {
                           setFormData({ ...formData, start_date: newStartDate });
                           // Auto-generate dates when start_date changes and we have installments count
                           if (newStartDate && formData.daily_period && parseInt(formData.daily_period) > 0) {
-                            const newDates = generateDailyDates(newStartDate, parseInt(formData.daily_period));
+                            const newDates = generateDailyDates(newStartDate, parseInt(formData.daily_period), skipSaturday, skipSunday);
                             setInstallmentDates(newDates);
                             if (newDates.length > 0) {
                               setFormData(prev => ({
@@ -2642,7 +2658,7 @@ export default function Loans() {
                         setFormData({ ...formData, daily_period: count, installments: count });
                         // Auto-generate dates when count changes and we have start_date
                         if (formData.start_date && count && parseInt(count) > 0) {
-                          const newDates = generateDailyDates(formData.start_date, parseInt(count));
+                          const newDates = generateDailyDates(formData.start_date, parseInt(count), skipSaturday, skipSunday);
                           setInstallmentDates(newDates);
                           if (newDates.length > 0) {
                             setFormData(prev => ({
@@ -2660,6 +2676,36 @@ export default function Loans() {
                       className="h-9 sm:h-10 text-sm"
                     />
                     <p className="text-[10px] text-muted-foreground">Quantas parcelas diárias</p>
+                  </div>
+                  
+                  {/* Opções de pular dias */}
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipSaturday}
+                          onChange={(e) => setSkipSaturday(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Sábado</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipSunday}
+                          onChange={(e) => setSkipSunday(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Domingo</span>
+                      </label>
+                    </div>
+                    {(skipSaturday || skipSunday) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ {skipSaturday && skipSunday ? 'Sábados e domingos' : skipSaturday ? 'Sábados' : 'Domingos'} serão pulados na geração das datas
+                      </p>
+                    )}
                   </div>
                   {installmentDates.length > 0 && (
                     <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-2 sm:p-3 border border-emerald-200 dark:border-emerald-700">
@@ -2949,25 +2995,9 @@ export default function Loans() {
                           <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
                           <SelectItem value="biweekly" className="text-xs sm:text-sm">Quinzenal</SelectItem>
                           <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>
-                          <SelectItem value="daily" className="text-xs sm:text-sm">Diário</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                )}
-                {formData.payment_type === 'daily' && (
-                  <div className="space-y-2">
-                    <Label>Modalidade</Label>
-                    <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v, installments: v === 'single' ? '1' : formData.installments })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single">Pagamento Único</SelectItem>
-                        <SelectItem value="installment">Parcelado</SelectItem>
-                        <SelectItem value="biweekly">Quinzenal</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="daily">Diário</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 )}
                 {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
@@ -3114,176 +3144,6 @@ export default function Loans() {
                         ))}
                       </div>
                     </ScrollArea>
-                  </div>
-                )}
-                {formData.payment_type === 'daily' && (
-                  <div className="space-y-3">
-                    <Label>Datas de Cobrança ({installmentDates.length} dias selecionados)</Label>
-                    
-                    {/* Mode toggle */}
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={dailyDateMode === 'auto' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDailyDateMode('auto')}
-                        className="flex-1"
-                      >
-                        Gerar Automaticamente
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={dailyDateMode === 'manual' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setDailyDateMode('manual')}
-                        className="flex-1"
-                      >
-                        Selecionar Manual
-                      </Button>
-                    </div>
-                    
-                    {dailyDateMode === 'auto' ? (
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Data da 1ª Parcela</Label>
-                          <Input
-                            type="date"
-                            value={dailyFirstDate}
-                            onChange={(e) => setDailyFirstDate(e.target.value)}
-                            className="text-sm"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label className="text-xs">Quantas parcelas?</Label>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-10 w-10"
-                              onClick={() => setDailyInstallmentCount(prev => Math.max(1, parseInt(prev || '1') - 1).toString())}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="365"
-                              value={dailyInstallmentCount}
-                              onChange={(e) => setDailyInstallmentCount(e.target.value)}
-                              className="text-center text-lg font-bold w-20"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-10 w-10"
-                              onClick={() => setDailyInstallmentCount(prev => Math.min(365, parseInt(prev || '1') + 1).toString())}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {[10, 15, 20, 25, 30].map(num => (
-                              <Button
-                                key={num}
-                                type="button"
-                                variant={dailyInstallmentCount === num.toString() ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => setDailyInstallmentCount(num.toString())}
-                                className="min-w-[48px]"
-                              >
-                                {num}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        {/* Opções de pular dias */}
-                        <div className="space-y-2 pt-2 border-t border-border/50">
-                          <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
-                          <div className="flex flex-wrap gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={skipSaturday}
-                                onChange={(e) => setSkipSaturday(e.target.checked)}
-                                className="rounded border-border"
-                              />
-                              <span className="text-sm">Sábado</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={skipSunday}
-                                onChange={(e) => setSkipSunday(e.target.checked)}
-                                className="rounded border-border"
-                              />
-                              <span className="text-sm">Domingo</span>
-                            </label>
-                          </div>
-                          {(skipSaturday || skipSunday) && (
-                            <p className="text-xs text-amber-500">
-                              ⚠️ {skipSaturday && skipSunday ? 'Sábados e domingos' : skipSaturday ? 'Sábados' : 'Domingos'} serão pulados na geração das datas
-                            </p>
-                          )}
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Check className="h-3 w-3 text-primary" />
-                          {dailyInstallmentCount} parcelas serão geradas {skipSaturday || skipSunday ? '(pulando ' + (skipSaturday && skipSunday ? 'sáb/dom' : skipSaturday ? 'sábados' : 'domingos') + ')' : '(dias consecutivos)'}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">Clique nas datas do calendário para selecionar/remover os dias de cobrança</p>
-                        <div className="border rounded-md p-3">
-                          <Calendar
-                            mode="multiple"
-                            selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
-                            onSelect={(dates) => {
-                              if (dates) {
-                                const sortedDates = dates
-                                  .map(d => format(d, 'yyyy-MM-dd'))
-                                  .sort();
-                                setInstallmentDates(sortedDates);
-                                if (sortedDates.length > 0) {
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    due_date: sortedDates[sortedDates.length - 1],
-                                    installments: sortedDates.length.toString(),
-                                    daily_period: sortedDates.length.toString()
-                                  }));
-                                }
-                              } else {
-                                setInstallmentDates([]);
-                              }
-                            }}
-                            className="pointer-events-auto"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {installmentDates.length > 0 && (
-                      <ScrollArea className="h-[120px] rounded-md border p-3 bg-muted/30">
-                        <div className="space-y-1">
-                          {installmentDates.map((date, index) => {
-                            const dateObj = new Date(date + 'T12:00:00');
-                            const dayName = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
-                            return (
-                              <div key={index} className="flex items-center gap-3 text-sm">
-                                <span className="font-medium w-16 text-primary">Dia {index + 1}</span>
-                                <span className="text-muted-foreground">{formatDate(date)}</span>
-                                <span className="text-xs text-muted-foreground/70">({dayName})</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </ScrollArea>
-                    )}
                   </div>
                 )}
                 <div className="space-y-1 sm:space-y-2 tutorial-form-notes">
