@@ -142,6 +142,7 @@ const handler = async (req: Request): Promise<Response> => {
         amount: number;
         dueDate: string;
         daysOverdue?: number;
+        paymentType?: string;
       }
 
       const dueTodayLoans: LoanInfo[] = [];
@@ -199,6 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
           clientName: client.full_name,
           amount: installmentAmount,
           dueDate: nextDueDate,
+          paymentType: loan.payment_type,
         };
 
         if (nextDueDate === todayStr) {
@@ -299,29 +301,40 @@ const handler = async (req: Request): Promise<Response> => {
         message += `⏰ *VENCE HOJE:*\n\n`;
 
         if (dueTodayLoans.length > 0) {
-          message += `💰 *Empréstimos (${dueTodayLoans.length}):*\n`;
-          dueTodayLoans.slice(0, 3).forEach(l => {
-            message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-          });
-          if (dueTodayLoans.length > 3) message += `  _... +${dueTodayLoans.length - 3} empréstimo(s)_\n`;
-          message += `\n`;
+          // Separar diários dos outros
+          const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
+          const dueTodayOtherLoans = dueTodayLoans.filter(l => l.paymentType !== 'daily');
+
+          if (dueTodayDailyLoans.length > 0) {
+            message += `📅 *Diários (${dueTodayDailyLoans.length}):*\n`;
+            dueTodayDailyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
+            });
+            message += `\n`;
+          }
+
+          if (dueTodayOtherLoans.length > 0) {
+            message += `💰 *Empréstimos (${dueTodayOtherLoans.length}):*\n`;
+            dueTodayOtherLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
+            });
+            message += `\n`;
+          }
         }
 
         if (dueTodayVehicles.length > 0) {
           message += `🚗 *Veículos (${dueTodayVehicles.length}):*\n`;
-          dueTodayVehicles.slice(0, 3).forEach(v => {
+          dueTodayVehicles.forEach(v => {
             message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)}\n`;
           });
-          if (dueTodayVehicles.length > 3) message += `  _... +${dueTodayVehicles.length - 3} veículo(s)_\n`;
           message += `\n`;
         }
 
         if (dueTodayProducts.length > 0) {
           message += `📦 *Produtos (${dueTodayProducts.length}):*\n`;
-          dueTodayProducts.slice(0, 3).forEach(p => {
+          dueTodayProducts.forEach(p => {
             message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)}\n`;
           });
-          if (dueTodayProducts.length > 3) message += `  _... +${dueTodayProducts.length - 3} produto(s)_\n`;
           message += `\n`;
         }
 
@@ -333,29 +346,40 @@ const handler = async (req: Request): Promise<Response> => {
         message += `🚨 *EM ATRASO:*\n\n`;
 
         if (overdueLoans.length > 0) {
-          message += `💰 *Empréstimos (${overdueLoans.length}):*\n`;
-          overdueLoans.slice(0, 3).forEach(l => {
-            message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-          });
-          if (overdueLoans.length > 3) message += `  _... +${overdueLoans.length - 3} empréstimo(s)_\n`;
-          message += `\n`;
+          // Separar diários dos outros
+          const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
+          const overdueOtherLoans = overdueLoans.filter(l => l.paymentType !== 'daily');
+
+          if (overdueDailyLoans.length > 0) {
+            message += `📅 *Diários em Atraso (${overdueDailyLoans.length}):*\n`;
+            overdueDailyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+            });
+            message += `\n`;
+          }
+
+          if (overdueOtherLoans.length > 0) {
+            message += `💰 *Empréstimos em Atraso (${overdueOtherLoans.length}):*\n`;
+            overdueOtherLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+            });
+            message += `\n`;
+          }
         }
 
         if (overdueVehicles.length > 0) {
-          message += `🚗 *Veículos (${overdueVehicles.length}):*\n`;
-          overdueVehicles.slice(0, 3).forEach(v => {
+          message += `🚗 *Veículos em Atraso (${overdueVehicles.length}):*\n`;
+          overdueVehicles.forEach(v => {
             message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)} (${v.daysOverdue}d)\n`;
           });
-          if (overdueVehicles.length > 3) message += `  _... +${overdueVehicles.length - 3} veículo(s)_\n`;
           message += `\n`;
         }
 
         if (overdueProducts.length > 0) {
-          message += `📦 *Produtos (${overdueProducts.length}):*\n`;
-          overdueProducts.slice(0, 3).forEach(p => {
+          message += `📦 *Produtos em Atraso (${overdueProducts.length}):*\n`;
+          overdueProducts.forEach(p => {
             message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)} (${p.daysOverdue}d)\n`;
           });
-          if (overdueProducts.length > 3) message += `  _... +${overdueProducts.length - 3} produto(s)_\n`;
           message += `\n`;
         }
 
