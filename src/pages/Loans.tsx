@@ -1667,17 +1667,31 @@ export default function Loans() {
 
   const handleGenerateLoanReceipt = (loan: typeof loans[0], interestOnlyPayment?: { amountPaid: number; remainingBalance: number }) => {
     const numInstallments = loan.installments || 1;
-    let totalInterest = 0;
-    if (loan.interest_mode === 'on_total') {
-      totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-    } else if (loan.interest_mode === 'compound') {
-      totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+
+    const isDailyLoan = loan.payment_type === 'daily';
+
+    // Para empréstimo diário:
+    // - total_interest = valor da parcela (diária)
+    // - interest_rate = % de lucro (margem)
+    // - total a receber = parcela × número de parcelas
+    let totalToReceive = 0;
+    let installmentValue = 0;
+
+    if (isDailyLoan) {
+      installmentValue = loan.total_interest || 0;
+      totalToReceive = installmentValue * numInstallments;
     } else {
-      totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      let totalInterest = 0;
+      if (loan.interest_mode === 'on_total') {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else if (loan.interest_mode === 'compound') {
+        totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+      } else {
+        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      }
+      totalToReceive = loan.principal_amount + totalInterest;
+      installmentValue = totalToReceive / numInstallments;
     }
-    const totalToReceive = loan.principal_amount + totalInterest;
-    const installmentValue = totalToReceive / numInstallments;
-    
     const receiptData: ContractReceiptData = {
       type: 'loan',
       contractId: loan.id,
