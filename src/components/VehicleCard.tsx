@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Car, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, List } from 'lucide-react';
+import { Car, User, Phone, Edit, Trash2, DollarSign, Calendar, FileText, List, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
@@ -102,11 +102,26 @@ export default function VehicleCard({
 
   return (
     <Card className={cn(
-      "transition-all hover:shadow-md",
+      "transition-all hover:shadow-md relative",
       status === 'paid' && "bg-primary/5 border-primary/30",
       status === 'overdue' && "bg-destructive/5 border-destructive/30",
       status === 'due_today' && "bg-yellow-500/5 border-yellow-500/30"
     )}>
+      {/* Alert Icons */}
+      {status === 'overdue' && (
+        <div className="absolute -top-2 -right-2 animate-pulse z-10">
+          <div className="bg-destructive text-destructive-foreground rounded-full p-1.5 shadow-lg">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+      {status === 'due_today' && (
+        <div className="absolute -top-2 -right-2 animate-pulse z-10">
+          <div className="bg-yellow-500 text-white rounded-full p-1.5 shadow-lg">
+            <Clock className="w-4 h-4" />
+          </div>
+        </div>
+      )}
       <CardContent className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
