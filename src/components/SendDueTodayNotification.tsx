@@ -197,7 +197,7 @@ export default function SendDueTodayNotification({
         ) : (
           <>
             <Bell className="w-4 h-4 mr-2" />
-            Enviar Lembrete
+            Lembrete pro Cliente
           </>
         )}
       </Button>
