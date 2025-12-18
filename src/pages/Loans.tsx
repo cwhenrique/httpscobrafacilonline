@@ -1049,7 +1049,7 @@ export default function Loans() {
     
     console.log('loanData being passed to createLoan:', loanData);
     
-    await createLoan(loanData);
+    const result = await createLoan(loanData);
     
     // Se contrato antigo com parcelas selecionadas, registrar como pagas
     if (formData.is_historical_contract && selectedPastInstallments.length > 0) {
@@ -1106,6 +1106,28 @@ export default function Loans() {
         
         toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) como pagas`);
       }
+    }
+    
+    // Show loan created receipt prompt (same as handleSubmit)
+    if (result?.data) {
+      const client = clients.find(c => c.id === formData.client_id);
+      
+      setLoanCreatedData({
+        id: result.data.id,
+        clientName: client?.full_name || 'Cliente',
+        clientPhone: client?.phone || undefined,
+        principalAmount: principalAmount,
+        interestRate: interestPercentage,
+        totalInterest: profit,
+        totalToReceive: totalToReceive,
+        installments: numDays,
+        installmentValue: dailyAmount,
+        startDate: formData.start_date,
+        dueDate: installmentDates[installmentDates.length - 1],
+        paymentType: 'daily',
+      });
+      setLoanCreatedInstallmentDates(installmentDates);
+      setIsLoanCreatedOpen(true);
     }
     
     setIsDailyDialogOpen(false);
