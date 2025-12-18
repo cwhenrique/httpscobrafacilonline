@@ -49,6 +49,7 @@ export interface InstallmentDate {
   number: number;
   date: string;
   isPaid?: boolean; // For historical contracts
+  amount?: number; // For editing individual installment amounts
 }
 
 export interface CreateProductSaleData {
@@ -83,6 +84,11 @@ export interface UpdateProductSaleData {
   client_rg?: string;
   client_address?: string;
   notes?: string;
+  cost_value?: number;
+  total_amount?: number;
+  down_payment?: number;
+  installments?: number;
+  installment_value?: number;
 }
 
 export function useProductSales() {
@@ -297,6 +303,106 @@ export function useProductSales() {
     },
   });
 
+  const updateSaleWithPayments = useMutation({
+    mutationFn: async ({ 
+      id, 
+      data, 
+      payments 
+    }: { 
+      id: string; 
+      data: UpdateProductSaleData;
+      payments?: InstallmentDate[];
+    }) => {
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // 1. Update product sale basic data
+      const { error: saleError } = await supabase
+        .from('product_sales')
+        .update({
+          product_name: data.product_name,
+          product_description: data.product_description,
+          client_name: data.client_name,
+          client_phone: data.client_phone,
+          client_email: data.client_email,
+          client_cpf: data.client_cpf,
+          client_rg: data.client_rg,
+          client_address: data.client_address,
+          cost_value: data.cost_value,
+          total_amount: data.total_amount,
+          down_payment: data.down_payment,
+          installments: data.installments,
+          installment_value: data.installment_value,
+          notes: data.notes,
+        })
+        .eq('id', id);
+
+      if (saleError) throw saleError;
+
+      // 2. If payments provided, delete old and create new
+      if (payments && payments.length > 0) {
+        // Delete existing payments
+        const { error: deleteError } = await supabase
+          .from('product_sale_payments')
+          .delete()
+          .eq('product_sale_id', id);
+
+        if (deleteError) throw deleteError;
+
+        // Insert new payments
+        const newPayments = payments.map(p => ({
+          product_sale_id: id,
+          user_id: user.id,
+          installment_number: p.number,
+          amount: p.amount || data.installment_value || 0,
+          due_date: p.date,
+          status: p.isPaid ? 'paid' : 'pending',
+          paid_date: p.isPaid ? format(new Date(), 'yyyy-MM-dd') : null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('product_sale_payments')
+          .insert(newPayments);
+
+        if (insertError) throw insertError;
+
+        // 3. Recalculate totals
+        const downPayment = data.down_payment || 0;
+        const paidAmount = payments
+          .filter(p => p.isPaid)
+          .reduce((sum, p) => sum + (p.amount || data.installment_value || 0), 0);
+        const totalPaid = downPayment + paidAmount;
+        const totalAmount = data.total_amount || 0;
+        const remainingBalance = totalAmount - totalPaid;
+
+        const { error: updateTotalsError } = await supabase
+          .from('product_sales')
+          .update({
+            total_paid: totalPaid,
+            remaining_balance: Math.max(0, remainingBalance),
+            status: remainingBalance <= 0 ? 'paid' : 'pending',
+          })
+          .eq('id', id);
+
+        if (updateTotalsError) throw updateTotalsError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['product-sale-payments'] });
+      toast({
+        title: 'Venda atualizada',
+        description: 'Todos os dados foram atualizados com sucesso.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao atualizar',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const deleteSale = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -329,6 +435,7 @@ export function useProductSales() {
     error,
     createSale,
     updateSale,
+    updateSaleWithPayments,
     deleteSale,
   };
 }
