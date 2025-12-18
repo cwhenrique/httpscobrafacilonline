@@ -129,7 +129,16 @@ export function useOperationalStats() {
       } else {
         // Empréstimo ativo (não quitado)
         activeLoansCount++;
-        totalOnStreet += principal;
+        
+        // Calcular principal já recebido a partir dos pagamentos
+        const totalPrincipalReceived = payments.reduce(
+          (sum: number, p: any) => sum + Number(p.principal_paid || 0), 
+          0
+        );
+        
+        // Capital na rua = principal original - principal já pago
+        const principalPending = principal - totalPrincipalReceived;
+        totalOnStreet += principalPending;
         
         // Calcular juros pendentes para contratos ativos
         let totalInterest = 0;
