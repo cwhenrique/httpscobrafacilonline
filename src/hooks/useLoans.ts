@@ -209,7 +209,15 @@ export function useLoans() {
         const principalPerInstallment = loan.principal_amount / numInstallments;
         totalPerInstallment = principalPerInstallment + interestPerInstallment;
         totalToReceive = loan.principal_amount + totalInterest;
+      } else if (loan.interest_mode === 'compound') {
+        // Juros compostos: M = P(1+i)^n - P
+        totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+        const interestPerInstallment = totalInterest / numInstallments;
+        const principalPerInstallment = loan.principal_amount / numInstallments;
+        totalPerInstallment = principalPerInstallment + interestPerInstallment;
+        totalToReceive = loan.principal_amount + totalInterest;
       } else {
+        // per_installment (padrão)
         totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
         const interestPerInstallment = totalInterest / numInstallments;
         const principalPerInstallment = loan.principal_amount / numInstallments;
@@ -479,6 +487,8 @@ export function useLoans() {
       let totalInterest = 0;
       if (loanData.interest_mode === 'on_total') {
         totalInterest = loanData.principal_amount * (data.interest_rate / 100);
+      } else if (loanData.interest_mode === 'compound') {
+        totalInterest = loanData.principal_amount * Math.pow(1 + (data.interest_rate / 100), numInstallments) - loanData.principal_amount;
       } else {
         totalInterest = loanData.principal_amount * (data.interest_rate / 100) * numInstallments;
       }
@@ -520,7 +530,7 @@ export function useLoans() {
     principal_amount: number;
     interest_rate: number;
     interest_type: InterestType;
-    interest_mode?: 'per_installment' | 'on_total';
+    interest_mode?: 'per_installment' | 'on_total' | 'compound';
     payment_type: LoanPaymentType;
     installments?: number;
     contract_date?: string;
@@ -589,6 +599,8 @@ export function useLoans() {
       let totalInterest = 0;
       if (data.interest_mode === 'on_total') {
         totalInterest = data.principal_amount * (data.interest_rate / 100);
+      } else if (data.interest_mode === 'compound') {
+        totalInterest = data.principal_amount * Math.pow(1 + (data.interest_rate / 100), numInstallments) - data.principal_amount;
       } else {
         totalInterest = data.principal_amount * (data.interest_rate / 100) * numInstallments;
       }
