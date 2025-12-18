@@ -370,6 +370,103 @@ export function useVehicles() {
     },
   });
 
+  // Update vehicle with payments (full edit)
+  const updateVehicleWithPayments = useMutation({
+    mutationFn: async ({ 
+      id, 
+      data, 
+      payments 
+    }: { 
+      id: string; 
+      data: CreateVehicleData;
+      payments?: InstallmentDate[];
+    }) => {
+      if (!user?.id) throw new Error('Usuário não autenticado');
+
+      const downPayment = data.down_payment || 0;
+
+      // Calculate paid amount from payments
+      let paidAmount = 0;
+      if (payments && payments.length > 0) {
+        paidAmount = payments.filter(p => p.isPaid).reduce((sum, p) => sum + p.amount, 0);
+      }
+
+      const totalPaid = downPayment + paidAmount;
+      const remainingBalance = data.purchase_value - totalPaid;
+
+      // Update vehicle data
+      const { error: vehicleError } = await supabase
+        .from('vehicles')
+        .update({
+          brand: data.brand,
+          model: data.model,
+          year: data.year,
+          color: data.color || null,
+          plate: data.plate || null,
+          chassis: data.chassis || null,
+          seller_name: data.seller_name,
+          buyer_name: data.buyer_name || null,
+          buyer_phone: data.buyer_phone || null,
+          buyer_email: data.buyer_email || null,
+          buyer_cpf: data.buyer_cpf || null,
+          buyer_rg: data.buyer_rg || null,
+          buyer_address: data.buyer_address || null,
+          purchase_date: data.purchase_date || format(new Date(), 'yyyy-MM-dd'),
+          purchase_value: data.purchase_value,
+          cost_value: data.cost_value || 0,
+          down_payment: downPayment,
+          installments: data.installments,
+          installment_value: data.installment_value,
+          first_due_date: data.first_due_date,
+          notes: data.notes || null,
+          total_paid: totalPaid,
+          remaining_balance: remainingBalance,
+          status: remainingBalance <= 0 ? 'paid' : 'pending',
+        })
+        .eq('id', id);
+
+      if (vehicleError) throw vehicleError;
+
+      // Update payments if provided
+      if (payments && payments.length > 0) {
+        // Delete existing payments
+        const { error: deleteError } = await supabase
+          .from('vehicle_payments')
+          .delete()
+          .eq('vehicle_id', id);
+
+        if (deleteError) throw deleteError;
+
+        // Insert new payments
+        const newPayments = payments.map(p => ({
+          user_id: user.id,
+          vehicle_id: id,
+          installment_number: p.installment_number,
+          amount: p.amount,
+          due_date: p.due_date,
+          status: p.isPaid ? 'paid' : 'pending',
+          paid_date: p.isPaid ? format(new Date(), 'yyyy-MM-dd') : null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('vehicle_payments')
+          .insert(newPayments);
+
+        if (insertError) throw insertError;
+      }
+
+      return { id };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle_payments'] });
+      toast.success('Veículo atualizado com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao atualizar veículo: ' + error.message);
+    },
+  });
+
   return {
     vehicles,
     isLoading,
@@ -377,6 +474,7 @@ export function useVehicles() {
     createVehicle,
     updateVehicle,
     deleteVehicle,
+    updateVehicleWithPayments,
   };
 }
 

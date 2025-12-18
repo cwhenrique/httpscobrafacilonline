@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { CreateVehicleData, InstallmentDate } from '@/hooks/useVehicles';
+import { CreateVehicleData, InstallmentDate, Vehicle, VehiclePayment } from '@/hooks/useVehicles';
 import { addMonths, format, setDate, getDate, parseISO } from 'date-fns';
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -15,18 +15,23 @@ interface VehicleFormProps {
   billType: 'receivable' | 'payable';
   onSubmit: (data: CreateVehicleData) => Promise<void>;
   isPending: boolean;
+  initialData?: Vehicle;
+  existingPayments?: VehiclePayment[];
+  isEditing?: boolean;
 }
 
 // Subcomponente para lista de parcelas com scroll automático
 function InstallmentsList({
   installmentDates,
   isHistorical,
+  isEditing,
   today,
   updateInstallmentDate,
   toggleInstallmentPaid,
 }: {
   installmentDates: InstallmentDate[];
   isHistorical: boolean;
+  isEditing?: boolean;
   today: Date;
   updateInstallmentDate: (index: number, field: 'due_date' | 'amount', value: string | number) => void;
   toggleInstallmentPaid: (index: number) => void;
@@ -35,14 +40,14 @@ function InstallmentsList({
   const firstUnpaidRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Se for contrato histórico, rolar para primeira parcela não paga
-    if (isHistorical && firstUnpaidRef.current && scrollRef.current) {
+    // Se for contrato histórico ou editando, rolar para primeira parcela não paga
+    if ((isHistorical || isEditing) && firstUnpaidRef.current && scrollRef.current) {
       const container = scrollRef.current;
       const element = firstUnpaidRef.current;
       const offsetTop = element.offsetTop - container.offsetTop;
       container.scrollTop = Math.max(0, offsetTop - 10);
     }
-  }, [isHistorical, installmentDates]);
+  }, [isHistorical, isEditing, installmentDates]);
 
   // Encontrar índice da primeira parcela não paga
   const firstUnpaidIndex = installmentDates.findIndex(inst => !inst.isPaid);
@@ -59,7 +64,7 @@ function InstallmentsList({
             const instDate = new Date(inst.due_date);
             instDate.setHours(0, 0, 0, 0);
             const isPastDate = instDate < today;
-            const showPaidCheckbox = isHistorical && isPastDate;
+            const showPaidCheckbox = isEditing || (isHistorical && isPastDate);
             const isFirstUnpaid = index === firstUnpaidIndex;
 
             return (
@@ -120,11 +125,12 @@ function InstallmentsList({
   );
 }
 
-export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps) {
-  const [showInstallments, setShowInstallments] = useState(false);
+export function VehicleForm({ billType, onSubmit, isPending, initialData, existingPayments, isEditing }: VehicleFormProps) {
+  const [showInstallments, setShowInstallments] = useState(isEditing || false);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
   const [isHistorical, setIsHistorical] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
   
   const [form, setForm] = useState({
     brand: '',
@@ -151,6 +157,50 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     send_creation_notification: false,
   });
 
+  // Initialize form with existing data when editing
+  useEffect(() => {
+    if (isEditing && initialData && !initialized) {
+      setForm({
+        brand: initialData.brand || '',
+        model: initialData.model || '',
+        year: initialData.year || new Date().getFullYear(),
+        color: initialData.color || '',
+        plate: initialData.plate || '',
+        chassis: initialData.chassis || '',
+        seller_name: initialData.seller_name || '',
+        buyer_name: initialData.buyer_name || '',
+        buyer_phone: initialData.buyer_phone || '',
+        buyer_email: initialData.buyer_email || '',
+        buyer_cpf: initialData.buyer_cpf || '',
+        buyer_rg: initialData.buyer_rg || '',
+        buyer_address: initialData.buyer_address || '',
+        purchase_date: initialData.purchase_date || '',
+        cost_value: initialData.cost_value || 0,
+        purchase_value: initialData.purchase_value || 0,
+        down_payment: initialData.down_payment || 0,
+        installments: initialData.installments || 12,
+        installment_value: initialData.installment_value || 0,
+        first_due_date: initialData.first_due_date || '',
+        notes: initialData.notes || '',
+        send_creation_notification: false,
+      });
+
+      // Initialize installment dates from existing payments
+      if (existingPayments && existingPayments.length > 0) {
+        const sortedPayments = [...existingPayments].sort((a, b) => a.installment_number - b.installment_number);
+        const dates: InstallmentDate[] = sortedPayments.map(p => ({
+          installment_number: p.installment_number,
+          due_date: p.due_date,
+          amount: p.amount,
+          isPaid: p.status === 'paid',
+        }));
+        setInstallmentDates(dates);
+      }
+
+      setInitialized(true);
+    }
+  }, [isEditing, initialData, existingPayments, initialized]);
+
   // Handler for client selection
   const handleClientSelect = (client: Client | null) => {
     if (client) {
@@ -169,8 +219,13 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
     }
   };
 
-  // Generate installment dates when relevant fields change
+  // Generate installment dates when relevant fields change (only for new vehicles)
   useEffect(() => {
+    // Skip auto-generation if editing and already initialized with existing payments
+    if (isEditing && initialized && existingPayments && existingPayments.length > 0) {
+      return;
+    }
+    
     if (form.first_due_date && form.installments > 0 && form.installment_value > 0) {
       const firstDate = parseISO(form.first_due_date);
       const dayOfMonth = getDate(firstDate);
@@ -194,7 +249,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
       }
       setInstallmentDates(dates);
     }
-  }, [form.first_due_date, form.installments, form.installment_value]);
+  }, [form.first_due_date, form.installments, form.installment_value, isEditing, initialized, existingPayments]);
 
   const updateInstallmentDate = (index: number, field: 'due_date' | 'amount', value: string | number) => {
     setInstallmentDates(prev => {
@@ -438,8 +493,8 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
         </div>
       </div>
 
-      {/* Historical Contract Checkbox */}
-      {hasPastInstallments && installmentDates.length > 0 && (
+      {/* Historical Contract Checkbox - only show when creating, not editing */}
+      {!isEditing && hasPastInstallments && installmentDates.length > 0 && (
         <div className="p-3 rounded-lg border border-amber-500/50 bg-amber-500/10 space-y-3">
           <div className="flex items-start gap-2">
             <input
@@ -468,6 +523,15 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
           )}
         </div>
       )}
+      
+      {/* Edit mode summary of paid installments */}
+      {isEditing && paidHistoricalCount > 0 && (
+        <div className="p-2 rounded bg-primary/10 border border-primary/30">
+          <p className="text-sm text-primary font-medium">
+            {paidHistoricalCount} parcela(s) paga(s) = R$ {paidHistoricalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+      )}
 
       {/* Installments List */}
       {installmentDates.length > 0 && (
@@ -489,6 +553,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
             <InstallmentsList
               installmentDates={installmentDates}
               isHistorical={isHistorical}
+              isEditing={isEditing}
               today={today}
               updateInstallmentDate={updateInstallmentDate}
               toggleInstallmentPaid={toggleInstallmentPaid}
@@ -569,7 +634,7 @@ export function VehicleForm({ billType, onSubmit, isPending }: VehicleFormProps)
         } 
         className={cn("w-full", !isReceivable && "bg-blue-600 hover:bg-blue-700")}
       >
-        {isPending ? 'Salvando...' : 'Cadastrar Veículo'}
+        {isPending ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Cadastrar Veículo'}
       </Button>
     </div>
   );

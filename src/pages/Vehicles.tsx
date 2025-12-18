@@ -43,7 +43,7 @@ import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 
 export default function Vehicles() {
-  const { vehicles, isLoading: loading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
+  const { vehicles, isLoading: loading, createVehicle, updateVehicle, deleteVehicle, updateVehicleWithPayments } = useVehicles();
   const { payments: vehiclePaymentsList, markAsPaidFlexible } = useVehiclePayments();
   const { profile } = useProfile();
 
@@ -465,21 +465,33 @@ export default function Vehicles() {
         )}
 
         {/* Edit Vehicle Dialog */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <Dialog open={isEditOpen} onOpenChange={(open) => {
+          setIsEditOpen(open);
+          if (!open) setEditingVehicle(null);
+        }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Veículo</DialogTitle>
             </DialogHeader>
-            <VehicleForm
-              billType="receivable"
-              onSubmit={async (data) => {
-                if (!editingVehicle) return;
-                await updateVehicle.mutateAsync({ id: editingVehicle.id, data });
-                setIsEditOpen(false);
-                setEditingVehicle(null);
-              }}
-              isPending={updateVehicle.isPending}
-            />
+            {editingVehicle && (
+              <VehicleForm
+                billType="receivable"
+                initialData={editingVehicle}
+                existingPayments={getVehiclePayments(editingVehicle.id)}
+                isEditing={true}
+                onSubmit={async (data) => {
+                  if (!editingVehicle) return;
+                  await updateVehicleWithPayments.mutateAsync({ 
+                    id: editingVehicle.id, 
+                    data,
+                    payments: data.custom_installments,
+                  });
+                  setIsEditOpen(false);
+                  setEditingVehicle(null);
+                }}
+                isPending={updateVehicleWithPayments.isPending}
+              />
+            )}
           </DialogContent>
         </Dialog>
 
