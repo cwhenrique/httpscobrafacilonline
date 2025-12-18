@@ -3644,25 +3644,23 @@ export default function Loans() {
                   const dates = (loan.installment_dates as string[]) || [];
                   
                   if (isHistoricalContract) {
-                    // For historical contracts, check future dates first
-                    const futureDates = dates.filter(d => {
-                      const date = new Date(d + 'T12:00:00');
-                      return date >= today;
-                    });
-                    
-                    if (futureDates.length > 0) {
-                      const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
-                      isOverdue = today > nextFutureDate;
-                    } else if (dates.length > 0) {
-                      // All dates are in the past - check if there are unpaid installments
-                      if (paidInstallments < dates.length) {
-                        isOverdue = true;
+                    // For historical contracts, check if next unpaid installment is in the past
+                    if (dates.length > 0 && paidInstallments < dates.length) {
+                      const nextUnpaidDate = new Date(dates[paidInstallments] + 'T12:00:00');
+                      nextUnpaidDate.setHours(0, 0, 0, 0);
+                      // If the next unpaid installment is in the past, it's overdue
+                      if (isDaily) {
+                        isOverdue = today >= nextUnpaidDate;
+                      } else {
+                        isOverdue = today > nextUnpaidDate;
                       }
-                    } else {
+                    } else if (dates.length === 0) {
                       // No dates, use due_date
                       const dueDate = new Date(loan.due_date + 'T12:00:00');
-                      isOverdue = dueDate < today;
+                      dueDate.setHours(0, 0, 0, 0);
+                      isOverdue = today > dueDate;
                     }
+                    // If all installments paid, isOverdue stays false
                   } else {
                     // Normal logic for non-historical contracts
                     if (dates.length > 0 && paidInstallments < dates.length) {
