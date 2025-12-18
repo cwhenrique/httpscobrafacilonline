@@ -79,7 +79,7 @@ const getPaidAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ origi
 };
 
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
-const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string }): number => {
+const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
   const isDaily = loan.payment_type === 'daily';
   
@@ -120,6 +120,17 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   };
   
   const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  
+  // 🆕 FALLBACK: Se não há tags de tracking mas há pagamentos registrados,
+  // calcular parcelas pagas baseado no total_paid dividido pelo valor da parcela
+  const hasTrackingTags = Object.keys(partialPayments).length > 0;
+  const totalPaid = loan.total_paid || 0;
+  
+  if (!hasTrackingTags && totalPaid > 0 && baseInstallmentValue > 0) {
+    // Calcular quantas parcelas completas foram pagas
+    const paidByValue = Math.floor(totalPaid / baseInstallmentValue);
+    return Math.min(paidByValue, numInstallments);
+  }
   
   // Extrair sub-parcelas de adiantamento - se houver sub-parcela pendente para um índice, 
   // essa parcela NÃO deve ser considerada como totalmente paga

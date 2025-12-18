@@ -140,6 +140,17 @@ export function useLoans() {
     console.log('loan.total_interest:', loan.total_interest, 'type:', typeof loan.total_interest);
     console.log('loan.interest_rate:', loan.interest_rate, 'type:', typeof loan.interest_rate);
 
+    // Verificar se contrato já nasce em atraso (due_date no passado)
+    const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
+    const firstDueDate = loan.installment_dates?.[0] || loan.due_date;
+    const dueDate = new Date(firstDueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    // Definir status inicial: 'overdue' se não é histórico e due_date < hoje
+    const initialStatus: 'pending' | 'overdue' = (!isHistoricalContract && dueDate < today) ? 'overdue' : 'pending';
+
     // Build insert object explicitly to ensure daily loan values are preserved
     const insertData = {
       client_id: loan.client_id,
@@ -162,6 +173,7 @@ export function useLoans() {
         : 0,
       total_paid: 0,
       installment_dates: loan.installment_dates || [],
+      status: initialStatus,
     };
 
     console.log('insertData being sent to Supabase:', JSON.stringify(insertData, null, 2));
