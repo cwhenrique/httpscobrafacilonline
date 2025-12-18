@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { generateContractReceipt, generatePaymentReceipt, generateOperationsReport, ContractReceiptData, PaymentReceiptData, LoanOperationData, OperationsReportData } from '@/lib/pdfGenerator';
+import { generateContractReceipt, generatePaymentReceipt, generateOperationsReport, ContractReceiptData, PaymentReceiptData, LoanOperationData, OperationsReportData, InstallmentDetail } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
@@ -2431,7 +2431,7 @@ export default function Loans() {
     try {
       toast.loading('Gerando relatório...', { id: 'generating-report' });
       
-      // Get payments for all loans
+      // Get payments for all loans with detailed installment info
       const loansWithPayments: LoanOperationData[] = await Promise.all(
         loans.map(async (loan) => {
           const paymentsResult = await getLoanPayments(loan.id);
@@ -2441,23 +2441,74 @@ export default function Loans() {
           // Calculate total interest based on interest_mode
           let totalInterest = loan.total_interest || 0;
           const totalToReceive = loan.principal_amount + totalInterest;
+          const installmentValue = totalToReceive / numInstallments;
           
           // Check if it's an interest-only payment loan
           const isInterestOnlyLoan = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
           
-          // Determine status
+          // Get partial payments from notes for installment tracking
+          const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+          const installmentDates = (loan.installment_dates as string[]) || [];
+          
+          // Build installment details
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const installmentDetails: { number: number; dueDate: string; amount: number; status: 'paid' | 'pending' | 'overdue'; paidDate?: string; paidAmount?: number }[] = [];
+          let paidInstallments = 0;
+          let pendingInstallments = 0;
+          let overdueInstallments = 0;
+          
+          for (let i = 0; i < numInstallments; i++) {
+            // Get due date from installment_dates or calculate
+            let dueDate = installmentDates[i] || loan.start_date;
+            if (!installmentDates[i] && loan.start_date) {
+              const startDate = new Date(loan.start_date + 'T12:00:00');
+              if (loan.payment_type === 'daily') {
+                startDate.setDate(startDate.getDate() + i);
+              } else if (loan.payment_type === 'weekly') {
+                startDate.setDate(startDate.getDate() + (i * 7));
+              } else if (loan.payment_type === 'biweekly') {
+                startDate.setDate(startDate.getDate() + (i * 15));
+              } else {
+                startDate.setMonth(startDate.getMonth() + i);
+              }
+              dueDate = format(startDate, 'yyyy-MM-dd');
+            }
+            
+            const paidAmount = partialPayments[i] || 0;
+            const isPaid = paidAmount >= installmentValue * 0.99;
+            const dueDateObj = new Date(dueDate + 'T12:00:00');
+            
+            let status: 'paid' | 'pending' | 'overdue' = 'pending';
+            if (isPaid) {
+              status = 'paid';
+              paidInstallments++;
+            } else if (dueDateObj < today) {
+              status = 'overdue';
+              overdueInstallments++;
+            } else {
+              pendingInstallments++;
+            }
+            
+            installmentDetails.push({
+              number: i + 1,
+              dueDate,
+              amount: installmentValue,
+              status,
+              paidAmount: isPaid ? paidAmount : undefined,
+              paidDate: isPaid ? (payments.find(p => Math.abs(p.amount - installmentValue) < 1)?.payment_date || undefined) : undefined,
+            });
+          }
+          
+          // Determine overall loan status
           let status = 'pending';
           if (isInterestOnlyLoan) {
             status = 'interest_only';
-          } else if (loan.status === 'paid' || (loan.total_paid || 0) >= totalToReceive) {
+          } else if (loan.status === 'paid' || (loan.total_paid || 0) >= totalToReceive * 0.99) {
             status = 'paid';
-          } else {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const dueDate = new Date(loan.due_date + 'T12:00:00');
-            if (dueDate < today) {
-              status = 'overdue';
-            }
+          } else if (overdueInstallments > 0) {
+            status = 'overdue';
           }
           
           return {
@@ -2475,6 +2526,10 @@ export default function Loans() {
             startDate: loan.start_date,
             dueDate: loan.due_date,
             paymentType: loan.payment_type,
+            paidInstallments,
+            pendingInstallments,
+            overdueInstallments,
+            installmentDetails,
             payments: payments.map(p => ({
               date: p.payment_date,
               amount: p.amount,
