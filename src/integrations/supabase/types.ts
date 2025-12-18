@@ -737,6 +737,7 @@ export type Database = {
           has_seen_loans_tutorial: boolean | null
           id: string
           is_active: boolean
+          payment_link: string | null
           phone: string | null
           subscription_expires_at: string | null
           subscription_plan: string | null
@@ -761,6 +762,7 @@ export type Database = {
           has_seen_loans_tutorial?: boolean | null
           id: string
           is_active?: boolean
+          payment_link?: string | null
           phone?: string | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null
@@ -785,6 +787,7 @@ export type Database = {
           has_seen_loans_tutorial?: boolean | null
           id?: string
           is_active?: boolean
+          payment_link?: string | null
           phone?: string | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null

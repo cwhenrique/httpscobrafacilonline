@@ -108,6 +108,11 @@ export default function SendOverdueNotification({
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
     message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
+    
+    if (profile?.payment_link) {
+      message += `💳 *Link para pagamento:*\n${profile.payment_link}\n\n`;
+    }
+    
     message += `Por favor, entre em contato para regularizar sua situação.\n\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
     message += `_${profile?.company_name || 'CobraFácil'}_`;

@@ -103,6 +103,11 @@ export default function SendDueTodayNotification({
     message += `📊 *${installmentInfo}*\n`;
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
+    
+    if (profile?.payment_link) {
+      message += `💳 *Link para pagamento:*\n${profile.payment_link}\n\n`;
+    }
+    
     message += `Evite juros e multas pagando em dia!\n\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
     message += `_${profile?.company_name || 'CobraFácil'}_`;
