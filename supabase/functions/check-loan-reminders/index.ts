@@ -126,6 +126,9 @@ const handler = async (req: Request): Promise<Response> => {
         // Fallback: calculate only if not stored
         if (loan.interest_mode === 'on_total') {
           totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+        } else if (loan.interest_mode === 'compound') {
+          // Juros compostos: M = P(1+i)^n - P
+          totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
         } else {
           totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
         }

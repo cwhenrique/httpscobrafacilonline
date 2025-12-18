@@ -121,7 +121,7 @@ export function useLoans() {
     principal_amount: number;
     interest_rate: number;
     interest_type: InterestType;
-    interest_mode?: 'per_installment' | 'on_total';
+    interest_mode?: 'per_installment' | 'on_total' | 'compound';
     payment_type: LoanPaymentType;
     installments?: number;
     contract_date?: string;
