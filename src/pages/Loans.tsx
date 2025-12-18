@@ -1104,7 +1104,7 @@ export default function Loans() {
     const principal = parseFloat(formData.principal_amount) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily') && installmentDates.length > 0) {
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly' || formData.payment_type === 'daily' || isDailyDialogOpen) && installmentDates.length > 0) {
       const pastDates = installmentDates.filter(d => {
         const date = new Date(d + 'T12:00:00');
         return date < today;
