@@ -78,17 +78,24 @@ const getPaidAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ origi
 };
 
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
-const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null }): number => {
+const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string }): number => {
   const numInstallments = loan.installments || 1;
+  const isDaily = loan.payment_type === 'daily';
   
+  // CORREÇÃO: Usar total_interest do banco como fonte de verdade
   let totalInterest = 0;
-  if (loan.interest_mode === 'on_total') {
+  if (isDaily) {
+    // Para empréstimo diário, total_interest é o valor da parcela
+    const dailyAmount = loan.total_interest || 0;
+    totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+  } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+    // Usar valor do banco quando disponível (inclui arredondamentos do usuário)
+    totalInterest = loan.total_interest;
+  } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
-    // Juros compostos: M = P(1+i)^n - P
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else {
-    // per_installment (padrão)
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
@@ -777,20 +784,32 @@ export default function Loans() {
 
   const getLoanStatus = (loan: typeof loans[0]) => {
     const numInstallments = loan.installments || 1;
+    const isDaily = loan.payment_type === 'daily';
     
-    // Calculate total interest based on interest_mode
+    // CORREÇÃO: Usar total_interest do banco como fonte de verdade
     let totalInterest = 0;
-    if (loan.interest_mode === 'on_total') {
+    let totalToReceive = 0;
+    
+    if (isDaily) {
+      // Para empréstimo diário, total_interest é o valor da parcela
+      const dailyAmount = loan.total_interest || 0;
+      totalToReceive = dailyAmount * numInstallments;
+      totalInterest = totalToReceive - loan.principal_amount;
+    } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+      // Usar valor do banco quando disponível (inclui arredondamentos do usuário)
+      totalInterest = loan.total_interest;
+      totalToReceive = loan.principal_amount + totalInterest;
+    } else if (loan.interest_mode === 'on_total') {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      totalToReceive = loan.principal_amount + totalInterest;
     } else if (loan.interest_mode === 'compound') {
-      // Juros compostos: M = P(1+i)^n - P
       totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+      totalToReceive = loan.principal_amount + totalInterest;
     } else {
-      // per_installment (padrão)
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+      totalToReceive = loan.principal_amount + totalInterest;
     }
     
-    const totalToReceive = loan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (loan.total_paid || 0);
     const principalPerInstallment = loan.principal_amount / numInstallments;
     const interestPerInstallment = totalInterest / numInstallments;
@@ -1227,37 +1246,37 @@ export default function Loans() {
     const numInstallments = selectedLoan.installments || 1;
     const isDaily = selectedLoan.payment_type === 'daily';
     
-    // Calculate total interest based on loan type and interest_mode
+    // CORREÇÃO: Usar total_interest do banco como fonte de verdade para cálculos
     let totalInterest = 0;
     let baseInstallmentValue = 0;
+    let totalToReceive = 0;
     
     if (isDaily) {
       // For daily loans: total_interest stores the daily amount directly
       const dailyAmount = selectedLoan.total_interest || 0;
-      const totalToReceiveDaily = dailyAmount * numInstallments;
-      totalInterest = totalToReceiveDaily - selectedLoan.principal_amount;
+      totalToReceive = dailyAmount * numInstallments;
+      totalInterest = totalToReceive - selectedLoan.principal_amount;
       baseInstallmentValue = dailyAmount;
+    } else if (selectedLoan.total_interest !== undefined && selectedLoan.total_interest !== null && selectedLoan.total_interest > 0) {
+      // USAR VALOR DO BANCO - inclui arredondamentos manuais do usuário
+      totalInterest = selectedLoan.total_interest;
+      totalToReceive = selectedLoan.principal_amount + totalInterest;
+      baseInstallmentValue = totalToReceive / numInstallments;
     } else if (selectedLoan.interest_mode === 'on_total') {
       totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
-      const interestPerInstallment = totalInterest / numInstallments;
-      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-      baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+      totalToReceive = selectedLoan.principal_amount + totalInterest;
+      baseInstallmentValue = totalToReceive / numInstallments;
     } else if (selectedLoan.interest_mode === 'compound') {
-      // Juros compostos: M = P(1+i)^n - P
       totalInterest = selectedLoan.principal_amount * Math.pow(1 + (selectedLoan.interest_rate / 100), numInstallments) - selectedLoan.principal_amount;
-      const interestPerInstallment = totalInterest / numInstallments;
-      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-      baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+      totalToReceive = selectedLoan.principal_amount + totalInterest;
+      baseInstallmentValue = totalToReceive / numInstallments;
     } else {
-      // per_installment (padrão)
       totalInterest = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallments;
-      const interestPerInstallment = totalInterest / numInstallments;
-      const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
-      baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+      totalToReceive = selectedLoan.principal_amount + totalInterest;
+      baseInstallmentValue = totalToReceive / numInstallments;
     }
     
     const interestPerInstallment = totalInterest / numInstallments;
-    const totalToReceive = selectedLoan.principal_amount + totalInterest;
     const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
     
     const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
@@ -1552,8 +1571,11 @@ export default function Loans() {
       const dailyInstallment = selectedLoan.total_interest || 0;
       totalContractValue = dailyInstallment * numInstallments;
     } else {
+      // CORREÇÃO: Usar total_interest do banco como fonte de verdade
       let totalInterestForReceipt = 0;
-      if (selectedLoan.interest_mode === 'on_total') {
+      if (selectedLoan.total_interest !== undefined && selectedLoan.total_interest !== null && selectedLoan.total_interest > 0) {
+        totalInterestForReceipt = selectedLoan.total_interest;
+      } else if (selectedLoan.interest_mode === 'on_total') {
         totalInterestForReceipt = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100);
       } else if (selectedLoan.interest_mode === 'compound') {
         totalInterestForReceipt = selectedLoan.principal_amount * Math.pow(1 + (selectedLoan.interest_rate / 100), numInstallments) - selectedLoan.principal_amount;
@@ -1607,11 +1629,13 @@ export default function Loans() {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
-    // Calculate total interest based on interest_mode
+    // CORREÇÃO: Usar total_interest do banco como fonte de verdade
     const numInstallments = loan.installments || 1;
     
     let totalInterest = 0;
-    if (loan.interest_mode === 'on_total') {
+    if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+      totalInterest = loan.total_interest;
+    } else if (loan.interest_mode === 'on_total') {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
     } else if (loan.interest_mode === 'compound') {
       totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
@@ -1690,8 +1714,11 @@ export default function Loans() {
       installmentValue = loan.total_interest || 0;
       totalToReceive = installmentValue * numInstallments;
     } else {
+      // CORREÇÃO: Usar total_interest do banco como fonte de verdade
       let totalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
+      if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+        totalInterest = loan.total_interest;
+      } else if (loan.interest_mode === 'on_total') {
         totalInterest = loan.principal_amount * (loan.interest_rate / 100);
       } else if (loan.interest_mode === 'compound') {
         totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
@@ -1749,10 +1776,12 @@ export default function Loans() {
     if (renegotiateData.interest_only_paid && renegotiateData.interest_amount_paid) {
       const interestPaid = parseFloat(renegotiateData.interest_amount_paid);
 
-      // Recalcular cenário atual do contrato (apenas para preencher default caso o campo esteja vazio)
+      // CORREÇÃO: Usar total_interest do banco como fonte de verdade
       const numInstallments = loan.installments || 1;
       let baseTotalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
+      if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+        baseTotalInterest = loan.total_interest;
+      } else if (loan.interest_mode === 'on_total') {
         baseTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
       } else if (loan.interest_mode === 'compound') {
         baseTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
@@ -2053,9 +2082,12 @@ export default function Loans() {
     // Calculate historical data for renegotiation
     let historicalData: typeof editHistoricalData = null;
     if (isRenegotiation) {
+      // CORREÇÃO: Usar total_interest do banco como fonte de verdade
       const numInstallments = loan.installments || 1;
       let totalInterest = 0;
-      if (loan.interest_mode === 'on_total') {
+      if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+        totalInterest = loan.total_interest;
+      } else if (loan.interest_mode === 'on_total') {
         totalInterest = loan.principal_amount * (loan.interest_rate / 100);
       } else if (loan.interest_mode === 'compound') {
         totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
@@ -2946,6 +2978,43 @@ export default function Loans() {
                         />
                       </div>
                     </div>
+                    
+                    {/* Aviso visual quando o usuário arredonda manualmente o valor da parcela */}
+                    {isManuallyEditingInstallment && installmentValue && formData.principal_amount && formData.installments && (() => {
+                      const principal = parseFloat(formData.principal_amount);
+                      const numInstallments = parseInt(formData.installments) || 1;
+                      const rate = parseFloat(formData.interest_rate) || 0;
+                      let calculatedInterest = 0;
+                      if (formData.interest_mode === 'per_installment') {
+                        calculatedInterest = principal * (rate / 100) * numInstallments;
+                      } else if (formData.interest_mode === 'compound') {
+                        calculatedInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+                      } else {
+                        calculatedInterest = principal * (rate / 100);
+                      }
+                      const calculatedInstallmentValue = (principal + calculatedInterest) / numInstallments;
+                      const currentInstallmentValue = parseFloat(installmentValue);
+                      const difference = Math.abs(currentInstallmentValue - calculatedInstallmentValue);
+                      
+                      // Mostrar aviso se a diferença for maior que R$ 0,01
+                      if (difference > 0.01) {
+                        return (
+                          <div className="bg-amber-500/20 border border-amber-400/50 rounded-lg p-3 text-sm">
+                            <p className="font-medium text-amber-300 flex items-center gap-2">
+                              ⚠️ Valor da parcela ajustado manualmente
+                            </p>
+                            <div className="mt-1 text-xs text-amber-400/80 space-y-0.5">
+                              <p>Valor calculado: {formatCurrency(calculatedInstallmentValue)}</p>
+                              <p>Valor informado: {formatCurrency(currentInstallmentValue)}</p>
+                            </div>
+                            <p className="text-[10px] mt-2 text-amber-400/60">
+                              A taxa de juros será ajustada para refletir este arredondamento. O sistema usará o valor da parcela informado em todos os cálculos.
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </>
                 )}
                 {formData.payment_type === 'daily' && (
@@ -5703,6 +5772,43 @@ export default function Loans() {
                           className="bg-muted h-9 sm:h-10 text-sm font-medium text-primary"
                         />
                       </div>
+                      
+                      {/* Aviso visual quando o usuário arredonda manualmente o valor da parcela no formulário de edição */}
+                      {isEditManuallyEditingInstallment && editInstallmentValue && editFormData.principal_amount && editFormData.installments && (() => {
+                        const principal = parseFloat(editFormData.principal_amount);
+                        const numInstallments = parseInt(editFormData.installments) || 1;
+                        const rate = parseFloat(editFormData.interest_rate) || 0;
+                        let calculatedInterest = 0;
+                        if (editFormData.interest_mode === 'per_installment') {
+                          calculatedInterest = principal * (rate / 100) * numInstallments;
+                        } else if (editFormData.interest_mode === 'compound') {
+                          calculatedInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+                        } else {
+                          calculatedInterest = principal * (rate / 100);
+                        }
+                        const calculatedInstallmentValue = (principal + calculatedInterest) / numInstallments;
+                        const currentInstallmentValue = parseFloat(editInstallmentValue);
+                        const difference = Math.abs(currentInstallmentValue - calculatedInstallmentValue);
+                        
+                        // Mostrar aviso se a diferença for maior que R$ 0,01
+                        if (difference > 0.01) {
+                          return (
+                            <div className="bg-amber-500/20 border border-amber-400/50 rounded-lg p-3 text-sm">
+                              <p className="font-medium text-amber-300 flex items-center gap-2">
+                                ⚠️ Valor da parcela ajustado manualmente
+                              </p>
+                              <div className="mt-1 text-xs text-amber-400/80 space-y-0.5">
+                                <p>Valor calculado: {formatCurrency(calculatedInstallmentValue)}</p>
+                                <p>Valor informado: {formatCurrency(currentInstallmentValue)}</p>
+                              </div>
+                              <p className="text-[10px] mt-2 text-amber-400/60">
+                                A taxa de juros será ajustada para refletir este arredondamento.
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </>
                   )}
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
