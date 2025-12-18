@@ -131,7 +131,9 @@ export default function Bills() {
   }, [bills, filter, searchTerm]);
 
   const handleCreate = async () => {
-    if (!formData.description || !formData.payee_name || !formData.amount) {
+    // Valor é opcional apenas para cartão de crédito
+    const isAmountRequired = formData.category !== 'cartao';
+    if (!formData.description || !formData.payee_name || (isAmountRequired && !formData.amount)) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -231,14 +233,23 @@ export default function Bills() {
           </p>
         </div>
         <div>
-          <Label>Valor *</Label>
+          <Label>
+            {formData.category === 'cartao' ? 'Valor da Fatura (opcional)' : 'Valor *'}
+          </Label>
           <Input
             type="number"
             step="0.01"
-            placeholder="0,00"
+            min="0"
+            placeholder={formData.category === 'cartao' ? 'Deixe vazio se não souber ainda' : '0,00'}
             value={formData.amount || ''}
             onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
           />
+          {formData.category === 'cartao' && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <CreditCard className="h-3 w-3" />
+              Você pode atualizar o valor quando a fatura fechar
+            </p>
+          )}
         </div>
         <div>
           <Label>Vencimento *</Label>
@@ -482,7 +493,14 @@ export default function Bills() {
                   <CardContent>
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <p className="text-2xl font-bold">R$ {Number(bill.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        {bill.category === 'cartao' && Number(bill.amount) === 0 ? (
+                          <p className="text-lg font-medium text-muted-foreground flex items-center gap-2">
+                            <CreditCard className="h-4 w-4" />
+                            Aguardando fatura
+                          </p>
+                        ) : (
+                          <p className="text-2xl font-bold">R$ {Number(bill.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        )}
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Calendar className="h-3 w-3" />
                           <span>Vence {format(parseISO(bill.due_date), "dd 'de' MMM", { locale: ptBR })}</span>
