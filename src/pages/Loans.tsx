@@ -3619,7 +3619,8 @@ export default function Loans() {
                   dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
                 }
                 
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly;
+                const isCompound = loan.interest_mode === 'compound';
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isDaily || isCompound;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
@@ -3634,6 +3635,9 @@ export default function Loans() {
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
                   }
+                  if (isCompound && !isPaid) {
+                    return 'bg-cyan-500/20 border-cyan-400 dark:bg-cyan-500/30 dark:border-cyan-400';
+                  }
                   if (isWeekly) {
                     return 'bg-orange-500/20 border-orange-400 dark:bg-orange-500/30 dark:border-orange-400';
                   }
@@ -3643,7 +3647,7 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : isCompound ? 'text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
