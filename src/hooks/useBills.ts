@@ -18,6 +18,7 @@ export type BillCategory =
   | 'supermercado'
   | 'saude'
   | 'educacao'
+  | 'investimentos'
   | 'outros';
 
 export interface Bill {
