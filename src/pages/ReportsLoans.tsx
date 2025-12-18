@@ -187,7 +187,19 @@ export default function ReportsLoans() {
   // Calculate comprehensive filtered stats
   const filteredStats = useMemo(() => {
     const activeLoans = filteredLoans.filter(loan => loan.status !== 'paid');
-    const overdueLoans = filteredLoans.filter(loan => loan.status === 'overdue');
+    
+    // Corrigido: considera em atraso se status é overdue OU (status é pending E due_date < hoje)
+    const overdueLoans = filteredLoans.filter(loan => {
+      if (loan.status === 'overdue') return true;
+      if (loan.status === 'pending') {
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < today;
+      }
+      return false;
+    });
     
     // Capital na Rua (soma do principal dos empréstimos ativos)
     const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
