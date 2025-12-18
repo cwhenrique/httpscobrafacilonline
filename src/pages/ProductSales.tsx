@@ -161,7 +161,7 @@ function ProductInstallmentsList({
 
 export default function ProductSales() {
   // Product Sales hooks
-  const { sales, isLoading: salesLoading, createSale, updateSale, deleteSale } = useProductSales();
+  const { sales, isLoading: salesLoading, createSale, updateSale, updateSaleWithPayments, deleteSale } = useProductSales();
   const { payments: allSalePayments, markAsPaid: markSalePaymentAsPaid, markAsPaidFlexible } = useProductSalePayments();
   
   
@@ -181,6 +181,7 @@ export default function ProductSales() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<ProductSale | null>(null);
+  const [editingPayments, setEditingPayments] = useState<InstallmentDate[]>([]);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -429,22 +430,64 @@ export default function ProductSales() {
 
   const openEditSaleDialog = (sale: ProductSale) => {
     setEditingSale(sale);
+    
+    // Load existing payments for this sale
+    const salePayments = allSalePayments?.filter(p => p.product_sale_id === sale.id) || [];
+    const existingInstallments: InstallmentDate[] = salePayments
+      .sort((a, b) => a.installment_number - b.installment_number)
+      .map(p => ({
+        number: p.installment_number,
+        date: p.due_date,
+        isPaid: p.status === 'paid',
+        amount: p.amount,
+      }));
+    setEditingPayments(existingInstallments);
     setIsEditOpen(true);
   };
 
   const handleEditSale = async () => {
     if (!editingSale) return;
-    await updateSale.mutateAsync({
+    await updateSaleWithPayments.mutateAsync({
       id: editingSale.id,
-      product_name: editingSale.product_name,
-      product_description: editingSale.product_description || undefined,
-      client_name: editingSale.client_name,
-      client_phone: editingSale.client_phone || undefined,
-      client_email: editingSale.client_email || undefined,
-      notes: editingSale.notes || undefined,
+      data: {
+        product_name: editingSale.product_name,
+        product_description: editingSale.product_description || undefined,
+        client_name: editingSale.client_name,
+        client_phone: editingSale.client_phone || undefined,
+        client_email: editingSale.client_email || undefined,
+        client_cpf: editingSale.client_cpf || undefined,
+        client_rg: editingSale.client_rg || undefined,
+        client_address: editingSale.client_address || undefined,
+        cost_value: editingSale.cost_value,
+        total_amount: editingSale.total_amount,
+        down_payment: editingSale.down_payment || 0,
+        installments: editingPayments.length,
+        installment_value: editingSale.installment_value,
+        notes: editingSale.notes || undefined,
+      },
+      payments: editingPayments,
     });
     setIsEditOpen(false);
     setEditingSale(null);
+    setEditingPayments([]);
+  };
+
+  const updateEditingPaymentDate = (index: number, newDate: string) => {
+    setEditingPayments(prev => 
+      prev.map((item, i) => i === index ? { ...item, date: newDate } : item)
+    );
+  };
+
+  const updateEditingPaymentAmount = (index: number, newAmount: number) => {
+    setEditingPayments(prev => 
+      prev.map((item, i) => i === index ? { ...item, amount: newAmount } : item)
+    );
+  };
+
+  const toggleEditingPaymentPaid = (index: number) => {
+    setEditingPayments(prev => 
+      prev.map((item, i) => i === index ? { ...item, isPaid: !item.isPaid } : item)
+    );
   };
 
   const handleDeleteSale = async () => {
@@ -1347,34 +1390,192 @@ export default function ProductSales() {
         </Tabs>
 
         {/* Edit Sale Dialog */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="max-w-lg">
+        <Dialog open={isEditOpen} onOpenChange={(open) => {
+          setIsEditOpen(open);
+          if (!open) {
+            setEditingSale(null);
+            setEditingPayments([]);
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Editar Venda</DialogTitle></DialogHeader>
             {editingSale && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome do Produto</Label>
-                  <Input value={editingSale.product_name} onChange={(e) => setEditingSale({ ...editingSale, product_name: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea value={editingSale.product_description || ''} onChange={(e) => setEditingSale({ ...editingSale, product_description: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nome do Cliente</Label>
-                    <Input value={editingSale.client_name} onChange={(e) => setEditingSale({ ...editingSale, client_name: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input value={editingSale.client_phone || ''} onChange={(e) => setEditingSale({ ...editingSale, client_phone: e.target.value })} />
+              <div className="space-y-6">
+                {/* Product Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold flex items-center gap-2 text-sm text-muted-foreground">
+                    <Package className="w-4 h-4" /> Dados do Produto
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome do Produto</Label>
+                      <Input value={editingSale.product_name} onChange={(e) => setEditingSale({ ...editingSale, product_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição</Label>
+                      <Input value={editingSale.product_description || ''} onChange={(e) => setEditingSale({ ...editingSale, product_description: e.target.value })} />
+                    </div>
                   </div>
                 </div>
+
+                {/* Financial Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold flex items-center gap-2 text-sm text-muted-foreground">
+                    <DollarSign className="w-4 h-4" /> Valores
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label>Custo (R$)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        step="0.01"
+                        value={editingSale.cost_value || ''} 
+                        onChange={(e) => setEditingSale({ ...editingSale, cost_value: parseFloat(e.target.value) || 0 })} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Venda (R$)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        step="0.01"
+                        value={editingSale.total_amount || ''} 
+                        onChange={(e) => setEditingSale({ ...editingSale, total_amount: parseFloat(e.target.value) || 0 })} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Entrada (R$)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        step="0.01"
+                        value={editingSale.down_payment || ''} 
+                        onChange={(e) => setEditingSale({ ...editingSale, down_payment: parseFloat(e.target.value) || 0 })} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valor Parcela (R$)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        step="0.01"
+                        value={editingSale.installment_value || ''} 
+                        onChange={(e) => setEditingSale({ ...editingSale, installment_value: parseFloat(e.target.value) || 0 })} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Client Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="w-4 h-4" /> Dados do Cliente
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome</Label>
+                      <Input value={editingSale.client_name} onChange={(e) => setEditingSale({ ...editingSale, client_name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telefone</Label>
+                      <Input value={editingSale.client_phone || ''} onChange={(e) => setEditingSale({ ...editingSale, client_phone: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CPF</Label>
+                      <Input value={editingSale.client_cpf || ''} onChange={(e) => setEditingSale({ ...editingSale, client_cpf: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>RG</Label>
+                      <Input value={editingSale.client_rg || ''} onChange={(e) => setEditingSale({ ...editingSale, client_rg: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input value={editingSale.client_email || ''} onChange={(e) => setEditingSale({ ...editingSale, client_email: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Endereço</Label>
+                      <Input value={editingSale.client_address || ''} onChange={(e) => setEditingSale({ ...editingSale, client_address: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Installments */}
+                {editingPayments.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="w-4 h-4" /> Parcelas ({editingPayments.length})
+                      </h3>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="bg-primary/10 text-primary">
+                          {editingPayments.filter(p => p.isPaid).length} pagas
+                        </Badge>
+                        <Badge variant="outline">
+                          {editingPayments.filter(p => !p.isPaid).length} pendentes
+                        </Badge>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-[200px] rounded-md border p-3">
+                      <div className="space-y-2">
+                        {editingPayments.map((inst, index) => (
+                          <div
+                            key={inst.number}
+                            className={cn(
+                              "flex items-center gap-3 p-2 rounded-lg transition-colors",
+                              inst.isPaid ? "bg-primary/10 border border-primary/30" : "bg-background border border-border"
+                            )}
+                          >
+                            <Badge variant="outline" className={cn(
+                              "w-12 justify-center text-xs shrink-0",
+                              inst.isPaid && "bg-primary text-primary-foreground border-primary"
+                            )}>
+                              {inst.number}ª
+                            </Badge>
+                            <Input
+                              type="date"
+                              value={inst.date}
+                              onChange={(e) => updateEditingPaymentDate(index, e.target.value)}
+                              className="flex-1"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={inst.amount || editingSale.installment_value || ''}
+                              onChange={(e) => updateEditingPaymentAmount(index, parseFloat(e.target.value) || 0)}
+                              className="w-28"
+                              placeholder="Valor"
+                            />
+                            <Button
+                              type="button"
+                              variant={inst.isPaid ? "default" : "outline"}
+                              size="sm"
+                              className="h-8 text-xs shrink-0"
+                              onClick={() => toggleEditingPaymentPaid(index)}
+                            >
+                              {inst.isPaid ? (
+                                <><Check className="w-3 h-3 mr-1" /> Paga</>
+                              ) : (
+                                "Pendente"
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+
+                {/* Notes */}
                 <div className="space-y-2">
                   <Label>Observações</Label>
                   <Textarea value={editingSale.notes || ''} onChange={(e) => setEditingSale({ ...editingSale, notes: e.target.value })} />
                 </div>
-                <Button onClick={handleEditSale} disabled={updateSale.isPending} className="w-full">{updateSale.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
+
+                <Button onClick={handleEditSale} disabled={updateSaleWithPayments.isPending} className="w-full">
+                  {updateSaleWithPayments.isPending ? 'Salvando...' : 'Salvar Alterações'}
+                </Button>
               </div>
             )}
           </DialogContent>
