@@ -19,7 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty } from '@/lib/calculations';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,7 @@ import LoanCreatedReceiptPrompt from '@/components/LoanCreatedReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -3674,6 +3675,30 @@ export default function Loans() {
                   }
                 }
                 
+                // Calculate if due today (not overdue yet, but due date is today)
+                let isDueToday = false;
+                let dueTodayDate = '';
+                if (!isPaid && !isOverdue && remainingToReceive > 0) {
+                  const paidInstallmentsForDueToday = getPaidInstallmentsCount(loan);
+                  const datesForDueToday = (loan.installment_dates as string[]) || [];
+                  
+                  if (datesForDueToday.length > 0 && paidInstallmentsForDueToday < datesForDueToday.length) {
+                    const nextDueDateForToday = new Date(datesForDueToday[paidInstallmentsForDueToday] + 'T12:00:00');
+                    nextDueDateForToday.setHours(0, 0, 0, 0);
+                    isDueToday = today.getTime() === nextDueDateForToday.getTime();
+                    if (isDueToday) {
+                      dueTodayDate = datesForDueToday[paidInstallmentsForDueToday];
+                    }
+                  } else {
+                    const dueDateForToday = new Date(loan.due_date + 'T12:00:00');
+                    dueDateForToday.setHours(0, 0, 0, 0);
+                    isDueToday = today.getTime() === dueDateForToday.getTime();
+                    if (isDueToday) {
+                      dueTodayDate = loan.due_date;
+                    }
+                  }
+                }
+                
                 // Calculate overdue penalty interest
                 const overdueDate = (() => {
                   const dates = (loan.installment_dates as string[]) || [];
@@ -3699,7 +3724,8 @@ export default function Loans() {
                 }
                 
                 const isCompound = loan.interest_mode === 'compound';
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isDaily || isCompound;
+                const hasDueTodayStyle = isDueToday && !isOverdue;
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isDaily || isCompound || hasDueTodayStyle;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
@@ -3718,6 +3744,10 @@ export default function Loans() {
                   if (isOverdue) {
                     return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
                   }
+                  // Vence hoje: amarelo/âmbar
+                  if (hasDueTodayStyle) {
+                    return 'bg-amber-500/20 border-amber-400 dark:bg-amber-500/30 dark:border-amber-400';
+                  }
                   if (isCompound && !isPaid) {
                     return 'bg-cyan-500/20 border-cyan-400 dark:bg-cyan-500/30 dark:border-cyan-400';
                   }
@@ -3730,7 +3760,7 @@ export default function Loans() {
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : isCompound ? 'text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-yellow-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 return (
@@ -4023,10 +4053,49 @@ export default function Loans() {
                                 amount: totalPerInstallment,
                                 dueDate: overdueDate,
                                 daysOverdue: daysOverdue,
+                                loanId: loan.id,
                               }}
                               className="w-full mt-2"
                             />
                           )}
+                        </div>
+                      )}
+                      
+                      {/* Due Today Section - Vence Hoje */}
+                      {isDueToday && !isOverdue && (
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-500/20 border border-amber-400/30">
+                          <div className="text-xs sm:text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-amber-300 font-medium flex items-center gap-2">
+                                <Bell className="w-4 h-4" />
+                                Vence Hoje!
+                              </span>
+                              <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-1 text-amber-300/70">
+                              <span>Parcela {getPaidInstallmentsCount(loan) + 1}/{loan.installments || 1}</span>
+                              <span>Vencimento: {formatDate(dueTodayDate)}</span>
+                            </div>
+                            <p className="text-[10px] text-amber-300/60 mt-2">
+                              Lembre o cliente para evitar atrasos
+                            </p>
+                            {/* Manual due today notification button */}
+                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                              <SendDueTodayNotification
+                                data={{
+                                  clientName: loan.client?.full_name || 'Cliente',
+                                  clientPhone: loan.client.phone,
+                                  contractType: 'loan',
+                                  installmentNumber: getPaidInstallmentsCount(loan) + 1,
+                                  totalInstallments: loan.installments || 1,
+                                  amount: totalPerInstallment,
+                                  dueDate: dueTodayDate,
+                                  loanId: loan.id,
+                                }}
+                                className="w-full mt-2"
+                              />
+                            )}
+                          </div>
                         </div>
                       )}
                       

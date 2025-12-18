@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Loader2, Clock } from 'lucide-react';
+import { MessageCircle, Loader2, Clock, Bell } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
 
-interface OverdueData {
+interface DueTodayData {
   clientName: string;
   clientPhone: string;
   contractType: 'loan' | 'product' | 'vehicle' | 'contract';
@@ -15,20 +15,17 @@ interface OverdueData {
   totalInstallments?: number;
   amount: number;
   dueDate: string;
-  daysOverdue: number;
   loanId: string;
 }
 
-interface SendOverdueNotificationProps {
-  data: OverdueData;
+interface SendDueTodayNotificationProps {
+  data: DueTodayData;
   className?: string;
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
 }
 
 const COOLDOWN_MS = 60 * 60 * 1000; // 1 hora em milissegundos
 
-const getCooldownKey = (loanId: string) => `whatsapp_cooldown_overdue_${loanId}`;
+const getCooldownKey = (loanId: string) => `whatsapp_cooldown_duetoday_${loanId}`;
 
 const isOnCooldown = (loanId: string): boolean => {
   const key = getCooldownKey(loanId);
@@ -60,7 +57,7 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('pt-BR');
 };
 
-const getContractTypeLabel = (type: OverdueData['contractType']): string => {
+const getContractTypeLabel = (type: DueTodayData['contractType']): string => {
   switch (type) {
     case 'loan': return 'Empréstimo';
     case 'product': return 'Venda de Produto';
@@ -70,12 +67,10 @@ const getContractTypeLabel = (type: OverdueData['contractType']): string => {
   }
 };
 
-export default function SendOverdueNotification({ 
+export default function SendDueTodayNotification({ 
   data, 
-  className = '',
-  variant = 'destructive',
-  size = 'sm'
-}: SendOverdueNotificationProps) {
+  className = ''
+}: SendDueTodayNotificationProps) {
   const [isSending, setIsSending] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
   const [cooldown, setCooldownState] = useState(isOnCooldown(data.loanId));
@@ -95,20 +90,20 @@ export default function SendOverdueNotification({
     return () => clearInterval(interval);
   }, [data.loanId]);
 
-  const generateOverdueMessage = (): string => {
+  const generateDueTodayMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
 
-    let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
-    message += `Identificamos que você possui uma parcela em atraso:\n\n`;
+    let message = `📅 *Lembrete de Vencimento*\n\n`;
+    message += `Olá *${data.clientName}*!\n\n`;
+    message += `Passando para lembrar que você tem uma parcela vencendo hoje:\n\n`;
     message += `📋 *Tipo:* ${typeLabel}\n`;
     message += `📊 *${installmentInfo}*\n`;
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
-    message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
-    message += `Por favor, entre em contato para regularizar sua situação.\n\n`;
+    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
+    message += `Evite juros e multas pagando em dia!\n\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
     message += `_${profile?.company_name || 'CobraFácil'}_`;
 
@@ -137,7 +132,7 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
-      const message = generateOverdueMessage();
+      const message = generateDueTodayMessage();
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
@@ -153,13 +148,13 @@ export default function SendOverdueNotification({
         setCooldown(data.loanId);
         setCooldownState(true);
         setRemainingMinutes(60);
-        toast.success('Cobrança enviada para o cliente!');
+        toast.success('Lembrete enviado para o cliente!');
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {
-      console.error('Error sending overdue notification:', error);
-      toast.error('Erro ao enviar cobrança: ' + (error.message || 'Tente novamente'));
+      console.error('Error sending due today notification:', error);
+      toast.error('Erro ao enviar lembrete: ' + (error.message || 'Tente novamente'));
     } finally {
       setIsSending(false);
     }
@@ -183,11 +178,11 @@ export default function SendOverdueNotification({
   return (
     <>
       <Button 
-        variant={cooldown ? 'outline' : variant}
-        size={size}
+        variant="outline"
+        size="sm"
         onClick={handleButtonClick}
         disabled={isSending || cooldown}
-        className={`${className} ${cooldown ? 'opacity-60' : ''}`}
+        className={`${className} ${cooldown ? 'opacity-60' : 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300 hover:bg-yellow-500/30'}`}
       >
         {isSending ? (
           <>
@@ -201,8 +196,8 @@ export default function SendOverdueNotification({
           </>
         ) : (
           <>
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Enviar Cobrança
+            <Bell className="w-4 h-4 mr-2" />
+            Enviar Lembrete
           </>
         )}
       </Button>
