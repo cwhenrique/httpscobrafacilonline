@@ -3697,10 +3697,22 @@ export default function Loans() {
                     // Normal logic for non-historical contracts
                     if (dates.length > 0 && paidInstallments < dates.length) {
                       const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
-                      isOverdue = today > nextDueDate;
+                      // Para empréstimos diários, considerar em atraso NO DIA do vencimento (>=)
+                      // Para outros tipos, considerar em atraso no dia seguinte (>)
+                      if (isDaily) {
+                        nextDueDate.setHours(0, 0, 0, 0);
+                        isOverdue = today >= nextDueDate;
+                      } else {
+                        isOverdue = today > nextDueDate;
+                      }
                     } else {
                       const dueDate = new Date(loan.due_date + 'T12:00:00');
-                      isOverdue = today > dueDate;
+                      if (isDaily) {
+                        dueDate.setHours(0, 0, 0, 0);
+                        isOverdue = today >= dueDate;
+                      } else {
+                        isOverdue = today > dueDate;
+                      }
                     }
                   }
                 }
