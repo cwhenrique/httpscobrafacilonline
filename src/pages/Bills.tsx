@@ -55,6 +55,7 @@ export default function Bills() {
     due_date: format(new Date(), 'yyyy-MM-dd'),
     category: 'outros',
     is_recurring: false,
+    recurrence_months: null,
     notes: '',
   });
 
@@ -66,6 +67,7 @@ export default function Bills() {
       due_date: format(new Date(), 'yyyy-MM-dd'),
       category: 'outros',
       is_recurring: false,
+      recurrence_months: null,
       notes: '',
     });
   };
@@ -149,6 +151,7 @@ export default function Bills() {
         due_date: formData.due_date,
         category: formData.category,
         is_recurring: formData.is_recurring,
+        recurrence_months: formData.recurrence_months,
         notes: formData.notes,
       }
     });
@@ -164,6 +167,7 @@ export default function Bills() {
       due_date: bill.due_date,
       category: bill.category || 'outros',
       is_recurring: bill.is_recurring || false,
+      recurrence_months: bill.recurrence_months ?? null,
       notes: bill.notes || '',
     });
     setEditingBill(bill);
@@ -252,14 +256,49 @@ export default function Bills() {
             </SelectContent>
           </Select>
         </div>
-        <div className="col-span-2 flex items-center gap-3">
-          <Switch
-            checked={formData.is_recurring}
-            onCheckedChange={(checked) => setFormData({ ...formData, is_recurring: checked })}
-          />
-          <Label className="cursor-pointer" onClick={() => setFormData({ ...formData, is_recurring: !formData.is_recurring })}>
-            Conta recorrente (mensal)
-          </Label>
+        <div className="col-span-2 space-y-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={formData.is_recurring}
+              onCheckedChange={(checked) => setFormData({ 
+                ...formData, 
+                is_recurring: checked,
+                recurrence_months: checked ? formData.recurrence_months : null
+              })}
+            />
+            <Label className="cursor-pointer" onClick={() => setFormData({ 
+              ...formData, 
+              is_recurring: !formData.is_recurring,
+              recurrence_months: !formData.is_recurring ? formData.recurrence_months : null
+            })}>
+              Conta recorrente (mensal)
+            </Label>
+          </div>
+          
+          {formData.is_recurring && (
+            <div className="ml-8 space-y-2 p-3 bg-muted/50 rounded-lg">
+              <Label className="text-sm text-muted-foreground">
+                Por quantos meses? (deixe vazio para sempre)
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                max="120"
+                placeholder="Sempre (infinito)"
+                value={formData.recurrence_months || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  recurrence_months: e.target.value ? parseInt(e.target.value) : null 
+                })}
+                className="w-40"
+              />
+              <p className="text-xs text-muted-foreground">
+                {formData.recurrence_months 
+                  ? `A conta será criada por ${formData.recurrence_months} meses` 
+                  : 'A conta será criada todo mês automaticamente'}
+              </p>
+            </div>
+          )}
         </div>
         <div className="col-span-2">
           <Label>Observações</Label>

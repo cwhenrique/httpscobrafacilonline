@@ -32,6 +32,7 @@ export interface Bill {
   notes: string | null;
   category: BillCategory;
   is_recurring: boolean;
+  recurrence_months: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +44,7 @@ export interface CreateBillData {
   due_date: string;
   category?: BillCategory;
   is_recurring?: boolean;
+  recurrence_months?: number | null;
   notes?: string;
 }
 
@@ -55,6 +57,7 @@ export interface UpdateBillData {
   paid_date?: string | null;
   category?: BillCategory;
   is_recurring?: boolean;
+  recurrence_months?: number | null;
   notes?: string;
 }
 
@@ -93,6 +96,7 @@ export function useBills() {
           due_date: data.due_date,
           category: data.category || 'outros',
           is_recurring: data.is_recurring || false,
+          recurrence_months: data.recurrence_months ?? null,
           notes: data.notes || null,
           status: 'pending',
         })
