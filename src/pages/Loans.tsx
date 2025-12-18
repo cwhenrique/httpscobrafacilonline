@@ -3433,8 +3433,9 @@ export default function Loans() {
                 // - interest_rate = lucro total
                 // - remaining_balance = total a receber (decreases with payments)
                 const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
-                const dailyProfit = isDaily ? loan.interest_rate : 0;
                 const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
+                // Lucro diário = total a receber - valor emprestado
+                const dailyProfit = isDaily ? (dailyTotalToReceive - loan.principal_amount) : 0;
                 
                 // For regular loans - use stored total_interest (respects rounded installment values)
                 const principalPerInstallment = loan.principal_amount / numInstallments;
