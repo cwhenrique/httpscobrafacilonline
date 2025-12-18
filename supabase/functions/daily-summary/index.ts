@@ -181,62 +181,87 @@ const handler = async (req: Request): Promise<Response> => {
         const numInstallments = loan.installments || 1;
         
         // USE DATABASE VALUES AS SOURCE OF TRUTH
-        // total_interest from DB already includes user adjustments (rounding, renewal fees)
         let totalInterest = loan.total_interest || 0;
         if (totalInterest === 0) {
-          // Fallback: calculate only if not stored
           if (loan.interest_mode === 'on_total') {
             totalInterest = loan.principal_amount * (loan.interest_rate / 100);
           } else if (loan.interest_mode === 'compound') {
-            // Juros compostos: M = P(1+i)^n - P
             totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
           } else {
             totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
           }
         }
         
-        // remaining_balance from DB is the source of truth
         const remainingBalance = loan.remaining_balance;
         const totalToReceive = remainingBalance + (loan.total_paid || 0);
-        
         const totalPerInstallment = totalToReceive / numInstallments;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
-        let nextDueDate: string | null = null;
-        let installmentAmount = totalPerInstallment;
-
-        if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
-          nextDueDate = installmentDates[paidInstallments];
-        } else {
-          nextDueDate = loan.due_date;
-          if (loan.payment_type === 'single') {
-            installmentAmount = remainingBalance;
+        // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
+        if (loan.payment_type === 'daily' && installmentDates.length > 0) {
+          const dailyAmount = loan.total_interest || totalPerInstallment; // For daily, total_interest = daily amount
+          
+          // Iterate through all unpaid installments
+          for (let i = paidInstallments; i < installmentDates.length; i++) {
+            const installmentDate = installmentDates[i];
+            const dueDate = new Date(installmentDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            const loanInfo: LoanInfo = {
+              id: loan.id,
+              clientName: client.full_name,
+              amount: dailyAmount,
+              dueDate: installmentDate,
+              paymentType: loan.payment_type,
+            };
+            
+            if (installmentDate === todayStr) {
+              // Installment due TODAY
+              dueTodayLoans.push(loanInfo);
+              totalToReceiveToday += dailyAmount;
+            } else if (dueDate < today) {
+              // Installment OVERDUE
+              const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+              overdueLoans.push({ ...loanInfo, daysOverdue });
+              totalOverdue += dailyAmount;
+            }
+            // Future installments are ignored
           }
-        }
+        } else {
+          // Standard logic for non-daily loans
+          let nextDueDate: string | null = null;
+          let installmentAmount = totalPerInstallment;
 
-        if (!nextDueDate) continue;
+          if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
+            nextDueDate = installmentDates[paidInstallments];
+          } else {
+            nextDueDate = loan.due_date;
+            if (loan.payment_type === 'single') {
+              installmentAmount = remainingBalance;
+            }
+          }
 
-        const dueDate = new Date(nextDueDate);
-        dueDate.setHours(0, 0, 0, 0);
+          if (!nextDueDate) continue;
 
-        const loanInfo: LoanInfo = {
-          id: loan.id,
-          clientName: client.full_name,
-          amount: installmentAmount,
-          dueDate: nextDueDate,
-          paymentType: loan.payment_type,
-        };
+          const dueDate = new Date(nextDueDate);
+          dueDate.setHours(0, 0, 0, 0);
 
-        if (nextDueDate === todayStr) {
-          dueTodayLoans.push(loanInfo);
-          totalToReceiveToday += installmentAmount;
-        } else if (dueDate < today) {
-          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          overdueLoans.push({
-            ...loanInfo,
-            daysOverdue,
-          });
-          totalOverdue += installmentAmount;
+          const loanInfo: LoanInfo = {
+            id: loan.id,
+            clientName: client.full_name,
+            amount: installmentAmount,
+            dueDate: nextDueDate,
+            paymentType: loan.payment_type,
+          };
+
+          if (nextDueDate === todayStr) {
+            dueTodayLoans.push(loanInfo);
+            totalToReceiveToday += installmentAmount;
+          } else if (dueDate < today) {
+            const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            overdueLoans.push({ ...loanInfo, daysOverdue });
+            totalOverdue += installmentAmount;
+          }
         }
       }
 
