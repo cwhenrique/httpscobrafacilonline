@@ -384,10 +384,11 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         message += `⚠️ *Total em Atraso: ${formatCurrency(grandTotalOverdue)}*\n\n`;
+        message += `💡 _Para parar de receber alertas de atraso, registre os pagamentos ou dê baixa nos contratos no app._\n\n`;
       }
 
       message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `_CobraFácil - Resumo às 9h_`;
+      message += `_CobraFácil - Resumo às 8h_`;
 
       console.log(`Sending daily summary to user ${profile.id}`);
       
