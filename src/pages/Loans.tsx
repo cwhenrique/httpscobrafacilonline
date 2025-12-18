@@ -3861,6 +3861,21 @@ export default function Loans() {
                                   📅 DIÁRIO
                                 </Badge>
                               )}
+                              {isWeekly && (
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
+                                  📅 SEMANAL
+                                </Badge>
+                              )}
+                              {isBiweekly && (
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
+                                  📅 QUINZENAL
+                                </Badge>
+                              )}
+                              {loan.payment_type === 'installment' && (
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
+                                  📅 MENSAL
+                                </Badge>
+                              )}
                             </div>
                           </div>
                           <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
@@ -4474,8 +4489,10 @@ export default function Loans() {
                                   <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Tipo de Pagamento</p>
                                   <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>
                                     {loan.payment_type === 'single' ? 'Parcela Única' : 
-                                     loan.payment_type === 'installment' ? 'Parcelado' :
-                                     loan.payment_type === 'daily' ? 'Diário' : 'Semanal'}
+                                     loan.payment_type === 'installment' ? 'Mensal' :
+                                     loan.payment_type === 'daily' ? 'Diário' : 
+                                     loan.payment_type === 'weekly' ? 'Semanal' :
+                                     loan.payment_type === 'biweekly' ? 'Quinzenal' : 'Mensal'}
                                   </p>
                                 </div>
                               </div>
