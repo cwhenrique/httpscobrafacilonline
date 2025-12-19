@@ -19,6 +19,8 @@ export type BillCategory =
   | 'saude'
   | 'educacao'
   | 'investimentos'
+  | 'lazer'
+  | 'pensao'
   | 'outros';
 
 export interface Bill {

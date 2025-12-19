@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Categorias com ícones e cores
@@ -32,6 +32,8 @@ const BILL_CATEGORIES: { value: BillCategory; label: string; icon: React.Compone
   { value: 'saude', label: 'Saúde/Plano', icon: Heart, color: 'text-red-400' },
   { value: 'educacao', label: 'Educação', icon: GraduationCap, color: 'text-indigo-500' },
   { value: 'investimentos', label: 'Investimentos', icon: TrendingUp, color: 'text-emerald-600' },
+  { value: 'lazer', label: 'Lazer', icon: PartyPopper, color: 'text-amber-500' },
+  { value: 'pensao', label: 'Pensão', icon: Users, color: 'text-violet-500' },
   { value: 'outros', label: 'Outros', icon: Package, color: 'text-muted-foreground' },
 ];
 
