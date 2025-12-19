@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -176,25 +175,28 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleButtonClick}
-        disabled={isSending}
-        className={className}
-      >
-        {isSending ? (
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        ) : (
-          <MessageCircle className="w-4 h-4 mr-2" />
-        )}
-        {isSending ? 'Enviando...' : 'Lembrar Cliente'}
+      <div className="flex flex-col items-start gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleButtonClick}
+          disabled={isSending}
+          className={className}
+        >
+          {isSending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <MessageCircle className="w-4 h-4 mr-2" />
+          )}
+          {isSending ? 'Enviando...' : 'Cobrar Antes do Prazo'}
+        </Button>
         {messageCount > 0 && (
-          <Badge variant="secondary" className="ml-2 bg-amber-500/20 text-amber-600 border-amber-500/30">
-            {messageCount}x
-          </Badge>
+          <span className="text-xs text-amber-600 flex items-center gap-1">
+            <MessageCircle className="w-3 h-3" />
+            Você já cobrou {messageCount}x
+          </span>
         )}
-      </Button>
+      </div>
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
