@@ -497,6 +497,7 @@ export default function CreateTrialUser() {
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Senha</TableHead>
+                        <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -539,6 +540,12 @@ export default function CreateTrialUser() {
                                   </Button>
                                 )}
                               </div>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                              {user.created_at 
+                                ? format(new Date(user.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                                : '-'
+                              }
                             </TableCell>
                             <TableCell>
                               <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${statusInfo.className}`}>
