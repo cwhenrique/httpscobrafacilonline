@@ -79,6 +79,21 @@ const getPaidAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ origi
   return subparcelas;
 };
 
+// Helper para extrair pagamentos de "somente juros" por parcela do notes
+// Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
+const getInterestOnlyPaymentsFromNotes = (notes: string | null): Array<{ installmentIndex: number; amount: number; paymentDate: string }> => {
+  const payments: Array<{ installmentIndex: number; amount: number; paymentDate: string }> = [];
+  const matches = (notes || '').matchAll(/\[INTEREST_ONLY_PAID:(\d+):([0-9.]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    payments.push({
+      installmentIndex: parseInt(match[1]),
+      amount: parseFloat(match[2]),
+      paymentDate: match[3]
+    });
+  }
+  return payments;
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -1973,18 +1988,28 @@ export default function Loans() {
       if (!notesText.includes('[INTEREST_ONLY_PAYMENT]')) {
         notesText = `[INTEREST_ONLY_PAYMENT]\n${notesText}`;
       }
-      notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(new Date().toISOString())}`;
+      
+      // Manter número de parcelas original
+      const currentInstallments = loan.installments || 1;
+      const currentDates = (loan.installment_dates as string[]) || [];
+      const paidInstallmentsCount = getPaidInstallmentsCount(loan);
+      
+      // Adicionar tag específica para rastrear o pagamento de juros por parcela
+      // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
+      const targetInstallmentIndex = paidInstallmentsCount; // Próxima parcela não paga
+      const paymentDateStr = renegotiateData.interest_payment_date || format(new Date(), 'yyyy-MM-dd');
+      notesText += `\n[INTEREST_ONLY_PAID:${targetInstallmentIndex}:${interestPaid.toFixed(2)}:${paymentDateStr}]`;
+      notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(paymentDateStr)}`;
+      
       if (renegotiateData.renewal_fee_enabled) {
         // Determinar qual parcela receberá a taxa de renovação
-        const numInstallments = loan.installments || 1;
-        const principalPerInstallment = loan.principal_amount / numInstallments;
+        const principalPerInstallment = loan.principal_amount / currentInstallments;
         const totalInterestLoan = loan.total_interest || 0;
-        const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
+        const interestPerInstallmentLoan = totalInterestLoan / currentInstallments;
         const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
         
-        const paidInstallments = getPaidInstallmentsCount(loan);
         const targetInstallment = renegotiateData.renewal_fee_installment === 'next' 
-          ? paidInstallments 
+          ? paidInstallmentsCount 
           : parseInt(renegotiateData.renewal_fee_installment);
         
         // Calcular o novo valor da parcela específica = valor original + taxa de renovação
@@ -1996,23 +2021,20 @@ export default function Loans() {
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
-      // Manter número de parcelas original
-      const currentInstallments = loan.installments || 1;
-      const currentDates = (loan.installment_dates as string[]) || [];
-      const paidInstallmentsCount = getPaidInstallmentsCount(loan);
-      let newInstallmentDates = [...currentDates];
-
-      // CORREÇÃO: Usar a data prometida pelo usuário para a próxima parcela em aberto,
-      // em vez de simplesmente empurrar todas as datas +1 mês
-      if (currentDates.length > 0 && renegotiateData.promised_date) {
-        if (paidInstallmentsCount < currentDates.length) {
-          newInstallmentDates[paidInstallmentsCount] = renegotiateData.promised_date;
-        }
+      // ROLAR TODAS AS DATAS DAS PARCELAS 1 MÊS PARA FRENTE automaticamente
+      let newInstallmentDates = currentDates.map(dateStr => {
+        const date = new Date(dateStr + 'T12:00:00');
+        date.setMonth(date.getMonth() + 1);
+        return format(date, 'yyyy-MM-dd');
+      });
+      
+      // Se a data prometida foi especificada, usar como base para a próxima parcela em aberto
+      if (renegotiateData.promised_date && paidInstallmentsCount < newInstallmentDates.length) {
+        newInstallmentDates[paidInstallmentsCount] = renegotiateData.promised_date;
       } else if (currentDates.length === 0 && renegotiateData.promised_date) {
         // Se não tinha datas, usar a nova data prometida como primeira parcela
         newInstallmentDates = [renegotiateData.promised_date];
       }
-
       const finalDates = newInstallmentDates.length > 0 ? newInstallmentDates : currentDates;
       const finalDueDate = paidInstallmentsCount < finalDates.length
         ? finalDates[paidInstallmentsCount]
@@ -4815,13 +4837,28 @@ export default function Loans() {
                     // Verificar se parcela está paga (totalmente ou parcialmente)
                     const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
                     
+                    // Verificar pagamentos de "somente juros" por parcela
+                    const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(selectedLoan.notes);
+                    
                     const getInstallmentStatus = (index: number) => {
                       const installmentValue = getInstallmentValue(index);
                       let paidAmount = partialPayments[index] || 0;
                       
+                      // Verificar se esta parcela tem pagamento de "somente juros"
+                      const interestOnlyPayment = interestOnlyPayments.find(p => p.installmentIndex === index);
+                      const isInterestOnlyPaid = !!interestOnlyPayment;
+                      const interestPaidAmount = interestOnlyPayment?.amount || 0;
+                      const interestPaymentDate = interestOnlyPayment?.paymentDate || null;
+                      
+                      // IMPORTANTE: Para pagamento de "somente juros", NÃO descontar do valor da parcela
+                      // O paidAmount não inclui o pagamento de juros - o valor da parcela continua intacto
+                      
                       // FALLBACK: Se não há tracking por tags [PARTIAL_PAID], calcular por total_paid
+                      // MAS ignorar pagamentos de "somente juros" (não devem abater da parcela)
                       const hasAnyTrackingTags = Object.keys(partialPayments).length > 0;
-                      if (!hasAnyTrackingTags && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+                      const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
+                      
+                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
                         // Calcular quantas parcelas completas foram pagas
                         const paidInstallmentsCount = Math.floor(selectedLoan.total_paid / totalPerInstallment);
                         if (index < paidInstallmentsCount) {
@@ -4832,7 +4869,10 @@ export default function Loans() {
                             paidAmount: installmentValue, 
                             remaining: 0, 
                             excess: 0, 
-                            subparcelas: [] as { originalIndex: number; amount: number; label: string }[] 
+                            subparcelas: [] as { originalIndex: number; amount: number; label: string }[],
+                            isInterestOnlyPaid: false,
+                            interestPaidAmount: 0,
+                            interestPaymentDate: null as string | null
                           };
                         }
                         // Verificar se é a parcela parcialmente paga
@@ -4851,15 +4891,15 @@ export default function Loans() {
                       
                       // Se há sub-parcelas pendentes, NÃO considerar como totalmente quitada
                       if (hasSubparcelas) {
-                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: pendingSubparcelas };
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: pendingSubparcelas, isInterestOnlyPaid, interestPaidAmount, interestPaymentDate };
                       }
                       
                       if (paidAmount >= installmentValue * 0.99) {
-                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, excess, subparcelas: [] as typeof pendingSubparcelas };
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, excess, subparcelas: [] as typeof pendingSubparcelas, isInterestOnlyPaid: false, interestPaidAmount: 0, interestPaymentDate: null as string | null };
                       } else if (paidAmount > 0) {
-                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: [] as typeof pendingSubparcelas };
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, excess: 0, subparcelas: [] as typeof pendingSubparcelas, isInterestOnlyPaid, interestPaidAmount, interestPaymentDate };
                       }
-                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, excess: 0, subparcelas: [] as typeof pendingSubparcelas };
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, excess: 0, subparcelas: [] as typeof pendingSubparcelas, isInterestOnlyPaid, interestPaidAmount, interestPaymentDate };
                     };
                     
                     if (dates.length === 0) {
@@ -4908,7 +4948,8 @@ export default function Loans() {
                               const dateObj = new Date(date + 'T12:00:00');
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
-                              const isOverdue = !status.isPaid && dateObj < today;
+                              // Não marcar como atrasada se tiver pagamento de juros apenas
+                              const isOverdue = !status.isPaid && !status.isInterestOnlyPaid && dateObj < today;
                               const isSelected = paymentData.selected_installments.includes(index);
                               const installmentValue = getInstallmentValue(index);
                               const hasSubparcelas = status.subparcelas.length > 0;
@@ -4922,13 +4963,15 @@ export default function Loans() {
                                     className={`w-full justify-between text-sm h-auto py-2 ${
                                       status.isPaid 
                                         ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
-                                        : hasSubparcelas
-                                          ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
-                                          : status.isPartial
-                                            ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
-                                            : isOverdue && !isSelected
-                                              ? 'border-destructive text-destructive' 
-                                              : ''
+                                        : status.isInterestOnlyPaid
+                                          ? 'bg-purple-500/20 border-purple-500 text-purple-700 dark:text-purple-300'
+                                          : hasSubparcelas
+                                            ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                                            : status.isPartial
+                                              ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
+                                              : isOverdue && !isSelected
+                                                ? 'border-destructive text-destructive' 
+                                                : ''
                                     }`}
                                     onClick={() => {
                                       if (!status.isPaid && !hasSubparcelas) {
@@ -4943,11 +4986,18 @@ export default function Loans() {
                                         <span>
                                           Parcela {index + 1}/{dates.length}
                                           {status.isPaid && ' ✓'}
+                                          {status.isInterestOnlyPaid && !status.isPaid && ' 💜'}
                                           {hasSubparcelas && ` (${status.subparcelas.length} sub-parcela${status.subparcelas.length > 1 ? 's' : ''} pendente${status.subparcelas.length > 1 ? 's' : ''})`}
-                                          {isOverdue && !status.isPaid && !hasSubparcelas && ' (Atrasada)'}
+                                          {isOverdue && !status.isPaid && !hasSubparcelas && !status.isInterestOnlyPaid && ' (Atrasada)'}
                                         </span>
                                       </span>
-                                      {status.isPartial && !hasSubparcelas && (
+                                      {/* Mostrar info de "somente juros pagos" - cor roxa */}
+                                      {status.isInterestOnlyPaid && !status.isPaid && (
+                                        <span className="text-xs text-purple-600 dark:text-purple-400">
+                                          💰 Juros pagos: {formatCurrency(status.interestPaidAmount)} {status.interestPaymentDate ? `(${formatDate(status.interestPaymentDate)})` : ''} | Principal: {formatCurrency(installmentValue)}
+                                        </span>
+                                      )}
+                                      {status.isPartial && !hasSubparcelas && !status.isInterestOnlyPaid && (
                                         <span className="text-xs text-yellow-600 dark:text-yellow-400">
                                           Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
                                         </span>
