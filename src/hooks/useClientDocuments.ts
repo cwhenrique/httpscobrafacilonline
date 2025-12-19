@@ -117,11 +117,41 @@ export function useClientDocuments(clientId: string | null) {
   };
 
   const getDocumentUrl = async (filePath: string) => {
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('client-documents')
       .createSignedUrl(filePath, 3600); // 1 hour expiry
 
+    if (error) {
+      console.error('Error getting document URL:', error);
+      toast.error('Erro ao gerar link de download');
+      return null;
+    }
+
     return data?.signedUrl;
+  };
+
+  const downloadDocument = async (filePath: string, fileName: string) => {
+    const { data, error } = await supabase.storage
+      .from('client-documents')
+      .download(filePath);
+
+    if (error) {
+      console.error('Error downloading document:', error);
+      toast.error('Erro ao baixar documento');
+      return false;
+    }
+
+    // Criar blob URL e iniciar download
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    return true;
   };
 
   useEffect(() => {
@@ -135,6 +165,7 @@ export function useClientDocuments(clientId: string | null) {
     uploadDocument,
     deleteDocument,
     getDocumentUrl,
+    downloadDocument,
     fetchDocuments,
   };
 }

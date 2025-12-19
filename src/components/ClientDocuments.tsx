@@ -23,7 +23,7 @@ interface ClientDocumentsProps {
 }
 
 export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) {
-  const { documents, loading, uploading, uploadDocument, deleteDocument, getDocumentUrl } = useClientDocuments(clientId);
+  const { documents, loading, uploading, uploadDocument, deleteDocument, downloadDocument } = useClientDocuments(clientId);
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,16 +43,7 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
   };
 
   const handleDownload = async (filePath: string, fileName: string) => {
-    const url = await getDocumentUrl(filePath);
-    if (url) {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    await downloadDocument(filePath, fileName);
   };
 
   const handleDelete = async () => {
