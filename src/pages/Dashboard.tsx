@@ -58,12 +58,13 @@ export default function Dashboard() {
     const dates = (loan.installment_dates as string[]) || [];
     
     if (dates.length > 0 && paidInstallments < dates.length) {
-      const nextDueDate = new Date(dates[paidInstallments]);
-      nextDueDate.setHours(0, 0, 0, 0);
+      // Adiciona T12:00:00 para evitar problemas de timezone
+      const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
+      nextDueDate.setHours(12, 0, 0, 0);
       return today > nextDueDate;
     } else {
-      const dueDate = new Date(loan.due_date);
-      dueDate.setHours(0, 0, 0, 0);
+      const dueDate = new Date(loan.due_date + 'T12:00:00');
+      dueDate.setHours(12, 0, 0, 0);
       return today > dueDate;
     }
   });
