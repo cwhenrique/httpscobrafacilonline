@@ -125,7 +125,6 @@ export default function ReportsLoans() {
     weekly: 'Semanal',
     biweekly: 'Quinzenal',
     installment: 'Mensal',
-    single: 'Único',
   };
 
   const handleRefresh = async () => {
@@ -149,7 +148,14 @@ export default function ReportsLoans() {
     
     // Filter by payment type
     if (paymentTypeFilter !== 'all') {
-      loans = loans.filter(loan => loan.payment_type === paymentTypeFilter);
+      if (paymentTypeFilter === 'installment') {
+        // Mensal inclui 'installment' e 'single'
+        loans = loans.filter(loan => 
+          loan.payment_type === 'installment' || loan.payment_type === 'single'
+        );
+      } else {
+        loans = loans.filter(loan => loan.payment_type === paymentTypeFilter);
+      }
     }
     
     return loans;
@@ -157,10 +163,16 @@ export default function ReportsLoans() {
 
   // Stats by payment type (for the type cards)
   const statsByPaymentType = useMemo(() => {
-    const types = ['daily', 'weekly', 'biweekly', 'installment', 'single'];
+    const types = ['daily', 'weekly', 'biweekly', 'installment'];
     
     return types.map(type => {
-      const typeLoans = stats.allLoans.filter(loan => loan.payment_type === type);
+      // Mensal inclui 'installment' e 'single'
+      const typeLoans = stats.allLoans.filter(loan => {
+        if (type === 'installment') {
+          return loan.payment_type === 'installment' || loan.payment_type === 'single';
+        }
+        return loan.payment_type === type;
+      });
       const activeLoans = typeLoans.filter(loan => loan.status !== 'paid');
       const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
       const totalReceived = typeLoans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
@@ -419,7 +431,6 @@ export default function ReportsLoans() {
                 weekly: CalendarRange,
                 biweekly: CalendarCheck,
                 installment: CalendarIcon,
-                single: DollarSign,
               };
               const TypeIcon = typeIcons[typeStat.type] || CalendarIcon;
               
