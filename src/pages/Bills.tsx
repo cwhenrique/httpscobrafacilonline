@@ -990,16 +990,23 @@ export default function Bills() {
                           </AlertDialogContent>
                         </AlertDialog>
                       ) : (
+                        <div className="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-md bg-green-500/30 text-white text-sm font-medium">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Pago
+                        </div>
+                      )}
+
+                      {status === 'paid' && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button 
                               size="sm" 
-                              className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30"
                               variant="outline"
+                              className="bg-white/20 hover:bg-white/30 text-white border-white/30"
                               disabled={markAsUnpaid.isPending}
+                              title="Desfazer pagamento"
                             >
-                              <Undo2 className="h-4 w-4 mr-1" />
-                              Desfazer
+                              <Undo2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
