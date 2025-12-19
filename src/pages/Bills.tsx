@@ -43,6 +43,7 @@ const getCategoryInfo = (category: BillCategory) => {
 };
 
 type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today';
+type PeriodFilter = 'all' | '1' | '2' | '3' | '6' | '12';
 
 // Interface para props do BillForm
 interface BillFormProps {
@@ -199,6 +200,8 @@ export default function Bills() {
   const { bills, isLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills();
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  const [categoryFilter, setCategoryFilter] = useState<BillCategory | 'all'>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(new Date()); // null = todos os meses
@@ -299,9 +302,52 @@ export default function Bills() {
     };
   }, [currentMonthBills]);
 
-  // Filtrar contas
-  const filteredBills = useMemo(() => {
+  // Filtrar por categoria e período
+  const categoryFilteredBills = useMemo(() => {
     let filtered = [...bills];
+
+    // Filtro por categoria
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(b => b.category === categoryFilter);
+    }
+
+    // Filtro por período (quando categoria está selecionada)
+    if (categoryFilter !== 'all' && periodFilter !== 'all') {
+      const monthsBack = parseInt(periodFilter);
+      const startDate = subMonths(new Date(), monthsBack);
+      filtered = filtered.filter(b => {
+        const dueDate = parseISO(b.due_date);
+        return dueDate >= startDate;
+      });
+    }
+
+    return filtered;
+  }, [bills, categoryFilter, periodFilter]);
+
+  // Stats por categoria filtrada
+  const categoryStats = useMemo(() => {
+    if (categoryFilter === 'all') return null;
+
+    const total = categoryFilteredBills.reduce((acc, bill) => acc + Number(bill.amount), 0);
+    const paid = categoryFilteredBills.filter(b => b.status === 'paid');
+    const pending = categoryFilteredBills.filter(b => b.status !== 'paid');
+    const paidTotal = paid.reduce((acc, bill) => acc + Number(bill.amount), 0);
+    const pendingTotal = pending.reduce((acc, bill) => acc + Number(bill.amount), 0);
+
+    return {
+      total,
+      count: categoryFilteredBills.length,
+      paidCount: paid.length,
+      pendingCount: pending.length,
+      paidTotal,
+      pendingTotal,
+    };
+  }, [categoryFilteredBills, categoryFilter]);
+
+  // Filtrar contas (aplicando todos os filtros)
+  const filteredBills = useMemo(() => {
+    // Usar bills filtrados por categoria se houver filtro de categoria
+    let filtered = categoryFilter !== 'all' ? [...categoryFilteredBills] : [...bills];
 
     // Filtro por status
     if (filter === 'pending') {
@@ -327,7 +373,7 @@ export default function Bills() {
     filtered.sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime());
 
     return filtered;
-  }, [bills, filter, searchTerm]);
+  }, [bills, categoryFilteredBills, categoryFilter, filter, searchTerm, periodFilter]);
 
   const handleCreate = async () => {
     // Valor é opcional apenas para cartão de crédito
@@ -567,6 +613,7 @@ export default function Bills() {
                   </span>
                 )}
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Clique em uma categoria para filtrar</p>
             </CardHeader>
             <CardContent>
               <div className="h-[350px]">
@@ -583,6 +630,13 @@ export default function Bills() {
                       nameKey="name"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                       labelLine={false}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(data) => {
+                        if (data && data.category) {
+                          setCategoryFilter(data.category as BillCategory);
+                          setPeriodFilter('all');
+                        }
+                      }}
                     >
                       {categoryExpenses.map((entry, index) => {
                         const colorMap: Record<string, string> = {
@@ -608,6 +662,7 @@ export default function Bills() {
                           <Cell 
                             key={`cell-${index}`} 
                             fill={colorMap[entry.color] || '#8b5cf6'}
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
                           />
                         );
                       })}
@@ -625,6 +680,14 @@ export default function Bills() {
                       align="right"
                       verticalAlign="middle"
                       formatter={(value) => <span className="text-sm">{value}</span>}
+                      onClick={(data) => {
+                        const category = categoryExpenses.find(c => c.name === data.value)?.category;
+                        if (category) {
+                          setCategoryFilter(category as BillCategory);
+                          setPeriodFilter('all');
+                        }
+                      }}
+                      wrapperStyle={{ cursor: 'pointer' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -633,34 +696,147 @@ export default function Bills() {
           </Card>
         )}
 
+        {/* Category Filter with Stats */}
+        {categoryFilter !== 'all' && categoryStats && (
+          <Card className="border-l-4 border-l-primary bg-primary/5">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const catInfo = getCategoryInfo(categoryFilter);
+                    const CatIcon = catInfo.icon;
+                    return (
+                      <>
+                        <div className={`p-2 rounded-lg bg-background`}>
+                          <CatIcon className={`h-6 w-6 ${catInfo.color}`} />
+                        </div>
+                        <div>
+                          <p className="font-semibold">{catInfo.label}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {periodFilter === 'all' ? 'Todos os períodos' : 
+                             periodFilter === '1' ? 'Último mês' :
+                             `Últimos ${periodFilter} meses`}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold">R$ {categoryStats.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">{categoryStats.count} conta{categoryStats.count !== 1 ? 's' : ''} total</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-green-600">R$ {categoryStats.paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">{categoryStats.paidCount} paga{categoryStats.paidCount !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-amber-600">R$ {categoryStats.pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">{categoryStats.pendingCount} pendente{categoryStats.pendingCount !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => { setCategoryFilter('all'); setPeriodFilter('all'); }}
+                  className="shrink-0"
+                >
+                  Limpar Filtro
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar conta..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { value: 'all', label: 'Todas' },
-              { value: 'today', label: 'Vence Hoje' },
-              { value: 'pending', label: 'Pendentes' },
-              { value: 'overdue', label: 'Atrasadas' },
-              { value: 'paid', label: 'Pagas' },
-            ].map((f) => (
-              <Button
-                key={f.value}
-                variant={filter === f.value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter(f.value as FilterType)}
+        <div className="flex flex-col gap-4">
+          {/* Category and Period Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 sm:max-w-[200px]">
+              <Select
+                value={categoryFilter}
+                onValueChange={(value: BillCategory | 'all') => {
+                  setCategoryFilter(value);
+                  if (value === 'all') setPeriodFilter('all');
+                }}
               >
-                {f.label}
-              </Button>
-            ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <span>Todas as categorias</span>
+                    </div>
+                  </SelectItem>
+                  {BILL_CATEGORIES.map((cat) => {
+                    const Icon = cat.icon;
+                    return (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className={`h-4 w-4 ${cat.color}`} />
+                          <span>{cat.label}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {categoryFilter !== 'all' && (
+              <div className="sm:max-w-[180px]">
+                <Select
+                  value={periodFilter}
+                  onValueChange={(value: PeriodFilter) => setPeriodFilter(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os períodos</SelectItem>
+                    <SelectItem value="1">Último mês</SelectItem>
+                    <SelectItem value="2">Últimos 2 meses</SelectItem>
+                    <SelectItem value="3">Últimos 3 meses</SelectItem>
+                    <SelectItem value="6">Últimos 6 meses</SelectItem>
+                    <SelectItem value="12">Último ano</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Search and Status Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar conta..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { value: 'all', label: 'Todas' },
+                { value: 'today', label: 'Vence Hoje' },
+                { value: 'pending', label: 'Pendentes' },
+                { value: 'overdue', label: 'Atrasadas' },
+                { value: 'paid', label: 'Pagas' },
+              ].map((f) => (
+                <Button
+                  key={f.value}
+                  variant={filter === f.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilter(f.value as FilterType)}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
