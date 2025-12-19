@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json();
+    const { userId, attemptReconnect } = await req.json();
 
     if (!userId) {
       return new Response(JSON.stringify({ error: 'userId é obrigatório' }), {
@@ -92,8 +92,95 @@ serve(async (req) => {
 
     try {
       const stateData = JSON.parse(stateText);
-      const state = stateData?.instance?.state || stateData?.state;
-      const isConnected = state === 'open';
+      let state = stateData?.instance?.state || stateData?.state;
+      let isConnected = state === 'open';
+      let reconnected = false;
+
+      // If disconnected and attemptReconnect is true, try to restart the instance
+      if (!isConnected && attemptReconnect && (state === 'close' || state === 'disconnected')) {
+        console.log(`Attempting to restart instance: ${instanceName}`);
+        
+        try {
+          // Method 1: Try restart endpoint
+          const restartResponse = await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+            method: 'POST',
+            headers: {
+              'apikey': evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          console.log('Restart response:', restartResponse.status);
+          
+          if (restartResponse.ok) {
+            // Wait a bit for the restart to take effect
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Check status again
+            const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': evolutionApiKey,
+              },
+            });
+            
+            if (recheckResponse.ok) {
+              const recheckData = await recheckResponse.json();
+              const newState = recheckData?.instance?.state || recheckData?.state;
+              console.log('State after restart:', newState);
+              
+              if (newState === 'open') {
+                state = newState;
+                isConnected = true;
+                reconnected = true;
+              }
+            }
+          }
+        } catch (restartError) {
+          console.error('Error restarting instance:', restartError);
+        }
+
+        // Method 2: If restart didn't work, try connect endpoint
+        if (!isConnected) {
+          try {
+            const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': evolutionApiKey,
+              },
+            });
+            
+            console.log('Connect response:', connectResponse.status);
+            
+            if (connectResponse.ok) {
+              // Wait a bit
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Check status again
+              const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': evolutionApiKey,
+                },
+              });
+              
+              if (recheckResponse.ok) {
+                const recheckData = await recheckResponse.json();
+                const newState = recheckData?.instance?.state || recheckData?.state;
+                console.log('State after connect:', newState);
+                
+                if (newState === 'open') {
+                  state = newState;
+                  isConnected = true;
+                  reconnected = true;
+                }
+              }
+            }
+          } catch (connectError) {
+            console.error('Error connecting instance:', connectError);
+          }
+        }
+      }
 
       // If connected, try to get the phone number
       let phoneNumber = profile.whatsapp_connected_phone;
@@ -176,6 +263,7 @@ serve(async (req) => {
         instanceName,
         phoneNumber: phoneNumber || null,
         connectedAt: profile.whatsapp_connected_at,
+        reconnected,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
