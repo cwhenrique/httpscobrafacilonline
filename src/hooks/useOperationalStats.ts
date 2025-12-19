@@ -157,10 +157,11 @@ export function useOperationalStats() {
         activeLoans.push(loanWithClient);
 
         // Verificar se está em atraso: status é overdue OU (status é pending E due_date < hoje)
-        const loanDueDate = new Date(loan.due_date);
+        // Adiciona T12:00:00 para evitar problemas de timezone
+        const loanDueDate = new Date(loan.due_date + 'T12:00:00');
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        loanDueDate.setHours(0, 0, 0, 0);
+        today.setHours(12, 0, 0, 0);
+        loanDueDate.setHours(12, 0, 0, 0);
         
         const isOverdue = loan.status === 'overdue' || 
           (loan.status === 'pending' && loanDueDate < today);

@@ -143,10 +143,11 @@ export function useLoans() {
     // Verificar se contrato já nasce em atraso (due_date no passado)
     const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
     const firstDueDate = loan.installment_dates?.[0] || loan.due_date;
-    const dueDate = new Date(firstDueDate);
+    // Adiciona T12:00:00 para evitar problemas de timezone (UTC vs local)
+    const dueDate = new Date(firstDueDate + 'T12:00:00');
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dueDate.setHours(0, 0, 0, 0);
+    today.setHours(12, 0, 0, 0);
+    dueDate.setHours(12, 0, 0, 0);
     
     // Definir status inicial: 'overdue' se não é histórico e due_date < hoje
     const initialStatus: 'pending' | 'overdue' = (!isHistoricalContract && dueDate < today) ? 'overdue' : 'pending';

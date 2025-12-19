@@ -138,11 +138,11 @@ export function useDashboardStats() {
           overdueCount++;
         }
 
-        // Check due dates
+        // Check due dates - Adiciona T12:00:00 para evitar problemas de timezone
         const installmentDates = (loan.installment_dates as string[]) || [];
         if (installmentDates.length > 0) {
           installmentDates.forEach(dateStr => {
-            const dueDate = new Date(dateStr);
+            const dueDate = new Date(dateStr + 'T12:00:00');
             if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
               dueToday++;
             }
@@ -151,7 +151,7 @@ export function useDashboardStats() {
             }
           });
         } else {
-          const dueDate = new Date(loan.due_date);
+          const dueDate = new Date(loan.due_date + 'T12:00:00');
           if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
             dueToday++;
           }
@@ -172,7 +172,7 @@ export function useDashboardStats() {
           }
         }
 
-        const dueDate = new Date(payment.due_date);
+        const dueDate = new Date(payment.due_date + 'T12:00:00');
         if (dueDate.toISOString().split('T')[0] === todayStr && payment.status !== 'paid') {
           dueToday++;
         }
