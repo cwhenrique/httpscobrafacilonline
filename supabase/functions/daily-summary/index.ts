@@ -381,9 +381,14 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         if (dueTodayLoans.length > 0) {
-          // Separar diários dos outros
+          // Separar por tipo de pagamento
           const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
-          const dueTodayOtherLoans = dueTodayLoans.filter(l => l.paymentType !== 'daily');
+          const dueTodayWeeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'weekly');
+          const dueTodayBiweeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'biweekly');
+          // Mensais = tudo que não for diário, semanal ou quinzenal (inclui single e installment)
+          const dueTodayMonthlyLoans = dueTodayLoans.filter(l => 
+            l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
+          );
 
           if (dueTodayDailyLoans.length > 0) {
             message += `📅 *Diários (${dueTodayDailyLoans.length}):*\n`;
@@ -393,9 +398,25 @@ const handler = async (req: Request): Promise<Response> => {
             message += `\n`;
           }
 
-          if (dueTodayOtherLoans.length > 0) {
-            message += `💰 *Empréstimos (${dueTodayOtherLoans.length}):*\n`;
-            dueTodayOtherLoans.forEach(l => {
+          if (dueTodayWeeklyLoans.length > 0) {
+            message += `📆 *Semanais (${dueTodayWeeklyLoans.length}):*\n`;
+            dueTodayWeeklyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
+            });
+            message += `\n`;
+          }
+
+          if (dueTodayBiweeklyLoans.length > 0) {
+            message += `📆 *Quinzenais (${dueTodayBiweeklyLoans.length}):*\n`;
+            dueTodayBiweeklyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
+            });
+            message += `\n`;
+          }
+
+          if (dueTodayMonthlyLoans.length > 0) {
+            message += `💰 *Mensais (${dueTodayMonthlyLoans.length}):*\n`;
+            dueTodayMonthlyLoans.forEach(l => {
               message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
             });
             message += `\n`;
@@ -426,9 +447,14 @@ const handler = async (req: Request): Promise<Response> => {
         message += `🚨 *EM ATRASO:*\n\n`;
 
         if (overdueLoans.length > 0) {
-          // Separar diários dos outros
+          // Separar por tipo de pagamento
           const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
-          const overdueOtherLoans = overdueLoans.filter(l => l.paymentType !== 'daily');
+          const overdueWeeklyLoans = overdueLoans.filter(l => l.paymentType === 'weekly');
+          const overdueBiweeklyLoans = overdueLoans.filter(l => l.paymentType === 'biweekly');
+          // Mensais = tudo que não for diário, semanal ou quinzenal (inclui single e installment)
+          const overdueMonthlyLoans = overdueLoans.filter(l => 
+            l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
+          );
 
           if (overdueDailyLoans.length > 0) {
             message += `📅 *Diários em Atraso (${overdueDailyLoans.length}):*\n`;
@@ -438,9 +464,25 @@ const handler = async (req: Request): Promise<Response> => {
             message += `\n`;
           }
 
-          if (overdueOtherLoans.length > 0) {
-            message += `💰 *Empréstimos em Atraso (${overdueOtherLoans.length}):*\n`;
-            overdueOtherLoans.forEach(l => {
+          if (overdueWeeklyLoans.length > 0) {
+            message += `📆 *Semanais em Atraso (${overdueWeeklyLoans.length}):*\n`;
+            overdueWeeklyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+            });
+            message += `\n`;
+          }
+
+          if (overdueBiweeklyLoans.length > 0) {
+            message += `📆 *Quinzenais em Atraso (${overdueBiweeklyLoans.length}):*\n`;
+            overdueBiweeklyLoans.forEach(l => {
+              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+            });
+            message += `\n`;
+          }
+
+          if (overdueMonthlyLoans.length > 0) {
+            message += `💰 *Mensais em Atraso (${overdueMonthlyLoans.length}):*\n`;
+            overdueMonthlyLoans.forEach(l => {
               message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
             });
             message += `\n`;
