@@ -2095,10 +2095,16 @@ export default function Loans() {
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
-      // ROLAR TODAS AS DATAS DAS PARCELAS 1 MÊS PARA FRENTE automaticamente
+      // ROLAR TODAS AS DATAS DAS PARCELAS PARA FRENTE baseado no tipo de pagamento
       let newInstallmentDates = currentDates.map(dateStr => {
         const date = new Date(dateStr + 'T12:00:00');
-        date.setMonth(date.getMonth() + 1);
+        if (loan.payment_type === 'weekly') {
+          date.setDate(date.getDate() + 7);  // +1 semana
+        } else if (loan.payment_type === 'biweekly') {
+          date.setDate(date.getDate() + 15); // +15 dias (quinzenal)
+        } else {
+          date.setMonth(date.getMonth() + 1); // +1 mês (mensal/outros)
+        }
         return format(date, 'yyyy-MM-dd');
       });
       
@@ -2154,10 +2160,13 @@ export default function Loans() {
                 ? `\n📈 Taxa de Renovação: ${renegotiateData.renewal_fee_percentage}% (+${formatCurrency(parseFloat(renegotiateData.renewal_fee_amount) || 0)})`
                 : '';
               
+              const contractTypeLabel = loan.payment_type === 'weekly' ? 'Semanal' : 
+                                        loan.payment_type === 'biweekly' ? 'Quinzenal' : 'Mensal';
+              
               const message = `💰 *PAGAMENTO DE JUROS REGISTRADO*
 ━━━━━━━━━━━━━━━━━━━━━
 
-📋 Contrato: EMP-${loanIdShort}
+📋 Contrato: EMP-${loanIdShort} (${contractTypeLabel})
 👤 Cliente: ${clientName}
 💵 Valor Pago (Juros): ${formatCurrency(interestPaid)}${renewalFeeInfo}
 📊 Novo Valor a Cobrar: ${formatCurrency(safeRemaining)}
@@ -5550,7 +5559,18 @@ export default function Loans() {
                       <button
                         type="button"
                         onClick={() => {
-                          // Calcular próxima data de vencimento automaticamente (+1 mês)
+                          // Função helper para rolar data baseado no tipo de pagamento
+                          const rollDateForward = (date: Date, paymentType: string) => {
+                            if (paymentType === 'weekly') {
+                              date.setDate(date.getDate() + 7);  // +1 semana
+                            } else if (paymentType === 'biweekly') {
+                              date.setDate(date.getDate() + 15); // +15 dias
+                            } else {
+                              date.setMonth(date.getMonth() + 1); // +1 mês (mensal/outros)
+                            }
+                          };
+                          
+                          // Calcular próxima data de vencimento automaticamente baseado no tipo
                           const dates = (selectedLoan.installment_dates as string[]) || [];
                           let nextUnpaidIndex = -1;
                           for (let i = 0; i < dates.length; i++) {
@@ -5560,16 +5580,16 @@ export default function Loans() {
                             }
                           }
                           
-                          // Se tem parcela em aberto, pegar a data dela e adicionar 1 mês
+                          // Se tem parcela em aberto, pegar a data dela e adicionar período baseado no tipo
                           let newDueDate = '';
                           if (nextUnpaidIndex >= 0 && dates[nextUnpaidIndex]) {
                             const currentDate = new Date(dates[nextUnpaidIndex] + 'T12:00:00');
-                            currentDate.setMonth(currentDate.getMonth() + 1);
+                            rollDateForward(currentDate, selectedLoan.payment_type);
                             newDueDate = format(currentDate, 'yyyy-MM-dd');
                           } else if (selectedLoan.due_date) {
-                            // Se não tem parcelas, usar due_date + 1 mês
+                            // Se não tem parcelas, usar due_date + período
                             const currentDate = new Date(selectedLoan.due_date + 'T12:00:00');
-                            currentDate.setMonth(currentDate.getMonth() + 1);
+                            rollDateForward(currentDate, selectedLoan.payment_type);
                             newDueDate = format(currentDate, 'yyyy-MM-dd');
                           }
                           
