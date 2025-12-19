@@ -5476,11 +5476,35 @@ export default function Loans() {
                       <button
                         type="button"
                         onClick={() => {
+                          // Calcular próxima data de vencimento automaticamente (+1 mês)
+                          const dates = (selectedLoan.installment_dates as string[]) || [];
+                          let nextUnpaidIndex = -1;
+                          for (let i = 0; i < dates.length; i++) {
+                            if (!isInstallmentPaid(i)) {
+                              nextUnpaidIndex = i;
+                              break;
+                            }
+                          }
+                          
+                          // Se tem parcela em aberto, pegar a data dela e adicionar 1 mês
+                          let newDueDate = '';
+                          if (nextUnpaidIndex >= 0 && dates[nextUnpaidIndex]) {
+                            const currentDate = new Date(dates[nextUnpaidIndex] + 'T12:00:00');
+                            currentDate.setMonth(currentDate.getMonth() + 1);
+                            newDueDate = format(currentDate, 'yyyy-MM-dd');
+                          } else if (selectedLoan.due_date) {
+                            // Se não tem parcelas, usar due_date + 1 mês
+                            const currentDate = new Date(selectedLoan.due_date + 'T12:00:00');
+                            currentDate.setMonth(currentDate.getMonth() + 1);
+                            newDueDate = format(currentDate, 'yyyy-MM-dd');
+                          }
+                          
                           setRenegotiateData({ 
                             ...renegotiateData, 
                             interest_only_paid: true,
                             renewal_fee_enabled: false,
-                            remaining_amount: interestOnlyOriginalRemaining.toFixed(2)
+                            remaining_amount: interestOnlyOriginalRemaining.toFixed(2),
+                            promised_date: newDueDate
                           });
                         }}
                         className="p-4 rounded-lg border-2 border-primary bg-primary/10 hover:bg-primary/20 transition-colors text-left"
