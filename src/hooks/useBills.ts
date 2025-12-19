@@ -185,6 +185,30 @@ export function useBills() {
     },
   });
 
+  const markAsUnpaid = useMutation({
+    mutationFn: async (id: string) => {
+      const { data: updated, error } = await supabase
+        .from('bills')
+        .update({
+          status: 'pending',
+          paid_date: null,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updated;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      toast.success('Pagamento desfeito! Conta voltou para pendente.');
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao desfazer pagamento: ' + error.message);
+    },
+  });
+
   return {
     bills,
     isLoading,
@@ -193,5 +217,6 @@ export function useBills() {
     updateBill,
     deleteBill,
     markAsPaid,
+    markAsUnpaid,
   };
 }

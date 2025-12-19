@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
@@ -197,7 +197,7 @@ const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading }: B
 );
 
 export default function Bills() {
-  const { bills, isLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills();
+  const { bills, isLoading, createBill, updateBill, deleteBill, markAsPaid, markAsUnpaid } = useBills();
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [categoryFilter, setCategoryFilter] = useState<BillCategory | 'all'>('all');
@@ -961,7 +961,7 @@ export default function Bills() {
                     )}
 
                     <div className="flex gap-2">
-                      {status !== 'paid' && (
+                      {status !== 'paid' ? (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button 
@@ -985,6 +985,34 @@ export default function Bills() {
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
                               <AlertDialogAction onClick={() => markAsPaid.mutateAsync(bill.id)}>
                                 Confirmar Pagamento
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      ) : (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30"
+                              variant="outline"
+                              disabled={markAsUnpaid.isPending}
+                            >
+                              <Undo2 className="h-4 w-4 mr-1" />
+                              Desfazer
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Desfazer pagamento?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Isso vai reverter "{bill.description}" para pendente. Use esta opção se marcou como pago por engano.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => markAsUnpaid.mutateAsync(bill.id)}>
+                                Desfazer Pagamento
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
