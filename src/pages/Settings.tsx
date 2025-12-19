@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -62,6 +63,8 @@ export default function Settings() {
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
   const [togglingVoice, setTogglingVoice] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
+  const [qrTimeRemaining, setQrTimeRemaining] = useState(20);
+  const [qrExpired, setQrExpired] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -101,6 +104,27 @@ export default function Settings() {
 
     return () => clearInterval(interval);
   }, [showQrModal, qrCode]);
+
+  // QR Code expiration timer
+  useEffect(() => {
+    if (!qrCode || generatingQr) return;
+    
+    setQrTimeRemaining(20);
+    setQrExpired(false);
+    
+    const timer = setInterval(() => {
+      setQrTimeRemaining(prev => {
+        if (prev <= 1) {
+          setQrExpired(true);
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [qrCode, generatingQr]);
 
   const checkWhatsAppStatus = useCallback(async (): Promise<WhatsAppStatus | null> => {
     if (!user?.id) return null;
@@ -744,58 +768,136 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
           </DialogHeader>
           
           <div className="flex flex-col items-center py-4">
-            {generatingQr ? (
-              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : qrCode ? (
-              <div className="p-4 bg-white rounded-lg">
-                <img 
-                  src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
-                  alt="QR Code" 
-                  className="w-56 h-56"
+            {/* Timer and Progress Bar */}
+            {qrCode && !generatingQr && (
+              <div className="w-full mb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 5 ? 'text-amber-500' : 'text-green-500'}`} />
+                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 5 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                      {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
+                    </span>
+                  </div>
+                  {!qrExpired && (
+                    <span className="text-xs text-muted-foreground">Escaneie rapidamente</span>
+                  )}
+                </div>
+                <Progress 
+                  value={(qrTimeRemaining / 20) * 100} 
+                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 5 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
                 />
-              </div>
-            ) : (
-              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                <p className="text-muted-foreground">Erro ao gerar QR Code</p>
               </div>
             )}
 
-            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <p className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">1</span>
-                Abra o WhatsApp no celular
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">2</span>
-                Toque em ⋮ → Aparelhos conectados
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">3</span>
-                Toque em "Conectar um aparelho"
-              </p>
-              <p className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">4</span>
-                Escaneie este QR Code
-              </p>
-            </div>
+            {/* QR Code Display */}
+            {generatingQr ? (
+              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Gerando QR Code...</span>
+                </div>
+              </div>
+            ) : qrCode ? (
+              <div className="relative">
+                <div className={`p-4 bg-white rounded-lg transition-all ${qrExpired ? 'opacity-30 blur-sm' : ''}`}>
+                  <img 
+                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
+                    alt="QR Code" 
+                    className="w-56 h-56"
+                  />
+                </div>
+                
+                {/* Expired Overlay */}
+                {qrExpired && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg">
+                    <AlertCircle className="w-12 h-12 text-destructive mb-3" />
+                    <p className="font-medium text-destructive text-center">QR Code expirado!</p>
+                    <p className="text-sm text-muted-foreground text-center mt-1">Clique abaixo para gerar um novo</p>
+                    <Button 
+                      onClick={handleRefreshQrCode}
+                      disabled={generatingQr}
+                      className="mt-4 bg-green-600 hover:bg-green-700"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Gerar Novo QR Code
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
+                <div className="flex flex-col items-center gap-3">
+                  <AlertCircle className="w-8 h-8 text-destructive" />
+                  <p className="text-muted-foreground text-center">Erro ao gerar QR Code</p>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshQrCode}
+                    disabled={generatingQr}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </div>
+            )}
 
-            <div className="flex items-center gap-2 mt-4 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Aguardando conexão...
-            </div>
+            {/* Instructions */}
+            {!qrExpired && (
+              <div className="mt-6 w-full space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Smartphone className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">1. Abra o WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">No seu celular</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Link className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">2. Aparelhos conectados</p>
+                    <p className="text-xs text-muted-foreground">Menu ⋮ → Aparelhos conectados</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Camera className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">3. Escaneie este QR Code</p>
+                    <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e escaneie</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefreshQrCode}
-              disabled={generatingQr}
-              className="mt-4"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar QR Code
-            </Button>
+            {/* Connection Status */}
+            {!qrExpired && qrCode && !generatingQr && (
+              <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-green-500/10 text-green-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm font-medium">Aguardando conexão...</span>
+              </div>
+            )}
+
+            {/* Refresh Button (when not expired) */}
+            {!qrExpired && qrCode && !generatingQr && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleRefreshQrCode}
+                disabled={generatingQr}
+                className="mt-3 text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar QR Code
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
