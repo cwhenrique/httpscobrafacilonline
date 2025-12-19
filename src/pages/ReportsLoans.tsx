@@ -410,29 +410,114 @@ export default function ReportsLoans() {
 
         {/* Payment Type Filter Cards */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">Filtrar por Tipo de Pagamento</h3>
-            {paymentTypeFilter !== 'all' && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setPaymentTypeFilter('all')}
-                className="text-xs text-muted-foreground h-7"
-              >
-                Ver todos
-              </Button>
-            )}
-          </div>
+          <h3 className="text-sm font-medium text-muted-foreground">Filtrar por Tipo de Pagamento</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+            {/* Card Todos */}
+            {(() => {
+              const isActive = paymentTypeFilter === 'all';
+              const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+              const allTotalOnStreet = allActiveLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+              const allRealizedProfit = stats.allLoans.reduce((sum, loan) => {
+                const payments = (loan as any).payments || [];
+                return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
+              }, 0);
+              
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Card 
+                    className={cn(
+                      "cursor-pointer transition-all border-2",
+                      isActive 
+                        ? "border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/20" 
+                        : "border-violet-500/30 hover:border-violet-500/60 hover:bg-violet-500/5"
+                    )}
+                    onClick={() => setPaymentTypeFilter('all')}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={cn(
+                          "p-1.5 rounded-lg",
+                          isActive ? "bg-violet-500/20" : "bg-violet-500/10"
+                        )}>
+                          <Users className={cn(
+                            "w-3.5 h-3.5",
+                            isActive ? "text-violet-500" : "text-violet-400"
+                          )} />
+                        </div>
+                        <span className={cn(
+                          "text-xs font-medium",
+                          isActive ? "text-violet-500" : "text-foreground"
+                        )}>
+                          Todos
+                        </span>
+                        {isActive && (
+                          <Badge className="ml-auto bg-violet-500 text-white text-[10px] px-1.5 py-0">
+                            Ativo
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-muted-foreground">Na Rua</span>
+                          <span className="text-xs font-bold text-blue-500">
+                            {formatCurrency(allTotalOnStreet)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-muted-foreground">Lucro</span>
+                          <span className="text-xs font-bold text-emerald-500">
+                            {formatCurrency(allRealizedProfit)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                          <span className="text-[10px] text-muted-foreground">Contratos</span>
+                          <span className="text-xs font-medium">
+                            {allActiveLoans.length} ativos
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })()}
+
+            {/* Cards por tipo */}
             {statsByPaymentType.map((typeStat) => {
               const isActive = paymentTypeFilter === typeStat.type;
-              const typeIcons: Record<string, React.ElementType> = {
-                daily: CalendarDays,
-                weekly: CalendarRange,
-                biweekly: CalendarCheck,
-                installment: CalendarIcon,
+              const typeConfig: Record<string, { icon: React.ElementType; borderColor: string; bgColor: string; textColor: string }> = {
+                daily: { 
+                  icon: CalendarDays, 
+                  borderColor: 'border-orange-500', 
+                  bgColor: 'bg-orange-500', 
+                  textColor: 'text-orange-500' 
+                },
+                weekly: { 
+                  icon: CalendarRange, 
+                  borderColor: 'border-blue-500', 
+                  bgColor: 'bg-blue-500', 
+                  textColor: 'text-blue-500' 
+                },
+                biweekly: { 
+                  icon: CalendarCheck, 
+                  borderColor: 'border-cyan-500', 
+                  bgColor: 'bg-cyan-500', 
+                  textColor: 'text-cyan-500' 
+                },
+                installment: { 
+                  icon: CalendarIcon, 
+                  borderColor: 'border-emerald-500', 
+                  bgColor: 'bg-emerald-500', 
+                  textColor: 'text-emerald-500' 
+                },
               };
-              const TypeIcon = typeIcons[typeStat.type] || CalendarIcon;
+              const config = typeConfig[typeStat.type] || typeConfig.installment;
+              const TypeIcon = config.icon;
               
               return (
                 <motion.div
@@ -446,8 +531,8 @@ export default function ReportsLoans() {
                     className={cn(
                       "cursor-pointer transition-all border-2",
                       isActive 
-                        ? "border-primary bg-primary/10 shadow-lg" 
-                        : "border-border hover:border-primary/50 hover:bg-primary/5"
+                        ? `${config.borderColor} ${config.bgColor}/10 shadow-lg` 
+                        : `${config.borderColor}/30 hover:${config.borderColor}/60 hover:${config.bgColor}/5`
                     )}
                     onClick={() => setPaymentTypeFilter(isActive ? 'all' : typeStat.type)}
                   >
@@ -455,21 +540,21 @@ export default function ReportsLoans() {
                       <div className="flex items-center gap-2 mb-2">
                         <div className={cn(
                           "p-1.5 rounded-lg",
-                          isActive ? "bg-primary/20" : "bg-muted"
+                          isActive ? `${config.bgColor}/20` : `${config.bgColor}/10`
                         )}>
                           <TypeIcon className={cn(
                             "w-3.5 h-3.5",
-                            isActive ? "text-primary" : "text-muted-foreground"
+                            isActive ? config.textColor : `${config.textColor}/70`
                           )} />
                         </div>
                         <span className={cn(
                           "text-xs font-medium",
-                          isActive ? "text-primary" : "text-foreground"
+                          isActive ? config.textColor : "text-foreground"
                         )}>
                           {typeStat.label}
                         </span>
                         {isActive && (
-                          <Badge className="ml-auto bg-primary text-primary-foreground text-[10px] px-1.5 py-0">
+                          <Badge className={cn("ml-auto text-white text-[10px] px-1.5 py-0", config.bgColor)}>
                             Ativo
                           </Badge>
                         )}
