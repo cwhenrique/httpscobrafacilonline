@@ -286,7 +286,13 @@ export default function ReportsLoans() {
     
     // Get base loans filtered by payment type only (not date range for evolution)
     const baseLoans = paymentTypeFilter !== 'all' 
-      ? stats.allLoans.filter(loan => loan.payment_type === paymentTypeFilter)
+      ? stats.allLoans.filter(loan => {
+          if (paymentTypeFilter === 'installment') {
+            // Mensal inclui 'installment' e 'single'
+            return loan.payment_type === 'installment' || loan.payment_type === 'single';
+          }
+          return loan.payment_type === paymentTypeFilter;
+        })
       : stats.allLoans;
     
     for (let i = 5; i >= 0; i--) {
