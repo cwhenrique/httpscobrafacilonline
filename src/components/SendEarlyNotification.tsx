@@ -175,7 +175,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
   return (
     <>
-      <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-col items-center gap-1.5">
         <Button
           variant="outline"
           size="sm"
@@ -191,9 +191,8 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
           {isSending ? 'Enviando...' : 'Cobrar Antes do Prazo'}
         </Button>
         {messageCount > 0 && (
-          <span className="text-xs text-amber-600 flex items-center gap-1">
-            <MessageCircle className="w-3 h-3" />
-            Você já cobrou {messageCount}x
+          <span className="text-xs text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium">
+            Já cobrou {messageCount}x
           </span>
         )}
       </div>
