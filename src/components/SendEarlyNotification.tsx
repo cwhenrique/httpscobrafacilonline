@@ -143,7 +143,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: {
           userId: user.id,
-          phone: data.clientPhone,
+          clientPhone: data.clientPhone,
           message: message,
         },
       });
