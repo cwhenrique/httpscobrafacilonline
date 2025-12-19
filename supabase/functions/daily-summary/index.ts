@@ -141,6 +141,18 @@ const handler = async (req: Request): Promise<Response> => {
         .eq('user_id', profile.id)
         .in('status', ['pending', 'overdue']);
 
+      // Buscar contagem REAL de pagamentos por loan_id
+      const { data: loanPaymentsData } = await supabase
+        .from('loan_payments')
+        .select('loan_id')
+        .eq('user_id', profile.id);
+
+      // Criar mapa de contagem de pagamentos por empréstimo
+      const loanPaymentCounts: Record<string, number> = {};
+      for (const payment of loanPaymentsData || []) {
+        loanPaymentCounts[payment.loan_id] = (loanPaymentCounts[payment.loan_id] || 0) + 1;
+      }
+
       // ============= VEÍCULOS =============
       const { data: vehiclePayments } = await supabase
         .from('vehicle_payments')
@@ -203,7 +215,9 @@ const handler = async (req: Request): Promise<Response> => {
         const remainingBalance = loan.remaining_balance;
         const totalToReceive = remainingBalance + (loan.total_paid || 0);
         const totalPerInstallment = totalToReceive / numInstallments;
-        const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+        
+        // Usar contagem REAL de pagamentos em vez de dividir total_paid
+        const paidInstallments = loanPaymentCounts[loan.id] || 0;
 
         // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
         if (loan.payment_type === 'daily' && installmentDates.length > 0) {
