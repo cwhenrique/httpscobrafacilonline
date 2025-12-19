@@ -2548,6 +2548,12 @@ export default function Loans() {
             status = 'overdue';
           }
           
+          // Para empréstimos com pagamento "só juros", usar remaining_balance do banco
+          // pois o trigger não abate do saldo quando é só juros
+          const calculatedRemaining = isInterestOnlyLoan 
+            ? (loan.remaining_balance || totalToReceive)  // Usar saldo do banco para só juros
+            : (totalToReceive - (loan.total_paid || 0));  // Cálculo normal para outros
+          
           return {
             id: loan.id,
             clientName: loan.client?.full_name || 'Cliente',
@@ -2558,7 +2564,7 @@ export default function Loans() {
             totalInterest: totalInterest,
             totalToReceive: totalToReceive,
             totalPaid: loan.total_paid || 0,
-            remainingBalance: totalToReceive - (loan.total_paid || 0),
+            remainingBalance: calculatedRemaining,
             status: status,
             startDate: loan.start_date,
             dueDate: loan.due_date,
