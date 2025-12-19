@@ -13,9 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
 // Categorias com ícones e cores
 const BILL_CATEGORIES: { value: BillCategory; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
@@ -559,7 +559,7 @@ export default function Bills() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
+                <PieChartIcon className="h-5 w-5" />
                 Gastos por Categoria
                 {selectedMonth && (
                   <span className="text-sm font-normal text-muted-foreground capitalize">
@@ -569,32 +569,21 @@ export default function Bills() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={categoryExpenses}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <XAxis 
-                      type="number" 
-                      tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`}
-                    />
-                    <YAxis 
-                      type="category" 
-                      dataKey="name" 
-                      width={120}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip
-                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  <PieChart>
+                    <Pie
+                      data={categoryExpenses}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
                       {categoryExpenses.map((entry, index) => {
                         const colorMap: Record<string, string> = {
                           'yellow-500': '#eab308',
@@ -622,8 +611,22 @@ export default function Bills() {
                           />
                         );
                       })}
-                    </Bar>
-                  </BarChart>
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend 
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
+                      formatter={(value) => <span className="text-sm">{value}</span>}
+                    />
+                  </PieChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
