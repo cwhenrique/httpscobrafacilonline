@@ -4777,7 +4777,31 @@ export default function Loans() {
                     
                     const getInstallmentStatus = (index: number) => {
                       const installmentValue = getInstallmentValue(index);
-                      const paidAmount = partialPayments[index] || 0;
+                      let paidAmount = partialPayments[index] || 0;
+                      
+                      // FALLBACK: Se não há tracking por tags [PARTIAL_PAID], calcular por total_paid
+                      const hasAnyTrackingTags = Object.keys(partialPayments).length > 0;
+                      if (!hasAnyTrackingTags && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+                        // Calcular quantas parcelas completas foram pagas
+                        const paidInstallmentsCount = Math.floor(selectedLoan.total_paid / totalPerInstallment);
+                        if (index < paidInstallmentsCount) {
+                          // Esta parcela foi totalmente paga
+                          return { 
+                            isPaid: true, 
+                            isPartial: false, 
+                            paidAmount: installmentValue, 
+                            remaining: 0, 
+                            excess: 0, 
+                            subparcelas: [] as { originalIndex: number; amount: number; label: string }[] 
+                          };
+                        }
+                        // Verificar se é a parcela parcialmente paga
+                        const remainingPaid = selectedLoan.total_paid - (paidInstallmentsCount * totalPerInstallment);
+                        if (index === paidInstallmentsCount && remainingPaid > 0) {
+                          paidAmount = remainingPaid;
+                        }
+                      }
+                      
                       const remaining = installmentValue - paidAmount;
                       const excess = paidAmount > installmentValue ? paidAmount - installmentValue : 0;
                       
