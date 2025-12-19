@@ -4963,15 +4963,13 @@ export default function Loans() {
                                     className={`w-full justify-between text-sm h-auto py-2 ${
                                       status.isPaid 
                                         ? 'bg-green-500/20 border-green-500 text-green-700 dark:text-green-300 cursor-not-allowed opacity-60' 
-                                        : status.isInterestOnlyPaid
-                                          ? 'bg-purple-500/20 border-purple-500 text-purple-700 dark:text-purple-300'
-                                          : hasSubparcelas
-                                            ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
-                                            : status.isPartial
-                                              ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
-                                              : isOverdue && !isSelected
-                                                ? 'border-destructive text-destructive' 
-                                                : ''
+                                        : hasSubparcelas
+                                          ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                                          : status.isPartial
+                                            ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700 dark:text-yellow-300'
+                                            : isOverdue && !isSelected
+                                              ? 'border-destructive text-destructive' 
+                                              : ''
                                     }`}
                                     onClick={() => {
                                       if (!status.isPaid && !hasSubparcelas) {
@@ -4986,15 +4984,14 @@ export default function Loans() {
                                         <span>
                                           Parcela {index + 1}/{dates.length}
                                           {status.isPaid && ' ✓'}
-                                          {status.isInterestOnlyPaid && !status.isPaid && ' 💜'}
                                           {hasSubparcelas && ` (${status.subparcelas.length} sub-parcela${status.subparcelas.length > 1 ? 's' : ''} pendente${status.subparcelas.length > 1 ? 's' : ''})`}
-                                          {isOverdue && !status.isPaid && !hasSubparcelas && !status.isInterestOnlyPaid && ' (Atrasada)'}
+                                          {isOverdue && !status.isPaid && !hasSubparcelas && ' (Atrasada)'}
                                         </span>
                                       </span>
-                                      {/* Mostrar info de "somente juros pagos" - cor roxa */}
+                                      {/* Indicação discreta de juros pagos */}
                                       {status.isInterestOnlyPaid && !status.isPaid && (
-                                        <span className="text-xs text-purple-600 dark:text-purple-400">
-                                          💰 Juros pagos: {formatCurrency(status.interestPaidAmount)} {status.interestPaymentDate ? `(${formatDate(status.interestPaymentDate)})` : ''} | Principal: {formatCurrency(installmentValue)}
+                                        <span className="text-xs text-muted-foreground">
+                                          💜 Juros pagos: {formatCurrency(status.interestPaidAmount)} em {status.interestPaymentDate ? formatDate(status.interestPaymentDate) : ''}
                                         </span>
                                       )}
                                       {status.isPartial && !hasSubparcelas && !status.isInterestOnlyPaid && (
