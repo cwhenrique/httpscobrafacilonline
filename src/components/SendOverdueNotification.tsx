@@ -6,6 +6,8 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
+import { Badge } from '@/components/ui/badge';
+import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 
 interface OverdueData {
   clientName: string;
@@ -82,6 +84,7 @@ export default function SendOverdueNotification({
   const [remainingMinutes, setRemainingMinutes] = useState(getRemainingCooldownMinutes(data.loanId));
   const { profile } = useProfile();
   const { user } = useAuth();
+  const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
   const canSend = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && data.clientPhone;
 
@@ -178,6 +181,16 @@ export default function SendOverdueNotification({
         setCooldown(data.loanId);
         setCooldownState(true);
         setRemainingMinutes(60);
+        
+        // Register message in database
+        await registerMessage({
+          loanId: data.loanId,
+          contractType: data.contractType,
+          messageType: 'overdue',
+          clientPhone: data.clientPhone,
+          clientName: data.clientName,
+        });
+        
         toast.success('Cobrança enviada para o cliente!');
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
@@ -229,6 +242,11 @@ export default function SendOverdueNotification({
             <MessageCircle className="w-4 h-4 mr-2" />
             Enviar Cobrança
           </>
+        )}
+        {messageCount > 0 && (
+          <Badge variant="secondary" className="ml-2 bg-red-500/20 text-red-300 border-red-500/30">
+            {messageCount}x
+          </Badge>
         )}
       </Button>
 

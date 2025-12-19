@@ -33,6 +33,7 @@ import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -4265,6 +4266,39 @@ export default function Loans() {
                             )}
                           </div>
                         </div>
+                      )}
+                      
+                      {/* Early Notification - Contrato normal (não vencido ainda) */}
+                      {!isPaid && !isOverdue && !isDueToday && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                        (() => {
+                          const paidCount = getPaidInstallmentsCount(loan);
+                          const dates = (loan.installment_dates as string[]) || [];
+                          const nextDueDate = dates[paidCount] || loan.due_date;
+                          const nextDueDateObj = new Date(nextDueDate + 'T12:00:00');
+                          nextDueDateObj.setHours(0, 0, 0, 0);
+                          const todayForEarly = new Date();
+                          todayForEarly.setHours(0, 0, 0, 0);
+                          const daysUntilDue = Math.ceil((nextDueDateObj.getTime() - todayForEarly.getTime()) / (1000 * 60 * 60 * 24));
+                          
+                          return (
+                            <div className="mt-2 sm:mt-3">
+                              <SendEarlyNotification
+                                data={{
+                                  clientName: loan.client?.full_name || 'Cliente',
+                                  clientPhone: loan.client.phone,
+                                  contractType: 'loan',
+                                  installmentNumber: paidCount + 1,
+                                  totalInstallments: loan.installments || 1,
+                                  amount: totalPerInstallment,
+                                  dueDate: nextDueDate,
+                                  daysUntilDue: daysUntilDue,
+                                  loanId: loan.id,
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                          );
+                        })()
                       )}
                       
                       {/* Advance subparcelas (sub-parcelas de adiantamento) */}

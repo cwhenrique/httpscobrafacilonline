@@ -951,6 +951,42 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_messages: {
+        Row: {
+          client_name: string
+          client_phone: string
+          contract_type: string
+          created_at: string | null
+          id: string
+          loan_id: string | null
+          message_type: string
+          sent_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client_name: string
+          client_phone: string
+          contract_type: string
+          created_at?: string | null
+          id?: string
+          loan_id?: string | null
+          message_type: string
+          sent_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client_name?: string
+          client_phone?: string
+          contract_type?: string
+          created_at?: string | null
+          id?: string
+          loan_id?: string | null
+          message_type?: string
+          sent_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

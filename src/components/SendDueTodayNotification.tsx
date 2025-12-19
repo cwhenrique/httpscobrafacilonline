@@ -6,6 +6,8 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
+import { Badge } from '@/components/ui/badge';
+import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 
 interface DueTodayData {
   clientName: string;
@@ -77,6 +79,7 @@ export default function SendDueTodayNotification({
   const [remainingMinutes, setRemainingMinutes] = useState(getRemainingCooldownMinutes(data.loanId));
   const { profile } = useProfile();
   const { user } = useAuth();
+  const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
   const canSend = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && data.clientPhone;
 
@@ -173,6 +176,16 @@ export default function SendDueTodayNotification({
         setCooldown(data.loanId);
         setCooldownState(true);
         setRemainingMinutes(60);
+        
+        // Register message in database
+        await registerMessage({
+          loanId: data.loanId,
+          contractType: data.contractType,
+          messageType: 'due_today',
+          clientPhone: data.clientPhone,
+          clientName: data.clientName,
+        });
+        
         toast.success('Lembrete enviado para o cliente!');
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
@@ -224,6 +237,11 @@ export default function SendDueTodayNotification({
             <Bell className="w-4 h-4 mr-2" />
             Lembrete pro Cliente
           </>
+        )}
+        {messageCount > 0 && (
+          <Badge variant="secondary" className="ml-2 bg-amber-500/20 text-amber-300 border-amber-500/30">
+            {messageCount}x
+          </Badge>
         )}
       </Button>
 
