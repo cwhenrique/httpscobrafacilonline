@@ -63,8 +63,9 @@ export default function Settings() {
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
   const [togglingVoice, setTogglingVoice] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
-  const [qrTimeRemaining, setQrTimeRemaining] = useState(20);
+  const [qrTimeRemaining, setQrTimeRemaining] = useState(60);
   const [qrExpired, setQrExpired] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -105,11 +106,11 @@ export default function Settings() {
     return () => clearInterval(interval);
   }, [showQrModal, qrCode]);
 
-  // QR Code expiration timer
+  // QR Code expiration timer - 60 seconds
   useEffect(() => {
     if (!qrCode || generatingQr) return;
     
-    setQrTimeRemaining(20);
+    setQrTimeRemaining(60);
     setQrExpired(false);
     
     const timer = setInterval(() => {
@@ -126,13 +127,13 @@ export default function Settings() {
     return () => clearInterval(timer);
   }, [qrCode, generatingQr]);
 
-  const checkWhatsAppStatus = useCallback(async (): Promise<WhatsAppStatus | null> => {
+  const checkWhatsAppStatus = useCallback(async (attemptReconnect = false): Promise<WhatsAppStatus | null> => {
     if (!user?.id) return null;
     
     setCheckingStatus(true);
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-check-status', {
-        body: { userId: user.id }
+        body: { userId: user.id, attemptReconnect }
       });
 
       if (error) {
@@ -141,6 +142,12 @@ export default function Settings() {
       }
 
       setWhatsappStatus(data);
+      
+      // Notify user if connection was restored
+      if (attemptReconnect && data?.reconnected) {
+        toast.success('Conexão restaurada automaticamente!');
+      }
+      
       return data;
     } catch (error) {
       console.error('Error checking status:', error);
@@ -149,6 +156,29 @@ export default function Settings() {
       setCheckingStatus(false);
     }
   }, [user?.id]);
+
+  const handleReconnectWhatsApp = async () => {
+    if (!user?.id) return;
+    
+    setReconnecting(true);
+    toast.info('Tentando reconectar...');
+    
+    try {
+      const status = await checkWhatsAppStatus(true);
+      
+      if (status?.connected) {
+        toast.success('WhatsApp reconectado com sucesso!');
+      } else {
+        // If reconnect failed, offer to scan QR code again
+        toast.error('Não foi possível reconectar automaticamente. Tente escanear o QR Code novamente.');
+      }
+    } catch (error) {
+      console.error('Error reconnecting:', error);
+      toast.error('Erro ao tentar reconectar');
+    } finally {
+      setReconnecting(false);
+    }
+  };
 
   const handleConnectWhatsApp = async () => {
     if (!user?.id) return;
@@ -656,11 +686,46 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   <p className="text-sm text-muted-foreground mb-4">
                     Escaneie um QR Code para conectar seu WhatsApp e enviar mensagens diretamente aos seus clientes.
                   </p>
-                  <Button onClick={handleConnectWhatsApp} className="bg-green-600 hover:bg-green-700">
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Conectar WhatsApp
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button onClick={handleConnectWhatsApp} className="bg-green-600 hover:bg-green-700">
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Conectar WhatsApp
+                    </Button>
+                    {whatsappStatus?.status === 'close' || whatsappStatus?.status === 'disconnected' ? (
+                      <Button 
+                        variant="outline" 
+                        onClick={handleReconnectWhatsApp}
+                        disabled={reconnecting}
+                      >
+                        {reconnecting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Reconectando...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Tentar Reconectar
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
+
+                {whatsappStatus?.status === 'close' && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-600">Conexão perdida</p>
+                        <p className="text-xs text-muted-foreground">
+                          Sua conexão anterior foi desconectada. Tente reconectar ou escaneie o QR Code novamente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <p className="text-xs text-muted-foreground text-center">
                   Com o WhatsApp conectado, você poderá enviar notificações de cobrança e comprovantes diretamente para os telefones dos seus clientes.
@@ -773,18 +838,18 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
               <div className="w-full mb-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 5 ? 'text-amber-500' : 'text-green-500'}`} />
-                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 5 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 10 ? 'text-amber-500' : 'text-green-500'}`} />
+                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 10 ? 'text-amber-500' : 'text-muted-foreground'}`}>
                       {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
                     </span>
                   </div>
                   {!qrExpired && (
-                    <span className="text-xs text-muted-foreground">Escaneie rapidamente</span>
+                    <span className="text-xs text-muted-foreground">Escaneie com calma</span>
                   )}
                 </div>
                 <Progress 
-                  value={(qrTimeRemaining / 20) * 100} 
-                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 5 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
+                  value={(qrTimeRemaining / 60) * 100} 
+                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 10 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
                 />
               </div>
             )}
@@ -845,6 +910,16 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
             {/* Instructions */}
             {!qrExpired && (
               <div className="mt-6 w-full space-y-3">
+                {/* Warning about device conflicts */}
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-600">
+                      <strong>Importante:</strong> Se você tiver outras sessões do WhatsApp Web ativas, feche-as primeiro para evitar desconexões.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="p-2 rounded-full bg-green-500/10">
                     <Smartphone className="w-5 h-5 text-green-600" />
