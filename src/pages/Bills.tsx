@@ -11,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
-import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // Categorias com ícones e cores
 const BILL_CATEGORIES: { value: BillCategory; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
@@ -200,6 +201,7 @@ export default function Bills() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(new Date()); // null = todos os meses
 
   // Form state
   const [formData, setFormData] = useState<CreateBillData>({
@@ -228,17 +230,40 @@ export default function Bills() {
     });
   };
 
-  // Filtros do mês atual
+  // Filtros do mês selecionado (ou todos)
   const currentMonthBills = useMemo(() => {
-    const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
+    if (!selectedMonth) {
+      return bills; // Todos os meses
+    }
+    
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
     
     return bills.filter(bill => {
       const dueDate = parseISO(bill.due_date);
       return isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
     });
-  }, [bills]);
+  }, [bills, selectedMonth]);
+
+  // Gastos por categoria (para o gráfico)
+  const categoryExpenses = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    
+    currentMonthBills.forEach(bill => {
+      const category = bill.category || 'outros';
+      grouped[category] = (grouped[category] || 0) + Number(bill.amount);
+    });
+
+    return BILL_CATEGORIES
+      .filter(cat => grouped[cat.value] > 0)
+      .map(cat => ({
+        name: cat.label,
+        value: grouped[cat.value],
+        color: cat.color.replace('text-', ''),
+        category: cat.value,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [currentMonthBills]);
 
   // Estatísticas
   const stats = useMemo(() => {
@@ -401,6 +426,45 @@ export default function Bills() {
           </Dialog>
         </div>
 
+        {/* Month Selector */}
+        <div className="flex items-center justify-center gap-4 p-4 bg-muted/50 rounded-lg">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => selectedMonth && setSelectedMonth(subMonths(selectedMonth, 1))}
+            disabled={!selectedMonth}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <div className="text-center min-w-[180px]">
+            {selectedMonth ? (
+              <span className="text-lg font-semibold capitalize">
+                {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+              </span>
+            ) : (
+              <span className="text-lg font-semibold">Todos os meses</span>
+            )}
+          </div>
+          
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => selectedMonth && setSelectedMonth(addMonths(selectedMonth, 1))}
+            disabled={!selectedMonth}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant={selectedMonth ? "outline" : "default"}
+            size="sm"
+            onClick={() => setSelectedMonth(selectedMonth ? null : new Date())}
+          >
+            {selectedMonth ? "Ver Todos" : "Mês Atual"}
+          </Button>
+        </div>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Total do Mês */}
@@ -409,7 +473,7 @@ export default function Bills() {
               <div className="flex items-center gap-3">
                 <DollarSign className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Total do Mês</p>
+                  <p className="text-sm text-muted-foreground">{selectedMonth ? 'Total do Mês' : 'Total Geral'}</p>
                   <p className="text-xl font-bold">R$ {stats.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   <p className="text-xs text-muted-foreground">{stats.totalCount} conta{stats.totalCount !== 1 ? 's' : ''}</p>
                 </div>
@@ -489,6 +553,82 @@ export default function Bills() {
             </Card>
           )}
         </div>
+
+        {/* Category Chart */}
+        {categoryExpenses.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Gastos por Categoria
+                {selectedMonth && (
+                  <span className="text-sm font-normal text-muted-foreground capitalize">
+                    ({format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })})
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={categoryExpenses}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <XAxis 
+                      type="number" 
+                      tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      width={120}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {categoryExpenses.map((entry, index) => {
+                        const colorMap: Record<string, string> = {
+                          'yellow-500': '#eab308',
+                          'blue-500': '#3b82f6',
+                          'purple-500': '#a855f7',
+                          'green-500': '#22c55e',
+                          'red-500': '#ef4444',
+                          'orange-500': '#f97316',
+                          'slate-500': '#64748b',
+                          'cyan-500': '#06b6d4',
+                          'pink-500': '#ec4899',
+                          'rose-500': '#f43f5e',
+                          'emerald-500': '#10b981',
+                          'red-400': '#f87171',
+                          'indigo-500': '#6366f1',
+                          'emerald-600': '#059669',
+                          'amber-500': '#f59e0b',
+                          'violet-500': '#8b5cf6',
+                          'muted-foreground': '#71717a',
+                        };
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={colorMap[entry.color] || '#8b5cf6'}
+                          />
+                        );
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
@@ -643,16 +783,33 @@ export default function Bills() {
 
                     <div className="flex gap-2">
                       {status !== 'paid' && (
-                        <Button 
-                          size="sm" 
-                          className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30"
-                          variant="outline"
-                          onClick={() => markAsPaid.mutateAsync(bill.id)}
-                          disabled={markAsPaid.isPending}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Pagar
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30"
+                              variant="outline"
+                              disabled={markAsPaid.isPending}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Pagar
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar pagamento?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Marcar "{bill.description}" de R$ {Number(bill.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} como pago?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => markAsPaid.mutateAsync(bill.id)}>
+                                Confirmar Pagamento
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                       <Button 
                         size="sm" 
