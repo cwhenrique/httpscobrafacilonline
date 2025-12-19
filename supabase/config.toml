@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.fix-loan-tracking]
 verify_jwt = false
+
+[functions.send-test-message]
+verify_jwt = false
