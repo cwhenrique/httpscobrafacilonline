@@ -139,10 +139,13 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   
   // 🆕 FALLBACK: Se não há tags de tracking mas há pagamentos registrados,
   // calcular parcelas pagas baseado no total_paid dividido pelo valor da parcela
+  // MAS: Verificar se há tags de [INTEREST_ONLY_PAID] - se sim, NÃO usar o fallback
   const hasTrackingTags = Object.keys(partialPayments).length > 0;
+  const hasInterestOnlyTags = (loan.notes || '').includes('[INTEREST_ONLY_PAID:');
   const totalPaid = loan.total_paid || 0;
   
-  if (!hasTrackingTags && totalPaid > 0 && baseInstallmentValue > 0) {
+  // Só usar fallback se não houver NENHUMA tag de tracking (nem partial, nem interest-only)
+  if (!hasTrackingTags && !hasInterestOnlyTags && totalPaid > 0 && baseInstallmentValue > 0) {
     // Calcular quantas parcelas completas foram pagas
     const paidByValue = Math.floor(totalPaid / baseInstallmentValue);
     return Math.min(paidByValue, numInstallments);
@@ -167,6 +170,77 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   }
   
   return paidCount;
+};
+
+// 🆕 Função para encontrar a primeira parcela NÃO QUITADA (ignorando pagamentos de juros)
+// Esta função é usada especificamente para pagamentos de "só juros" 
+// para garantir que o juros sempre vá para a parcela 1 até que ela seja quitada
+type LoanForUnpaidCheck = { 
+  notes?: string | null; 
+  installments?: number | null; 
+  principal_amount: number; 
+  interest_rate: number; 
+  interest_mode?: string | null; 
+  total_interest?: number | null; 
+  payment_type?: string;
+};
+
+const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
+  const numInstallments = loan.installments || 1;
+  const isDaily = loan.payment_type === 'daily';
+  
+  // Calcular valor da parcela
+  let totalInterest = 0;
+  if (isDaily) {
+    const dailyAmount = loan.total_interest || 0;
+    totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+  } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+    totalInterest = loan.total_interest;
+  } else if (loan.interest_mode === 'on_total') {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else if (loan.interest_mode === 'compound') {
+    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+  } else {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+  }
+  
+  const principalPerInstallment = loan.principal_amount / numInstallments;
+  const interestPerInstallment = totalInterest / numInstallments;
+  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  
+  // Verificar taxa de renovação
+  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
+  const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+  const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+  
+  const getInstallmentValue = (index: number) => {
+    if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+      return renewalFeeValue;
+    }
+    return baseInstallmentValue;
+  };
+  
+  // Pagamentos parciais (principal + juros efetivamente pagos, NÃO conta [INTEREST_ONLY_PAID])
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  
+  // Sub-parcelas de adiantamento pendentes
+  const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+  const hasSubparcelaForIndex = (index: number) => 
+    advanceSubparcelas.some(s => s.originalIndex === index);
+  
+  // Encontrar a primeira parcela que NÃO está quitada
+  for (let i = 0; i < numInstallments; i++) {
+    const installmentValue = getInstallmentValue(i);
+    const paidAmount = partialPayments[i] || 0;
+    
+    // Parcela NÃO está quitada se: valor pago < 99% OU tem sub-parcela pendente
+    if (paidAmount < installmentValue * 0.99 || hasSubparcelaForIndex(i)) {
+      return i; // Primeira não quitada
+    }
+  }
+  
+  // Se todas as parcelas estão pagas, retornar a última
+  return numInstallments - 1;
 };
 
 export default function Loans() {
@@ -1996,7 +2070,7 @@ export default function Loans() {
       
       // Adicionar tag específica para rastrear o pagamento de juros por parcela
       // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
-      const targetInstallmentIndex = paidInstallmentsCount; // Próxima parcela não paga
+      const targetInstallmentIndex = getFirstUnpaidInstallmentIndex(loan); // Primeira parcela não quitada (ignora pagamentos de só juros)
       const paymentDateStr = renegotiateData.interest_payment_date || format(new Date(), 'yyyy-MM-dd');
       notesText += `\n[INTEREST_ONLY_PAID:${targetInstallmentIndex}:${interestPaid.toFixed(2)}:${paymentDateStr}]`;
       notesText += `\nPagamento de juros: R$ ${interestPaid.toFixed(2)} em ${formatDate(paymentDateStr)}`;
