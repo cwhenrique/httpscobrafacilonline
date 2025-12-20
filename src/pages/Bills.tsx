@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2 } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
@@ -39,7 +39,16 @@ const BILL_CATEGORIES: { value: BillCategory; label: string; icon: React.Compone
 ];
 
 const getCategoryInfo = (category: BillCategory) => {
-  return BILL_CATEGORIES.find(c => c.value === category) || BILL_CATEGORIES[BILL_CATEGORIES.length - 1];
+  const found = BILL_CATEGORIES.find(c => c.value === category);
+  if (found) return found;
+  
+  // Categoria personalizada - retorna com ícone Tag e cor padrão
+  return {
+    value: category,
+    label: category,
+    icon: Tag,
+    color: 'text-primary'
+  };
 };
 
 type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today';
@@ -52,10 +61,12 @@ interface BillFormProps {
   onSubmit: () => void;
   submitLabel: string;
   isLoading: boolean;
+  customCategory: string;
+  setCustomCategory: React.Dispatch<React.SetStateAction<string>>;
 }
 
 // BillForm movido para fora do componente Bills para evitar perda de foco
-const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading }: BillFormProps) => (
+const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading, customCategory, setCustomCategory }: BillFormProps) => (
   <div className="space-y-4">
     <div className="grid grid-cols-2 gap-4">
       <div className="col-span-2">
@@ -117,7 +128,12 @@ const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading }: B
         <Label>Categoria</Label>
         <Select
           value={formData.category}
-          onValueChange={(value: BillCategory) => setFormData({ ...formData, category: value })}
+          onValueChange={(value: BillCategory) => {
+            setFormData({ ...formData, category: value });
+            if (value !== 'custom') {
+              setCustomCategory('');
+            }
+          }}
         >
           <SelectTrigger>
             <SelectValue placeholder="Selecione a categoria" />
@@ -134,9 +150,25 @@ const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading }: B
                 </SelectItem>
               );
             })}
+            <SelectItem value="custom">
+              <div className="flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-primary" />
+                <span>✏️ Personalizada</span>
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
+      {formData.category === 'custom' && (
+        <div className="col-span-2">
+          <Label>Nome da categoria personalizada *</Label>
+          <Input
+            placeholder="Ex: Academia, Contador, Pet Shop..."
+            value={customCategory}
+            onChange={(e) => setCustomCategory(e.target.value)}
+          />
+        </div>
+      )}
       <div className="col-span-2 space-y-3">
         <div className="flex items-center gap-3">
           <Switch
@@ -205,6 +237,7 @@ export default function Bills() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(new Date()); // null = todos os meses
+  const [customCategory, setCustomCategory] = useState('');
 
   // Form state
   const [formData, setFormData] = useState<CreateBillData>({
@@ -231,6 +264,7 @@ export default function Bills() {
       pix_key: '',
       notes: '',
     });
+    setCustomCategory('');
   };
 
   // Filtros do mês selecionado (ou todos)
@@ -257,15 +291,28 @@ export default function Bills() {
       grouped[category] = (grouped[category] || 0) + Number(bill.amount);
     });
 
-    return BILL_CATEGORIES
+    // Primeiro mapeia categorias padrão
+    const standardExpenses = BILL_CATEGORIES
       .filter(cat => grouped[cat.value] > 0)
       .map(cat => ({
         name: cat.label,
         value: grouped[cat.value],
         color: cat.color.replace('text-', ''),
         category: cat.value,
-      }))
-      .sort((a, b) => b.value - a.value);
+      }));
+    
+    // Depois adiciona categorias personalizadas
+    const standardCategoryValues = BILL_CATEGORIES.map(c => c.value);
+    const customExpenses = Object.keys(grouped)
+      .filter(cat => !standardCategoryValues.includes(cat as BillCategory) && grouped[cat] > 0)
+      .map(cat => ({
+        name: cat,
+        value: grouped[cat],
+        color: 'primary', // Cor padrão para personalizadas
+        category: cat,
+      }));
+
+    return [...standardExpenses, ...customExpenses].sort((a, b) => b.value - a.value);
   }, [currentMonthBills]);
 
   // Estatísticas
@@ -383,13 +430,36 @@ export default function Bills() {
       return;
     }
 
-    await createBill.mutateAsync(formData);
+    // Se categoria personalizada, valida e usa o nome digitado
+    if (formData.category === 'custom') {
+      if (!customCategory.trim()) {
+        toast.error('Digite o nome da categoria personalizada');
+        return;
+      }
+    }
+
+    const finalCategory = formData.category === 'custom' ? customCategory.trim() : formData.category;
+    
+    await createBill.mutateAsync({
+      ...formData,
+      category: finalCategory,
+    });
     setIsCreateOpen(false);
     resetForm();
   };
 
   const handleEdit = async () => {
     if (!editingBill) return;
+
+    // Se categoria personalizada, valida e usa o nome digitado
+    if (formData.category === 'custom') {
+      if (!customCategory.trim()) {
+        toast.error('Digite o nome da categoria personalizada');
+        return;
+      }
+    }
+
+    const finalCategory = formData.category === 'custom' ? customCategory.trim() : formData.category;
 
     await updateBill.mutateAsync({
       id: editingBill.id,
@@ -398,7 +468,7 @@ export default function Bills() {
         payee_name: formData.payee_name,
         amount: formData.amount,
         due_date: formData.due_date,
-        category: formData.category,
+        category: finalCategory,
         is_recurring: formData.is_recurring,
         recurrence_months: formData.recurrence_months,
         pix_key: formData.pix_key,
@@ -410,17 +480,22 @@ export default function Bills() {
   };
 
   const openEditDialog = (bill: Bill) => {
+    // Verifica se é categoria personalizada (não está em BILL_CATEGORIES)
+    const isCustomCategory = !BILL_CATEGORIES.find(c => c.value === bill.category);
+    
     setFormData({
       description: bill.description,
       payee_name: bill.payee_name,
       amount: bill.amount,
       due_date: bill.due_date,
-      category: bill.category || 'outros',
+      category: isCustomCategory ? 'custom' : (bill.category || 'outros'),
       is_recurring: bill.is_recurring || false,
       recurrence_months: bill.recurrence_months ?? null,
       pix_key: bill.pix_key || '',
       notes: bill.notes || '',
     });
+    // Se for categoria personalizada, preencher o campo
+    setCustomCategory(isCustomCategory ? (bill.category || '') : '');
     setEditingBill(bill);
   };
 
@@ -467,7 +542,7 @@ export default function Bills() {
               <DialogHeader>
                 <DialogTitle>Adicionar Nova Conta</DialogTitle>
               </DialogHeader>
-              <BillForm formData={formData} setFormData={setFormData} onSubmit={handleCreate} submitLabel="Cadastrar Conta" isLoading={createBill.isPending} />
+              <BillForm formData={formData} setFormData={setFormData} onSubmit={handleCreate} submitLabel="Cadastrar Conta" isLoading={createBill.isPending} customCategory={customCategory} setCustomCategory={setCustomCategory} />
             </DialogContent>
           </Dialog>
         </div>
@@ -1068,7 +1143,7 @@ export default function Bills() {
             <DialogHeader>
               <DialogTitle>Editar Conta</DialogTitle>
             </DialogHeader>
-            <BillForm formData={formData} setFormData={setFormData} onSubmit={handleEdit} submitLabel="Salvar Alterações" isLoading={updateBill.isPending} />
+            <BillForm formData={formData} setFormData={setFormData} onSubmit={handleEdit} submitLabel="Salvar Alterações" isLoading={updateBill.isPending} customCategory={customCategory} setCustomCategory={setCustomCategory} />
           </DialogContent>
         </Dialog>
       </div>

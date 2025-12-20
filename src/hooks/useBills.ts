@@ -21,7 +21,9 @@ export type BillCategory =
   | 'investimentos'
   | 'lazer'
   | 'pensao'
-  | 'outros';
+  | 'outros'
+  | 'custom'
+  | (string & {}); // Permite categorias personalizadas
 
 export interface Bill {
   id: string;
