@@ -74,7 +74,9 @@ const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
   }
   
   message += `\n━━━━━━━━━━━━━━━━\n`;
-  message += `_${data.companyName || 'CobraFácil'}_\n`;
+  if (data.companyName) {
+    message += `_${data.companyName}_\n`;
+  }
   message += `_Comprovante automático_`;
   
   return message;
