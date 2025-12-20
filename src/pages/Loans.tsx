@@ -5216,8 +5216,8 @@ export default function Loans() {
                   
                   const getCardStyle = () => {
                     if (isPaid) return 'bg-gradient-to-r from-emerald-500 to-primary text-white border-emerald-400';
-                    if (isOverdue) return 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400';
-                    if (isDueToday) return 'bg-amber-500/20 border-amber-400 dark:bg-amber-500/30 dark:border-amber-400';
+                    if (isOverdue) return 'bg-gradient-to-r from-red-500/70 to-blue-500/70 text-white border-red-400 dark:from-red-500/80 dark:to-blue-500/80';
+                    if (isDueToday) return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
                   };
                   
