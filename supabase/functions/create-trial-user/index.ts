@@ -95,50 +95,6 @@ serve(async (req) => {
       console.error('Error updating profile:', profileError);
     }
 
-    // Send WhatsApp welcome message
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
-    const adminPhone = Deno.env.get('ADMIN_PHONE_NUMBER');
-
-    if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
-      const cleanUrl = evolutionApiUrl.replace(/\/+$/, '').replace(/\/message\/sendText$/, '');
-      const apiUrl = `${cleanUrl}/message/sendText/${evolutionInstance}`;
-
-      // Send notification to admin only (removed client welcome message)
-      if (adminPhone) {
-        const formattedAdminPhone = adminPhone.replace(/\D/g, '').replace(/^0+/, '');
-        const adminPhoneWithCountry = formattedAdminPhone.startsWith('55') ? formattedAdminPhone : `55${formattedAdminPhone}`;
-        
-        const adminMessage = `📋 *Novo usuário criado!*
-
-👤 *Nome:* ${full_name}
-📧 *Email:* ${email}
-📱 *Telefone:* ${phone}
-🔑 *Senha:* ${password}
-📦 *Plano:* ${planDescription}
-
-${expiresAt ? `⏰ Expira em: ${planDescription}` : '♾️ Acesso vitalício'}`;
-
-        try {
-          await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': evolutionApiKey,
-            },
-            body: JSON.stringify({
-              number: adminPhoneWithCountry,
-              text: adminMessage,
-            }),
-          });
-          console.log('Admin notification sent to:', adminPhoneWithCountry);
-        } catch (whatsappError) {
-          console.error('Error sending WhatsApp to admin:', whatsappError);
-        }
-      }
-    }
-
     console.log('User created:', email, 'plan:', subscription_plan, 'expires:', expiresAt?.toISOString() || 'never');
 
     return new Response(
