@@ -74,8 +74,9 @@ const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
   }
   
   message += `\n━━━━━━━━━━━━━━━━\n`;
-  if (data.companyName) {
-    message += `_${data.companyName}_\n`;
+  const signatureName = data.billingSignatureName || data.companyName;
+  if (signatureName) {
+    message += `_${signatureName}_\n`;
   }
   message += `_Comprovante automático_`;
   

@@ -726,6 +726,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          billing_signature_name: string | null
           company_name: string | null
           created_at: string
           email: string | null
@@ -753,6 +754,7 @@ export type Database = {
           whatsapp_to_clients_enabled: boolean | null
         }
         Insert: {
+          billing_signature_name?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -780,6 +782,7 @@ export type Database = {
           whatsapp_to_clients_enabled?: boolean | null
         }
         Update: {
+          billing_signature_name?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null

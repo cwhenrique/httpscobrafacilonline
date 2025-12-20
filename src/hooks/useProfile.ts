@@ -27,6 +27,8 @@ export interface Profile {
   // PIX key
   pix_key: string | null;
   pix_key_type: string | null;
+  // Billing signature name
+  billing_signature_name: string | null;
 }
 
 export function useProfile() {

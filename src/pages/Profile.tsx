@@ -53,6 +53,7 @@ export default function Profile() {
     payment_link: '',
     pix_key: '',
     pix_key_type: 'cpf',
+    billing_signature_name: '',
   });
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -84,6 +85,7 @@ export default function Profile() {
         payment_link: profile.payment_link || '',
         pix_key: profile.pix_key || '',
         pix_key_type: profile.pix_key_type || 'cpf',
+        billing_signature_name: profile.billing_signature_name || '',
       });
     }
   }, [profile]);
@@ -154,6 +156,7 @@ export default function Profile() {
       payment_link: formData.payment_link.trim() || null,
       pix_key: formData.pix_key.trim() || null,
       pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
+      billing_signature_name: formData.billing_signature_name.trim() || null,
     });
 
     if (error) {
@@ -174,6 +177,7 @@ export default function Profile() {
       payment_link: profile?.payment_link || '',
       pix_key: profile?.pix_key || '',
       pix_key_type: profile?.pix_key_type || 'cpf',
+      billing_signature_name: profile?.billing_signature_name || '',
     });
     setIsEditing(false);
   };
@@ -649,6 +653,49 @@ export default function Profile() {
                     </div>
                   ) : (
                     <p className="text-muted-foreground">Nenhuma chave cadastrada</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Billing Signature Name Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Edit className="w-4 h-4 text-primary" />
+              Nome nas Cobranças
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Este nome será exibido no final das mensagens de cobrança enviadas aos seus clientes via WhatsApp.
+            </p>
+            
+            {isEditing ? (
+              <div className="space-y-2">
+                <Label htmlFor="billing_signature_name">Nome/Assinatura</Label>
+                <Input
+                  id="billing_signature_name"
+                  value={formData.billing_signature_name}
+                  onChange={(e) => setFormData({ ...formData, billing_signature_name: e.target.value })}
+                  placeholder="Ex: João Empréstimos, Maria Créditos..."
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Edit className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Nome Configurado</p>
+                  {profile?.billing_signature_name ? (
+                    <p className="font-medium">{profile.billing_signature_name}</p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      {profile?.company_name ? `Usando: ${profile.company_name}` : 'Nenhum nome cadastrado'}
+                    </p>
                   )}
                 </div>
               </div>

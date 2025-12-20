@@ -117,8 +117,9 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
     message += `Qualquer dúvida, estou à disposição! 😊`;
 
-    if (profile?.company_name) {
-      message += `\n\n_${profile.company_name}_`;
+    const signatureName = profile?.billing_signature_name || profile?.company_name;
+    if (signatureName) {
+      message += `\n\n_${signatureName}_`;
     }
 
     return message;

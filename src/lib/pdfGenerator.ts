@@ -138,6 +138,7 @@ export interface PaymentReceiptData {
   remainingBalance: number;
   totalPaid?: number;
   totalContract?: number;
+  billingSignatureName?: string;
 }
 
 export const generateContractReceipt = async (data: ContractReceiptData): Promise<void> => {

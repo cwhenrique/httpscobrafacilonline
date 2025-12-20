@@ -167,6 +167,7 @@ export default function Vehicles() {
       type: 'vehicle',
       contractId: vehicle.id,
       companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      billingSignatureName: profile?.billing_signature_name || undefined,
       clientName: vehicle.buyer_name || vehicle.seller_name,
       installmentNumber: payment.installment_number,
       totalInstallments: vehicle.installments,
