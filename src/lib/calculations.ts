@@ -406,3 +406,72 @@ export function getDaysOverdue(loan: LoanForCalculation): number {
   const diffTime = today.getTime() - nextDueDate.getTime();
   return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 }
+
+/**
+ * Interface para uma linha da Tabela Price (Sistema de Amortização Francês)
+ */
+export interface PriceTableRow {
+  installmentNumber: number;  // Número da parcela
+  payment: number;            // Valor da parcela (fixo - PMT)
+  amortization: number;       // Amortização do principal (crescente)
+  interest: number;           // Juros sobre saldo devedor (decrescente)
+  balance: number;            // Saldo Devedor após a parcela
+}
+
+/**
+ * Gera a Tabela Price completa (Sistema de Amortização Francês)
+ * 
+ * Na Tabela Price:
+ * - A parcela (PMT) é FIXA em todas as prestações
+ * - Os juros são calculados sobre o saldo devedor (decrescentes)
+ * - A amortização é a diferença entre PMT e juros (crescente)
+ * 
+ * @param principal - Valor emprestado (capital)
+ * @param monthlyRate - Taxa de juros mensal em percentual (ex: 20 para 20%)
+ * @param installments - Número de parcelas
+ * @returns Objeto com as linhas da tabela, PMT, total a pagar e total de juros
+ */
+export function generatePriceTable(
+  principal: number,
+  monthlyRate: number,
+  installments: number
+): { rows: PriceTableRow[]; pmt: number; totalPayment: number; totalInterest: number } {
+  const pmt = calculatePMT(principal, monthlyRate, installments);
+  const rate = monthlyRate / 100;
+  
+  const rows: PriceTableRow[] = [];
+  let balance = principal;
+  let totalInterest = 0;
+  
+  for (let i = 1; i <= installments; i++) {
+    // Juros do mês = saldo devedor × taxa mensal
+    const interest = balance * rate;
+    totalInterest += interest;
+    
+    // Amortização = PMT - Juros
+    const amortization = pmt - interest;
+    
+    // Novo saldo = saldo anterior - amortização
+    balance = Math.max(0, balance - amortization);
+    
+    // Para a última parcela, ajustar para zerar o saldo (evitar erros de arredondamento)
+    const finalBalance = i === installments ? 0 : balance;
+    
+    rows.push({
+      installmentNumber: i,
+      payment: pmt,
+      amortization: amortization,
+      interest: interest,
+      balance: finalBalance,
+    });
+  }
+  
+  const totalPayment = pmt * installments;
+  
+  return {
+    rows,
+    pmt,
+    totalPayment,
+    totalInterest,
+  };
+}

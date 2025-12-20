@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2 } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +37,7 @@ import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
+import PriceTableDialog from '@/components/PriceTableDialog';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -254,6 +255,7 @@ export default function Loans() {
   const [activeTab, setActiveTab] = useState<'regular' | 'daily'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -3691,7 +3693,14 @@ export default function Loans() {
                 className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white"
                 onClick={() => handleDialogOpen(true)}
               >
-                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Empréstimo
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Novo Empréstimo</span><span className="sm:hidden">Novo</span>
+              </Button>
+              <Button 
+                size="sm" 
+                className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => setIsPriceTableDialogOpen(true)}
+              >
+                <Table2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Tabela Price</span><span className="sm:hidden">Price</span>
               </Button>
             </div>
 
@@ -7717,6 +7726,33 @@ export default function Loans() {
             onConfirm={addExtraInstallments}
           />
         )}
+        
+        {/* Dialog para criar empréstimo com Tabela Price */}
+        <PriceTableDialog
+          open={isPriceTableDialogOpen}
+          onOpenChange={setIsPriceTableDialogOpen}
+          clients={loanClients}
+          onCreateLoan={async (loanData) => {
+            const result = await createLoan({
+              client_id: loanData.client_id,
+              principal_amount: loanData.principal_amount,
+              interest_rate: loanData.interest_rate,
+              interest_type: loanData.interest_type,
+              interest_mode: loanData.interest_mode,
+              payment_type: loanData.payment_type,
+              installments: loanData.installments,
+              contract_date: loanData.contract_date,
+              start_date: loanData.start_date,
+              due_date: loanData.due_date,
+              notes: loanData.notes,
+              installment_dates: loanData.installment_dates,
+              total_interest: loanData.total_interest,
+              send_creation_notification: loanData.send_notification,
+            });
+            return result;
+          }}
+          onNewClientClick={handleNewClientClick}
+        />
       </div>
     </DashboardLayout>
   );
