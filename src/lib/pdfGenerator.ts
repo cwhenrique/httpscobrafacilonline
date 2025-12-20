@@ -1674,3 +1674,233 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
   const fileName = `simulacao-emprestimo-${data.principal}-${data.installments}x.pdf`;
   doc.save(fileName);
 };
+
+// ==================== PRICE TABLE PDF ====================
+
+export interface PriceTablePDFData {
+  companyName?: string;
+  clientName?: string;
+  principal: number;
+  interestRate: number;
+  installments: number;
+  pmt: number;
+  rows: Array<{
+    installmentNumber: number;
+    payment: number;
+    amortization: number;
+    interest: number;
+    balance: number;
+  }>;
+  totalPayment: number;
+  totalInterest: number;
+  installmentDates?: string[];
+}
+
+export const generatePriceTablePDF = async (data: PriceTablePDFData): Promise<void> => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let currentY = 0;
+
+  // Load logo
+  let logoBase64 = '';
+  try {
+    logoBase64 = await loadLogoAsBase64();
+  } catch (e) {
+    console.warn('Could not load logo:', e);
+  }
+
+  // === HEADER BAR ===
+  doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.rect(0, 0, pageWidth, 35, 'F');
+
+  // Logo
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', margin, 5, 40, 25);
+  } else {
+    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CobraFácil', margin, 22);
+  }
+
+  // Company name on the right
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  if (data.companyName) {
+    doc.text(data.companyName, pageWidth - margin, 15, { align: 'right' });
+  }
+
+  currentY = 45;
+
+  // === DOCUMENT TITLE ===
+  doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 18, 3, 3, 'F');
+  
+  doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TABELA PRICE - SIMULAÇÃO DE EMPRÉSTIMO', pageWidth / 2, currentY + 8, { align: 'center' });
+  
+  if (data.clientName) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Cliente: ${data.clientName}`, pageWidth / 2, currentY + 14, { align: 'center' });
+  }
+
+  currentY += 28;
+
+  // === SUMMARY SECTION ===
+  doc.setFillColor(245, 245, 245);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 28, 3, 3, 'F');
+  
+  const col1X = margin + 10;
+  const col2X = pageWidth / 2 + 10;
+
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFontSize(9);
+  doc.text('Valor do Capital', col1X, currentY + 8);
+  doc.text('Taxa Mensal', col2X, currentY + 8);
+  
+  doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatCurrency(data.principal), col1X, currentY + 15);
+  doc.text(`${data.interestRate.toFixed(2)}%`, col2X, currentY + 15);
+
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Nº de Parcelas', col1X, currentY + 22);
+  doc.text('Valor da Parcela (PMT)', col2X, currentY + 22);
+  
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${data.installments}x`, col1X, currentY + 28);
+  doc.text(formatCurrency(data.pmt), col2X, currentY + 28);
+
+  currentY += 38;
+
+  // === AMORTIZATION TABLE ===
+  // Table Header
+  doc.setFillColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+  doc.rect(margin, currentY, pageWidth - 2 * margin, 10, 'F');
+  
+  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  
+  const colWidths = [15, 35, 35, 30, 35, 30];
+  const colHeaders = ['#', 'PARCELA', 'AMORTIZAÇÃO', 'JUROS', 'SALDO DEV.', 'VENCIMENTO'];
+  let colX = margin + 3;
+  
+  colHeaders.forEach((header, i) => {
+    doc.text(header, colX + (i === 0 ? 0 : colWidths.slice(0, i).reduce((a, b) => a + b, 0)), currentY + 7);
+  });
+
+  currentY += 10;
+
+  // Table Rows
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  
+  data.rows.forEach((row, index) => {
+    // Check if we need a new page
+    if (currentY > 265) {
+      doc.addPage();
+      currentY = 20;
+      
+      // Repeat header on new page
+      doc.setFillColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+      doc.rect(margin, currentY, pageWidth - 2 * margin, 10, 'F');
+      doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      colHeaders.forEach((header, i) => {
+        doc.text(header, margin + 3 + (i === 0 ? 0 : colWidths.slice(0, i).reduce((a, b) => a + b, 0)), currentY + 7);
+      });
+      currentY += 10;
+      doc.setFont('helvetica', 'normal');
+    }
+
+    // Alternating row colors
+    if (index % 2 === 0) {
+      doc.setFillColor(250, 250, 250);
+      doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
+    }
+
+    colX = margin + 3;
+    
+    // Row number
+    doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+    doc.setFont('helvetica', 'bold');
+    doc.text(row.installmentNumber.toString(), colX, currentY + 6);
+    
+    // Payment
+    colX += colWidths[0];
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatCurrency(row.payment), colX, currentY + 6);
+    
+    // Amortization
+    colX += colWidths[1];
+    doc.setTextColor(34, 197, 94); // emerald-500
+    doc.text(formatCurrency(row.amortization), colX, currentY + 6);
+    
+    // Interest
+    colX += colWidths[2];
+    doc.setTextColor(249, 115, 22); // orange-500
+    doc.text(formatCurrency(row.interest), colX, currentY + 6);
+    
+    // Balance
+    colX += colWidths[3];
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.text(formatCurrency(row.balance), colX, currentY + 6);
+    
+    // Due Date
+    colX += colWidths[4];
+    doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+    const dueDate = data.installmentDates?.[index] ? formatDate(data.installmentDates[index]) : '-';
+    doc.text(dueDate, colX, currentY + 6);
+
+    currentY += 8;
+  });
+
+  currentY += 5;
+
+  // === TOTALS ===
+  doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 18, 3, 3, 'F');
+
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFontSize(9);
+  doc.text('Total a Receber:', margin + 10, currentY + 8);
+  doc.text('Total de Juros:', pageWidth / 2 + 10, currentY + 8);
+  
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+  doc.text(formatCurrency(data.totalPayment), margin + 10, currentY + 15);
+  
+  doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+  doc.text(formatCurrency(data.totalInterest), pageWidth / 2 + 10, currentY + 15);
+
+  currentY += 25;
+
+  // === FOOTER ===
+  const footerY = Math.max(currentY, 270);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(margin, footerY, pageWidth - margin, footerY);
+  
+  doc.setFontSize(8);
+  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, margin, footerY + 5);
+  doc.text('Gerado pelo CobraFácil', pageWidth - margin, footerY + 5, { align: 'right' });
+
+  // Download
+  const fileName = `tabela-price-${data.principal}-${data.installments}x.pdf`;
+  doc.save(fileName);
+};
