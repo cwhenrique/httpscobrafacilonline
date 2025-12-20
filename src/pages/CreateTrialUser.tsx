@@ -37,6 +37,7 @@ export default function CreateTrialUser() {
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'annual' | 'lifetime'>('all');
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -92,15 +93,39 @@ export default function CreateTrialUser() {
     fetchUsers();
   }, []);
 
+  const planCounts = useMemo(() => {
+    return {
+      all: users.length,
+      trial: users.filter(u => u.subscription_plan === 'trial' || !u.subscription_plan).length,
+      monthly: users.filter(u => u.subscription_plan === 'monthly').length,
+      annual: users.filter(u => u.subscription_plan === 'annual').length,
+      lifetime: users.filter(u => u.subscription_plan === 'lifetime').length,
+    };
+  }, [users]);
+
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users;
+    let result = users;
     
-    const query = searchQuery.toLowerCase().trim();
-    return users.filter(user => 
-      (user.full_name?.toLowerCase().includes(query)) ||
-      (user.email?.toLowerCase().includes(query))
-    );
-  }, [users, searchQuery]);
+    // Filtrar por plano
+    if (planFilter !== 'all') {
+      if (planFilter === 'trial') {
+        result = result.filter(user => user.subscription_plan === 'trial' || !user.subscription_plan);
+      } else {
+        result = result.filter(user => user.subscription_plan === planFilter);
+      }
+    }
+    
+    // Filtrar por busca
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(user => 
+        (user.full_name?.toLowerCase().includes(query)) ||
+        (user.email?.toLowerCase().includes(query))
+      );
+    }
+    
+    return result;
+  }, [users, searchQuery, planFilter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -478,6 +503,49 @@ export default function CreateTrialUser() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
                 />
+              </div>
+              
+              {/* Plan Filters */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                <Button
+                  variant={planFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('all')}
+                >
+                  Todos ({planCounts.all})
+                </Button>
+                <Button
+                  variant={planFilter === 'trial' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('trial')}
+                  className={planFilter === 'trial' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10'}
+                >
+                  🧪 Trial ({planCounts.trial})
+                </Button>
+                <Button
+                  variant={planFilter === 'monthly' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('monthly')}
+                  className={planFilter === 'monthly' ? 'bg-purple-500 hover:bg-purple-600 text-white' : 'border-purple-500/50 text-purple-500 hover:bg-purple-500/10'}
+                >
+                  📅 Mensal ({planCounts.monthly})
+                </Button>
+                <Button
+                  variant={planFilter === 'annual' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('annual')}
+                  className={planFilter === 'annual' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'border-blue-500/50 text-blue-500 hover:bg-blue-500/10'}
+                >
+                  📆 Anual ({planCounts.annual})
+                </Button>
+                <Button
+                  variant={planFilter === 'lifetime' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('lifetime')}
+                  className={planFilter === 'lifetime' ? 'bg-primary hover:bg-primary/90' : 'border-primary/50 text-primary hover:bg-primary/10'}
+                >
+                  ♾️ Vitalício ({planCounts.lifetime})
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
