@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.send-test-message]
 verify_jwt = false
+
+[functions.cep-lookup]
+verify_jwt = false
