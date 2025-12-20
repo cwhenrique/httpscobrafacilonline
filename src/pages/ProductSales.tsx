@@ -721,27 +721,7 @@ export default function ProductSales() {
     }));
   };
 
-  // Filtered data
-  const filteredSales = sales?.filter(sale => {
-    const matchesSearch = 
-      sale.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.client_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (!matchesSearch) return false;
-    if (salesStatusFilter === 'all') return true;
-    
-    const status = getSaleStatus(sale);
-    if (salesStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
-    return status === salesStatusFilter;
-  }) || [];
-
-  const filteredContracts = contracts.filter(contract =>
-    contract.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    contract.bill_type === 'receivable'
-  );
-
-
-
+  // Helper functions - must be defined before filteredSales
   const getSalePayments = (saleId: string) => {
     return allSalePayments?.filter(p => p.product_sale_id === saleId) || [];
   };
@@ -761,6 +741,25 @@ export default function ProductSales() {
     if (hasDueToday) return 'due_today';
     return 'pending';
   };
+
+  // Filtered data
+  const filteredSales = sales?.filter(sale => {
+    const matchesSearch = 
+      sale.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sale.client_name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (salesStatusFilter === 'all') return true;
+    
+    const status = getSaleStatus(sale);
+    if (salesStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+    return status === salesStatusFilter;
+  }) || [];
+
+  const filteredContracts = contracts.filter(contract =>
+    contract.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    contract.bill_type === 'receivable'
+  );
 
   const getCardStyles = (status: string) => {
     switch (status) {
