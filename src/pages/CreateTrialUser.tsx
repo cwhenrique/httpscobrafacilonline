@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -38,6 +39,9 @@ export default function CreateTrialUser() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'annual' | 'lifetime'>('all');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'annual' | 'lifetime'>('trial');
+  const [updatingPlan, setUpdatingPlan] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -248,6 +252,74 @@ export default function CreateTrialUser() {
       title: 'Copiado!',
       description: 'Texto copiado para a área de transferência',
     });
+  };
+
+  const handleEditPlan = (user: User) => {
+    setEditingUser(user);
+    setNewPlan((user.subscription_plan as 'trial' | 'monthly' | 'annual' | 'lifetime') || 'trial');
+  };
+
+  const handleUpdatePlan = async () => {
+    if (!editingUser) return;
+    
+    setUpdatingPlan(true);
+    try {
+      // Calculate new expiration date based on plan
+      let subscriptionExpiresAt: string | null = null;
+      let trialExpiresAt: string | null = null;
+
+      const now = new Date();
+      
+      if (newPlan === 'trial') {
+        trialExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+        subscriptionExpiresAt = null;
+      } else if (newPlan === 'monthly') {
+        subscriptionExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        trialExpiresAt = null;
+      } else if (newPlan === 'annual') {
+        subscriptionExpiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        trialExpiresAt = null;
+      } else if (newPlan === 'lifetime') {
+        subscriptionExpiresAt = null;
+        trialExpiresAt = null;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          subscription_plan: newPlan,
+          subscription_expires_at: subscriptionExpiresAt,
+          trial_expires_at: trialExpiresAt,
+          is_active: true,
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+
+      const planLabels = {
+        trial: 'Trial (24h)',
+        monthly: 'Mensal',
+        annual: 'Anual',
+        lifetime: 'Vitalício',
+      };
+
+      toast({
+        title: 'Plano atualizado!',
+        description: `${editingUser.full_name} agora está no plano ${planLabels[newPlan]}`,
+      });
+
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error updating plan:', error);
+      toast({
+        title: 'Erro ao atualizar plano',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingPlan(false);
+    }
   };
 
   const getStatusInfo = (user: User) => {
@@ -567,6 +639,7 @@ export default function CreateTrialUser() {
                         <TableHead>Senha</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -620,6 +693,16 @@ export default function CreateTrialUser() {
                                 {statusInfo.label}
                               </span>
                             </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditPlan(user)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -631,6 +714,62 @@ export default function CreateTrialUser() {
           </Card>
         </div>
       </div>
+
+      {/* Edit Plan Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Plano</DialogTitle>
+            <DialogDescription>
+              Alterando plano de {editingUser?.full_name || editingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Novo Plano</Label>
+              <Select
+                value={newPlan}
+                onValueChange={(value: 'trial' | 'monthly' | 'annual' | 'lifetime') => setNewPlan(value)}
+                disabled={updatingPlan}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
+                  <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
+                  <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
+                  <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              {newPlan === 'trial' && 'O usuário terá acesso por mais 24 horas a partir de agora.'}
+              {newPlan === 'monthly' && 'O usuário terá acesso por mais 30 dias a partir de agora.'}
+              {newPlan === 'annual' && 'O usuário terá acesso por mais 365 dias a partir de agora.'}
+              {newPlan === 'lifetime' && 'O usuário terá acesso vitalício, sem data de expiração.'}
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUser(null)} disabled={updatingPlan}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdatePlan} disabled={updatingPlan}>
+              {updatingPlan ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
