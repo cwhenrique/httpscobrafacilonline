@@ -4280,6 +4280,47 @@ export default function Loans() {
                         </div>
                       </div>
                       
+                      {/* Seção de Lucro - Previsto e Realizado (visível direto no card) */}
+                      {(() => {
+                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
+                        const payments = (loan as any).loan_payments || [];
+                        const realizedProfit = payments.reduce((sum: number, p: any) => 
+                          sum + Number(p.interest_paid || 0), 0);
+                        const profitPercentage = expectedProfit > 0 
+                          ? Math.round((realizedProfit / expectedProfit) * 100) 
+                          : 0;
+                        
+                        return (
+                          <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                            <div>
+                              <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                              <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                {formatCurrency(expectedProfit)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                              <div className="flex items-center gap-1">
+                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                  {formatCurrency(realizedProfit)}
+                                </p>
+                                {expectedProfit > 0 && (
+                                  <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
+                                    hasSpecialStyle 
+                                      ? 'bg-white/20 text-white' 
+                                      : profitPercentage >= 100 
+                                        ? 'bg-emerald-500/20 text-emerald-500' 
+                                        : 'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {profitPercentage}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
                       {/* Seção de Histórico do Contrato Anterior (para renegociações) */}
                       {renegotiatedHistorical && (
                         <div className="mt-2 p-2 sm:p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
@@ -5329,6 +5370,47 @@ export default function Loans() {
                             <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive)}</p>
                           </div>
                         </div>
+                        
+                        {/* Seção de Lucro - Previsto e Realizado (visível direto no card) */}
+                        {(() => {
+                          const expectedProfitCard = dailyProfit;
+                          const paymentsCard = (loan as any).loan_payments || [];
+                          const realizedProfitCard = paymentsCard.reduce((sum: number, p: any) => 
+                            sum + Number(p.interest_paid || 0), 0);
+                          const profitPercentageCard = expectedProfitCard > 0 
+                            ? Math.round((realizedProfitCard / expectedProfitCard) * 100) 
+                            : 0;
+                          
+                          return (
+                            <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                              <div>
+                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                  {formatCurrency(expectedProfitCard)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                <div className="flex items-center gap-1">
+                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                    {formatCurrency(realizedProfitCard)}
+                                  </p>
+                                  {expectedProfitCard > 0 && (
+                                    <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
+                                      hasSpecialStyle 
+                                        ? 'bg-white/20 text-white' 
+                                        : profitPercentageCard >= 100 
+                                          ? 'bg-emerald-500/20 text-emerald-500' 
+                                          : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      {profitPercentageCard}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         
                         {/* Info resumida - Vencimento e Pago */}
                         <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-3 text-[10px] sm:text-sm">
