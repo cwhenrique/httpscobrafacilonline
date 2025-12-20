@@ -78,7 +78,7 @@ export function useDashboardStats() {
       { data: contractPaymentsThisWeek },
     ] = await Promise.all([
       supabase.from('loans').select('principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date'),
-      supabase.from('loans').select('id, start_date, contract_date').gte('start_date', weekAgoStr),
+      supabase.from('loans').select('id, created_at').gte('created_at', weekAgo.toISOString()),
       supabase.from('monthly_fee_payments').select('amount, status, due_date'),
       supabase.from('clients').select('*', { count: 'exact', head: true }),
       supabase.from('product_sales').select('id, status, sale_date'),
@@ -139,26 +139,33 @@ export function useDashboardStats() {
         }
 
         // Check due dates - Adiciona T12:00:00 para evitar problemas de timezone
+        // Conta apenas uma vez por empréstimo para evitar duplicação
         const installmentDates = (loan.installment_dates as string[]) || [];
+        let hasDueToday = false;
+        let hasUpcomingDue = false;
+        
         if (installmentDates.length > 0) {
           installmentDates.forEach(dateStr => {
             const dueDate = new Date(dateStr + 'T12:00:00');
             if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
-              dueToday++;
+              hasDueToday = true;
             }
             if (dueDate >= today && dueDate <= nextWeek && loan.status !== 'paid') {
-              upcomingDue++;
+              hasUpcomingDue = true;
             }
           });
         } else {
           const dueDate = new Date(loan.due_date + 'T12:00:00');
           if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
-            dueToday++;
+            hasDueToday = true;
           }
           if (dueDate >= today && dueDate <= nextWeek && loan.status !== 'paid') {
-            upcomingDue++;
+            hasUpcomingDue = true;
           }
         }
+        
+        if (hasDueToday) dueToday++;
+        if (hasUpcomingDue) upcomingDue++;
       });
     }
 
