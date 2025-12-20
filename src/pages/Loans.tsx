@@ -3567,8 +3567,8 @@ export default function Loans() {
               </div>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10">
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Empréstimo
+                  <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white">
+                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Empréstimo
                   </Button>
                 </DialogTrigger>
               </Dialog>
@@ -4816,8 +4816,8 @@ export default function Loans() {
               </div>
               <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-sky-500 hover:bg-sky-600">
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Diário
+                  <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 border-sky-500 text-sky-600 hover:bg-sky-500/10">
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Diário
                   </Button>
                 </DialogTrigger>
               </Dialog>
