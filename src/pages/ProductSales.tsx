@@ -173,8 +173,9 @@ export default function ProductSales() {
   // Main tab state
   const [mainTab, setMainTab] = useState<'products' | 'contracts'>('products');
   
-  // Search
+  // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [salesStatusFilter, setSalesStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
   
   // Product Sales states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -721,10 +722,18 @@ export default function ProductSales() {
   };
 
   // Filtered data
-  const filteredSales = sales?.filter(sale =>
-    sale.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.client_name.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredSales = sales?.filter(sale => {
+    const matchesSearch = 
+      sale.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sale.client_name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (salesStatusFilter === 'all') return true;
+    
+    const status = getSaleStatus(sale);
+    if (salesStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+    return status === salesStatusFilter;
+  }) || [];
 
   const filteredContracts = contracts.filter(contract =>
     contract.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -800,7 +809,17 @@ export default function ProductSales() {
     return labels[type] || type;
   };
 
-  // Stats
+  // Stats - using all sales for counts, not filtered
+  const allSalesStats = {
+    total: sales?.length || 0,
+    pending: sales?.filter(s => {
+      const status = getSaleStatus(s);
+      return status === 'pending' || status === 'due_today';
+    }).length || 0,
+    overdue: sales?.filter(s => getSaleStatus(s) === 'overdue').length || 0,
+    paid: sales?.filter(s => getSaleStatus(s) === 'paid').length || 0,
+  };
+
   const salesStats = {
     totalSales: filteredSales.length,
     totalValue: filteredSales.reduce((acc, s) => acc + s.total_amount, 0),
@@ -1181,6 +1200,42 @@ export default function ProductSales() {
                   </div>
                 </DialogContent>
               </Dialog>
+            </div>
+
+            {/* Status Filters */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={salesStatusFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSalesStatusFilter('all')}
+              >
+                Todos ({allSalesStats.total})
+              </Button>
+              <Button
+                variant={salesStatusFilter === 'pending' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSalesStatusFilter('pending')}
+              >
+                Em dia ({allSalesStats.pending})
+              </Button>
+              <Button
+                variant={salesStatusFilter === 'overdue' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSalesStatusFilter('overdue')}
+                className={salesStatusFilter === 'overdue' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              >
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                Em atraso ({allSalesStats.overdue})
+              </Button>
+              <Button
+                variant={salesStatusFilter === 'paid' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSalesStatusFilter('paid')}
+                className={salesStatusFilter === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
+              >
+                <Check className="w-3 h-3 mr-1" />
+                Quitados ({allSalesStats.paid})
+              </Button>
             </div>
 
             {/* Sales List - Grid Layout */}

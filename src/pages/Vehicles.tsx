@@ -47,8 +47,9 @@ export default function Vehicles() {
   const { payments: vehiclePaymentsList, markAsPaidFlexible } = useVehiclePayments();
   const { profile } = useProfile();
 
-  // Search
+  // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
 
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -86,12 +87,30 @@ export default function Vehicles() {
     return vehiclePaymentsList?.filter(p => p.vehicle_id === vehicleId) || [];
   };
 
+  // Helper to get vehicle status
+  const getVehicleStatus = (vehicle: Vehicle): 'paid' | 'pending' | 'overdue' => {
+    if (vehicle.status === 'paid') return 'paid';
+    const hasOverdue = vehiclePaymentsList?.some(p => 
+      p.vehicle_id === vehicle.id && 
+      p.status === 'pending' && 
+      isPast(parseISO(p.due_date)) && 
+      !isToday(parseISO(p.due_date))
+    );
+    if (hasOverdue) return 'overdue';
+    return 'pending';
+  };
+
   // Filtered vehicles
-  const filteredVehicles = vehicles?.filter(vehicle =>
-    vehicle.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (vehicle.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredVehicles = vehicles?.filter(vehicle => {
+    const matchesSearch = 
+      vehicle.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (vehicle.buyer_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (statusFilter === 'all') return true;
+    return getVehicleStatus(vehicle) === statusFilter;
+  }) || [];
 
   // Vehicle handlers
   const handleCreateVehicle = async (data: CreateVehicleData) => {
@@ -331,6 +350,42 @@ export default function Vehicles() {
               <VehicleForm billType="receivable" onSubmit={handleCreateVehicle} isPending={createVehicle.isPending} />
             </DialogContent>
           </Dialog>
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant={statusFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('all')}
+          >
+            Todos ({stats.total})
+          </Button>
+          <Button
+            variant={statusFilter === 'pending' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('pending')}
+          >
+            Em dia ({stats.pending - stats.overdue})
+          </Button>
+          <Button
+            variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('overdue')}
+            className={statusFilter === 'overdue' ? 'bg-destructive hover:bg-destructive/90' : ''}
+          >
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Em atraso ({stats.overdue})
+          </Button>
+          <Button
+            variant={statusFilter === 'paid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('paid')}
+            className={statusFilter === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
+          >
+            <Check className="w-3 h-3 mr-1" />
+            Quitados ({stats.paid})
+          </Button>
         </div>
 
         {/* Vehicles Grid */}
