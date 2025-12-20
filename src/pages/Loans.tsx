@@ -4787,6 +4787,103 @@ export default function Loans() {
           </TabsContent>
 
           <TabsContent value="daily" className="space-y-3 sm:space-y-4">
+            {/* Resumo do Dia */}
+            {(() => {
+              const dailyLoans = loans.filter(l => l.payment_type === 'daily');
+              const activeDailyLoans = dailyLoans.filter(l => l.status !== 'paid');
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              let dueToday = 0;
+              let profitToday = 0;
+              let dueTodayCount = 0;
+              let totalPending = 0;
+              let totalOverdue = 0;
+              let overdueCount = 0;
+              
+              activeDailyLoans.forEach(loan => {
+                const numInstallments = loan.installments || 1;
+                const dailyInstallmentAmount = loan.total_interest || 0;
+                const principalPerInstallment = loan.principal_amount / numInstallments;
+                const profitPerInstallment = dailyInstallmentAmount - principalPerInstallment;
+                
+                const paidCount = getPaidInstallmentsCount(loan);
+                const dates = (loan.installment_dates as string[]) || [];
+                
+                // Verificar próxima parcela não paga
+                if (paidCount < dates.length) {
+                  const nextDueDate = new Date(dates[paidCount] + 'T12:00:00');
+                  nextDueDate.setHours(0, 0, 0, 0);
+                  
+                  if (nextDueDate.getTime() === today.getTime()) {
+                    dueToday += dailyInstallmentAmount;
+                    profitToday += profitPerInstallment;
+                    dueTodayCount++;
+                  }
+                  
+                  // Contar parcelas em atraso
+                  for (let i = paidCount; i < dates.length; i++) {
+                    const dueDate = new Date(dates[i] + 'T12:00:00');
+                    dueDate.setHours(0, 0, 0, 0);
+                    if (dueDate < today) {
+                      totalOverdue += dailyInstallmentAmount;
+                      if (i === paidCount) overdueCount++; // Conta o cliente uma vez
+                    }
+                  }
+                }
+                
+                totalPending += loan.remaining_balance || 0;
+              });
+              
+              return (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                  <Card className="bg-sky-500/10 border-sky-500/30">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CalendarIcon className="w-4 h-4 text-sky-500" />
+                        <span className="text-xs text-muted-foreground">A Cobrar Hoje</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-sky-600 dark:text-sky-400">{formatCurrency(dueToday)}</p>
+                      <p className="text-xs text-muted-foreground">{dueTodayCount} parcela{dueTodayCount !== 1 ? 's' : ''}</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-emerald-500/10 border-emerald-500/30">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs text-muted-foreground">Lucro do Dia</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(profitToday)}</p>
+                      <p className="text-xs text-muted-foreground">previsto</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-amber-500/10 border-amber-500/30">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-4 h-4 text-amber-500" />
+                        <span className="text-xs text-muted-foreground">Total Pendente</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-amber-600 dark:text-amber-400">{formatCurrency(totalPending)}</p>
+                      <p className="text-xs text-muted-foreground">{activeDailyLoans.length} ativo{activeDailyLoans.length !== 1 ? 's' : ''}</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-destructive/10 border-destructive/30">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Bell className="w-4 h-4 text-destructive" />
+                        <span className="text-xs text-muted-foreground">Em Atraso</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-destructive">{formatCurrency(totalOverdue)}</p>
+                      <p className="text-xs text-muted-foreground">{overdueCount} cliente{overdueCount !== 1 ? 's' : ''}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+            
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative tutorial-search flex-1">
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
