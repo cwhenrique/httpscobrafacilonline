@@ -4925,77 +4925,185 @@ export default function Loans() {
                   })();
                   const dynamicPenaltyAmount = overdueConfigValue > 0 && daysOverdue > 0 ? overdueConfigValue * daysOverdue : 0;
 
+                  // Cálculos adicionais para o card completo
+                  const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '';
+                  const totalToReceive = dailyTotalToReceive;
+                  const effectiveTotalInterest = dailyProfit;
+                  const totalPerInstallmentDisplay = dailyInstallmentAmount;
+                  
+                  // Funções de parcelas
+                  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+                  const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+                  
+                  // Limpar notas de tags internas
+                  const cleanNotes = (notes: string | null) => {
+                    if (!notes) return null;
+                    return notes
+                      .replace(/\[HISTORICAL_CONTRACT\]/g, '')
+                      .replace(/\[RENEGOTIATED\]/g, '')
+                      .replace(/\[INTEREST_ONLY_PAYMENT\]/g, '')
+                      .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g, '')
+                      .replace(/\[ADVANCE_SUBPARCELA:\d+:[0-9.]+:[^\]]+\]/g, '')
+                      .replace(/\[ADVANCE_SUBPARCELA_PAID:\d+:[0-9.]+:[^\]]+\]/g, '')
+                      .replace(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+(?::[0-9.]+)?\]/g, '')
+                      .replace(/\[ORIGINAL_PRINCIPAL:[0-9.]+\]/g, '')
+                      .replace(/\[ORIGINAL_RATE:[0-9.]+\]/g, '')
+                      .replace(/\[ORIGINAL_INSTALLMENTS:\d+\]/g, '')
+                      .replace(/\[ORIGINAL_INTEREST_MODE:[^\]]+\]/g, '')
+                      .replace(/\[ORIGINAL_TOTAL_INTEREST:[0-9.]+\]/g, '')
+                      .replace(/\[HISTORICAL_PAID:[0-9.]+\]/g, '')
+                      .replace(/\[HISTORICAL_INTEREST_PAID:[0-9.]+\]/g, '')
+                      .replace(/\[RENEGOTIATION_DATE:[^\]]+\]/g, '')
+                      .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+                      .trim();
+                  };
+                  
+                  const displayNotes = cleanNotes(loan.notes);
+                  
+                  const getCardStyle = () => {
+                    if (isPaid) return 'bg-gradient-to-r from-emerald-500 to-primary text-white border-emerald-400';
+                    if (isOverdue) return 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-400';
+                    if (isDueToday) return 'bg-amber-500/20 border-amber-400 dark:bg-amber-500/30 dark:border-amber-400';
+                    return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
+                  };
+                  
+                  const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-300' : isDueToday ? 'text-amber-300' : '';
+                  
                   return (
-                    <Card 
-                      key={loan.id} 
-                      className={`relative overflow-hidden transition-all hover:shadow-lg ${
-                        isOverdue 
-                          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white border-red-400' 
-                          : isPaid 
-                            ? 'bg-gradient-to-br from-green-500 to-green-600 text-white border-green-400'
-                            : isDueToday
-                              ? 'border-amber-400 bg-amber-500/10'
-                              : ''
-                      }`}
-                    >
-                      <CardHeader className="p-3 sm:p-4 pb-0 sm:pb-0">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
-                              <AvatarImage src={loan.client?.avatar_url || ''} />
-                              <AvatarFallback className="text-xs sm:text-sm">{loan.client?.full_name.charAt(0)}</AvatarFallback>
+                    <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <div className="relative group flex-shrink-0">
+                            <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                              <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
+                              <AvatarFallback className={`text-sm sm:text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                                {initials}
+                              </AvatarFallback>
                             </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <h3 className={`font-semibold truncate text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.client?.full_name}</h3>
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-sky-500/20 text-sky-300 border-sky-400/50">
-                                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5" /> Diário
+                            <button
+                              type="button"
+                              className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${uploadingClientId === loan.client_id ? 'opacity-100' : ''}`}
+                              onClick={() => {
+                                const input = document.createElement('input');
+                                input.type = 'file';
+                                input.accept = 'image/*';
+                                input.onchange = (e) => {
+                                  const file = (e.target as HTMLInputElement).files?.[0];
+                                  if (file && loan.client_id) {
+                                    handleAvatarUpload(loan.client_id, file);
+                                  }
+                                };
+                                input.click();
+                              }}
+                              disabled={uploadingClientId === loan.client_id}
+                            >
+                              {uploadingClientId === loan.client_id ? (
+                                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-semibold text-sm sm:text-lg truncate max-w-[120px] sm:max-w-[180px] lg:max-w-[150px] xl:max-w-[200px]">{loan.client?.full_name}</h3>
+                              <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => handleGenerateLoanReceipt(loan)}
+                                >
+                                  <FileText className="w-3 h-3 sm:mr-1" />
+                                  <span className="hidden sm:inline">Comprovante</span>
+                                </Button>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
+                                >
+                                  {expandedLoanId === loan.id ? (
+                                    <ChevronUp className="w-3 h-3 sm:mr-1" />
+                                  ) : (
+                                    <ChevronDown className="w-3 h-3 sm:mr-1" />
+                                  )}
+                                  <span className="hidden sm:inline">Detalhes</span>
+                                </Button>
+                                <Badge className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                                  {getPaymentStatusLabel(loan.status)}
+                                </Badge>
+                                <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                                  📅 DIÁRIO
                                 </Badge>
                               </div>
                             </div>
-                          </div>
-                          <Badge className={`text-[10px] sm:text-xs flex-shrink-0 ${
-                            isOverdue ? 'bg-white/20 text-white' :
-                            isPaid ? 'bg-white/20 text-white' :
-                            isDueToday ? 'bg-amber-500 text-white' :
-                            'bg-blue-500/20 text-blue-500 border-blue-500/30'
-                          }`}>
-                            {isPaid ? 'Quitado' : isOverdue ? 'Em Atraso' : isDueToday ? 'Vence Hoje' : 'Em Dia'}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-3 sm:p-4 pt-2 sm:pt-3">
-                        <div className={`grid grid-cols-2 gap-2 p-2 sm:p-3 rounded-lg mb-2 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/50'}`}>
-                          <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
-                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>
-                              {formatCurrency(loan.principal_amount)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>
-                              {formatCurrency(dailyTotalToReceive)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Restante</p>
-                            <p className={`font-bold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                              {formatCurrency(remainingToReceive)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro</p>
-                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                              {formatCurrency(dailyProfit)}
-                            </p>
+                            <p className={`text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                        {/* Seção de Valores */}
+                        <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
+                            <p className="font-semibold truncate">{formatCurrency(loan.principal_amount)}</p>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
+                            <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Seção de Lucro - Previsto e Realizado */}
+                        {(() => {
+                          const expectedProfitDaily = dailyProfit;
+                          const payments = (loan as any).loan_payments || [];
+                          let realizedProfitDaily = payments.reduce((sum: number, p: any) => 
+                            sum + Number(p.interest_paid || 0), 0);
+                          const profitPercentageDaily = expectedProfitDaily > 0 
+                            ? Math.round((realizedProfitDaily / expectedProfitDaily) * 100) 
+                            : 0;
+                          
+                          return (
+                            <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-2 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                              <div>
+                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Previsto</p>
+                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                  {formatCurrency(expectedProfitDaily)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Realizado</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                    {formatCurrency(realizedProfitDaily)}
+                                  </p>
+                                  {expectedProfitDaily > 0 && (
+                                    <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
+                                      hasSpecialStyle 
+                                        ? 'bg-white/20 text-white' 
+                                        : profitPercentageDaily >= 100 
+                                          ? 'bg-emerald-500/20 text-emerald-500' 
+                                          : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      {profitPercentageDaily}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm">
+                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                            <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
+                          </div>
                           <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
                             <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                            <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallment)}</span>
+                            <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallmentDisplay)}</span>
                           </div>
                           <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
                             <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -5010,12 +5118,9 @@ export default function Loans() {
                             <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                             <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                           </div>
-                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
-                            <Check className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                            <span className="truncate">{getPaidInstallmentsCount(loan)}/{numInstallments} parcelas</span>
-                          </div>
                         </div>
                         
+                        {/* Overdue installment info */}
                         {isOverdue && (
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                             <div className="text-xs sm:text-sm">
@@ -5027,12 +5132,51 @@ export default function Loans() {
                               </div>
                               <div className="flex items-center justify-between mt-1 text-red-300/70">
                                 <span>Vencimento: {formatDate(overdueDate)}</span>
-                                <span>Valor: {formatCurrency(totalPerInstallment)}</span>
+                                <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
                               </div>
                             </div>
+                            {dynamicPenaltyAmount > 0 && (
+                              <>
+                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                  <span className="text-red-300">
+                                    Multa ({formatCurrency(overdueConfigValue)}/dia)
+                                  </span>
+                                  <span className="font-bold text-red-200">
+                                    +{formatCurrency(dynamicPenaltyAmount)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
+                                  <span className="text-red-300/80">Total com Atraso:</span>
+                                  <span className="font-bold text-white">
+                                    {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                            <p className="text-[10px] text-red-300/60 mt-2">
+                              Pague a parcela em atraso para regularizar o empréstimo
+                            </p>
+                            {/* Manual overdue notification button */}
+                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                              <SendOverdueNotification
+                                data={{
+                                  clientName: loan.client?.full_name || 'Cliente',
+                                  clientPhone: loan.client.phone,
+                                  contractType: 'loan',
+                                  installmentNumber: getPaidInstallmentsCount(loan) + 1,
+                                  totalInstallments: numInstallments,
+                                  amount: totalPerInstallmentDisplay,
+                                  dueDate: overdueDate,
+                                  daysOverdue: daysOverdue,
+                                  loanId: loan.id,
+                                }}
+                                className="w-full mt-2"
+                              />
+                            )}
                           </div>
                         )}
                         
+                        {/* Due Today Section */}
                         {isDueToday && !isOverdue && (
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-500/20 border border-amber-400/30">
                             <div className="text-xs sm:text-sm">
@@ -5041,79 +5185,326 @@ export default function Loans() {
                                   <Bell className="w-4 h-4" />
                                   Vence Hoje!
                                 </span>
-                                <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
+                                <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallmentDisplay)}</span>
                               </div>
+                              <div className="flex items-center justify-between mt-1 text-amber-300/70">
+                                <span>Parcela {getPaidInstallmentsCount(loan) + 1}/{numInstallments}</span>
+                                <span>Vencimento: {formatDate(dueTodayDate)}</span>
+                              </div>
+                              <p className="text-[10px] text-amber-300/60 mt-2">
+                                Lembre o cliente para evitar atrasos
+                              </p>
+                              {/* Manual due today notification button */}
+                              {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                                <SendDueTodayNotification
+                                  data={{
+                                    clientName: loan.client?.full_name || 'Cliente',
+                                    clientPhone: loan.client.phone,
+                                    contractType: 'loan',
+                                    installmentNumber: getPaidInstallmentsCount(loan) + 1,
+                                    totalInstallments: numInstallments,
+                                    amount: totalPerInstallmentDisplay,
+                                    dueDate: dueTodayDate,
+                                    loanId: loan.id,
+                                  }}
+                                  className="w-full mt-2"
+                                />
+                              )}
                             </div>
                           </div>
                         )}
                         
-                        <div className={`flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="sm" 
-                                  className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
-                                  onClick={() => { 
-                                    setSelectedLoanId(loan.id);
-                                    const dates = (loan.installment_dates as string[]) || [];
-                                    const paidCount = getPaidInstallmentsCount(loan);
-                                    let defaultNextDueDate = '';
-                                    if (dates.length > 0 && paidCount < dates.length) {
-                                      const currentDueDate = new Date(dates[paidCount] + 'T12:00:00');
-                                      const nextDate = new Date(currentDueDate);
-                                      nextDate.setMonth(nextDate.getMonth() + 1);
-                                      defaultNextDueDate = format(nextDate, 'yyyy-MM-dd');
-                                    }
-                                    setPaymentData({ 
-                                      amount: totalPerInstallment.toFixed(2), 
-                                      payment_date: format(new Date(), 'yyyy-MM-dd'),
-                                      new_due_date: defaultNextDueDate,
-                                      payment_type: 'installment',
-                                      selected_installments: [],
-                                      partial_installment_index: null,
-                                      send_notification: false,
-                                      is_advance_payment: false,
-                                    });
-                                    setIsPaymentDialogOpen(true);
+                        {/* Early Notification */}
+                        {!isPaid && !isOverdue && !isDueToday && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                          (() => {
+                            const paidCount = getPaidInstallmentsCount(loan);
+                            const dates = (loan.installment_dates as string[]) || [];
+                            const nextDueDate = dates[paidCount] || loan.due_date;
+                            const nextDueDateObj = new Date(nextDueDate + 'T12:00:00');
+                            nextDueDateObj.setHours(0, 0, 0, 0);
+                            const todayForEarly = new Date();
+                            todayForEarly.setHours(0, 0, 0, 0);
+                            const daysUntilDue = Math.ceil((nextDueDateObj.getTime() - todayForEarly.getTime()) / (1000 * 60 * 60 * 24));
+                            
+                            return (
+                              <div className="mt-2 sm:mt-3">
+                                <SendEarlyNotification
+                                  data={{
+                                    clientName: loan.client?.full_name || 'Cliente',
+                                    clientPhone: loan.client.phone,
+                                    contractType: 'loan',
+                                    installmentNumber: paidCount + 1,
+                                    totalInstallments: numInstallments,
+                                    amount: totalPerInstallmentDisplay,
+                                    dueDate: nextDueDate,
+                                    daysUntilDue: daysUntilDue,
+                                    loanId: loan.id,
                                   }}
-                                  disabled={isPaid}
-                                >
-                                  <DollarSign className="w-3 h-3 mr-1" />
-                                  Pagar
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Registrar pagamento</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                  onClick={() => openPaymentHistory(loan.id)}
-                                >
-                                  <History className="w-3 h-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Ver histórico</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                  onClick={() => setDeleteId(loan.id)}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Excluir</TooltipContent>
-                            </Tooltip>
+                                  className="w-full"
+                                />
+                              </div>
+                            );
+                          })()
+                        )}
+                        
+                        <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                          <TooltipProvider delayDuration={300}>
+                            <div className="flex gap-1.5 sm:gap-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="sm" 
+                                    className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                    onClick={() => { 
+                                      setSelectedLoanId(loan.id);
+                                      const dates = (loan.installment_dates as string[]) || [];
+                                      const paidCount = getPaidInstallmentsCount(loan);
+                                      let defaultNextDueDate = '';
+                                      if (dates.length > 0 && paidCount < dates.length) {
+                                        const currentDueDate = new Date(dates[paidCount] + 'T12:00:00');
+                                        const nextDate = new Date(currentDueDate);
+                                        nextDate.setDate(nextDate.getDate() + 1);
+                                        defaultNextDueDate = format(nextDate, 'yyyy-MM-dd');
+                                      }
+                                      setPaymentData({ 
+                                        amount: totalPerInstallmentDisplay.toFixed(2), 
+                                        payment_date: format(new Date(), 'yyyy-MM-dd'),
+                                        new_due_date: defaultNextDueDate,
+                                        payment_type: 'installment',
+                                        selected_installments: [],
+                                        partial_installment_index: null,
+                                        send_notification: false,
+                                        is_advance_payment: false,
+                                      });
+                                      setIsPaymentDialogOpen(true);
+                                    }}
+                                    disabled={isPaid}
+                                  >
+                                    <CreditCard className="w-3 h-3 mr-1" />
+                                    Pagar
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Registrar pagamento</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                    onClick={() => openPaymentHistory(loan.id)}
+                                  >
+                                    <History className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Ver histórico de pagamentos</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                    onClick={() => openEditDialog(loan.id)}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Editar empréstimo</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              {/* Botão de adicionar parcelas extras */}
+                              {!isPaid && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                      size="icon" 
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                      onClick={() => {
+                                        setExtraInstallmentsLoan(loan);
+                                        setIsExtraInstallmentsOpen(true);
+                                      }}
+                                    >
+                                      <ListPlus className="w-3 h-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p>Adicionar parcelas extras</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="icon" 
+                                    className="h-7 w-7 sm:h-8 sm:w-8"
+                                    onClick={() => setDeleteId(loan.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Excluir este empréstimo</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TooltipProvider>
                         </div>
+                        
+                        {/* Área Expandida com Informações Detalhadas */}
+                        {expandedLoanId === loan.id && (() => {
+                          const dates = (loan.installment_dates as string[]) || [];
+                          const paidAdvanceSubparcelas = getPaidAdvanceSubparcelasFromNotes(loan.notes);
+                          
+                          // Contar parcelas pagas
+                          let paidInstallmentsCount = 0;
+                          for (let i = 0; i < numInstallments; i++) {
+                            const paidAmount = partialPayments[i] || 0;
+                            const pendingSubs = advanceSubparcelas.filter(s => s.originalIndex === i);
+                            if (paidAmount >= totalPerInstallmentDisplay * 0.99 && pendingSubs.length === 0) {
+                              paidInstallmentsCount++;
+                            }
+                          }
+                          
+                          const progressPercentage = numInstallments > 0 ? Math.round((paidInstallmentsCount / numInstallments) * 100) : 0;
+                          
+                          // Calcular status de cada parcela
+                          const getInstallmentStatusForDisplay = (index: number, dueDate: string) => {
+                            const paidAmount = partialPayments[index] || 0;
+                            const pendingSubs = advanceSubparcelas.filter(s => s.originalIndex === index);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const due = new Date(dueDate + 'T12:00:00');
+                            
+                            if (paidAmount >= totalPerInstallmentDisplay * 0.99 && pendingSubs.length === 0) {
+                              return { status: 'paid', label: 'Paga', color: 'text-emerald-500' };
+                            } else if (pendingSubs.length > 0 || paidAmount > 0) {
+                              return { status: 'partial', label: 'Parcial', color: 'text-amber-500' };
+                            } else if (today > due) {
+                              return { status: 'overdue', label: 'Atrasada', color: 'text-destructive' };
+                            }
+                            return { status: 'pending', label: 'Pendente', color: 'text-muted-foreground' };
+                          };
+                          
+                          return (
+                            <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                              {/* Progresso de Parcelas */}
+                              <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📊 Progresso</p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-primary transition-all" 
+                                      style={{ width: `${progressPercentage}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{progressPercentage}%</span>
+                                </div>
+                                <p className={`text-xs ${hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}`}>
+                                  {paidInstallmentsCount} de {numInstallments} parcela(s) paga(s) • {numInstallments - paidInstallmentsCount} restante(s)
+                                </p>
+                              </div>
+                              
+                              {/* Cronograma de Parcelas */}
+                              {dates.length > 0 && (
+                                <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                  <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📅 Cronograma de Parcelas</p>
+                                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                    {dates.map((date, idx) => {
+                                      const statusInfo = getInstallmentStatusForDisplay(idx, date);
+                                      return (
+                                        <div key={idx} className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
+                                          <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
+                                            Parcela {idx + 1}/{numInstallments}
+                                          </span>
+                                          <span className={hasSpecialStyle ? 'text-white' : ''}>
+                                            {formatCurrency(totalPerInstallmentDisplay)}
+                                          </span>
+                                          <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
+                                            {formatDate(date)}
+                                          </span>
+                                          <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
+                                            {statusInfo.label}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Dados do Cliente */}
+                              {loan.client && (loan.client.phone || loan.client.address || loan.client.email) && (
+                                <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                  <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>👤 Contato do Cliente</p>
+                                  <div className="space-y-1.5">
+                                    {loan.client.phone && (
+                                      <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                        <Phone className="w-3 h-3" />
+                                        <span>{loan.client.phone}</span>
+                                      </div>
+                                    )}
+                                    {loan.client.email && (
+                                      <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                        <Mail className="w-3 h-3" />
+                                        <span>{loan.client.email}</span>
+                                      </div>
+                                    )}
+                                    {loan.client.address && (
+                                      <div className={`flex items-center gap-2 text-xs ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                        <MapPin className="w-3 h-3" />
+                                        <span>{loan.client.address}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Detalhes do Contrato */}
+                              <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📋 Detalhes do Contrato</p>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  {loan.contract_date && (
+                                    <div>
+                                      <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Data do Contrato</p>
+                                      <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatDate(loan.contract_date)}</p>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Início</p>
+                                    <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatDate(loan.start_date)}</p>
+                                  </div>
+                                  <div>
+                                    <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Tipo de Pagamento</p>
+                                    <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>Diário</p>
+                                  </div>
+                                  <div>
+                                    <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Total de Lucro</p>
+                                    <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{formatCurrency(dailyProfit)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Notas/Observações */}
+                              {displayNotes && (
+                                <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                                  <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📝 Observações</p>
+                                  <p className={`text-xs whitespace-pre-wrap ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                    {displayNotes}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </CardContent>
                     </Card>
                   );
