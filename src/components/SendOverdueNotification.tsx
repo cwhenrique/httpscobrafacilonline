@@ -137,8 +137,11 @@ export default function SendOverdueNotification({
       message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
     }
     
-    message += `Por favor, entre em contato para regularizar sua situação.\n\n`;
-    message += `_${profile?.company_name || 'CobraFácil'}_`;
+    message += `Por favor, entre em contato para regularizar sua situação.`;
+    
+    if (profile?.company_name) {
+      message += `\n\n_${profile.company_name}_`;
+    }
 
     return message;
   };

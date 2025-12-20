@@ -132,8 +132,11 @@ export default function SendDueTodayNotification({
       message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
     }
     
-    message += `Evite juros e multas pagando em dia!\n\n`;
-    message += `_${profile?.company_name || 'CobraFácil'}_`;
+    message += `Evite juros e multas pagando em dia!`;
+    
+    if (profile?.company_name) {
+      message += `\n\n_${profile.company_name}_`;
+    }
 
     return message;
   };
