@@ -224,3 +224,185 @@ export function getClientTypeLabel(type: string): string {
       return type;
   }
 }
+
+/**
+ * Interface para empréstimos usados nas funções de cálculo
+ */
+interface LoanForCalculation {
+  principal_amount: number;
+  interest_rate: number;
+  interest_mode?: string | null;
+  total_interest?: number | null;
+  payment_type?: string;
+  installments?: number | null;
+  installment_dates?: unknown;
+  due_date: string;
+  total_paid?: number | null;
+  status?: string;
+  notes?: string | null;
+}
+
+/**
+ * Extrai pagamentos parciais registrados no campo notes
+ */
+function getPartialPaymentsFromNotes(notes: string | null): Record<number, number> {
+  const payments: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    payments[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return payments;
+}
+
+/**
+ * Extrai sub-parcelas de adiantamento pendentes do campo notes
+ */
+function getAdvanceSubparcelasFromNotes(notes: string | null): Array<{ originalIndex: number }> {
+  const subparcelas: Array<{ originalIndex: number }> = [];
+  const matches = (notes || '').matchAll(/\[ADVANCE_SUBPARCELA:(\d+):([0-9.]+):([^:\]]+)(?::(\d+))?\]/g);
+  for (const match of matches) {
+    subparcelas.push({ originalIndex: parseInt(match[1]) });
+  }
+  return subparcelas;
+}
+
+/**
+ * Calcula quantas parcelas foram pagas de um empréstimo
+ * Considera parcelas pagas, pagamentos parciais e sub-parcelas de adiantamento
+ */
+export function calculatePaidInstallments(loan: LoanForCalculation): number {
+  const numInstallments = loan.installments || 1;
+  const isDaily = loan.payment_type === 'daily';
+  
+  // Calcular juros totais do contrato
+  let totalInterest = 0;
+  if (isDaily) {
+    const dailyAmount = loan.total_interest || 0;
+    totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+  } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+    totalInterest = loan.total_interest;
+  } else if (loan.interest_mode === 'on_total') {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else if (loan.interest_mode === 'compound') {
+    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+  } else {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+  }
+  
+  const principalPerInstallment = loan.principal_amount / numInstallments;
+  const interestPerInstallment = totalInterest / numInstallments;
+  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  
+  // Verificar taxa de renovação
+  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
+  const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+  const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+  
+  const getInstallmentValue = (index: number) => {
+    if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+      return renewalFeeValue;
+    }
+    return baseInstallmentValue;
+  };
+  
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes || null);
+  
+  // Fallback se não há tags de tracking
+  const hasTrackingTags = Object.keys(partialPayments).length > 0;
+  const hasInterestOnlyTags = (loan.notes || '').includes('[INTEREST_ONLY_PAID:');
+  const totalPaid = loan.total_paid || 0;
+  
+  if (!hasTrackingTags && !hasInterestOnlyTags && totalPaid > 0 && baseInstallmentValue > 0) {
+    const paidByValue = Math.floor(totalPaid / baseInstallmentValue);
+    return Math.min(paidByValue, numInstallments);
+  }
+  
+  // Verificar sub-parcelas pendentes
+  const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes || null);
+  const hasSubparcelaForIndex = (index: number) => 
+    advanceSubparcelas.some(s => s.originalIndex === index);
+  
+  let paidCount = 0;
+  for (let i = 0; i < numInstallments; i++) {
+    const installmentValue = getInstallmentValue(i);
+    const paidAmount = partialPayments[i] || 0;
+    if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+      paidCount++;
+    } else {
+      break;
+    }
+  }
+  
+  return paidCount;
+}
+
+/**
+ * Obtém a data da próxima parcela não paga de um empréstimo
+ * Retorna null se todas as parcelas estiverem pagas
+ */
+export function getNextUnpaidInstallmentDate(loan: LoanForCalculation): Date | null {
+  const dates = (loan.installment_dates as string[]) || [];
+  const paidCount = calculatePaidInstallments(loan);
+  
+  if (dates.length > 0 && paidCount < dates.length) {
+    // Usar T12:00:00 para evitar problemas de timezone
+    return new Date(dates[paidCount] + 'T12:00:00');
+  }
+  
+  // Fallback para due_date
+  return new Date(loan.due_date + 'T12:00:00');
+}
+
+/**
+ * Verifica se um empréstimo está em atraso
+ * Considera installment_dates para empréstimos parcelados (diário/semanal/quinzenal)
+ * Usa a lógica correta baseada em parcelas individuais
+ */
+export function isLoanOverdue(loan: LoanForCalculation): boolean {
+  // Se já está marcado como pago, não está em atraso
+  if (loan.status === 'paid') return false;
+  
+  // Se o status já é overdue, confirmar
+  if (loan.status === 'overdue') return true;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const dates = (loan.installment_dates as string[]) || [];
+  
+  // Para empréstimos com parcelas (diário, semanal, quinzenal, mensal parcelado)
+  if (dates.length > 0) {
+    const paidInstallments = calculatePaidInstallments(loan);
+    
+    // Se ainda há parcelas não pagas
+    if (paidInstallments < dates.length) {
+      const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
+      nextDueDate.setHours(0, 0, 0, 0);
+      return today > nextDueDate;
+    }
+  }
+  
+  // Fallback para due_date (empréstimos sem installment_dates ou já pagos)
+  const loanDueDate = new Date(loan.due_date + 'T12:00:00');
+  loanDueDate.setHours(0, 0, 0, 0);
+  return today > loanDueDate;
+}
+
+/**
+ * Calcula quantos dias de atraso um empréstimo tem
+ * Retorna 0 se não estiver em atraso
+ */
+export function getDaysOverdue(loan: LoanForCalculation): number {
+  if (!isLoanOverdue(loan)) return 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const nextDueDate = getNextUnpaidInstallmentDate(loan);
+  if (!nextDueDate) return 0;
+  
+  nextDueDate.setHours(0, 0, 0, 0);
+  
+  const diffTime = today.getTime() - nextDueDate.getTime();
+  return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+}

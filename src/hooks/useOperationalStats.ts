@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loan } from '@/types/database';
+import { isLoanOverdue } from '@/lib/calculations';
 
 export interface OperationalStats {
   // Empréstimos Ativos (Na Rua)
@@ -156,17 +157,9 @@ export function useOperationalStats() {
         const loanWithClient = loan as LoanWithClient;
         activeLoans.push(loanWithClient);
 
-        // Verificar se está em atraso: status é overdue OU (status é pending E due_date < hoje)
-        // Adiciona T12:00:00 para evitar problemas de timezone
-        const loanDueDate = new Date(loan.due_date + 'T12:00:00');
-        const today = new Date();
-        today.setHours(12, 0, 0, 0);
-        loanDueDate.setHours(12, 0, 0, 0);
-        
-        const isOverdue = loan.status === 'overdue' || 
-          (loan.status === 'pending' && loanDueDate < today);
-
-        if (isOverdue) {
+        // Usar função centralizada para verificar atraso
+        // Considera installment_dates para empréstimos diários/semanais/quinzenais
+        if (isLoanOverdue(loan)) {
           overdueCount++;
           overdueAmount += remainingBalance;
           overdueLoans.push(loanWithClient);

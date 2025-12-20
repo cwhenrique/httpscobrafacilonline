@@ -4,7 +4,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, isLoanOverdue, getDaysOverdue } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FinancialChart, InterestChart } from '@/components/dashboard/FinancialChart';
@@ -37,37 +37,8 @@ export default function Dashboard() {
 
   const recentLoans = loans.slice(0, 5);
   
-  // Filter overdue loans
-  const overdueLoans = loans.filter((loan) => {
-    if (loan.status === 'paid') return false;
-    
-    const numInstallments = loan.installments || 1;
-    const totalInterest = loan.total_interest || 0;
-    const totalToReceive = loan.principal_amount + totalInterest;
-    const remainingToReceive = totalToReceive - (loan.total_paid || 0);
-    
-    if (remainingToReceive <= 0) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const principalPerInstallment = loan.principal_amount / numInstallments;
-    const interestPerInstallment = totalInterest / numInstallments;
-    const totalPerInstallment = principalPerInstallment + interestPerInstallment;
-    const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
-    const dates = (loan.installment_dates as string[]) || [];
-    
-    if (dates.length > 0 && paidInstallments < dates.length) {
-      // Adiciona T12:00:00 para evitar problemas de timezone
-      const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
-      nextDueDate.setHours(12, 0, 0, 0);
-      return today > nextDueDate;
-    } else {
-      const dueDate = new Date(loan.due_date + 'T12:00:00');
-      dueDate.setHours(12, 0, 0, 0);
-      return today > dueDate;
-    }
-  });
+  // Filter overdue loans using centralized function
+  const overdueLoans = loans.filter((loan) => isLoanOverdue(loan));
 
   const businessTypeCards = [
     {
@@ -299,7 +270,7 @@ export default function Dashboard() {
                   <AlertTriangle className="w-5 h-5 text-destructive" />
                 </div>
                 <CardTitle className="text-lg font-display text-destructive">
-                  Empréstimos em Atraso ({overdueLoans.length})
+                  Em Atraso ({overdueLoans.length})
                 </CardTitle>
               </div>
               <Link to="/loans">
@@ -312,14 +283,12 @@ export default function Dashboard() {
             <CardContent>
               <div className="space-y-3">
                 {overdueLoans.slice(0, 5).map((loan) => {
-                  const numInstallments = loan.installments || 1;
                   const totalInterest = loan.total_interest || 0;
                   const totalToReceive = loan.principal_amount + totalInterest;
                   const remainingToReceive = totalToReceive - (loan.total_paid || 0);
                   
-                  const dueDate = new Date(loan.due_date);
-                  const today = new Date();
-                  const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                  // Usar função centralizada para calcular dias em atraso
+                  const daysOverdueCount = getDaysOverdue(loan);
                   
                   return (
                     <div
@@ -329,7 +298,7 @@ export default function Dashboard() {
                       <div>
                         <p className="font-medium">{loan.client?.full_name}</p>
                         <p className="text-sm text-destructive">
-                          {daysOverdue} {daysOverdue === 1 ? 'dia' : 'dias'} em atraso
+                          {daysOverdueCount} {daysOverdueCount === 1 ? 'dia' : 'dias'} em atraso
                         </p>
                       </div>
                       <div className="text-right">
