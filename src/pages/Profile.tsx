@@ -35,7 +35,9 @@ import {
   Infinity,
   AlertCircle,
   Link as LinkIcon,
-  QrCode
+  QrCode,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
@@ -69,6 +71,14 @@ export default function Profile() {
     totalReceived: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  
+  // Estados de edição individual
+  const [isEditingPix, setIsEditingPix] = useState(false);
+  const [isEditingBillingName, setIsEditingBillingName] = useState(false);
+  const [isEditingPaymentLink, setIsEditingPaymentLink] = useState(false);
+  const [savingPix, setSavingPix] = useState(false);
+  const [savingBillingName, setSavingBillingName] = useState(false);
+  const [savingPaymentLink, setSavingPaymentLink] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -242,6 +252,78 @@ export default function Profile() {
       toast.error(`Erro ao alterar senha: ${error.message}`);
     }
     setChangingPassword(false);
+  };
+
+  // Funções de save individuais
+  const handleSavePix = async () => {
+    setSavingPix(true);
+    const { error } = await updateProfile({
+      pix_key: formData.pix_key.trim() || null,
+      pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
+    });
+    if (error) {
+      toast.error('Erro ao salvar chave PIX');
+    } else {
+      toast.success('Chave PIX atualizada!');
+      setIsEditingPix(false);
+      refetch();
+    }
+    setSavingPix(false);
+  };
+
+  const handleCancelPix = () => {
+    setFormData(prev => ({
+      ...prev,
+      pix_key: profile?.pix_key || '',
+      pix_key_type: profile?.pix_key_type || 'cpf',
+    }));
+    setIsEditingPix(false);
+  };
+
+  const handleSaveBillingName = async () => {
+    setSavingBillingName(true);
+    const { error } = await updateProfile({
+      billing_signature_name: formData.billing_signature_name.trim() || null,
+    });
+    if (error) {
+      toast.error('Erro ao salvar nome');
+    } else {
+      toast.success('Nome nas cobranças atualizado!');
+      setIsEditingBillingName(false);
+      refetch();
+    }
+    setSavingBillingName(false);
+  };
+
+  const handleCancelBillingName = () => {
+    setFormData(prev => ({
+      ...prev,
+      billing_signature_name: profile?.billing_signature_name || '',
+    }));
+    setIsEditingBillingName(false);
+  };
+
+  const handleSavePaymentLink = async () => {
+    setSavingPaymentLink(true);
+    const { error } = await updateProfile({
+      payment_link: formData.payment_link.trim() || null,
+    });
+    if (error) {
+      toast.error('Erro ao salvar link');
+    } else {
+      toast.success('Link de pagamento atualizado!');
+      setIsEditingPaymentLink(false);
+      refetch();
+    }
+    setSavingPaymentLink(false);
+  };
+
+  const handleCancelPaymentLink = () => {
+    setFormData(prev => ({
+      ...prev,
+      payment_link: profile?.payment_link || '',
+    }));
+    setIsEditingPaymentLink(false);
   };
 
   if (loading) {
@@ -590,18 +672,32 @@ export default function Profile() {
 
         {/* PIX Key Card */}
         <Card className="shadow-soft">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <QrCode className="w-4 h-4 text-green-500" />
               Chave PIX para Cobranças
             </CardTitle>
+            {!isEditingPix ? (
+              <Button variant="ghost" size="icon" onClick={() => setIsEditingPix(true)} className="h-8 w-8">
+                <Pencil className="w-4 h-4" />
+              </Button>
+            ) : (
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" onClick={handleSavePix} disabled={savingPix} className="h-8 w-8">
+                  {savingPix ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 text-green-500" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleCancelPix} disabled={savingPix} className="h-8 w-8">
+                  <X className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Configure sua chave PIX. Ela será incluída automaticamente nas mensagens de cobrança com o valor exato da parcela.
             </p>
             
-            {isEditing ? (
+            {isEditingPix ? (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="pix_key_type">Tipo da Chave</Label>
@@ -662,18 +758,32 @@ export default function Profile() {
 
         {/* Billing Signature Name Card */}
         <Card className="shadow-soft">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Edit className="w-4 h-4 text-primary" />
               Nome nas Cobranças
             </CardTitle>
+            {!isEditingBillingName ? (
+              <Button variant="ghost" size="icon" onClick={() => setIsEditingBillingName(true)} className="h-8 w-8">
+                <Pencil className="w-4 h-4" />
+              </Button>
+            ) : (
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" onClick={handleSaveBillingName} disabled={savingBillingName} className="h-8 w-8">
+                  {savingBillingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 text-green-500" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleCancelBillingName} disabled={savingBillingName} className="h-8 w-8">
+                  <X className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Este nome será exibido no final das mensagens de cobrança enviadas aos seus clientes via WhatsApp.
             </p>
             
-            {isEditing ? (
+            {isEditingBillingName ? (
               <div className="space-y-2">
                 <Label htmlFor="billing_signature_name">Nome/Assinatura</Label>
                 <Input
@@ -705,18 +815,32 @@ export default function Profile() {
 
         {/* Payment Link Card */}
         <Card className="shadow-soft">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <LinkIcon className="w-4 h-4 text-primary" />
               Link de Pagamento (Opcional)
             </CardTitle>
+            {!isEditingPaymentLink ? (
+              <Button variant="ghost" size="icon" onClick={() => setIsEditingPaymentLink(true)} className="h-8 w-8">
+                <Pencil className="w-4 h-4" />
+              </Button>
+            ) : (
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" onClick={handleSavePaymentLink} disabled={savingPaymentLink} className="h-8 w-8">
+                  {savingPaymentLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 text-green-500" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleCancelPaymentLink} disabled={savingPaymentLink} className="h-8 w-8">
+                  <X className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Configure um link de pagamento adicional (PagSeguro, Mercado Pago, etc). Será incluído nas mensagens junto com a chave PIX.
             </p>
             
-            {isEditing ? (
+            {isEditingPaymentLink ? (
               <div className="space-y-2">
                 <Label htmlFor="payment_link">Link de Pagamento</Label>
                 <Input
