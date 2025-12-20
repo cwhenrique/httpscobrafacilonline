@@ -4165,11 +4165,11 @@ export default function Loans() {
                 return (
                   <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
-                      <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex items-start gap-2 sm:gap-4">
                         <div className="relative group flex-shrink-0">
-                          <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                          <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
                             <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                            <AvatarFallback className={`text-sm sm:text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                            <AvatarFallback className={`text-xs sm:text-base font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                               {initials}
                             </AvatarFallback>
                           </Avatar>
@@ -4191,89 +4191,89 @@ export default function Loans() {
                             disabled={uploadingClientId === loan.client_id}
                           >
                             {uploadingClientId === loan.client_id ? (
-                              <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             ) : (
-                              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                              <Camera className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             )}
                           </button>
                         </div>
                         <div className="flex-1 min-w-0">
                           {/* LINHA 1: Nome + Botões na mesma linha */}
-                          <div className="flex items-center justify-between gap-2">
-                            <h3 className="font-semibold text-base sm:text-lg truncate">{loan.client?.full_name}</h3>
-                            <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
+                            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
-                                className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                 onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
                               >
                                 {expandedLoanId === loan.id ? (
-                                  <ChevronUp className="w-3 h-3 sm:mr-1" />
+                                  <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                 ) : (
-                                  <ChevronDown className="w-3 h-3 sm:mr-1" />
+                                  <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                 )}
                                 <span className="hidden sm:inline">Detalhes</span>
                               </Button>
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
-                                className={`tutorial-loan-receipt h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                className={`tutorial-loan-receipt h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                 onClick={() => handleGenerateLoanReceipt(loan)}
                               >
-                                <FileText className="w-3 h-3 sm:mr-1" />
+                                <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                 <span className="hidden sm:inline">Comprovante</span>
                               </Button>
                             </div>
                           </div>
                           
                           {/* LINHA 2: Badges de status e tipo */}
-                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                            <Badge className={`text-[9px] sm:text-[10px] px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                          <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
+                            <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                               {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                             </Badge>
                             {loan.interest_mode === 'compound' && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-purple-500/20 text-purple-300 border-purple-500/30">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-500/20 text-purple-300 border-purple-500/30">
                                 J. Compostos
                               </Badge>
                             )}
                             {isDaily && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
                             )}
                             {isWeekly && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
                                 SEMANAL
                               </Badge>
                             )}
                             {isBiweekly && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
                                 QUINZENAL
                               </Badge>
                             )}
                             {loan.payment_type === 'installment' && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
                                 MENSAL
                               </Badge>
                             )}
                           </div>
                           
                           {/* LINHA 3: Valor em destaque */}
-                          <p className={`text-xl sm:text-2xl font-bold mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
-                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
+                          <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
                         </div>
                       </div>
                       
-                      {/* Seção de Valores */}
-                      <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                      {/* Seção de Valores Resumida - Emprestado e Total */}
+                      <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
-                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
-                          <p className="font-semibold truncate">{formatCurrency(loan.principal_amount)}</p>
+                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
+                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
                         </div>
                         <div>
-                          <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                          <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
+                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
+                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive)}</p>
                         </div>
                       </div>
                       
@@ -4320,67 +4320,9 @@ export default function Loans() {
                         </div>
                       )}
                       
-                      {/* Seção de Lucro - Previsto e Realizado */}
-                      {(() => {
-                        // Lucro previsto = total de juros do contrato
-                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
-                        
-                        // Lucro realizado = soma dos interest_paid de todos os pagamentos
-                        // Fonte de verdade: loan_payments.interest_paid registrado em cada pagamento
-                        const payments = (loan as any).loan_payments || [];
-                        let realizedProfit = payments.reduce((sum: number, p: any) => 
-                          sum + Number(p.interest_paid || 0), 0);
-                        
-                        // Porcentagem do lucro realizado
-                        const profitPercentage = expectedProfit > 0 
-                          ? Math.round((realizedProfit / expectedProfit) * 100) 
-                          : 0;
-                        
-                        return (
-                          <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-2 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
-                            <div>
-                              <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Previsto</p>
-                              <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                                {formatCurrency(expectedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Realizado</p>
-                              <div className="flex items-center gap-1.5">
-                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                                  {formatCurrency(realizedProfit)}
-                                </p>
-                                {expectedProfit > 0 && (
-                                  <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
-                                    hasSpecialStyle 
-                                      ? 'bg-white/20 text-white' 
-                                      : profitPercentage >= 100 
-                                        ? 'bg-emerald-500/20 text-emerald-500' 
-                                        : 'bg-muted text-muted-foreground'
-                                  }`}>
-                                    {profitPercentage}%
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      
-                      <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm">
-                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
-                          <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          {isDaily ? (
-                            <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
-                          ) : (
-                            <span className="truncate">Juros: {formatPercentage(loan.interest_rate)}</span>
-                          )}
-                        </div>
-                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
-                          <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallment)}</span>
-                        </div>
-                        <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                      {/* Info resumida - Vencimento e Pago */}
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-3 text-[10px] sm:text-sm">
+                        <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor}`}>
                           <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Venc: {(() => {
                             const dates = (loan.installment_dates as string[]) || [];
@@ -4389,7 +4331,7 @@ export default function Loans() {
                             return formatDate(nextDate);
                           })()}</span>
                         </div>
-                        <div className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                        <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                           <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
@@ -4800,8 +4742,62 @@ export default function Loans() {
                           return { status: 'pending', label: 'Pendente', color: 'text-muted-foreground' };
                         };
                         
+                        // Lucro previsto e realizado
+                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
+                        const payments = (loan as any).loan_payments || [];
+                        const realizedProfit = payments.reduce((sum: number, p: any) => 
+                          sum + Number(p.interest_paid || 0), 0);
+                        const profitPercentage = expectedProfit > 0 
+                          ? Math.round((realizedProfit / expectedProfit) * 100) 
+                          : 0;
+                        
                         return (
                           <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                            {/* Seção de Lucro - Previsto e Realizado (movido para área expandível) */}
+                            <div className={`grid grid-cols-2 gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                              <div>
+                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                  {formatCurrency(expectedProfit)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                    {formatCurrency(realizedProfit)}
+                                  </p>
+                                  {expectedProfit > 0 && (
+                                    <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
+                                      hasSpecialStyle 
+                                        ? 'bg-white/20 text-white' 
+                                        : profitPercentage >= 100 
+                                          ? 'bg-emerald-500/20 text-emerald-500' 
+                                          : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      {profitPercentage}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Detalhes adicionais: Juros e Parcelas */}
+                            <div className={`grid grid-cols-2 gap-2 text-xs sm:text-sm ${hasSpecialStyle ? '' : ''}`}>
+                              <div className={`flex items-center gap-1.5 ${mutedTextColor}`}>
+                                <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                {isDaily ? (
+                                  <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
+                                ) : (
+                                  <span className="truncate">Juros: {formatPercentage(loan.interest_rate)}</span>
+                                )}
+                              </div>
+                              <div className={`flex items-center gap-1.5 ${mutedTextColor}`}>
+                                <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallment)}</span>
+                              </div>
+                            </div>
+                            
                             {/* Progresso de Parcelas */}
                             <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                               <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📊 Progresso</p>
@@ -5233,11 +5229,11 @@ export default function Loans() {
                   return (
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                       <CardContent className="p-3 sm:p-4">
-                        <div className="flex items-start gap-3 sm:gap-4">
+                        <div className="flex items-start gap-2 sm:gap-4">
                           <div className="relative group flex-shrink-0">
-                            <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                            <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
                               <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                              <AvatarFallback className={`text-sm sm:text-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                              <AvatarFallback className={`text-xs sm:text-base font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
@@ -5259,121 +5255,73 @@ export default function Loans() {
                               disabled={uploadingClientId === loan.client_id}
                             >
                               {uploadingClientId === loan.client_id ? (
-                                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                               ) : (
-                                <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                <Camera className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                               )}
                             </button>
                           </div>
                           <div className="flex-1 min-w-0">
                             {/* LINHA 1: Nome + Botões na mesma linha */}
-                            <div className="flex items-center justify-between gap-2">
-                              <h3 className="font-semibold text-base sm:text-lg truncate">{loan.client?.full_name}</h3>
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
+                              <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
                                 >
                                   {expandedLoanId === loan.id ? (
-                                    <ChevronUp className="w-3 h-3 sm:mr-1" />
+                                    <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                   ) : (
-                                    <ChevronDown className="w-3 h-3 sm:mr-1" />
+                                    <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                   )}
                                   <span className="hidden sm:inline">Detalhes</span>
                                 </Button>
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => handleGenerateLoanReceipt(loan)}
                                 >
-                                  <FileText className="w-3 h-3 sm:mr-1" />
+                                  <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
                                   <span className="hidden sm:inline">Comprovante</span>
                                 </Button>
                               </div>
                             </div>
                             
                             {/* LINHA 2: Badges de status e tipo */}
-                            <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                              <Badge className={`text-[9px] sm:text-[10px] px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                            <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
+                              <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                                 {getPaymentStatusLabel(loan.status)}
                               </Badge>
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
                             </div>
                             
                             {/* LINHA 3: Valor em destaque */}
-                            <p className={`text-xl sm:text-2xl font-bold mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
+                            <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
                           </div>
                         </div>
                         
-                        {/* Seção de Valores */}
-                        <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                        {/* Seção de Valores Resumida - Emprestado e Total */}
+                        <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                           <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
-                            <p className="font-semibold truncate">{formatCurrency(loan.principal_amount)}</p>
+                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
+                            <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
                           </div>
                           <div>
-                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                            <p className="font-semibold truncate">{formatCurrency(totalToReceive)}</p>
+                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
+                            <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive)}</p>
                           </div>
                         </div>
                         
-                        {/* Seção de Lucro - Previsto e Realizado */}
-                        {(() => {
-                          const expectedProfitDaily = dailyProfit;
-                          const payments = (loan as any).loan_payments || [];
-                          let realizedProfitDaily = payments.reduce((sum: number, p: any) => 
-                            sum + Number(p.interest_paid || 0), 0);
-                          const profitPercentageDaily = expectedProfitDaily > 0 
-                            ? Math.round((realizedProfitDaily / expectedProfitDaily) * 100) 
-                            : 0;
-                          
-                          return (
-                            <div className={`grid grid-cols-2 gap-2 sm:gap-3 mt-2 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
-                              <div>
-                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Previsto</p>
-                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                                  {formatCurrency(expectedProfitDaily)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro Realizado</p>
-                                <div className="flex items-center gap-1.5">
-                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                                    {formatCurrency(realizedProfitDaily)}
-                                  </p>
-                                  {expectedProfitDaily > 0 && (
-                                    <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
-                                      hasSpecialStyle 
-                                        ? 'bg-white/20 text-white' 
-                                        : profitPercentageDaily >= 100 
-                                          ? 'bg-emerald-500/20 text-emerald-500' 
-                                          : 'bg-muted text-muted-foreground'
-                                    }`}>
-                                      {profitPercentageDaily}%
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                        
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm">
-                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
-                            <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                            <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
-                          </div>
-                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
-                            <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                            <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallmentDisplay)}</span>
-                          </div>
-                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                        {/* Info resumida - Vencimento e Pago */}
+                        <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-3 text-[10px] sm:text-sm">
+                          <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor}`}>
                             <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                             <span className="truncate">Venc: {(() => {
                               const dates = (loan.installment_dates as string[]) || [];
@@ -5382,7 +5330,7 @@ export default function Loans() {
                               return formatDate(nextDate);
                             })()}</span>
                           </div>
-                          <div className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                          <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                             <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                             <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                           </div>
@@ -5662,8 +5610,58 @@ export default function Loans() {
                             return { status: 'pending', label: 'Pendente', color: 'text-muted-foreground' };
                           };
                           
+                          // Lucro previsto e realizado para diários
+                          const expectedProfitDaily = dailyProfit;
+                          const paymentsDailyExp = (loan as any).loan_payments || [];
+                          const realizedProfitDaily = paymentsDailyExp.reduce((sum: number, p: any) => 
+                            sum + Number(p.interest_paid || 0), 0);
+                          const profitPercentageDaily = expectedProfitDaily > 0 
+                            ? Math.round((realizedProfitDaily / expectedProfitDaily) * 100) 
+                            : 0;
+                          
                           return (
                             <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                              {/* Seção de Lucro - Previsto e Realizado (movido para área expandível) */}
+                              <div className={`grid grid-cols-2 gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                                <div>
+                                  <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                    {formatCurrency(expectedProfitDaily)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                      {formatCurrency(realizedProfitDaily)}
+                                    </p>
+                                    {expectedProfitDaily > 0 && (
+                                      <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
+                                        hasSpecialStyle 
+                                          ? 'bg-white/20 text-white' 
+                                          : profitPercentageDaily >= 100 
+                                            ? 'bg-emerald-500/20 text-emerald-500' 
+                                            : 'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {profitPercentageDaily}%
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Detalhes adicionais: Lucro e Parcelas */}
+                              <div className={`grid grid-cols-2 gap-2 text-xs sm:text-sm ${hasSpecialStyle ? '' : ''}`}>
+                                <div className={`flex items-center gap-1.5 ${mutedTextColor}`}>
+                                  <Percent className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                  <span className="truncate">Lucro: {formatCurrency(dailyProfit)}</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${mutedTextColor}`}>
+                                  <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                  <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallmentDisplay)}</span>
+                                </div>
+                              </div>
+                              
                               {/* Progresso de Parcelas */}
                               <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                                 <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📊 Progresso</p>
