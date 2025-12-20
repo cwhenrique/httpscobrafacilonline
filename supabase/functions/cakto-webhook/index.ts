@@ -418,25 +418,17 @@ Obrigado por continuar com a gente! 💚`;
 
     // Send credentials via WhatsApp
     if (customerPhone) {
-      const planNames: Record<string, string> = {
-        'lifetime': 'Vitalício',
-        'annual': 'Anual',
-        'monthly': 'Mensal',
-      };
-      const welcomeMessage = `🎉 *Bem-vindo ao CobraFácil!*
+      const welcomeMessage = `🎉 *Parabéns pela sua compra!*
 
-Sua conta foi criada com sucesso!
+Olá ${customerName || 'Cliente'}!
 
-📧 *Email:* ${customerEmail}
-🔑 *Senha:* ${generatedPassword}
-📦 *Plano:* ${planNames[plan] || plan}
-${expiresAt ? `📅 *Válido até:* ${new Date(expiresAt).toLocaleDateString('pt-BR')}` : '♾️ *Acesso vitalício*'}
+Ficamos muito felizes em ter você com a gente! 💚
 
-🔗 *Acesse:* https://cobrafacil.online/auth
+Para obter seu acesso ao *CobraFácil*, entre em contato com nosso suporte:
 
-Recomendamos que você altere sua senha após o primeiro acesso.
+📱 *WhatsApp Suporte:* (17) 99105-0811
 
-Qualquer dúvida, estamos à disposição!`;
+Estamos prontos para te ajudar a começar! 🚀`;
 
       await sendWhatsAppMessage(customerPhone, welcomeMessage);
     }
