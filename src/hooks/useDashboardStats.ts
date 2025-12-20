@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { isLoanOverdue } from '@/lib/calculations';
 
 export interface DashboardStats {
   totalLoaned: number;
@@ -76,8 +77,9 @@ export function useDashboardStats() {
       { data: productPaymentsThisWeek },
       { data: vehiclePaymentsThisWeek },
       { data: contractPaymentsThisWeek },
+      { data: allLoanPayments },
     ] = await Promise.all([
-      supabase.from('loans').select('principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date'),
+      supabase.from('loans').select('id, principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date'),
       supabase.from('loans').select('id, created_at').gte('created_at', weekAgo.toISOString()),
       supabase.from('monthly_fee_payments').select('amount, status, due_date'),
       supabase.from('clients').select('*', { count: 'exact', head: true }),
@@ -91,6 +93,7 @@ export function useDashboardStats() {
       supabase.from('product_sale_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
       supabase.from('vehicle_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
       supabase.from('contract_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+      supabase.from('loan_payments').select('loan_id, principal_paid'),
     ]);
 
     let totalLoaned = 0; // Capital na Rua - apenas empréstimos ATIVOS
@@ -107,12 +110,17 @@ export function useDashboardStats() {
         const totalPaid = Number(loan.total_paid || 0);
         const remainingBalance = Number(loan.remaining_balance);
         
+        // Calcular principal já pago para este empréstimo
+        const loanPayments = allLoanPayments?.filter(p => p.loan_id === loan.id) || [];
+        const totalPrincipalPaid = loanPayments.reduce((sum, p) => sum + Number(p.principal_paid || 0), 0);
+        const capitalNaRua = principal - totalPrincipalPaid;
+        
         // Total recebido de TODOS os empréstimos (histórico)
         totalReceived += totalPaid;
         
         // Apenas empréstimos ATIVOS contam para "Na Rua" e "Pendente"
         if (loan.status !== 'paid') {
-          totalLoaned += principal; // Na Rua = principal de ativos
+          totalLoaned += capitalNaRua; // Na Rua = principal - principal já pago
           totalPending += remainingBalance; // Pendente = remaining_balance do banco
           
           // Total a receber (principal + juros) apenas de ativos
@@ -134,7 +142,8 @@ export function useDashboardStats() {
           }
         }
         
-        if (loan.status === 'overdue') {
+        // Usar função centralizada para verificar atraso
+        if (isLoanOverdue(loan)) {
           overdueCount++;
         }
 

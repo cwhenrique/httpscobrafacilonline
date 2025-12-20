@@ -174,7 +174,12 @@ export default function ReportsLoans() {
         return loan.payment_type === type;
       });
       const activeLoans = typeLoans.filter(loan => loan.status !== 'paid');
-      const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+      const totalOnStreet = activeLoans.reduce((sum, loan) => {
+        const principal = Number(loan.principal_amount);
+        const payments = (loan as any).payments || [];
+        const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
+        return sum + (principal - totalPrincipalPaid);
+      }, 0);
       const totalReceived = typeLoans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
       
       // Calculate realized profit from payments
@@ -204,8 +209,13 @@ export default function ReportsLoans() {
     // Considera installment_dates para empréstimos diários/semanais/quinzenais
     const overdueLoans = filteredLoans.filter(loan => isLoanOverdue(loan));
     
-    // Capital na Rua (soma do principal dos empréstimos ativos)
-    const totalOnStreet = activeLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    // Capital na Rua (principal - principal já pago dos empréstimos ativos)
+    const totalOnStreet = activeLoans.reduce((sum, loan) => {
+      const principal = Number(loan.principal_amount);
+      const payments = (loan as any).payments || [];
+      const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
+      return sum + (principal - totalPrincipalPaid);
+    }, 0);
     
     // Juros a Receber (pendentes) - com tratamento especial para diários
     const pendingInterest = activeLoans.reduce((sum, loan) => {
@@ -413,7 +423,12 @@ export default function ReportsLoans() {
             {(() => {
               const isActive = paymentTypeFilter === 'all';
               const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-              const allTotalOnStreet = allActiveLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+              const allTotalOnStreet = allActiveLoans.reduce((sum, loan) => {
+                const principal = Number(loan.principal_amount);
+                const payments = (loan as any).payments || [];
+                const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
+                return sum + (principal - totalPrincipalPaid);
+              }, 0);
               const allRealizedProfit = stats.allLoans.reduce((sum, loan) => {
                 const payments = (loan as any).payments || [];
                 return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
