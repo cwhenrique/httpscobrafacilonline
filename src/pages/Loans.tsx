@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useClients } from '@/hooks/useClients';
@@ -4682,6 +4683,7 @@ export default function Loans() {
                       </div>
                       
                       {/* Área Expandida com Informações Detalhadas */}
+                      <AnimatePresence>
                       {expandedLoanId === loan.id && (() => {
                         const dates = (loan.installment_dates as string[]) || [];
                         const partialPayments = getPartialPaymentsFromNotes(loan.notes);
@@ -4752,7 +4754,13 @@ export default function Loans() {
                           : 0;
                         
                         return (
-                          <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            className={`mt-3 pt-3 border-t space-y-3 overflow-hidden ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}
+                          >
                             {/* Seção de Lucro - Previsto e Realizado (movido para área expandível) */}
                             <div className={`grid grid-cols-2 gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
                               <div>
@@ -4918,9 +4926,10 @@ export default function Loans() {
                                 </p>
                               </div>
                             )}
-                          </div>
+                          </motion.div>
                         );
                       })()}
+                      </AnimatePresence>
                     </CardContent>
                   </Card>
                 );
@@ -5576,6 +5585,7 @@ export default function Loans() {
                         </div>
                         
                         {/* Área Expandida com Informações Detalhadas */}
+                        <AnimatePresence>
                         {expandedLoanId === loan.id && (() => {
                           const dates = (loan.installment_dates as string[]) || [];
                           const paidAdvanceSubparcelas = getPaidAdvanceSubparcelasFromNotes(loan.notes);
@@ -5620,7 +5630,13 @@ export default function Loans() {
                             : 0;
                           
                           return (
-                            <div className={`mt-3 pt-3 border-t space-y-3 ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}>
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.3, ease: 'easeInOut' }}
+                              className={`mt-3 pt-3 border-t space-y-3 overflow-hidden ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}
+                            >
                               {/* Seção de Lucro - Previsto e Realizado (movido para área expandível) */}
                               <div className={`grid grid-cols-2 gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
                                 <div>
@@ -5768,9 +5784,10 @@ export default function Loans() {
                                   </p>
                                 </div>
                               )}
-                            </div>
+                            </motion.div>
                           );
                         })()}
+                        </AnimatePresence>
                       </CardContent>
                     </Card>
                   );
