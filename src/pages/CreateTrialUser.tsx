@@ -264,37 +264,15 @@ export default function CreateTrialUser() {
     
     setUpdatingPlan(true);
     try {
-      // Calculate new expiration date based on plan
-      let subscriptionExpiresAt: string | null = null;
-      let trialExpiresAt: string | null = null;
-
-      const now = new Date();
-      
-      if (newPlan === 'trial') {
-        trialExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-        subscriptionExpiresAt = null;
-      } else if (newPlan === 'monthly') {
-        subscriptionExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        trialExpiresAt = null;
-      } else if (newPlan === 'annual') {
-        subscriptionExpiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        trialExpiresAt = null;
-      } else if (newPlan === 'lifetime') {
-        subscriptionExpiresAt = null;
-        trialExpiresAt = null;
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subscription_plan: newPlan,
-          subscription_expires_at: subscriptionExpiresAt,
-          trial_expires_at: trialExpiresAt,
-          is_active: true,
-        })
-        .eq('id', editingUser.id);
+      const { data, error } = await supabase.functions.invoke('update-user-plan', {
+        body: {
+          userId: editingUser.id,
+          newPlan: newPlan,
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       const planLabels = {
         trial: 'Trial (24h)',
