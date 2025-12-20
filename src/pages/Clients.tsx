@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { supabase } from '@/integrations/supabase/client';
 import { useClients } from '@/hooks/useClients';
 import { Client, ClientType } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -146,10 +147,17 @@ export default function Clients() {
 
     setSearchingCep(true);
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data: AddressData = await response.json();
+      const { data, error } = await supabase.functions.invoke('cep-lookup', {
+        body: { cep: cleanCep }
+      });
 
-      if (data.erro) {
+      if (error) {
+        console.error('Error fetching CEP:', error);
+        toast.error('Erro ao buscar CEP');
+        return;
+      }
+
+      if (data?.erro) {
         toast.error('CEP não encontrado');
         return;
       }
