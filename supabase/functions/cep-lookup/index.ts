@@ -34,23 +34,57 @@ serve(async (req) => {
 
     console.log('Buscando CEP:', cleanCep);
     
-    const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Erro na API ViaCEP:', response.status, response.statusText);
+    // Tentar BrasilAPI primeiro (mais confiável)
+    let data = null;
+    
+    try {
+      console.log('Tentando BrasilAPI...');
+      const brasilApiResponse = await fetch(`https://brasilapi.com.br/api/cep/v1/${cleanCep}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      
+      if (brasilApiResponse.ok) {
+        const brasilData = await brasilApiResponse.json();
+        console.log('Resposta BrasilAPI:', JSON.stringify(brasilData));
+        
+        // Converter formato BrasilAPI para formato ViaCEP
+        data = {
+          cep: brasilData.cep,
+          logradouro: brasilData.street || '',
+          bairro: brasilData.neighborhood || '',
+          localidade: brasilData.city || '',
+          uf: brasilData.state || '',
+        };
+      }
+    } catch (e) {
+      console.log('BrasilAPI falhou, tentando ViaCEP...', e);
+    }
+    
+    // Fallback para ViaCEP se BrasilAPI falhar
+    if (!data) {
+      try {
+        const viaCepResponse = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+        
+        if (viaCepResponse.ok) {
+          data = await viaCepResponse.json();
+          console.log('Resposta ViaCEP:', JSON.stringify(data));
+        }
+      } catch (e) {
+        console.log('ViaCEP também falhou:', e);
+      }
+    }
+    
+    if (!data) {
+      console.error('Ambas as APIs falharam');
       return new Response(
         JSON.stringify({ error: 'Erro ao consultar CEP' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const data = await response.json();
-    console.log('Resposta ViaCEP:', JSON.stringify(data));
 
     return new Response(
       JSON.stringify(data),
