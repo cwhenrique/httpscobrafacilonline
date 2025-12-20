@@ -4198,60 +4198,62 @@ export default function Loans() {
                           </button>
                         </div>
                         <div className="flex-1 min-w-0">
-                          {/* Header: Nome centralizado + Botão Detalhes */}
-                          <div className="flex items-center justify-between gap-2">
-                            <h3 className="font-bold text-base sm:text-xl truncate flex-1 text-center">{loan.client?.full_name}</h3>
+                          {/* LINHA 1: Nome centralizado em destaque */}
+                          <h3 className="font-bold text-lg sm:text-2xl text-center truncate">{loan.client?.full_name}</h3>
+                          
+                          {/* LINHA 2: Botões de ação */}
+                          <div className="flex items-center justify-center gap-2 mt-2">
                             <Button 
                               variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                               size="sm" 
-                              className={`h-6 text-[9px] sm:text-[10px] px-1.5 sm:px-2 flex-shrink-0 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              className={`h-7 text-[10px] sm:text-xs px-2 sm:px-3 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                               onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
                             >
                               {expandedLoanId === loan.id ? (
-                                <ChevronUp className="w-3 h-3 sm:mr-1" />
+                                <ChevronUp className="w-3.5 h-3.5 mr-1" />
                               ) : (
-                                <ChevronDown className="w-3 h-3 sm:mr-1" />
+                                <ChevronDown className="w-3.5 h-3.5 mr-1" />
                               )}
-                              <span className="hidden sm:inline">Detalhes</span>
+                              Detalhes
                             </Button>
-                          </div>
-                          
-                          {/* Badges + Comprovante abaixo do nome */}
-                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
                             <Button 
                               variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                               size="sm" 
-                              className={`tutorial-loan-receipt h-5 text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              className={`tutorial-loan-receipt h-7 text-[10px] sm:text-xs px-2 sm:px-3 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                               onClick={() => handleGenerateLoanReceipt(loan)}
                             >
-                              <FileText className="w-3 h-3 mr-1" />
+                              <FileText className="w-3.5 h-3.5 mr-1" />
                               Comprovante
                             </Button>
-                            <Badge className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+                          </div>
+                          
+                          {/* LINHA 3: Badges de status e tipo */}
+                          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                            <Badge className={`text-[10px] sm:text-xs px-2 py-0.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
                               {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
                             </Badge>
                             {loan.interest_mode === 'compound' && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-purple-500/20 text-purple-300 border-purple-500/30">
+                              <Badge className="text-[10px] sm:text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 border-purple-500/30">
                                 J. Compostos
                               </Badge>
                             )}
                             {isDaily && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                              <Badge className="text-[10px] sm:text-xs px-2 py-0.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 📅 DIÁRIO
                               </Badge>
                             )}
                             {isWeekly && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
+                              <Badge className="text-[10px] sm:text-xs px-2 py-0.5 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
                                 📅 SEMANAL
                               </Badge>
                             )}
                             {isBiweekly && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
+                              <Badge className="text-[10px] sm:text-xs px-2 py-0.5 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
                                 📅 QUINZENAL
                               </Badge>
                             )}
                             {loan.payment_type === 'installment' && (
-                              <Badge className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
+                              <Badge className="text-[10px] sm:text-xs px-2 py-0.5 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
                                 📅 MENSAL
                               </Badge>
                             )}
