@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -248,7 +249,8 @@ export default function Loans() {
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'daily' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only'>('all');
+  const [activeTab, setActiveTab] = useState<'regular' | 'daily'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -1030,7 +1032,19 @@ export default function Loans() {
     };
   };
 
-  const filteredLoans = loans.filter(loan => {
+  // First, filter by active tab (daily vs regular)
+  const loansForCurrentTab = useMemo(() => {
+    if (activeTab === 'daily') {
+      return loans.filter(l => l.payment_type === 'daily');
+    }
+    return loans.filter(l => l.payment_type !== 'daily');
+  }, [loans, activeTab]);
+
+  // Calculate counts for each tab
+  const regularLoansCount = useMemo(() => loans.filter(l => l.payment_type !== 'daily').length, [loans]);
+  const dailyLoansCount = useMemo(() => loans.filter(l => l.payment_type === 'daily').length, [loans]);
+
+  const filteredLoans = loansForCurrentTab.filter(loan => {
     const matchesSearch = loan.client?.full_name.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
     
@@ -1047,9 +1061,7 @@ export default function Loans() {
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'daily' && loan.payment_type !== 'weekly' && loan.payment_type !== 'biweekly';
-      case 'daily':
-        return loan.payment_type === 'daily';
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'weekly' && loan.payment_type !== 'biweekly';
       case 'weekly':
         return loan.payment_type === 'weekly';
       case 'biweekly':
@@ -3535,11 +3547,32 @@ export default function Loans() {
           </TooltipProvider>
         </div>
 
-        <div className="space-y-3 sm:space-y-4">
-          <div className="relative tutorial-search">
-            <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-            <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
-          </div>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily'); setStatusFilter('all'); }} className="w-full">
+          <TabsList className="mb-4 grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="regular" className="gap-2">
+              <DollarSign className="w-4 h-4" />
+              Empréstimos ({regularLoansCount})
+            </TabsTrigger>
+            <TabsTrigger value="daily" className="gap-2 data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <Clock className="w-4 h-4" />
+              Diário ({dailyLoansCount})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="regular" className="space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative tutorial-search flex-1">
+                <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+                <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
+              </div>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10">
+                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Empréstimo
+                  </Button>
+                </DialogTrigger>
+              </Dialog>
+            </div>
 
           <TooltipProvider delayDuration={300}>
             <div className="flex flex-wrap gap-1.5 sm:gap-2 tutorial-filters">
@@ -3670,23 +3703,6 @@ export default function Loans() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p>Empréstimos com cobrança quinzenal (a cada 15 dias)</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'daily' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('daily')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'daily' ? 'bg-sky-500' : 'border-sky-500 text-sky-600 hover:bg-sky-500/10'}`}
-                  >
-                    <Clock className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Diário</span><span className="xs:hidden">Diá.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com cobrança diária</p>
                 </TooltipContent>
               </Tooltip>
               
@@ -4790,7 +4806,343 @@ export default function Loans() {
               })}
             </div>
           )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="daily" className="space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative tutorial-search flex-1">
+                <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+                <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
+              </div>
+              <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-sky-500 hover:bg-sky-600">
+                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Diário
+                  </Button>
+                </DialogTrigger>
+              </Dialog>
+            </div>
+
+            <TooltipProvider delayDuration={300}>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={statusFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStatusFilter('all')}
+                      className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
+                    >
+                      Todos
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Exibe todos os empréstimos diários</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStatusFilter('pending')}
+                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
+                    >
+                      Em Dia
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Empréstimos com pagamentos em dia</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={statusFilter === 'paid' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStatusFilter('paid')}
+                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
+                    >
+                      Pagos
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Empréstimos quitados</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStatusFilter('overdue')}
+                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
+                    >
+                      Atraso
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Empréstimos com parcelas vencidas</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
+
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-40 sm:h-48 w-full rounded-xl" />))}
+              </div>
+            ) : filteredLoans.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <Clock className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+                <p className="text-sm sm:text-base text-muted-foreground">{search ? 'Nenhum empréstimo diário encontrado' : 'Nenhum empréstimo diário cadastrado'}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {filteredLoans.map((loan, loanIndex) => {
+                  const isDaily = loan.payment_type === 'daily';
+                  const numInstallments = loan.installments || 1;
+                  const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
+                  const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
+                  const dailyProfit = isDaily ? (dailyTotalToReceive - loan.principal_amount) : 0;
+                  const totalPerInstallment = dailyInstallmentAmount;
+                  
+                  const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue } = getLoanStatus(loan);
+                  const remainingToReceive = loan.remaining_balance;
+                  
+                  const isDueToday = (() => {
+                    if (isPaid) return false;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const dates = (loan.installment_dates as string[]) || [];
+                    const paidCount = getPaidInstallmentsCount(loan);
+                    if (dates.length > 0 && paidCount < dates.length) {
+                      const nextDueDate = new Date(dates[paidCount] + 'T12:00:00');
+                      nextDueDate.setHours(0, 0, 0, 0);
+                      return today.getTime() === nextDueDate.getTime();
+                    }
+                    return false;
+                  })();
+                  
+                  const dueTodayDate = (() => {
+                    const dates = (loan.installment_dates as string[]) || [];
+                    const paidCount = getPaidInstallmentsCount(loan);
+                    return dates[paidCount] || loan.due_date;
+                  })();
+                  
+                  const hasSpecialStyle = isOverdue || isPaid;
+                  const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+                  
+                  const expectedProfit = dailyProfit;
+                  const realizedProfit = loan.total_paid ? Math.min(loan.total_paid - (loan.principal_amount * (loan.total_paid / dailyTotalToReceive)), expectedProfit * (loan.total_paid / dailyTotalToReceive)) : 0;
+                  const profitPercentage = expectedProfit > 0 ? Math.round((realizedProfit / expectedProfit) * 100) : 0;
+                  
+                  const overdueConfigValue = (() => {
+                    const overdueMatch = (loan.notes || '').match(/\[OVERDUE_CONFIG:(\d+(?:\.\d+)?)\]/);
+                    return overdueMatch ? parseFloat(overdueMatch[1]) : 0;
+                  })();
+                  const dynamicPenaltyAmount = overdueConfigValue > 0 && daysOverdue > 0 ? overdueConfigValue * daysOverdue : 0;
+
+                  return (
+                    <Card 
+                      key={loan.id} 
+                      className={`relative overflow-hidden transition-all hover:shadow-lg ${
+                        isOverdue 
+                          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white border-red-400' 
+                          : isPaid 
+                            ? 'bg-gradient-to-br from-green-500 to-green-600 text-white border-green-400'
+                            : isDueToday
+                              ? 'border-amber-400 bg-amber-500/10'
+                              : ''
+                      }`}
+                    >
+                      <CardHeader className="p-3 sm:p-4 pb-0 sm:pb-0">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
+                              <AvatarImage src={loan.client?.avatar_url || ''} />
+                              <AvatarFallback className="text-xs sm:text-sm">{loan.client?.full_name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <h3 className={`font-semibold truncate text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.client?.full_name}</h3>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                <Badge variant="outline" className="text-[9px] sm:text-[10px] bg-sky-500/20 text-sky-300 border-sky-400/50">
+                                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5" /> Diário
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          <Badge className={`text-[10px] sm:text-xs flex-shrink-0 ${
+                            isOverdue ? 'bg-white/20 text-white' :
+                            isPaid ? 'bg-white/20 text-white' :
+                            isDueToday ? 'bg-amber-500 text-white' :
+                            'bg-blue-500/20 text-blue-500 border-blue-500/30'
+                          }`}>
+                            {isPaid ? 'Quitado' : isOverdue ? 'Em Atraso' : isDueToday ? 'Vence Hoje' : 'Em Dia'}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-3 sm:p-4 pt-2 sm:pt-3">
+                        <div className={`grid grid-cols-2 gap-2 p-2 sm:p-3 rounded-lg mb-2 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/50'}`}>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
+                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>
+                              {formatCurrency(loan.principal_amount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
+                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : ''}`}>
+                              {formatCurrency(dailyTotalToReceive)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Restante</p>
+                            <p className={`font-bold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                              {formatCurrency(remainingToReceive)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>Lucro</p>
+                            <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                              {formatCurrency(dailyProfit)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                            <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <span className="truncate">{numInstallments}x {formatCurrency(totalPerInstallment)}</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                            <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <span className="truncate">Venc: {(() => {
+                              const dates = (loan.installment_dates as string[]) || [];
+                              const paidCount = getPaidInstallmentsCount(loan);
+                              const nextDate = dates[paidCount] || loan.due_date;
+                              return formatDate(nextDate);
+                            })()}</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                            <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
+                          </div>
+                          <div className={`flex items-center gap-1.5 sm:gap-2 ${mutedTextColor}`}>
+                            <Check className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <span className="truncate">{getPaidInstallmentsCount(loan)}/{numInstallments} parcelas</span>
+                          </div>
+                        </div>
+                        
+                        {isOverdue && (
+                          <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
+                            <div className="text-xs sm:text-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-red-300 font-medium">
+                                  Parcela {getPaidInstallmentsCount(loan) + 1}/{numInstallments} em atraso
+                                </span>
+                                <span className="text-red-200 font-bold">{daysOverdue} dias</span>
+                              </div>
+                              <div className="flex items-center justify-between mt-1 text-red-300/70">
+                                <span>Vencimento: {formatDate(overdueDate)}</span>
+                                <span>Valor: {formatCurrency(totalPerInstallment)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {isDueToday && !isOverdue && (
+                          <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-500/20 border border-amber-400/30">
+                            <div className="text-xs sm:text-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-amber-300 font-medium flex items-center gap-2">
+                                  <Bell className="w-4 h-4" />
+                                  Vence Hoje!
+                                </span>
+                                <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className={`flex gap-1.5 sm:gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                  onClick={() => { 
+                                    setSelectedLoanId(loan.id);
+                                    const dates = (loan.installment_dates as string[]) || [];
+                                    const paidCount = getPaidInstallmentsCount(loan);
+                                    let defaultNextDueDate = '';
+                                    if (dates.length > 0 && paidCount < dates.length) {
+                                      const currentDueDate = new Date(dates[paidCount] + 'T12:00:00');
+                                      const nextDate = new Date(currentDueDate);
+                                      nextDate.setMonth(nextDate.getMonth() + 1);
+                                      defaultNextDueDate = format(nextDate, 'yyyy-MM-dd');
+                                    }
+                                    setPaymentData({ 
+                                      amount: totalPerInstallment.toFixed(2), 
+                                      payment_date: format(new Date(), 'yyyy-MM-dd'),
+                                      new_due_date: defaultNextDueDate,
+                                      payment_type: 'installment',
+                                      selected_installments: [],
+                                      partial_installment_index: null,
+                                      send_notification: false,
+                                      is_advance_payment: false,
+                                    });
+                                    setIsPaymentDialogOpen(true);
+                                  }}
+                                  disabled={isPaid}
+                                >
+                                  <DollarSign className="w-3 h-3 mr-1" />
+                                  Pagar
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Registrar pagamento</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="icon" 
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => openPaymentHistory(loan.id)}
+                                >
+                                  <History className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver histórico</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="icon" 
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  onClick={() => setDeleteId(loan.id)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Excluir</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
