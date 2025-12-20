@@ -2829,18 +2829,6 @@ export default function Loans() {
                 </TooltipContent>
               </Tooltip>
               <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm border-sky-500 text-sky-600 hover:bg-sky-500/10">
-                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Empréstimo </span>Diário
-                      </Button>
-                    </DialogTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Crie empréstimo com cobrança diária</p>
-                  </TooltipContent>
-                </Tooltip>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
                 <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo Diário</DialogTitle></DialogHeader>
                 <form onSubmit={handleDailySubmit} className="space-y-3 sm:space-y-4">
@@ -3143,16 +3131,6 @@ export default function Loans() {
               </DialogContent>
             </Dialog>
               <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm"><Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /><span className="hidden xs:inline">Novo </span>Empréstimo</Button>
-                    </DialogTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Crie empréstimo parcelado, semanal ou pagamento único</p>
-                  </TooltipContent>
-                </Tooltip>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
               <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
@@ -3570,7 +3548,7 @@ export default function Loans() {
                 className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white"
                 onClick={() => handleDialogOpen(true)}
               >
-                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Empréstimo
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Empréstimo
               </Button>
             </div>
 
@@ -4817,10 +4795,10 @@ export default function Loans() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 border-sky-500 text-sky-600 hover:bg-sky-500/10"
+                className="tutorial-new-daily gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 border-sky-500 text-sky-600 hover:bg-sky-500/10"
                 onClick={() => setIsDailyDialogOpen(true)}
               >
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Diário
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Diário
               </Button>
             </div>
 
