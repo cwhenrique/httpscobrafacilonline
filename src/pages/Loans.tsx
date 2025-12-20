@@ -2850,12 +2850,191 @@ export default function Loans() {
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                 <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
               </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10">
                     <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Empréstimo
                   </Button>
                 </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Novo Empréstimo</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Cliente Selection */}
+                    <div className="space-y-2">
+                      <Label>Cliente</Label>
+                      {showNewClientForm ? (
+                        <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
+                          <Input placeholder="Nome completo *" value={newClientData.full_name} onChange={(e) => setNewClientData(prev => ({ ...prev, full_name: e.target.value }))} />
+                          <Input placeholder="Telefone" value={newClientData.phone} onChange={(e) => setNewClientData(prev => ({ ...prev, phone: e.target.value }))} />
+                          <Input placeholder="Endereço" value={newClientData.address} onChange={(e) => setNewClientData(prev => ({ ...prev, address: e.target.value }))} />
+                          <div className="flex gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setShowNewClientForm(false)}>Cancelar</Button>
+                            <Button type="button" size="sm" onClick={handleCreateClient} disabled={creatingClient}>{creatingClient ? 'Criando...' : 'Criar Cliente'}</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select value={formData.client_id} onValueChange={(v) => setFormData(prev => ({ ...prev, client_id: v }))}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                            <SelectContent>
+                              {loanClients.map(client => (
+                                <SelectItem key={client.id} value={client.id}>{client.full_name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button type="button" variant="outline" size="icon" onClick={handleNewClientClick}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Valor Emprestado */}
+                    <div className="space-y-2">
+                      <Label>Valor Emprestado (R$)</Label>
+                      <Input type="number" step="0.01" placeholder="0,00" value={formData.principal_amount} onChange={(e) => setFormData(prev => ({ ...prev, principal_amount: e.target.value }))} />
+                    </div>
+
+                    {/* Tipo de Pagamento */}
+                    <div className="space-y-2">
+                      <Label>Tipo de Pagamento</Label>
+                      <Select value={formData.payment_type} onValueChange={(v) => setFormData(prev => ({ ...prev, payment_type: v as LoanPaymentType }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Pagamento Único</SelectItem>
+                          <SelectItem value="installment">Parcelado Mensal</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="biweekly">Quinzenal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Parcelas (se parcelado) */}
+                    {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
+                      <div className="space-y-2">
+                        <Label>Número de Parcelas</Label>
+                        <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))} />
+                      </div>
+                    )}
+
+                    {/* Taxa de Juros e Modo */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Taxa de Juros (%)</Label>
+                        <Input type="number" step="0.01" placeholder="0,00" value={formData.interest_rate} onChange={(e) => setFormData(prev => ({ ...prev, interest_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Modo de Juros</Label>
+                        <Select value={formData.interest_mode} onValueChange={(v) => setFormData(prev => ({ ...prev, interest_mode: v as 'per_installment' | 'on_total' | 'compound' }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="per_installment">Por Parcela</SelectItem>
+                            <SelectItem value="on_total">No Total</SelectItem>
+                            <SelectItem value="compound">Composto (Price)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Valor da Parcela (se parcelado) */}
+                    {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
+                      <div className="space-y-2">
+                        <Label>Valor da Parcela (R$)</Label>
+                        <Input type="number" step="0.01" placeholder="Calculado automaticamente" value={installmentValue} onChange={(e) => handleInstallmentValueChange(e.target.value)} />
+                        <p className="text-xs text-muted-foreground">Juros Total: {getTotalInterestDisplay()}</p>
+                      </div>
+                    )}
+
+                    {/* Data de Início */}
+                    <div className="space-y-2">
+                      <Label>{formData.payment_type === 'single' ? 'Data de Vencimento' : 'Data da Primeira Parcela'}</Label>
+                      <Input type="date" value={formData.start_date} onChange={(e) => {
+                        const newStartDate = e.target.value;
+                        setFormData(prev => ({ ...prev, start_date: newStartDate }));
+                        if (formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') {
+                          const numInstallments = parseInt(formData.installments) || 1;
+                          const dates: string[] = [];
+                          let current = new Date(newStartDate + 'T12:00:00');
+                          for (let i = 0; i < numInstallments; i++) {
+                            dates.push(format(current, 'yyyy-MM-dd'));
+                            if (formData.payment_type === 'weekly') current.setDate(current.getDate() + 7);
+                            else if (formData.payment_type === 'biweekly') current.setDate(current.getDate() + 14);
+                            else current.setMonth(current.getMonth() + 1);
+                          }
+                          setInstallmentDates(dates);
+                          if (dates.length > 0) setFormData(prev => ({ ...prev, due_date: dates[dates.length - 1] }));
+                        }
+                      }} />
+                    </div>
+
+                    {/* Datas das Parcelas (preview) */}
+                    {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentDates.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Datas das Parcelas</Label>
+                        <ScrollArea className="h-24 border rounded-lg p-2">
+                          <div className="space-y-1">
+                            {installmentDates.map((date, idx) => (
+                              <div key={idx} className="flex justify-between text-sm">
+                                <span>Parcela {idx + 1}</span>
+                                <span>{formatDate(date)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+
+                    {/* Data do Contrato */}
+                    <div className="space-y-2">
+                      <Label>Data do Contrato</Label>
+                      <Input type="date" value={formData.contract_date} onChange={(e) => setFormData(prev => ({ ...prev, contract_date: e.target.value }))} />
+                    </div>
+
+                    {/* Contrato Histórico */}
+                    {hasPastDates && (
+                      <div className="space-y-3 p-3 border rounded-lg bg-yellow-500/10 border-yellow-500/30">
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="historical" checked={formData.is_historical_contract} onCheckedChange={(v) => { setFormData(prev => ({ ...prev, is_historical_contract: !!v })); if (!v) setSelectedPastInstallments([]); }} />
+                          <Label htmlFor="historical" className="text-yellow-600 cursor-pointer">Este é um contrato antigo (parcelas passadas)</Label>
+                        </div>
+                        {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">{pastInstallmentsData.count} parcela(s) já vencida(s). Selecione as que já foram pagas:</p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {pastInstallmentsData.pastInstallmentsList?.map((inst) => (
+                                <div key={inst.index} className="flex items-center gap-1.5">
+                                  <Checkbox id={`past-${inst.index}`} checked={selectedPastInstallments.includes(inst.index)} onCheckedChange={(v) => {
+                                    if (v) setSelectedPastInstallments(prev => [...prev, inst.index].sort((a, b) => a - b));
+                                    else setSelectedPastInstallments(prev => prev.filter(i => i !== inst.index));
+                                  }} />
+                                  <Label htmlFor={`past-${inst.index}`} className="text-xs cursor-pointer">P{inst.index + 1} ({formatDate(inst.date)})</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Notas */}
+                    <div className="space-y-2">
+                      <Label>Observações</Label>
+                      <Textarea placeholder="Notas adicionais..." value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} rows={2} />
+                    </div>
+
+                    {/* Notificação WhatsApp */}
+                    {profile?.whatsapp_to_clients_enabled && (
+                      <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-500/10 border-green-500/30">
+                        <Checkbox id="send-notification" checked={formData.send_creation_notification} onCheckedChange={(v) => setFormData(prev => ({ ...prev, send_creation_notification: !!v }))} />
+                        <Label htmlFor="send-notification" className="text-green-600 cursor-pointer flex items-center gap-1.5">
+                          <MessageCircle className="w-4 h-4" /> Enviar notificação WhatsApp ao cliente
+                        </Label>
+                      </div>
+                    )}
+
+                    <Button type="submit" className="w-full">Criar Empréstimo</Button>
+                  </form>
+                </DialogContent>
               </Dialog>
             </div>
 
@@ -4105,6 +4284,174 @@ export default function Loans() {
                     <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Novo Diário
                   </Button>
                 </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-sky-500" />
+                      Novo Empréstimo Diário
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleDailySubmit} className="space-y-4">
+                    {/* Cliente Selection */}
+                    <div className="space-y-2">
+                      <Label>Cliente</Label>
+                      {showNewClientForm ? (
+                        <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
+                          <Input placeholder="Nome completo *" value={newClientData.full_name} onChange={(e) => setNewClientData(prev => ({ ...prev, full_name: e.target.value }))} />
+                          <Input placeholder="Telefone" value={newClientData.phone} onChange={(e) => setNewClientData(prev => ({ ...prev, phone: e.target.value }))} />
+                          <Input placeholder="Endereço" value={newClientData.address} onChange={(e) => setNewClientData(prev => ({ ...prev, address: e.target.value }))} />
+                          <div className="flex gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setShowNewClientForm(false)}>Cancelar</Button>
+                            <Button type="button" size="sm" onClick={handleCreateClient} disabled={creatingClient}>{creatingClient ? 'Criando...' : 'Criar Cliente'}</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select value={formData.client_id} onValueChange={(v) => setFormData(prev => ({ ...prev, client_id: v }))}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+                            <SelectContent>
+                              {loanClients.map(client => (
+                                <SelectItem key={client.id} value={client.id}>{client.full_name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button type="button" variant="outline" size="icon" onClick={handleNewClientClick}><Plus className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Valor Emprestado */}
+                    <div className="space-y-2">
+                      <Label>Valor Total Emprestado (R$)</Label>
+                      <Input type="number" step="0.01" placeholder="Ex: 1000,00" value={formData.principal_amount} onChange={(e) => setFormData(prev => ({ ...prev, principal_amount: e.target.value }))} />
+                    </div>
+
+                    {/* Valor da Parcela Diária */}
+                    <div className="space-y-2">
+                      <Label>Valor da Parcela Diária (R$)</Label>
+                      <Input type="number" step="0.01" placeholder="Ex: 60,00" value={formData.daily_amount} onChange={(e) => setFormData(prev => ({ ...prev, daily_amount: e.target.value }))} />
+                      {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
+                        <div className="text-xs text-muted-foreground space-y-0.5">
+                          <p>Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}</p>
+                          <p className="text-green-600">Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Primeira Data de Cobrança */}
+                    <div className="space-y-2">
+                      <Label>Primeira Data de Cobrança</Label>
+                      <Input type="date" value={formData.start_date} onChange={(e) => {
+                        const newDate = e.target.value;
+                        setFormData(prev => ({ ...prev, start_date: newDate }));
+                        const count = parseInt(formData.daily_period) || 0;
+                        if (count > 0) {
+                          const newDates = generateDailyDates(newDate, count, skipSaturday, skipSunday);
+                          setInstallmentDates(newDates);
+                          if (newDates.length > 0) {
+                            setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1], installments: newDates.length.toString() }));
+                          }
+                        }
+                      }} />
+                    </div>
+
+                    {/* Quantidade de Dias */}
+                    <div className="space-y-2">
+                      <Label>Quantidade de Dias (Parcelas)</Label>
+                      <Input type="number" min="1" placeholder="Ex: 20" value={formData.daily_period} onChange={(e) => {
+                        const newCount = e.target.value;
+                        setFormData(prev => ({ ...prev, daily_period: newCount }));
+                        const count = parseInt(newCount) || 0;
+                        if (count > 0 && formData.start_date) {
+                          const newDates = generateDailyDates(formData.start_date, count, skipSaturday, skipSunday);
+                          setInstallmentDates(newDates);
+                          if (newDates.length > 0) {
+                            setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1], installments: newDates.length.toString() }));
+                          }
+                        }
+                      }} />
+                    </div>
+
+                    {/* Skip Weekends */}
+                    <div className="flex flex-wrap gap-4">
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="skip-saturday" checked={skipSaturday} onCheckedChange={(v) => setSkipSaturday(!!v)} />
+                        <Label htmlFor="skip-saturday" className="cursor-pointer text-sm">Pular Sábados</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="skip-sunday" checked={skipSunday} onCheckedChange={(v) => setSkipSunday(!!v)} />
+                        <Label htmlFor="skip-sunday" className="cursor-pointer text-sm">Pular Domingos</Label>
+                      </div>
+                    </div>
+
+                    {/* Datas de Cobrança */}
+                    {installmentDates.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Datas de Cobrança ({installmentDates.length} dias)</Label>
+                        <ScrollArea className="h-32 border rounded-lg p-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                            {installmentDates.map((date, idx) => (
+                              <div key={idx} className="flex justify-between text-xs p-1 rounded bg-muted/50">
+                                <span className="font-medium">Dia {idx + 1}</span>
+                                <span>{formatDate(date)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+
+                    {/* Data do Contrato */}
+                    <div className="space-y-2">
+                      <Label>Data do Contrato</Label>
+                      <Input type="date" value={formData.contract_date} onChange={(e) => setFormData(prev => ({ ...prev, contract_date: e.target.value }))} />
+                    </div>
+
+                    {/* Contrato Histórico */}
+                    {hasPastDates && (
+                      <div className="space-y-3 p-3 border rounded-lg bg-yellow-500/10 border-yellow-500/30">
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="historical-daily" checked={formData.is_historical_contract} onCheckedChange={(v) => { setFormData(prev => ({ ...prev, is_historical_contract: !!v })); if (!v) setSelectedPastInstallments([]); }} />
+                          <Label htmlFor="historical-daily" className="text-yellow-600 cursor-pointer">Este é um contrato antigo</Label>
+                        </div>
+                        {formData.is_historical_contract && pastInstallmentsData.count > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">{pastInstallmentsData.count} dia(s) já passou(aram). Selecione os que já foram pagos:</p>
+                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-24 overflow-y-auto">
+                              {pastInstallmentsData.pastInstallmentsList?.map((inst) => (
+                                <div key={inst.index} className="flex items-center gap-1">
+                                  <Checkbox id={`past-daily-${inst.index}`} checked={selectedPastInstallments.includes(inst.index)} onCheckedChange={(v) => {
+                                    if (v) setSelectedPastInstallments(prev => [...prev, inst.index].sort((a, b) => a - b));
+                                    else setSelectedPastInstallments(prev => prev.filter(i => i !== inst.index));
+                                  }} />
+                                  <Label htmlFor={`past-daily-${inst.index}`} className="text-xs cursor-pointer">D{inst.index + 1}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Notas */}
+                    <div className="space-y-2">
+                      <Label>Observações</Label>
+                      <Textarea placeholder="Notas adicionais..." value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} rows={2} />
+                    </div>
+
+                    {/* Notificação WhatsApp */}
+                    {profile?.whatsapp_to_clients_enabled && (
+                      <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-500/10 border-green-500/30">
+                        <Checkbox id="send-notification-daily" checked={formData.send_creation_notification} onCheckedChange={(v) => setFormData(prev => ({ ...prev, send_creation_notification: !!v }))} />
+                        <Label htmlFor="send-notification-daily" className="text-green-600 cursor-pointer flex items-center gap-1.5">
+                          <MessageCircle className="w-4 h-4" /> Enviar notificação WhatsApp ao cliente
+                        </Label>
+                      </div>
+                    )}
+
+                    <Button type="submit" className="w-full bg-sky-500 hover:bg-sky-600">Criar Empréstimo Diário</Button>
+                  </form>
+                </DialogContent>
               </Dialog>
             </div>
 
