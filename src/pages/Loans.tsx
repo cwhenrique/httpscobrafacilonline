@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -4797,10 +4797,12 @@ export default function Loans() {
               let dueToday = 0;
               let profitToday = 0;
               let dueTodayCount = 0;
-              let totalPending = 0;
+              let receivedToday = 0;
+              let receivedTodayCount = 0;
               let totalOverdue = 0;
               let overdueCount = 0;
               
+              // Calcular parcelas a cobrar hoje (empréstimos ativos)
               activeDailyLoans.forEach(loan => {
                 const numInstallments = loan.installments || 1;
                 const dailyInstallmentAmount = loan.total_interest || 0;
@@ -4831,8 +4833,23 @@ export default function Loans() {
                     }
                   }
                 }
+              });
+              
+              // Calcular parcelas recebidas hoje (todos os empréstimos diários)
+              dailyLoans.forEach(loan => {
+                const dailyInstallmentAmount = loan.total_interest || 0;
+                const paidCount = getPaidInstallmentsCount(loan);
+                const dates = (loan.installment_dates as string[]) || [];
                 
-                totalPending += loan.remaining_balance || 0;
+                // Verificar parcelas pagas que vencem hoje
+                for (let i = 0; i < paidCount && i < dates.length; i++) {
+                  const dueDate = new Date(dates[i] + 'T12:00:00');
+                  dueDate.setHours(0, 0, 0, 0);
+                  if (dueDate.getTime() === today.getTime()) {
+                    receivedToday += dailyInstallmentAmount;
+                    receivedTodayCount++;
+                  }
+                }
               });
               
               return (
@@ -4859,14 +4876,14 @@ export default function Loans() {
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-amber-500/10 border-amber-500/30">
+                  <Card className="bg-emerald-500/10 border-emerald-500/30">
                     <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <Clock className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs text-muted-foreground">Total Pendente</span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs text-muted-foreground">Recebido Hoje</span>
                       </div>
-                      <p className="text-lg sm:text-xl font-bold text-amber-600 dark:text-amber-400">{formatCurrency(totalPending)}</p>
-                      <p className="text-xs text-muted-foreground">{activeDailyLoans.length} ativo{activeDailyLoans.length !== 1 ? 's' : ''}</p>
+                      <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(receivedToday)}</p>
+                      <p className="text-xs text-muted-foreground">{receivedTodayCount} parcela{receivedTodayCount !== 1 ? 's' : ''}</p>
                     </CardContent>
                   </Card>
                   
