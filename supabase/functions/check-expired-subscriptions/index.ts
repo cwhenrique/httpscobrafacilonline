@@ -147,8 +147,8 @@ Para continuar usando o sistema:
 ✅ Calendário de Cobranças
 ✅ Score de Clientes
 
-💰 *Renove agora:*
-https://pay.cakto.com.br/37et5v3
+💰 *Para renovar, entre em contato:*
+📱 WhatsApp: (17) 99105-0811
 
 Dúvidas? Responda esta mensagem!`;
 
