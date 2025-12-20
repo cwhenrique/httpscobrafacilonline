@@ -6413,21 +6413,6 @@ export default function Loans() {
                     </div>
                   )}
                   
-                  <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
-                    <input
-                      type="checkbox"
-                      id="send_payment_notification"
-                      checked={paymentData.send_notification}
-                      onChange={(e) => setPaymentData({ ...paymentData, send_notification: e.target.checked })}
-                      className="mt-0.5 rounded border-input"
-                    />
-                    <div className="flex-1">
-                      <label htmlFor="send_payment_notification" className="text-sm font-medium cursor-pointer">
-                        Receber notificação WhatsApp deste pagamento
-                      </label>
-                    </div>
-                  </div>
-                  
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
                     <Button type="submit">Registrar Pagamento</Button>
@@ -6726,16 +6711,6 @@ export default function Loans() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-2 p-3 rounded-lg border-2 border-primary bg-primary/5">
-                        <Checkbox 
-                          id="send_interest_notification" 
-                          checked={renegotiateData.send_interest_notification} 
-                          onCheckedChange={(checked) => setRenegotiateData({ ...renegotiateData, send_interest_notification: checked as boolean })} 
-                        />
-                        <Label htmlFor="send_interest_notification" className="text-sm font-medium cursor-pointer">
-                          Receber notificação WhatsApp deste pagamento
-                        </Label>
-                      </div>
                     </div>
                   )}
                   
