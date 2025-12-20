@@ -102,60 +102,10 @@ serve(async (req) => {
     const adminPhone = Deno.env.get('ADMIN_PHONE_NUMBER');
 
     if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
-      const formattedPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
-      const phoneWithCountry = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-
-      // Different message for lifetime vs expiring plans
-      const message = subscription_plan === 'lifetime'
-        ? `🎉 *Bem-vindo ao CobraFácil!*
-
-Olá ${full_name}!
-
-Seu acesso *VITALÍCIO* foi ativado! 🎊
-Aproveite o sistema para sempre, sem preocupações!
-
-📧 *Email:* ${email}
-🔑 *Senha:* ${password}
-
-🔗 Acesse agora: https://cobrafacil.online/auth
-
-Qualquer dúvida, estamos à disposição!`
-        : `🎉 *Bem-vindo ao CobraFácil!*
-
-Olá ${full_name}!
-
-Seu acesso de *${planDescription}* foi ativado com sucesso!
-
-📧 *Email:* ${email}
-🔑 *Senha:* ${password}
-
-🔗 Acesse agora: https://cobrafacil.online/auth
-
-${subscription_plan === 'trial' ? '⏰ Seu acesso expira em 24 horas.' : ''}
-Aproveite para conhecer todas as funcionalidades do sistema!`;
-
       const cleanUrl = evolutionApiUrl.replace(/\/+$/, '').replace(/\/message\/sendText$/, '');
       const apiUrl = `${cleanUrl}/message/sendText/${evolutionInstance}`;
 
-      // Send to user
-      try {
-        await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: phoneWithCountry,
-            text: message,
-          }),
-        });
-        console.log('Welcome WhatsApp sent to user:', phoneWithCountry);
-      } catch (whatsappError) {
-        console.error('Error sending WhatsApp to user:', whatsappError);
-      }
-
-      // Send copy to admin
+      // Send notification to admin only (removed client welcome message)
       if (adminPhone) {
         const formattedAdminPhone = adminPhone.replace(/\D/g, '').replace(/^0+/, '');
         const adminPhoneWithCountry = formattedAdminPhone.startsWith('55') ? formattedAdminPhone : `55${formattedAdminPhone}`;
