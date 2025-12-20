@@ -267,18 +267,18 @@ export default function PriceTableDialog({
 
           {/* Price Table Preview */}
           {priceTableData && (
-            <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-sky-50/30 dark:from-blue-950/20 dark:to-sky-950/10">
+            <Card className="border-border bg-card">
               <CardContent className="p-4 space-y-4">
                 {/* Summary Header */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-blue-200/50">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-border">
                   <div className="flex items-center gap-2">
-                    <Table2 className="w-5 h-5 text-blue-600" />
-                    <span className="font-semibold text-blue-900 dark:text-blue-100">Prévia da Tabela Price</span>
+                    <Table2 className="w-5 h-5 text-primary" />
+                    <span className="font-semibold text-foreground">Prévia da Tabela Price</span>
                   </div>
                   <div className="flex flex-wrap gap-3 text-sm">
                     <span className="flex items-center gap-1">
-                      <Wallet className="w-4 h-4 text-emerald-600" />
-                      <span className="font-medium">Parcela: {formatCurrency(priceTableData.pmt)}</span>
+                      <Wallet className="w-4 h-4 text-emerald-500" />
+                      <span className="font-medium text-foreground">Parcela: {formatCurrency(priceTableData.pmt)}</span>
                     </span>
                   </div>
                 </div>
@@ -286,37 +286,37 @@ export default function PriceTableDialog({
                 {/* Amortization Table */}
                 <ScrollArea className="h-[200px] sm:h-[250px]">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-blue-100/80 dark:bg-blue-900/50">
+                    <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                       <tr>
-                        <th className="px-2 py-2 text-left font-medium text-blue-800 dark:text-blue-200">#</th>
-                        <th className="px-2 py-2 text-right font-medium text-blue-800 dark:text-blue-200">Parcela</th>
-                        <th className="px-2 py-2 text-right font-medium text-blue-800 dark:text-blue-200">
+                        <th className="px-2 py-2 text-left font-medium text-muted-foreground">#</th>
+                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Parcela</th>
+                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">
                           <span className="hidden sm:inline">Amortização</span>
                           <span className="sm:hidden">Amort.</span>
                         </th>
-                        <th className="px-2 py-2 text-right font-medium text-blue-800 dark:text-blue-200">Juros</th>
-                        <th className="px-2 py-2 text-right font-medium text-blue-800 dark:text-blue-200">Saldo</th>
-                        <th className="px-2 py-2 text-right font-medium text-blue-800 dark:text-blue-200 hidden sm:table-cell">Vencimento</th>
+                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Juros</th>
+                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Saldo</th>
+                        <th className="px-2 py-2 text-right font-medium text-muted-foreground hidden sm:table-cell">Vencimento</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-blue-100/50">
+                    <tbody className="divide-y divide-border">
                       {priceTableData.rows.map((row, index) => (
-                        <tr key={row.installmentNumber} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/20">
-                          <td className="px-2 py-1.5 text-blue-700 dark:text-blue-300 font-medium">{row.installmentNumber}</td>
-                          <td className="px-2 py-1.5 text-right font-medium">{formatCurrency(row.payment)}</td>
-                          <td className="px-2 py-1.5 text-right text-emerald-600 dark:text-emerald-400">
+                        <tr key={row.installmentNumber} className="hover:bg-muted/30">
+                          <td className="px-2 py-1.5 text-primary font-medium">{row.installmentNumber}</td>
+                          <td className="px-2 py-1.5 text-right font-medium text-foreground">{formatCurrency(row.payment)}</td>
+                          <td className="px-2 py-1.5 text-right text-emerald-500">
                             <span className="flex items-center justify-end gap-0.5">
                               <TrendingUp className="w-3 h-3 hidden sm:inline" />
                               {formatCurrency(row.amortization)}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 text-right text-orange-600 dark:text-orange-400">
+                          <td className="px-2 py-1.5 text-right text-orange-500">
                             <span className="flex items-center justify-end gap-0.5">
                               <TrendingDown className="w-3 h-3 hidden sm:inline" />
                               {formatCurrency(row.interest)}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 text-right">{formatCurrency(row.balance)}</td>
+                          <td className="px-2 py-1.5 text-right text-foreground">{formatCurrency(row.balance)}</td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground hidden sm:table-cell">
                             {installmentDates[index] ? formatDate(installmentDates[index]) : '-'}
                           </td>
@@ -327,20 +327,20 @@ export default function PriceTableDialog({
                 </ScrollArea>
 
                 {/* Totals */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-3 border-t border-blue-200/50">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-3 border-t border-border">
                   <div className="flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-1">
-                      <DollarSign className="w-4 h-4 text-emerald-600" />
-                      <span>Total a Receber:</span>
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                      <DollarSign className="w-4 h-4 text-emerald-500" />
+                      <span className="text-muted-foreground">Total a Receber:</span>
+                      <span className="font-bold text-emerald-500">
                         {formatCurrency(priceTableData.totalPayment)}
                       </span>
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-sm">
-                    <TrendingUp className="w-4 h-4 text-blue-600" />
-                    <span>Juros Total:</span>
-                    <span className="font-bold text-blue-700 dark:text-blue-400">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                    <span className="text-muted-foreground">Juros Total:</span>
+                    <span className="font-bold text-primary">
                       {formatCurrency(priceTableData.totalInterest)}
                     </span>
                   </div>
