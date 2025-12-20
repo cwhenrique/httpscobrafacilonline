@@ -83,13 +83,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Parse request body to check if this is a reminder (12h) or report (8h), and testPhone
+    // Parse request body to check if this is a reminder (12h) or report (7h), testPhone, and batch params
     let isReminder = false;
     let testPhone: string | null = null;
+    let batch = 0;
+    let batchSize = 10;
     try {
       const body = await req.json();
       isReminder = body.isReminder === true;
       testPhone = body.testPhone || null;
+      batch = typeof body.batch === 'number' ? body.batch : 0;
+      batchSize = typeof body.batchSize === 'number' ? body.batchSize : 10;
     } catch {
       // No body or invalid JSON, default to report mode
     }
@@ -102,24 +106,30 @@ const handler = async (req: Request): Promise<Response> => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    console.log(`Generating ${isReminder ? 'reminder (12h)' : 'report (8h)'} for:`, todayStr);
+    console.log(`Generating ${isReminder ? 'reminder (12h)' : 'report (7h)'} for:`, todayStr);
+    console.log(`Batch: ${batch}, Batch size: ${batchSize}`);
     if (testPhone) {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE users with phone configured
+    // Get all ACTIVE users with phone configured - with pagination for batching
     let profilesQuery = supabase
       .from('profiles')
       .select('id, phone, full_name')
       .eq('is_active', true)
-      .not('phone', 'is', null);
+      .not('phone', 'is', null)
+      .order('id'); // Consistent ordering for batching
 
-    // Filter by testPhone if provided
+    // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
       let cleanTestPhone = testPhone.replace(/\D/g, '');
       if (!cleanTestPhone.startsWith('55')) cleanTestPhone = '55' + cleanTestPhone;
       // Match last 9 digits
       profilesQuery = profilesQuery.ilike('phone', `%${cleanTestPhone.slice(-9)}%`);
+    } else {
+      // Apply pagination for batch processing
+      const offset = batch * batchSize;
+      profilesQuery = profilesQuery.range(offset, offset + batchSize - 1);
     }
 
     const { data: profiles, error: profilesError } = await profilesQuery;
@@ -128,6 +138,8 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error fetching profiles:", profilesError);
       throw profilesError;
     }
+
+    console.log(`Processing ${profiles?.length || 0} users in batch ${batch}`);
 
     let sentCount = 0;
 
@@ -367,10 +379,13 @@ const handler = async (req: Request): Promise<Response> => {
       
       if (isReminder) {
         message += `🔔 *LEMBRETE DE COBRANÇAS - ${formatDate(today)}*\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
       } else {
-        message += `📋 *RELATÓRIO DE COBRANÇAS - ${formatDate(today)}*\n`;
+        // Relatório das 7h: incluir bom dia
+        message += `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
+        message += `📋 *RELATÓRIO DO DIA - ${formatDate(today)}*\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
       }
-      message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
       // VENCE HOJE / AINDA PENDENTE HOJE
       if (hasDueToday) {
@@ -513,7 +528,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (isReminder) {
         message += `_CobraFácil - Lembrete às 12h_`;
       } else {
-        message += `_CobraFácil - Relatório às 8h_`;
+        message += `_CobraFácil - Relatório Diário_`;
       }
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
@@ -531,7 +546,9 @@ const handler = async (req: Request): Promise<Response> => {
         success: true, 
         sentCount,
         usersChecked: profiles?.length || 0,
-        type: isReminder ? 'reminder' : 'report'
+        type: isReminder ? 'reminder' : 'report',
+        batch,
+        batchSize
       }),
       {
         status: 200,
