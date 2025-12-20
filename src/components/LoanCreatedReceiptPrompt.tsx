@@ -82,10 +82,8 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  // Generate client-facing message
+  // Mensagem para o CLIENTE (SEM juros, SEM tag CobraFácil)
   const generateClientMessage = () => {
-    const contractId = `EMP-${loan.id.substring(0, 4).toUpperCase()}`;
-    
     let message = `📄 *CONTRATO DE EMPRÉSTIMO*\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     
@@ -95,8 +93,52 @@ export default function LoanCreatedReceiptPrompt({
     message += `💰 *VALORES*\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
     message += `💵 Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    message += `📊 Juros: ${loan.interestRate}%\n`;
     message += `💰 Total a Pagar: ${formatCurrency(loan.totalToReceive)}\n`;
+    
+    if (loan.installments > 1) {
+      message += `📊 Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+    }
+    
+    message += `📅 Primeiro Vencimento: ${formatDate(loan.startDate)}\n\n`;
+    
+    if (installmentDates && installmentDates.length > 0 && loan.installments > 1) {
+      message += `📅 *VENCIMENTOS*\n`;
+      message += `━━━━━━━━━━━━━━━━\n`;
+      
+      const maxDatesToShow = 6;
+      installmentDates.slice(0, maxDatesToShow).forEach((date, index) => {
+        message += `${index + 1}ª: ${formatDate(date)}\n`;
+      });
+      
+      if (installmentDates.length > maxDatesToShow) {
+        message += `... e mais ${installmentDates.length - maxDatesToShow} parcela(s)\n`;
+      }
+      message += `\n`;
+    }
+    
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `_${companyName}_`;
+    
+    return message;
+  };
+
+  // Mensagem para o COBRADOR (COM juros, COM tag CobraFácil)
+  const generateCollectorMessage = () => {
+    const contractId = `EMP-${loan.id.substring(0, 4).toUpperCase()}`;
+    
+    let message = `🏷️ *CobraFácil*\n`;
+    message += `📄 *CONTRATO DE EMPRÉSTIMO*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    
+    message += `👤 *Cliente:* ${loan.clientName}\n`;
+    message += `📋 *Tipo:* ${getPaymentTypeLabel(loan.paymentType)}\n\n`;
+    
+    message += `💰 *VALORES*\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `💵 Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
+    message += `📊 Taxa de Juros: ${loan.interestRate}%\n`;
+    message += `📈 Total de Juros: ${formatCurrency(loan.totalInterest)}\n`;
+    message += `💰 Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
       message += `📊 Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
@@ -125,7 +167,7 @@ export default function LoanCreatedReceiptPrompt({
     return message;
   };
 
-  // Send to collector (existing behavior)
+  // Send to collector (with full details)
   const handleSendWhatsApp = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -134,7 +176,7 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const message = generateClientMessage();
+      const message = generateCollectorMessage();
       
       await supabase.functions.invoke('send-whatsapp', {
         body: { phone: userPhone, message },
