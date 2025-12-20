@@ -3565,13 +3565,13 @@ export default function Loans() {
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                 <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
               </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white">
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Empréstimo
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
+              <Button 
+                size="sm" 
+                className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white"
+                onClick={() => handleDialogOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Empréstimo
+              </Button>
             </div>
 
           <TooltipProvider delayDuration={300}>
@@ -4814,13 +4814,14 @@ export default function Loans() {
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                 <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
               </div>
-              <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 border-sky-500 text-sky-600 hover:bg-sky-500/10">
-                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Diário
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 border-sky-500 text-sky-600 hover:bg-sky-500/10"
+                onClick={() => setIsDailyDialogOpen(true)}
+              >
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Diário
+              </Button>
             </div>
 
             <TooltipProvider delayDuration={300}>
