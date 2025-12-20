@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Table2, Calculator, Calendar as CalendarIcon, User, DollarSign, Percent, FileText, Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Table2, Calculator, Calendar as CalendarIcon, User, DollarSign, Percent, FileText, Plus, TrendingUp, TrendingDown, Wallet, Download } from 'lucide-react';
 import { formatCurrency, formatDate, generatePriceTable, PriceTableRow } from '@/lib/calculations';
+import { generatePriceTablePDF } from '@/lib/pdfGenerator';
+import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 
 interface Client {
@@ -50,6 +52,8 @@ export default function PriceTableDialog({
   onCreateLoan,
   onNewClientClick,
 }: PriceTableDialogProps) {
+  const { profile } = useProfile();
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [formData, setFormData] = useState({
     client_id: '',
     principal_amount: '',
@@ -152,6 +156,35 @@ export default function PriceTableDialog({
         notes: '',
         send_notification: false,
       });
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!priceTableData) return;
+    
+    setIsGeneratingPDF(true);
+    try {
+      const selectedClient = clients.find(c => c.id === formData.client_id);
+      
+      await generatePriceTablePDF({
+        companyName: profile?.company_name || profile?.full_name || undefined,
+        clientName: selectedClient?.full_name,
+        principal: parseFloat(formData.principal_amount),
+        interestRate: parseFloat(formData.interest_rate),
+        installments: parseInt(formData.installments),
+        pmt: priceTableData.pmt,
+        rows: priceTableData.rows,
+        totalPayment: priceTableData.totalPayment,
+        totalInterest: priceTableData.totalInterest,
+        installmentDates: installmentDates,
+      });
+      
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -275,11 +308,22 @@ export default function PriceTableDialog({
                     <Table2 className="w-5 h-5 text-primary" />
                     <span className="font-semibold text-foreground">Prévia da Tabela Price</span>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
                     <span className="flex items-center gap-1">
                       <Wallet className="w-4 h-4 text-emerald-500" />
                       <span className="font-medium text-foreground">Parcela: {formatCurrency(priceTableData.pmt)}</span>
                     </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportPDF}
+                      disabled={isGeneratingPDF}
+                      className="h-8"
+                    >
+                      <Download className="w-4 h-4 mr-1.5" />
+                      {isGeneratingPDF ? 'Gerando...' : 'Exportar PDF'}
+                    </Button>
                   </div>
                 </div>
 
