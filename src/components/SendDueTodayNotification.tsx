@@ -134,8 +134,9 @@ export default function SendDueTodayNotification({
     
     message += `Evite juros e multas pagando em dia!`;
     
-    if (profile?.company_name) {
-      message += `\n\n_${profile.company_name}_`;
+    const signatureName = profile?.billing_signature_name || profile?.company_name;
+    if (signatureName) {
+      message += `\n\n_${signatureName}_`;
     }
 
     return message;
