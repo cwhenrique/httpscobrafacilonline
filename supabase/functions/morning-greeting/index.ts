@@ -101,12 +101,16 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE users with phone configured
+    // Get all ACTIVE PAYING users with phone configured
+    // Excludes trial users - only sends to paying customers
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name')
+      .select('id, phone, full_name, subscription_plan')
       .eq('is_active', true)
-      .not('phone', 'is', null);
+      .not('phone', 'is', null)
+      .not('subscription_plan', 'eq', 'trial'); // Apenas usuários pagantes
+    
+    console.log("Querying PAYING users only (excluding trial)");
 
     // Filter by testPhone if provided
     if (testPhone) {
