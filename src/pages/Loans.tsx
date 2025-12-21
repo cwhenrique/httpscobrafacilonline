@@ -961,6 +961,15 @@ export default function Loans() {
     const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
     const isRenegotiated = loan.notes?.includes('Valor prometido') || loan.notes?.includes('[RENEGOTIATED]');
     const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
+    const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+    
+    // 🆕 Extrair pagamentos de juros do notes para verificação
+    const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(loan.notes);
+    
+    // 🆕 Helper: verifica se uma parcela específica tem juros pagos
+    const hasInterestPaidForInstallment = (index: number) => {
+      return interestOnlyPayments.some(p => p.installmentIndex === index);
+    };
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -997,9 +1006,22 @@ export default function Loans() {
         const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
         nextDueDate.setHours(0, 0, 0, 0);
         
-        // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
-        // e a data de vencimento já passou
-        if (isHistoricalContract) {
+        // 🆕 Para contratos históricos com juros, verificar se tem juros pagos para a parcela
+        if (isHistoricalInterestContract && overdueInstallmentIndex >= 0) {
+          // Se tem juros pagos para esta parcela, NÃO considerar atrasado
+          if (hasInterestPaidForInstallment(overdueInstallmentIndex)) {
+            isOverdue = false; // Parcela tem juros pagos, cliente está em dia
+          } else {
+            // Verificar se a data já passou
+            isOverdue = today > nextDueDate;
+            if (isOverdue) {
+              overdueDate = nextDueDateStr;
+              daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+          }
+        } else if (isHistoricalContract) {
+          // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
+          // e a data de vencimento já passou
           // Verificar se há parcelas futuras que ainda não venceram
           const futureDates = dates.filter(d => {
             const date = new Date(d + 'T12:00:00');
@@ -1272,9 +1294,23 @@ export default function Loans() {
           const loanId = newLoans[0].id;
           let currentNotes = newLoans[0].notes || '';
           
+          // Adicionar tag de contrato histórico com juros
+          if (!currentNotes.includes('[HISTORICAL_INTEREST_CONTRACT]')) {
+            currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
+          }
+          
           // Registrar cada pagamento de juros histórico
           for (const payment of validPayments) {
             const amount = parseFloat(payment.amount);
+            
+            // 🆕 Encontrar o índice da parcela que corresponde à data do pagamento
+            let installmentIndex = 0; // fallback
+            for (let i = 0; i < installmentDates.length; i++) {
+              if (installmentDates[i] === payment.date) {
+                installmentIndex = i;
+                break;
+              }
+            }
             
             await registerPayment({
               loan_id: loanId,
@@ -1282,12 +1318,12 @@ export default function Loans() {
               principal_paid: 0,
               interest_paid: amount,
               payment_date: payment.date,
-              notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros - ${formatDate(payment.date)}`,
+              notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros parcela ${installmentIndex + 1} - ${formatDate(payment.date)}`,
             });
             
-            // Adicionar tag [INTEREST_ONLY_PAID] para tracking
-            // Formato: [INTEREST_ONLY_PAID:0:valor:data] - usamos índice 0 pois é sobre o contrato todo
-            currentNotes += ` [INTEREST_ONLY_PAID:0:${amount.toFixed(2)}:${payment.date}]`;
+            // Adicionar tag [INTEREST_ONLY_PAID] para tracking com índice correto
+            // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
+            currentNotes += ` [INTEREST_ONLY_PAID:${installmentIndex}:${amount.toFixed(2)}:${payment.date}]`;
           }
           
           // Atualizar notas do empréstimo
@@ -1566,9 +1602,23 @@ export default function Loans() {
         
         let currentNotes = currentLoan?.notes || '';
         
+        // Adicionar tag de contrato histórico com juros
+        if (!currentNotes.includes('[HISTORICAL_INTEREST_CONTRACT]')) {
+          currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
+        }
+        
         // Registrar cada pagamento de juros histórico
         for (const payment of validPayments) {
           const amount = parseFloat(payment.amount);
+          
+          // 🆕 Encontrar o índice da parcela que corresponde à data do pagamento
+          let installmentIndex = 0; // fallback
+          for (let i = 0; i < installmentDates.length; i++) {
+            if (installmentDates[i] === payment.date) {
+              installmentIndex = i;
+              break;
+            }
+          }
           
           await registerPayment({
             loan_id: loanId,
@@ -1576,12 +1626,12 @@ export default function Loans() {
             principal_paid: 0,
             interest_paid: amount,
             payment_date: payment.date,
-            notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros - ${formatDate(payment.date)}`,
+            notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros parcela ${installmentIndex + 1} - ${formatDate(payment.date)}`,
           });
           
-          // Adicionar tag [INTEREST_ONLY_PAID] para tracking
-          // Formato: [INTEREST_ONLY_PAID:0:valor:data] - usamos índice 0 pois é sobre o contrato todo
-          currentNotes += ` [INTEREST_ONLY_PAID:0:${amount.toFixed(2)}:${payment.date}]`;
+          // Adicionar tag [INTEREST_ONLY_PAID] para tracking com índice correto
+          // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
+          currentNotes += ` [INTEREST_ONLY_PAID:${installmentIndex}:${amount.toFixed(2)}:${payment.date}]`;
         }
         
         // Atualizar notas do empréstimo
@@ -4446,6 +4496,12 @@ export default function Loans() {
                                 MENSAL
                               </Badge>
                             )}
+                            {/* 🆕 Badge roxo para contratos históricos com juros */}
+                            {loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]') && (
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-600/30 text-purple-300 border-purple-500/50 font-bold">
+                                📜 JUROS ANTIGOS
+                              </Badge>
+                            )}
                           </div>
                           
                           {/* LINHA 3: Valor em destaque */}
@@ -4936,8 +4992,10 @@ export default function Loans() {
                           if (!notes) return null;
                           return notes
                             .replace(/\[HISTORICAL_CONTRACT\]/g, '')
+                            .replace(/\[HISTORICAL_INTEREST_CONTRACT\]/g, '')
                             .replace(/\[RENEGOTIATED\]/g, '')
                             .replace(/\[INTEREST_ONLY_PAYMENT\]/g, '')
+                            .replace(/\[INTEREST_ONLY_PAID:\d+:[0-9.]+:[^\]]+\]/g, '')
                             .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g, '')
                             .replace(/\[ADVANCE_SUBPARCELA:\d+:[0-9.]+:[^\]]+\]/g, '')
                             .replace(/\[ADVANCE_SUBPARCELA_PAID:\d+:[0-9.]+:[^\]]+\]/g, '')
@@ -4950,6 +5008,7 @@ export default function Loans() {
                             .replace(/\[HISTORICAL_PAID:[0-9.]+\]/g, '')
                             .replace(/\[HISTORICAL_INTEREST_PAID:[0-9.]+\]/g, '')
                             .replace(/\[RENEGOTIATION_DATE:[^\]]+\]/g, '')
+                            .replace(/\[JUROS_HISTORICO_DATADO\]/g, '')
                             .trim();
                         };
                         
