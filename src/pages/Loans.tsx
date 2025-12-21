@@ -966,9 +966,33 @@ export default function Loans() {
     // 🆕 Extrair pagamentos de juros do notes para verificação
     const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(loan.notes);
     
-    // 🆕 Helper: verifica se uma parcela específica tem juros pagos
-    const hasInterestPaidForInstallment = (index: number) => {
-      return interestOnlyPayments.some(p => p.installmentIndex === index);
+    // 🆕 Helper: verifica se há pagamento de juros recente (últimos 45 dias)
+    // Isso cobre o cenário onde cliente está "travado" numa parcela pagando só juros
+    const hasRecentInterestPayment = () => {
+      if (interestOnlyPayments.length === 0) return false;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Encontrar o pagamento de juros mais recente
+      const mostRecentPayment = interestOnlyPayments.reduce((latest, payment) => {
+        const paymentDate = new Date(payment.paymentDate + 'T12:00:00');
+        const latestDate = latest ? new Date(latest.paymentDate + 'T12:00:00') : null;
+        
+        if (!latestDate || paymentDate > latestDate) {
+          return payment;
+        }
+        return latest;
+      }, null as typeof interestOnlyPayments[0] | null);
+      
+      if (!mostRecentPayment) return false;
+      
+      const paymentDate = new Date(mostRecentPayment.paymentDate + 'T12:00:00');
+      paymentDate.setHours(0, 0, 0, 0);
+      
+      // Se o pagamento de juros mais recente foi nos últimos 45 dias, cliente está em dia
+      const daysSinceLastInterestPayment = Math.ceil((today.getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24));
+      return daysSinceLastInterestPayment <= 45;
     };
     
     const today = new Date();
@@ -1006,13 +1030,14 @@ export default function Loans() {
         const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
         nextDueDate.setHours(0, 0, 0, 0);
         
-        // 🆕 Para contratos históricos com juros, verificar se tem juros pagos para a parcela
-        if (isHistoricalInterestContract && overdueInstallmentIndex >= 0) {
-          // Se tem juros pagos para esta parcela, NÃO considerar atrasado
-          if (hasInterestPaidForInstallment(overdueInstallmentIndex)) {
-            isOverdue = false; // Parcela tem juros pagos, cliente está em dia
+        // 🆕 Para contratos históricos com juros, verificar se tem pagamento de juros recente
+        // Isso cobre o cenário onde cliente está "travado" numa parcela pagando só juros por meses
+        if (isHistoricalInterestContract) {
+          // Se tem pagamento de juros recente (últimos 45 dias), NÃO considerar atrasado
+          if (hasRecentInterestPayment()) {
+            isOverdue = false; // Cliente está pagando juros regularmente, está em dia
           } else {
-            // Verificar se a data já passou
+            // Verificar se a data já passou e não há pagamentos recentes
             isOverdue = today > nextDueDate;
             if (isOverdue) {
               overdueDate = nextDueDateStr;
