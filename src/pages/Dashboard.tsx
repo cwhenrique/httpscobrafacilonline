@@ -19,7 +19,6 @@ import {
   FileText,
   Package,
   Car,
-  Wallet,
   CalendarCheck,
   Receipt,
 } from 'lucide-react';
@@ -80,14 +79,6 @@ export default function Dashboard() {
   ];
 
   const financialCards = [
-    {
-      title: 'Na Rua',
-      value: formatCurrency(stats.totalLoaned),
-      subtitle: 'capital emprestado',
-      icon: Wallet,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-    },
     {
       title: 'A Receber',
       value: formatCurrency(stats.totalToReceive),
@@ -227,7 +218,7 @@ export default function Dashboard() {
         </div>
 
         {/* Financial Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {financialCards.map((stat, index) => (
             <Card key={index} className="shadow-soft">
               <CardContent className="p-4">
