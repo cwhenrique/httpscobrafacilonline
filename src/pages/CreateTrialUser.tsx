@@ -305,12 +305,12 @@ export default function CreateTrialUser() {
     const newStatus = !user.is_active;
     
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: newStatus })
-        .eq('id', user.id);
+      const { data, error } = await supabase.functions.invoke('admin-toggle-user-status', {
+        body: { userId: user.id, newStatus }
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: newStatus ? 'Usuário ativado!' : 'Usuário inativado!',
