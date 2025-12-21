@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -297,6 +298,33 @@ export default function CreateTrialUser() {
       });
     } finally {
       setUpdatingPlan(false);
+    }
+  };
+
+  const handleToggleUserActive = async (user: User) => {
+    const newStatus = !user.is_active;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: newStatus })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: newStatus ? 'Usuário ativado!' : 'Usuário inativado!',
+        description: `${user.full_name || user.email} foi ${newStatus ? 'ativado' : 'inativado'} com sucesso.`,
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error toggling user status:', error);
+      toast({
+        title: 'Erro ao alterar status',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -617,6 +645,7 @@ export default function CreateTrialUser() {
                         <TableHead>Senha</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -670,6 +699,19 @@ export default function CreateTrialUser() {
                               <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${statusInfo.className}`}>
                                 {statusInfo.label}
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={user.is_active}
+                                  onCheckedChange={() => handleToggleUserActive(user)}
+                                />
+                                {user.is_active ? (
+                                  <UserCheck className="w-4 h-4 text-green-500" />
+                                ) : (
+                                  <UserX className="w-4 h-4 text-destructive" />
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right">
                               <Button
