@@ -2186,7 +2186,7 @@ export default function Loans() {
         interest_paid: interestPaid,
         payment_date: renegotiateData.interest_payment_date || format(new Date(), 'yyyy-MM-dd'),
         notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
-        send_notification: renegotiateData.send_interest_notification,
+        send_notification: false, // Nunca enviar automaticamente - usar tela de comprovante
       });
       
       // Atualizar notas e nova data de vencimento
@@ -2272,51 +2272,7 @@ export default function Loans() {
         toast.success(`Novo saldo a cobrar: ${formatCurrency(safeRemaining)}`, { duration: 4000 });
       }
       
-      // Enviar notificação WhatsApp se marcado
-      if (renegotiateData.send_interest_notification) {
-        try {
-          const { data: { user: currentUser } } = await supabase.auth.getUser();
-          if (currentUser) {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('phone')
-              .eq('id', currentUser.id)
-              .single();
-            
-            const userPhone = profileData?.phone;
-            if (userPhone) {
-              const loanIdShort = selectedLoanId.split('-')[0].toUpperCase();
-              const clientName = loan.client?.full_name || 'Cliente';
-              const newDueDate = formatDate(finalDueDate);
-              
-              const renewalFeeInfo = renegotiateData.renewal_fee_enabled 
-                ? `\n📈 Taxa de Renovação: ${renegotiateData.renewal_fee_percentage}% (+${formatCurrency(parseFloat(renegotiateData.renewal_fee_amount) || 0)})`
-                : '';
-              
-              const contractTypeLabel = loan.payment_type === 'weekly' ? 'Semanal' : 
-                                        loan.payment_type === 'biweekly' ? 'Quinzenal' : 'Mensal';
-              
-              const message = `💰 *PAGAMENTO DE JUROS REGISTRADO*
-━━━━━━━━━━━━━━━━━━━━━
-
-📋 Contrato: EMP-${loanIdShort} (${contractTypeLabel})
-👤 Cliente: ${clientName}
-💵 Valor Pago (Juros): ${formatCurrency(interestPaid)}${renewalFeeInfo}
-📊 Novo Valor a Cobrar: ${formatCurrency(safeRemaining)}
-📅 Nova Data de Vencimento: ${newDueDate}
-
-✅ Pagamento de juros registrado com sucesso!
-📌 O valor principal não foi alterado.`;
-
-              await supabase.functions.invoke('send-whatsapp', {
-                body: { phone: userPhone, message }
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Erro ao enviar notificação WhatsApp:', error);
-        }
-      }
+      // Notificação WhatsApp removida - usuário usará a tela de comprovante para enviar
       
       // Fechar o diálogo primeiro para evitar problemas de estado
       setIsRenegotiateDialogOpen(false);
