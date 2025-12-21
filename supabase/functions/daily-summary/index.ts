@@ -112,13 +112,17 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE users with phone configured - with pagination for batching
+    // Get all ACTIVE PAYING users with phone configured - with pagination for batching
+    // Excludes trial users - only sends to paying customers
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name')
+      .select('id, phone, full_name, subscription_plan')
       .eq('is_active', true)
       .not('phone', 'is', null)
+      .not('subscription_plan', 'eq', 'trial') // Apenas usuários pagantes
       .order('id'); // Consistent ordering for batching
+    
+    console.log("Querying PAYING users only (excluding trial)");
 
     // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
