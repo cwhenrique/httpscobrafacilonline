@@ -98,10 +98,20 @@ const getInterestOnlyPaymentsFromNotes = (notes: string | null): Array<{ install
 };
 
 // Helper para extrair total de juros históricos recebidos
-// Formato: [HISTORICAL_INTEREST_RECEIVED:valor]
+// Suporta formato novo: [HISTORICAL_INTEREST_RECEIVED:valor]
+// E formato antigo: [HISTORICAL_INTEREST:valor]
 const getHistoricalInterestReceived = (notes: string | null): number => {
-  const match = (notes || '').match(/\[HISTORICAL_INTEREST_RECEIVED:([0-9.]+)\]/);
-  return match ? parseFloat(match[1]) : 0;
+  const notesStr = notes || '';
+  
+  // Formato novo
+  const newMatch = notesStr.match(/\[HISTORICAL_INTEREST_RECEIVED:([0-9.]+)\]/);
+  if (newMatch) return parseFloat(newMatch[1]);
+  
+  // Formato antigo
+  const oldMatch = notesStr.match(/\[HISTORICAL_INTEREST:([0-9.]+)\]/);
+  if (oldMatch) return parseFloat(oldMatch[1]);
+  
+  return 0;
 };
 
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
@@ -4858,6 +4868,9 @@ export default function Loans() {
                             .replace(/\[HISTORICAL_INTEREST_PAID:[0-9.]+\]/g, '')
                             .replace(/\[RENEGOTIATION_DATE:[^\]]+\]/g, '')
                             .replace(/\[JUROS_HISTORICO_DATADO\]/g, '')
+                            .replace(/\[HISTORICAL_INTEREST_RECEIVED:[0-9.]+\]/g, '')
+                            .replace(/\[HISTORICAL_INTEREST:[0-9.]+\]/g, '')
+                            .replace(/\[INTEREST_NOTES:[^\]]*\]/g, '')
                             .trim();
                         };
                         
@@ -4926,6 +4939,28 @@ export default function Loans() {
                                 </div>
                               </div>
                             </div>
+                            
+                            {/* Juros Antigos Recebidos - para contratos históricos */}
+                            {(() => {
+                              const historicalInterestAmount = getHistoricalInterestReceived(loan.notes);
+                              if (historicalInterestAmount <= 0) return null;
+                              
+                              return (
+                                <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-purple-500/20' : 'bg-purple-50 border border-purple-200'}`}>
+                                  <div className="flex items-center justify-between">
+                                    <p className={`font-medium text-sm ${hasSpecialStyle ? 'text-purple-200' : 'text-purple-700'}`}>
+                                      💜 Juros Antigos Recebidos
+                                    </p>
+                                    <p className={`font-bold text-lg ${hasSpecialStyle ? 'text-white' : 'text-purple-600'}`}>
+                                      {formatCurrency(historicalInterestAmount)}
+                                    </p>
+                                  </div>
+                                  <p className={`text-xs mt-1 ${hasSpecialStyle ? 'text-purple-300' : 'text-purple-500'}`}>
+                                    Juros já recebidos antes de cadastrar este contrato
+                                  </p>
+                                </div>
+                              );
+                            })()}
                             
                             {/* Detalhes adicionais: Juros e Parcelas */}
                             <div className={`grid grid-cols-2 gap-2 text-xs sm:text-sm ${hasSpecialStyle ? '' : ''}`}>
