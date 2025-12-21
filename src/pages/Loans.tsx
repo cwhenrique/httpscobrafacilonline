@@ -2057,7 +2057,7 @@ export default function Loans() {
       interest_only_paid: false,
       interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
       interest_payment_date: format(new Date(), 'yyyy-MM-dd'), // Data do pagamento de juros
-      send_interest_notification: true,
+      send_interest_notification: false,
       renewal_fee_enabled: false,
       renewal_fee_percentage: '20',
       renewal_fee_amount: '',
