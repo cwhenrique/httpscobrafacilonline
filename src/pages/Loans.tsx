@@ -973,55 +973,75 @@ export default function Loans() {
       const paidInstallments = getPaidInstallmentsCount(loan);
       const dates = (loan.installment_dates as string[]) || [];
       
-      if (isHistoricalContract) {
-        // For historical contracts, only check future dates
-        const futureDates = dates.filter(d => {
-          const date = new Date(d + 'T12:00:00');
-          return date >= today;
-        });
-        
-        if (futureDates.length > 0) {
-          const nextFutureDate = new Date(futureDates[0] + 'T12:00:00');
-          isOverdue = today > nextFutureDate;
-          if (isOverdue) {
-            overdueInstallmentIndex = dates.indexOf(futureDates[0]);
-            overdueDate = futureDates[0];
-            daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
-        } else if (dates.length > 0) {
-          // All dates are in the past - check if there are unpaid installments
-          if (paidInstallments < dates.length) {
-            isOverdue = true;
-            overdueInstallmentIndex = paidInstallments;
-            overdueDate = dates[paidInstallments];
-            const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
-            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
+      // Determinar a próxima data de vencimento
+      let nextDueDateStr: string | null = null;
+      
+      if (dates.length > 0) {
+        // Tem installment_dates - verificar a próxima parcela não paga
+        if (paidInstallments < dates.length) {
+          nextDueDateStr = dates[paidInstallments];
+          overdueInstallmentIndex = paidInstallments;
         } else {
-          // No dates, use due_date
-          const dueDate = new Date(loan.due_date + 'T12:00:00');
-          isOverdue = today > dueDate;
-          if (isOverdue) {
-            overdueDate = loan.due_date;
-            daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
+          // Todas as parcelas das datas foram pagas, mas ainda há saldo
+          // Usar a última data como referência
+          nextDueDateStr = dates[dates.length - 1];
+          overdueInstallmentIndex = dates.length - 1;
         }
       } else {
-        // Normal logic for non-historical contracts
-        if (dates.length > 0 && paidInstallments < dates.length) {
-          const nextDueDate = new Date(dates[paidInstallments] + 'T12:00:00');
-          isOverdue = today > nextDueDate;
-          if (isOverdue) {
-            overdueInstallmentIndex = paidInstallments;
-            overdueDate = dates[paidInstallments];
-            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Não tem installment_dates - usar due_date
+        nextDueDateStr = loan.due_date;
+      }
+      
+      if (nextDueDateStr) {
+        const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
+        nextDueDate.setHours(0, 0, 0, 0);
+        
+        // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
+        // e a data de vencimento já passou
+        if (isHistoricalContract) {
+          // Verificar se há parcelas futuras que ainda não venceram
+          const futureDates = dates.filter(d => {
+            const date = new Date(d + 'T12:00:00');
+            date.setHours(0, 0, 0, 0);
+            return date > today;
+          });
+          
+          // Se não há datas futuras e há saldo, verificar próxima data não paga
+          if (futureDates.length === 0 && paidInstallments < dates.length) {
+            const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
+            overdueCheckDate.setHours(0, 0, 0, 0);
+            isOverdue = today > overdueCheckDate;
+            if (isOverdue) {
+              overdueDate = dates[paidInstallments];
+              daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+          } else if (futureDates.length > 0) {
+            // Há datas futuras, verificar se a próxima data futura já passou
+            const nextFutureDateStr = futureDates[0];
+            const nextFutureDate = new Date(nextFutureDateStr + 'T12:00:00');
+            nextFutureDate.setHours(0, 0, 0, 0);
+            isOverdue = today > nextFutureDate;
+            if (isOverdue) {
+              overdueDate = nextFutureDateStr;
+              overdueInstallmentIndex = dates.indexOf(nextFutureDateStr);
+              daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+          } else if (dates.length === 0) {
+            // Sem datas, usar due_date
+            const dueDate = new Date(loan.due_date + 'T12:00:00');
+            dueDate.setHours(0, 0, 0, 0);
+            isOverdue = today > dueDate;
+            if (isOverdue) {
+              overdueDate = loan.due_date;
+              daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
           }
         } else {
-          const dueDate = new Date(loan.due_date + 'T12:00:00');
-          isOverdue = today > dueDate;
+          // Lógica normal para contratos não históricos
+          isOverdue = today > nextDueDate;
           if (isOverdue) {
-            overdueDate = loan.due_date;
-            daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            overdueDate = nextDueDateStr;
+            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
           }
         }
       }
