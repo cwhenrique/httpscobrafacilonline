@@ -251,7 +251,7 @@ export default function Loans() {
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [activeTab, setActiveTab] = useState<'regular' | 'daily'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1079,6 +1079,22 @@ export default function Loans() {
         return loan.payment_type === 'single' && !isPaid;
       case 'interest_only':
         return isInterestOnlyPayment && !isOverdue;
+      case 'due_today':
+        // Empréstimos com parcela vencendo hoje
+        const today = format(new Date(), 'yyyy-MM-dd');
+        if (isPaid) return false;
+        
+        // Verificar due_date do empréstimo
+        if (loan.due_date === today) return true;
+        
+        // Verificar installment_dates para empréstimos parcelados
+        if (loan.installment_dates && Array.isArray(loan.installment_dates)) {
+          const paidCount = getPaidInstallmentsCount(loan);
+          const unpaidDates = (loan.installment_dates as string[]).slice(paidCount);
+          return unpaidDates.some(date => date === today);
+        }
+        
+        return false;
       default:
         return true;
     }
@@ -3736,6 +3752,23 @@ export default function Loans() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p>Empréstimos pendentes com pagamentos em dia</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={statusFilter === 'due_today' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('due_today')}
+                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'due_today' ? 'bg-amber-500' : 'border-amber-500 text-amber-600 hover:bg-amber-500/10'}`}
+                  >
+                    <Bell className="w-3 h-3 mr-1" />
+                    <span className="hidden xs:inline">Vence Hoje</span><span className="xs:hidden">Hoje</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Empréstimos com parcela vencendo hoje</p>
                 </TooltipContent>
               </Tooltip>
               
