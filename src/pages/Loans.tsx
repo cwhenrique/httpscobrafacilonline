@@ -690,10 +690,7 @@ export default function Loans() {
     send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
   });
   
-  // Estado para juros extras já recebidos em contratos antigos (valor único - legado)
-  const [historicalInterestReceived, setHistoricalInterestReceived] = useState('');
-  
-  // 🆕 Estado para pagamentos de juros históricos com datas específicas
+  // Estado para pagamentos de juros históricos com datas específicas
   // Formato: { date: 'YYYY-MM-DD', amount: 'valor' }[]
   const [historicalInterestPayments, setHistoricalInterestPayments] = useState<{ date: string; amount: string }[]>([]);
   
@@ -1257,45 +1254,6 @@ export default function Loans() {
       }
     }
     
-    // Registrar juros extras de contrato antigo (se informado - valor único legado)
-    if (formData.is_historical_contract && historicalInterestReceived) {
-      const extraInterest = parseFloat(historicalInterestReceived);
-      if (extraInterest > 0) {
-        // Buscar o empréstimo recém-criado
-        const { data: newLoans } = await supabase
-          .from('loans')
-          .select('id, notes, total_paid')
-          .eq('client_id', formData.client_id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (newLoans && newLoans[0]) {
-          const loanId = newLoans[0].id;
-          
-          // Registrar como pagamento de juros extras
-          await registerPayment({
-            loan_id: loanId,
-            amount: extraInterest,
-            principal_paid: 0,
-            interest_paid: extraInterest,
-            payment_date: format(new Date(), 'yyyy-MM-dd'),
-            notes: `[JUROS_HISTORICO] Juros extras do contrato antigo`,
-          });
-          
-          // Adicionar tag nas notas do empréstimo
-          const currentNotes = newLoans[0].notes || '';
-          const updatedNotes = `${currentNotes} [HISTORICAL_INTEREST:${extraInterest}]`.trim();
-          
-          await supabase
-            .from('loans')
-            .update({ notes: updatedNotes })
-            .eq('id', loanId);
-          
-          await fetchLoans();
-          toast.success(`Juros extras de ${formatCurrency(extraInterest)} registrados`);
-        }
-      }
-    }
     
     // 🆕 Registrar pagamentos de juros históricos com datas específicas
     if (formData.is_historical_contract && historicalInterestPayments.length > 0) {
@@ -1591,41 +1549,6 @@ export default function Loans() {
       toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
     }
     
-    // Registrar juros extras de contrato antigo (se informado - valor único legado)
-    if (result?.data && formData.is_historical_contract && historicalInterestReceived) {
-      const extraInterest = parseFloat(historicalInterestReceived);
-      if (extraInterest > 0) {
-        const loanId = result.data.id;
-        
-        // Registrar como pagamento de juros extras
-        await registerPayment({
-          loan_id: loanId,
-          amount: extraInterest,
-          principal_paid: 0,
-          interest_paid: extraInterest,
-          payment_date: format(new Date(), 'yyyy-MM-dd'),
-          notes: `[JUROS_HISTORICO] Juros extras do contrato antigo`,
-        });
-        
-        // Buscar notas atuais e adicionar tag
-        const { data: currentLoan } = await supabase
-          .from('loans')
-          .select('notes')
-          .eq('id', loanId)
-          .single();
-        
-        const currentNotes = currentLoan?.notes || '';
-        const updatedNotes = `${currentNotes} [HISTORICAL_INTEREST:${extraInterest}]`.trim();
-        
-        await supabase
-          .from('loans')
-          .update({ notes: updatedNotes })
-          .eq('id', loanId);
-        
-        await fetchLoans();
-        toast.success(`Juros extras de ${formatCurrency(extraInterest)} registrados`);
-      }
-    }
     
     // 🆕 Registrar pagamentos de juros históricos com datas específicas
     if (result?.data && formData.is_historical_contract && historicalInterestPayments.length > 0) {
@@ -2089,7 +2012,6 @@ export default function Loans() {
     setDailyInstallmentCount('20');
     setSkipSaturday(false);
     setSkipSunday(false);
-    setHistoricalInterestReceived('');
     setHistoricalInterestPayments([]);
   };
 
@@ -3276,30 +3198,10 @@ export default function Loans() {
                             </p>
                           </div>
                           
-                          {/* Campo de juros extras já recebidos (legado - simples) */}
-                          <div className="mt-3 pt-3 border-t border-yellow-400/20">
-                            <Label className="text-sm text-yellow-200 flex items-center gap-2">
-                              <DollarSign className="h-4 w-4" />
-                              Juros extras já recebidos (opcional)
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0,00"
-                              value={historicalInterestReceived}
-                              onChange={(e) => setHistoricalInterestReceived(e.target.value)}
-                              className="mt-1 h-9 bg-yellow-500/10 border-yellow-400/30 text-yellow-100 placeholder:text-yellow-400/50"
-                            />
-                            <p className="text-xs text-yellow-300/70 mt-1">
-                              Valor único de juros extras (sem data específica)
-                            </p>
-                          </div>
-                          
-                          {/* 🆕 Seção de pagamentos de juros históricos com datas */}
-                          <div className="mt-3 pt-3 border-t border-yellow-400/20">
+                          {/* 🆕 Seção de pagamentos de juros históricos com datas - ROXO */}
+                          <div className="mt-3 pt-3 border-t border-purple-400/30">
                             <div className="flex items-center justify-between mb-2">
-                              <Label className="text-sm text-blue-200 flex items-center gap-2">
+                              <Label className="text-sm text-purple-200 flex items-center gap-2">
                                 <CalendarIcon className="h-4 w-4" />
                                 💵 Pagamentos de Juros Antigos
                               </Label>
@@ -3307,21 +3209,32 @@ export default function Loans() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-7 text-xs border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
-                                onClick={() => setHistoricalInterestPayments(prev => [...prev, { date: format(new Date(), 'yyyy-MM-dd'), amount: '' }])}
+                                className="h-7 text-xs border-purple-400/50 text-purple-300 hover:bg-purple-500/20"
+                                onClick={() => {
+                                  if (historicalInterestPayments.length === 0 && pastInstallmentsData.pastInstallmentsList?.length > 0) {
+                                    // Pré-preencher com as datas das parcelas passadas
+                                    const prefilledPayments = pastInstallmentsData.pastInstallmentsList.map(p => ({
+                                      date: p.date,
+                                      amount: ''
+                                    }));
+                                    setHistoricalInterestPayments(prefilledPayments);
+                                  } else {
+                                    setHistoricalInterestPayments(prev => [...prev, { date: format(new Date(), 'yyyy-MM-dd'), amount: '' }]);
+                                  }
+                                }}
                               >
                                 <Plus className="h-3 w-3 mr-1" />
                                 Adicionar
                               </Button>
                             </div>
-                            <p className="text-xs text-blue-300/70 mb-2">
+                            <p className="text-xs text-purple-300/70 mb-2">
                               Registre pagamentos de juros que o cliente fez em datas específicas (sem quitar parcelas do principal)
                             </p>
                             
                             {historicalInterestPayments.length > 0 && (
                               <div className="space-y-2">
                                 {historicalInterestPayments.map((payment, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 p-2 rounded bg-blue-500/10 border border-blue-400/30">
+                                  <div key={idx} className="flex items-center gap-2 p-2 rounded bg-purple-500/10 border border-purple-400/30">
                                     <Input
                                       type="date"
                                       value={payment.date}
@@ -3330,10 +3243,10 @@ export default function Loans() {
                                         updated[idx].date = e.target.value;
                                         setHistoricalInterestPayments(updated);
                                       }}
-                                      className="h-8 text-xs flex-1 bg-blue-500/10 border-blue-400/30 text-blue-100"
+                                      className="h-8 text-xs flex-1 bg-purple-500/10 border-purple-400/30 text-purple-100"
                                     />
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-blue-300">R$</span>
+                                      <span className="text-xs text-purple-300">R$</span>
                                       <Input
                                         type="number"
                                         step="0.01"
@@ -3345,7 +3258,7 @@ export default function Loans() {
                                           updated[idx].amount = e.target.value;
                                           setHistoricalInterestPayments(updated);
                                         }}
-                                        className="h-8 text-xs w-24 bg-blue-500/10 border-blue-400/30 text-blue-100"
+                                        className="h-8 text-xs w-24 bg-purple-500/10 border-purple-400/30 text-purple-100"
                                       />
                                     </div>
                                     <Button
@@ -3361,14 +3274,14 @@ export default function Loans() {
                                 ))}
                                 
                                 {/* Resumo dos pagamentos de juros */}
-                                <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-400/30">
-                                  <p className="text-xs text-green-300 font-medium">
+                                <div className="mt-2 p-2 rounded bg-purple-500/10 border border-purple-400/30">
+                                  <p className="text-xs text-purple-300 font-medium">
                                     ✅ {historicalInterestPayments.filter(p => p.amount && parseFloat(p.amount) > 0).length} pagamento(s) de juros = {formatCurrency(
                                       historicalInterestPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
                                     )}
                                   </p>
                                   {historicalInterestPayments.length > 0 && historicalInterestPayments.some(p => p.amount && parseFloat(p.amount) > 0) && (
-                                    <p className="text-xs text-green-300/70 mt-1">
+                                    <p className="text-xs text-purple-300/70 mt-1">
                                       ⚠️ Último juros pago: {formatDate(historicalInterestPayments.filter(p => p.amount && parseFloat(p.amount) > 0).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date || '')}
                                     </p>
                                   )}
@@ -3378,12 +3291,11 @@ export default function Loans() {
                           </div>
                           
                           {/* Resumo total já recebido */}
-                          {((historicalInterestReceived && parseFloat(historicalInterestReceived) > 0) || historicalInterestPayments.some(p => parseFloat(p.amount) > 0)) && (
+                          {historicalInterestPayments.some(p => parseFloat(p.amount) > 0) && (
                             <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-400/30">
                               <p className="text-xs text-green-300 font-medium">
                                 📊 Total já recebido: {formatCurrency(
                                   (selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0)) + 
-                                  (parseFloat(historicalInterestReceived) || 0) +
                                   historicalInterestPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
                                 )}
                               </p>
@@ -3781,30 +3693,10 @@ export default function Loans() {
                           </p>
                         </div>
                         
-                        {/* Campo de juros extras já recebidos (legado - simples) */}
-                        <div className="mt-3 pt-3 border-t border-yellow-400/20">
-                          <Label className="text-sm text-yellow-200 flex items-center gap-2">
-                            <DollarSign className="h-4 w-4" />
-                            Juros extras já recebidos (opcional)
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0,00"
-                            value={historicalInterestReceived}
-                            onChange={(e) => setHistoricalInterestReceived(e.target.value)}
-                            className="mt-1 h-9 bg-yellow-500/10 border-yellow-400/30 text-yellow-100 placeholder:text-yellow-400/50"
-                          />
-                          <p className="text-xs text-yellow-300/70 mt-1">
-                            Valor único de juros extras (sem data específica)
-                          </p>
-                        </div>
-                        
-                        {/* 🆕 Seção de pagamentos de juros históricos com datas */}
-                        <div className="mt-3 pt-3 border-t border-yellow-400/20">
+                        {/* 🆕 Seção de pagamentos de juros históricos com datas - ROXO */}
+                        <div className="mt-3 pt-3 border-t border-purple-400/30">
                           <div className="flex items-center justify-between mb-2">
-                            <Label className="text-sm text-blue-200 flex items-center gap-2">
+                            <Label className="text-sm text-purple-200 flex items-center gap-2">
                               <CalendarIcon className="h-4 w-4" />
                               💵 Pagamentos de Juros Antigos
                             </Label>
@@ -3812,21 +3704,32 @@ export default function Loans() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
-                              onClick={() => setHistoricalInterestPayments(prev => [...prev, { date: format(new Date(), 'yyyy-MM-dd'), amount: '' }])}
+                              className="h-7 text-xs border-purple-400/50 text-purple-300 hover:bg-purple-500/20"
+                              onClick={() => {
+                                if (historicalInterestPayments.length === 0 && pastInstallmentsData.pastInstallmentsList?.length > 0) {
+                                  // Pré-preencher com as datas das parcelas passadas
+                                  const prefilledPayments = pastInstallmentsData.pastInstallmentsList.map(p => ({
+                                    date: p.date,
+                                    amount: ''
+                                  }));
+                                  setHistoricalInterestPayments(prefilledPayments);
+                                } else {
+                                  setHistoricalInterestPayments(prev => [...prev, { date: format(new Date(), 'yyyy-MM-dd'), amount: '' }]);
+                                }
+                              }}
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               Adicionar
                             </Button>
                           </div>
-                          <p className="text-xs text-blue-300/70 mb-2">
+                          <p className="text-xs text-purple-300/70 mb-2">
                             Registre pagamentos de juros que o cliente fez em datas específicas (sem quitar parcelas do principal)
                           </p>
                           
                           {historicalInterestPayments.length > 0 && (
                             <div className="space-y-2">
                               {historicalInterestPayments.map((payment, idx) => (
-                                <div key={idx} className="flex items-center gap-2 p-2 rounded bg-blue-500/10 border border-blue-400/30">
+                                <div key={idx} className="flex items-center gap-2 p-2 rounded bg-purple-500/10 border border-purple-400/30">
                                   <Input
                                     type="date"
                                     value={payment.date}
@@ -3835,10 +3738,10 @@ export default function Loans() {
                                       updated[idx].date = e.target.value;
                                       setHistoricalInterestPayments(updated);
                                     }}
-                                    className="h-8 text-xs flex-1 bg-blue-500/10 border-blue-400/30 text-blue-100"
+                                    className="h-8 text-xs flex-1 bg-purple-500/10 border-purple-400/30 text-purple-100"
                                   />
                                   <div className="flex items-center gap-1">
-                                    <span className="text-xs text-blue-300">R$</span>
+                                    <span className="text-xs text-purple-300">R$</span>
                                     <Input
                                       type="number"
                                       step="0.01"
@@ -3850,7 +3753,7 @@ export default function Loans() {
                                         updated[idx].amount = e.target.value;
                                         setHistoricalInterestPayments(updated);
                                       }}
-                                      className="h-8 text-xs w-24 bg-blue-500/10 border-blue-400/30 text-blue-100"
+                                      className="h-8 text-xs w-24 bg-purple-500/10 border-purple-400/30 text-purple-100"
                                     />
                                   </div>
                                   <Button
@@ -3866,14 +3769,14 @@ export default function Loans() {
                               ))}
                               
                               {/* Resumo dos pagamentos de juros */}
-                              <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-400/30">
-                                <p className="text-xs text-green-300 font-medium">
+                              <div className="mt-2 p-2 rounded bg-purple-500/10 border border-purple-400/30">
+                                <p className="text-xs text-purple-300 font-medium">
                                   ✅ {historicalInterestPayments.filter(p => p.amount && parseFloat(p.amount) > 0).length} pagamento(s) de juros = {formatCurrency(
                                     historicalInterestPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
                                   )}
                                 </p>
                                 {historicalInterestPayments.length > 0 && historicalInterestPayments.some(p => p.amount && parseFloat(p.amount) > 0) && (
-                                  <p className="text-xs text-green-300/70 mt-1">
+                                  <p className="text-xs text-purple-300/70 mt-1">
                                     ⚠️ Último juros pago: {formatDate(historicalInterestPayments.filter(p => p.amount && parseFloat(p.amount) > 0).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date || '')}
                                   </p>
                                 )}
@@ -3883,12 +3786,11 @@ export default function Loans() {
                         </div>
                         
                         {/* Resumo total já recebido */}
-                        {((historicalInterestReceived && parseFloat(historicalInterestReceived) > 0) || historicalInterestPayments.some(p => parseFloat(p.amount) > 0)) && (
+                        {historicalInterestPayments.some(p => parseFloat(p.amount) > 0) && (
                           <div className="mt-2 p-2 rounded bg-green-500/10 border border-green-400/30">
                             <p className="text-xs text-green-300 font-medium">
                               📊 Total já recebido: {formatCurrency(
                                 (selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0)) + 
-                                (parseFloat(historicalInterestReceived) || 0) +
                                 historicalInterestPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
                               )}
                             </p>
