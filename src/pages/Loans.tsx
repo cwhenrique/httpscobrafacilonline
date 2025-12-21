@@ -1067,15 +1067,16 @@ export default function Loans() {
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
-        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment && loan.payment_type !== 'weekly' && loan.payment_type !== 'biweekly';
+        // Mostrar todos os empréstimos pendentes, independente do tipo de pagamento
+        return !isPaid && !isOverdue && !isRenegotiated && !isInterestOnlyPayment;
       case 'weekly':
-        return loan.payment_type === 'weekly';
+        return loan.payment_type === 'weekly' && !isPaid;
       case 'biweekly':
-        return loan.payment_type === 'biweekly';
+        return loan.payment_type === 'biweekly' && !isPaid;
       case 'installment':
-        return loan.payment_type === 'installment';
+        return loan.payment_type === 'installment' && !isPaid;
       case 'single':
-        return loan.payment_type === 'single';
+        return loan.payment_type === 'single' && !isPaid;
       case 'interest_only':
         return isInterestOnlyPayment && !isOverdue;
       default:
