@@ -270,8 +270,50 @@ serve(async (req) => {
     const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
     
     if (existingUser) {
-      // USER EXISTS - This is a RENEWAL, update subscription
-      console.log('User already exists, updating subscription:', customerEmail);
+      // USER EXISTS - Check if this is a duplicate webhook (user created recently)
+      const createdAt = new Date(existingUser.created_at);
+      const now = new Date();
+      const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      
+      console.log('User already exists, checking if duplicate webhook:', { 
+        email: customerEmail, 
+        createdAt: createdAt.toISOString(),
+        minutesSinceCreation: minutesSinceCreation.toFixed(2)
+      });
+      
+      // If user was created less than 5 minutes ago, this is likely a duplicate webhook
+      // from Cakto sending both subscription_created and purchase_approved events
+      if (minutesSinceCreation < 5) {
+        console.log('User was created recently (< 5 min), skipping renewal message (likely duplicate webhook)');
+        
+        // Still update the subscription to ensure it's correct, but DON'T send renewal message
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            is_active: true,
+            subscription_plan: plan,
+            subscription_expires_at: expiresAt,
+          })
+          .eq('id', existingUser.id);
+
+        if (updateError) {
+          console.error('Error updating subscription:', updateError);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            message: 'Subscription updated, renewal message skipped (recent user)',
+            email: customerEmail,
+            plan,
+            expiresAt
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // This is a real RENEWAL (user existed for more than 5 minutes)
+      console.log('User exists and is not recent, processing as renewal');
       
       const { error: updateError } = await supabase
         .from('profiles')
