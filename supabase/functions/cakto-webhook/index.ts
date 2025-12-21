@@ -304,8 +304,6 @@ Sua assinatura do *CobraFácil* foi renovada com sucesso!
 📦 *Plano:* ${planNames[plan] || plan}
 ${expiresAt ? `📅 *Válido até:* ${new Date(expiresAt).toLocaleDateString('pt-BR')}` : '♾️ *Acesso vitalício*'}
 
-🔗 *Acesse:* https://cobrafacil.online/auth
-
 Obrigado por continuar com a gente! 💚`;
 
         await sendWhatsAppMessage(customerPhone, renewalMessage);
