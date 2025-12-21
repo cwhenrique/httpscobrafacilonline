@@ -45,7 +45,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
-import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, Instagram, Globe } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, Instagram, Globe, UserCheck, UserX } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 import { ClientDocuments } from '@/components/ClientDocuments';
 import { getAvatarUrl, getInitials } from '@/lib/avatarUtils';
@@ -77,6 +78,7 @@ interface FormData {
   state: string;
   instagram: string;
   facebook: string;
+  is_active: boolean;
 }
 
 const initialFormData: FormData = {
@@ -96,6 +98,7 @@ const initialFormData: FormData = {
   state: '',
   instagram: '',
   facebook: '',
+  is_active: true,
 };
 
 export default function Clients() {
@@ -259,6 +262,7 @@ export default function Clients() {
       state: client.state || '',
       instagram: client.instagram || '',
       facebook: client.facebook || '',
+      is_active: client.is_active !== false,
     });
     setAvatarPreview(null);
     setActiveTab('dados');
@@ -487,6 +491,32 @@ export default function Clients() {
                         </Select>
                       </div>
 
+                      {/* Status Ativo/Inativo */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {formData.is_active ? (
+                            <UserCheck className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <UserX className="w-5 h-5 text-destructive" />
+                          )}
+                          <div>
+                            <Label htmlFor="is_active" className="font-medium">
+                              {formData.is_active ? 'Cliente Ativo' : 'Cliente Inativo'}
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              {formData.is_active 
+                                ? 'Este cliente pode receber novos empréstimos' 
+                                : 'Este cliente está inativo no sistema'}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          id="is_active"
+                          checked={formData.is_active}
+                          onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                        />
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="notes">Observações</Label>
                         <Textarea
@@ -707,6 +737,7 @@ export default function Clients() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>Tipo</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Score</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -734,6 +765,16 @@ export default function Clients() {
                           <TableCell>
                             <Badge className={getClientTypeBadgeColor(client.client_type)}>
                               {getClientTypeLabel(client.client_type)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={client.is_active !== false ? 'default' : 'secondary'}
+                              className={client.is_active !== false 
+                                ? 'bg-green-500/10 text-green-600 border-green-500/20' 
+                                : 'bg-muted text-muted-foreground'}
+                            >
+                              {client.is_active !== false ? 'Ativo' : 'Inativo'}
                             </Badge>
                           </TableCell>
                           <TableCell>
