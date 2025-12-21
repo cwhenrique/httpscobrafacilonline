@@ -127,6 +127,7 @@ export type Database = {
           full_name: string
           id: string
           instagram: string | null
+          is_active: boolean
           late_payments: number | null
           neighborhood: string | null
           notes: string | null
@@ -157,6 +158,7 @@ export type Database = {
           full_name: string
           id?: string
           instagram?: string | null
+          is_active?: boolean
           late_payments?: number | null
           neighborhood?: string | null
           notes?: string | null
@@ -187,6 +189,7 @@ export type Database = {
           full_name?: string
           id?: string
           instagram?: string | null
+          is_active?: boolean
           late_payments?: number | null
           neighborhood?: string | null
           notes?: string | null

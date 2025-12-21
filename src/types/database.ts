@@ -30,6 +30,7 @@ export interface Client {
   score_updated_at: string;
   created_at: string;
   updated_at: string;
+  is_active: boolean;
   // Personal documents
   cpf: string | null;
   rg: string | null;
