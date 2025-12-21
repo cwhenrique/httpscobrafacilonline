@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -311,6 +311,16 @@ export default function Loans() {
   const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
   const [skipSaturday, setSkipSaturday] = useState(false);
   const [skipSunday, setSkipSunday] = useState(false);
+  
+  // 🆕 Estado para edição de datas de subparcelas de juros
+  const [editingSubparcelaDate, setEditingSubparcelaDate] = useState<{
+    loanId: string;
+    uniqueId: string;
+    originalIndex: number;
+    currentDate: string;
+    amount: number;
+  } | null>(null);
+  const [newSubparcelaDate, setNewSubparcelaDate] = useState('');
   
   // Generate daily dates (consecutive days, optionally skipping weekends)
   const generateDailyDates = (startDate: string, count: number, skipSat = false, skipSun = false): string[] => {
@@ -2257,6 +2267,30 @@ export default function Loans() {
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
     setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false });
+  };
+
+  // 🆕 Função para atualizar data de subparcela de juros
+  const handleUpdateSubparcelaDate = async () => {
+    if (!editingSubparcelaDate || !newSubparcelaDate) return;
+    
+    const loan = loans.find(l => l.id === editingSubparcelaDate.loanId);
+    if (!loan) return;
+    
+    // Substituir a tag antiga pela nova com a data atualizada
+    const oldTag = `[INTEREST_SUBPARCELA:${editingSubparcelaDate.originalIndex}:${editingSubparcelaDate.amount.toFixed(2)}:${editingSubparcelaDate.currentDate}:${editingSubparcelaDate.uniqueId}]`;
+    const newTag = `[INTEREST_SUBPARCELA:${editingSubparcelaDate.originalIndex}:${editingSubparcelaDate.amount.toFixed(2)}:${newSubparcelaDate}:${editingSubparcelaDate.uniqueId}]`;
+    
+    const updatedNotes = (loan.notes || '').replace(oldTag, newTag);
+    
+    await supabase
+      .from('loans')
+      .update({ notes: updatedNotes })
+      .eq('id', editingSubparcelaDate.loanId);
+    
+    await fetchLoans();
+    setEditingSubparcelaDate(null);
+    setNewSubparcelaDate('');
+    toast.success('Data da subparcela atualizada');
   };
 
   const resetForm = () => {
@@ -5386,13 +5420,29 @@ export default function Loans() {
                                                 <span className="text-emerald-400">✓ Pago</span>
                                               </div>
                                             ))}
-                                            {/* Subparcelas pendentes */}
+                                            {/* Subparcelas pendentes - com botão de editar data */}
                                             {pendingSubsForInstallment.map((sub, subIdx) => (
-                                              <div key={`pending-${subIdx}`} className="flex items-center justify-between text-[10px] text-purple-300">
+                                              <div key={`pending-${subIdx}`} className="flex items-center justify-between text-[10px] text-purple-300 gap-1">
                                                 <span>↳ Juros {paidSubsForInstallment.length + subIdx + 1}</span>
                                                 <span>{formatCurrency(sub.amount)}</span>
-                                                <span>{formatDate(sub.dueDate)}</span>
-                                                <span className="text-amber-400">⏳ Pendente</span>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingSubparcelaDate({
+                                                      loanId: loan.id,
+                                                      uniqueId: sub.uniqueId,
+                                                      originalIndex: sub.originalIndex,
+                                                      currentDate: sub.dueDate,
+                                                      amount: sub.amount
+                                                    });
+                                                    setNewSubparcelaDate(sub.dueDate);
+                                                  }}
+                                                  className="flex items-center gap-0.5 hover:text-purple-100 underline"
+                                                >
+                                                  <Calendar className="w-2.5 h-2.5" />
+                                                  {formatDate(sub.dueDate)}
+                                                </button>
+                                                <span className="text-amber-400">⏳</span>
                                               </div>
                                             ))}
                                             {/* Total de juros pagos */}
@@ -8261,6 +8311,49 @@ export default function Loans() {
           }}
           onNewClientClick={handleNewClientClick}
         />
+        
+        {/* 🆕 Dialog para editar data de subparcela de juros */}
+        <Dialog open={!!editingSubparcelaDate} onOpenChange={(open) => !open && setEditingSubparcelaDate(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Editar Data da Subparcela</DialogTitle>
+              <DialogDescription>
+                Altere a data de vencimento desta subparcela de juros.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Valor da Subparcela</Label>
+                <div className="text-lg font-bold text-purple-500">
+                  {editingSubparcelaDate && formatCurrency(editingSubparcelaDate.amount)}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Data Atual</Label>
+                <div className="text-sm text-muted-foreground">
+                  {editingSubparcelaDate && formatDate(editingSubparcelaDate.currentDate)}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newSubparcelaDate">Nova Data</Label>
+                <Input
+                  id="newSubparcelaDate"
+                  type="date"
+                  value={newSubparcelaDate}
+                  onChange={(e) => setNewSubparcelaDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingSubparcelaDate(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateSubparcelaDate} disabled={!newSubparcelaDate}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
