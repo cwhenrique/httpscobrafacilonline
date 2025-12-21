@@ -97,6 +97,52 @@ const getInterestOnlyPaymentsFromNotes = (notes: string | null): Array<{ install
   return payments;
 };
 
+// 🆕 Helper para extrair subparcelas de juros pendentes do notes
+// Formato: [INTEREST_SUBPARCELA:índice_parcela:valor:data:id_único]
+const getInterestSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
+  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> = [];
+  const matches = (notes || '').matchAll(/\[INTEREST_SUBPARCELA:(\d+):([0-9.]+):([^:\]]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    subparcelas.push({
+      originalIndex: parseInt(match[1]),
+      amount: parseFloat(match[2]),
+      dueDate: match[3],
+      uniqueId: match[4]
+    });
+  }
+  return subparcelas;
+};
+
+// 🆕 Helper para extrair subparcelas de juros PAGAS do notes
+// Formato: [INTEREST_SUBPARCELA_PAID:índice_parcela:valor:data:id_único]
+const getPaidInterestSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
+  const subparcelas: Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> = [];
+  const matches = (notes || '').matchAll(/\[INTEREST_SUBPARCELA_PAID:(\d+):([0-9.]+):([^:\]]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    subparcelas.push({
+      originalIndex: parseInt(match[1]),
+      amount: parseFloat(match[2]),
+      dueDate: match[3],
+      uniqueId: match[4]
+    });
+  }
+  return subparcelas;
+};
+
+// 🆕 Helper para extrair índice de parcelas congeladas
+// Formato: [FROZEN_INSTALLMENTS:índice_atual]
+const getFrozenInstallmentIndex = (notes: string | null): number => {
+  const match = (notes || '').match(/\[FROZEN_INSTALLMENTS:(\d+)\]/);
+  return match ? parseInt(match[1]) : -1;
+};
+
+// 🆕 Helper para verificar se uma parcela está congelada
+const isInstallmentFrozen = (notes: string | null, installmentIndex: number): boolean => {
+  const frozenFromIndex = getFrozenInstallmentIndex(notes);
+  if (frozenFromIndex < 0) return false;
+  return installmentIndex > frozenFromIndex;
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -963,36 +1009,65 @@ export default function Loans() {
     const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
     const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
     
-    // 🆕 Extrair pagamentos de juros do notes para verificação
+    // 🆕 Extrair pagamentos de juros e subparcelas do notes para verificação
     const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(loan.notes);
+    const paidInterestSubparcelas = getPaidInterestSubparcelasFromNotes(loan.notes);
+    const pendingInterestSubparcelas = getInterestSubparcelasFromNotes(loan.notes);
+    const frozenFromIndex = getFrozenInstallmentIndex(loan.notes);
     
     // 🆕 Helper: verifica se há pagamento de juros recente (últimos 45 dias)
     // Isso cobre o cenário onde cliente está "travado" numa parcela pagando só juros
     const hasRecentInterestPayment = () => {
-      if (interestOnlyPayments.length === 0) return false;
+      // Combinar pagamentos de juros tradicionais com subparcelas de juros pagas
+      const allInterestPayments = [
+        ...interestOnlyPayments.map(p => ({ date: p.paymentDate })),
+        ...paidInterestSubparcelas.map(s => ({ date: s.dueDate }))
+      ];
+      
+      if (allInterestPayments.length === 0) return false;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
       // Encontrar o pagamento de juros mais recente
-      const mostRecentPayment = interestOnlyPayments.reduce((latest, payment) => {
-        const paymentDate = new Date(payment.paymentDate + 'T12:00:00');
-        const latestDate = latest ? new Date(latest.paymentDate + 'T12:00:00') : null;
+      const mostRecentDate = allInterestPayments.reduce((latest, payment) => {
+        const paymentDate = new Date(payment.date + 'T12:00:00');
+        const latestDate = latest ? new Date(latest.date + 'T12:00:00') : null;
         
         if (!latestDate || paymentDate > latestDate) {
           return payment;
         }
         return latest;
-      }, null as typeof interestOnlyPayments[0] | null);
+      }, null as typeof allInterestPayments[0] | null);
       
-      if (!mostRecentPayment) return false;
+      if (!mostRecentDate) return false;
       
-      const paymentDate = new Date(mostRecentPayment.paymentDate + 'T12:00:00');
+      const paymentDate = new Date(mostRecentDate.date + 'T12:00:00');
       paymentDate.setHours(0, 0, 0, 0);
       
       // Se o pagamento de juros mais recente foi nos últimos 45 dias, cliente está em dia
       const daysSinceLastInterestPayment = Math.ceil((today.getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24));
       return daysSinceLastInterestPayment <= 45;
+    };
+    
+    // 🆕 Helper: verificar cobertura de juros por mês
+    // Cada parcela vencida precisa ter um pagamento de juros correspondente àquele mês
+    const hasInterestCoverageForMonth = (dateStr: string): boolean => {
+      const targetMonth = dateStr.substring(0, 7); // YYYY-MM
+      
+      // Verificar nos pagamentos de juros tradicionais
+      const hasTraditionalCoverage = interestOnlyPayments.some(p => {
+        const paymentMonth = p.paymentDate.substring(0, 7);
+        return paymentMonth === targetMonth;
+      });
+      
+      // Verificar nas subparcelas de juros pagas
+      const hasSubparcelaCoverage = paidInterestSubparcelas.some(s => {
+        const paymentMonth = s.dueDate.substring(0, 7);
+        return paymentMonth === targetMonth;
+      });
+      
+      return hasTraditionalCoverage || hasSubparcelaCoverage;
     };
     
     const today = new Date();
@@ -1007,89 +1082,140 @@ export default function Loans() {
       const paidInstallments = getPaidInstallmentsCount(loan);
       const dates = (loan.installment_dates as string[]) || [];
       
-      // Determinar a próxima data de vencimento
-      let nextDueDateStr: string | null = null;
-      
-      if (dates.length > 0) {
-        // Tem installment_dates - verificar a próxima parcela não paga
-        if (paidInstallments < dates.length) {
-          nextDueDateStr = dates[paidInstallments];
-          overdueInstallmentIndex = paidInstallments;
+      // 🆕 Para contratos históricos com juros e parcelas congeladas
+      if (isHistoricalInterestContract && frozenFromIndex >= 0) {
+        // As parcelas estão congeladas - verificar apenas se há pagamento de juros recente
+        // ou se há subparcelas de juros pendentes para a parcela atual
+        if (hasRecentInterestPayment()) {
+          // Cliente está pagando juros regularmente, está em dia
+          isOverdue = false;
         } else {
-          // Todas as parcelas das datas foram pagas, mas ainda há saldo
-          // Usar a última data como referência
-          nextDueDateStr = dates[dates.length - 1];
-          overdueInstallmentIndex = dates.length - 1;
+          // Verificar se a subparcela de juros mais recente está em atraso
+          if (pendingInterestSubparcelas.length > 0) {
+            // Ordenar subparcelas por data
+            const sortedSubs = [...pendingInterestSubparcelas].sort((a, b) => 
+              new Date(a.dueDate + 'T12:00:00').getTime() - new Date(b.dueDate + 'T12:00:00').getTime()
+            );
+            const nextSub = sortedSubs[0];
+            const subDueDate = new Date(nextSub.dueDate + 'T12:00:00');
+            subDueDate.setHours(0, 0, 0, 0);
+            
+            isOverdue = today > subDueDate;
+            if (isOverdue) {
+              overdueDate = nextSub.dueDate;
+              overdueInstallmentIndex = nextSub.originalIndex;
+              daysOverdue = Math.ceil((today.getTime() - subDueDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+          } else {
+            // Sem subparcelas pendentes - verificar última subparcela paga
+            // Se passou mais de 45 dias, está em atraso
+            const hasRecent = hasRecentInterestPayment();
+            if (!hasRecent && paidInterestSubparcelas.length > 0) {
+              isOverdue = true;
+              overdueInstallmentIndex = frozenFromIndex;
+            }
+          }
+        }
+      } else if (isHistoricalInterestContract) {
+        // Contrato histórico com juros mas sem parcelas congeladas
+        // Verificar cobertura de juros por mês para cada parcela vencida após as pagas
+        const unpaidDates = dates.slice(paidInstallments);
+        const overdueDates = unpaidDates.filter(d => {
+          const date = new Date(d + 'T12:00:00');
+          date.setHours(0, 0, 0, 0);
+          return date <= today;
+        });
+        
+        // Verificar se cada parcela vencida tem cobertura de juros
+        let allCovered = true;
+        for (const overdueD of overdueDates) {
+          if (!hasInterestCoverageForMonth(overdueD)) {
+            allCovered = false;
+            isOverdue = true;
+            overdueDate = overdueD;
+            overdueInstallmentIndex = dates.indexOf(overdueD);
+            const checkDate = new Date(overdueD + 'T12:00:00');
+            checkDate.setHours(0, 0, 0, 0);
+            daysOverdue = Math.ceil((today.getTime() - checkDate.getTime()) / (1000 * 60 * 60 * 24));
+            break;
+          }
+        }
+        
+        // Se todas as parcelas vencidas têm cobertura de juros, não está em atraso
+        if (allCovered) {
+          isOverdue = false;
         }
       } else {
-        // Não tem installment_dates - usar due_date
-        nextDueDateStr = loan.due_date;
-      }
-      
-      if (nextDueDateStr) {
-        const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
-        nextDueDate.setHours(0, 0, 0, 0);
+        // Determinar a próxima data de vencimento
+        let nextDueDateStr: string | null = null;
         
-        // 🆕 Para contratos históricos com juros, verificar se tem pagamento de juros recente
-        // Isso cobre o cenário onde cliente está "travado" numa parcela pagando só juros por meses
-        if (isHistoricalInterestContract) {
-          // Se tem pagamento de juros recente (últimos 45 dias), NÃO considerar atrasado
-          if (hasRecentInterestPayment()) {
-            isOverdue = false; // Cliente está pagando juros regularmente, está em dia
+        if (dates.length > 0) {
+          // Tem installment_dates - verificar a próxima parcela não paga
+          if (paidInstallments < dates.length) {
+            nextDueDateStr = dates[paidInstallments];
+            overdueInstallmentIndex = paidInstallments;
           } else {
-            // Verificar se a data já passou e não há pagamentos recentes
+            // Todas as parcelas das datas foram pagas, mas ainda há saldo
+            // Usar a última data como referência
+            nextDueDateStr = dates[dates.length - 1];
+            overdueInstallmentIndex = dates.length - 1;
+          }
+        } else {
+          // Não tem installment_dates - usar due_date
+          nextDueDateStr = loan.due_date;
+        }
+        
+        if (nextDueDateStr) {
+          const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
+          nextDueDate.setHours(0, 0, 0, 0);
+          
+          if (isHistoricalContract) {
+            // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
+            // e a data de vencimento já passou
+            // Verificar se há parcelas futuras que ainda não venceram
+            const futureDates = dates.filter(d => {
+              const date = new Date(d + 'T12:00:00');
+              date.setHours(0, 0, 0, 0);
+              return date > today;
+            });
+            
+            // Se não há datas futuras e há saldo, verificar próxima data não paga
+            if (futureDates.length === 0 && paidInstallments < dates.length) {
+              const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
+              overdueCheckDate.setHours(0, 0, 0, 0);
+              isOverdue = today > overdueCheckDate;
+              if (isOverdue) {
+                overdueDate = dates[paidInstallments];
+                daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
+              }
+            } else if (futureDates.length > 0) {
+              // Há datas futuras, verificar se a próxima data futura já passou
+              const nextFutureDateStr = futureDates[0];
+              const nextFutureDate = new Date(nextFutureDateStr + 'T12:00:00');
+              nextFutureDate.setHours(0, 0, 0, 0);
+              isOverdue = today > nextFutureDate;
+              if (isOverdue) {
+                overdueDate = nextFutureDateStr;
+                overdueInstallmentIndex = dates.indexOf(nextFutureDateStr);
+                daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
+              }
+            } else if (dates.length === 0) {
+              // Sem datas, usar due_date
+              const dueDate = new Date(loan.due_date + 'T12:00:00');
+              dueDate.setHours(0, 0, 0, 0);
+              isOverdue = today > dueDate;
+              if (isOverdue) {
+                overdueDate = loan.due_date;
+                daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+              }
+            }
+          } else {
+            // Lógica normal para contratos não históricos
             isOverdue = today > nextDueDate;
             if (isOverdue) {
               overdueDate = nextDueDateStr;
               daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
             }
-          }
-        } else if (isHistoricalContract) {
-          // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
-          // e a data de vencimento já passou
-          // Verificar se há parcelas futuras que ainda não venceram
-          const futureDates = dates.filter(d => {
-            const date = new Date(d + 'T12:00:00');
-            date.setHours(0, 0, 0, 0);
-            return date > today;
-          });
-          
-          // Se não há datas futuras e há saldo, verificar próxima data não paga
-          if (futureDates.length === 0 && paidInstallments < dates.length) {
-            const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
-            overdueCheckDate.setHours(0, 0, 0, 0);
-            isOverdue = today > overdueCheckDate;
-            if (isOverdue) {
-              overdueDate = dates[paidInstallments];
-              daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
-          } else if (futureDates.length > 0) {
-            // Há datas futuras, verificar se a próxima data futura já passou
-            const nextFutureDateStr = futureDates[0];
-            const nextFutureDate = new Date(nextFutureDateStr + 'T12:00:00');
-            nextFutureDate.setHours(0, 0, 0, 0);
-            isOverdue = today > nextFutureDate;
-            if (isOverdue) {
-              overdueDate = nextFutureDateStr;
-              overdueInstallmentIndex = dates.indexOf(nextFutureDateStr);
-              daysOverdue = Math.ceil((today.getTime() - nextFutureDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
-          } else if (dates.length === 0) {
-            // Sem datas, usar due_date
-            const dueDate = new Date(loan.due_date + 'T12:00:00');
-            dueDate.setHours(0, 0, 0, 0);
-            isOverdue = today > dueDate;
-            if (isOverdue) {
-              overdueDate = loan.due_date;
-              daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
-          }
-        } else {
-          // Lógica normal para contratos não históricos
-          isOverdue = today > nextDueDate;
-          if (isOverdue) {
-            overdueDate = nextDueDateStr;
-            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
           }
         }
       }
@@ -1324,18 +1450,22 @@ export default function Loans() {
             currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
           }
           
-          // Registrar cada pagamento de juros histórico
+          // Registrar cada pagamento de juros histórico como subparcela de juros PAGA
+          // Encontrar a última parcela TOTALMENTE paga (considerando selectedPastInstallments)
+          const lastPaidInstallmentIndex = selectedPastInstallments.length > 0 
+            ? Math.max(...selectedPastInstallments) 
+            : -1;
+          
+          // O cliente está "travado" na parcela seguinte à última paga
+          const frozenAtIndex = lastPaidInstallmentIndex + 1;
+          
           for (const payment of validPayments) {
             const amount = parseFloat(payment.amount);
+            const uniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
             
-            // 🆕 Encontrar o índice da parcela que corresponde à data do pagamento
-            let installmentIndex = 0; // fallback
-            for (let i = 0; i < installmentDates.length; i++) {
-              if (installmentDates[i] === payment.date) {
-                installmentIndex = i;
-                break;
-              }
-            }
+            // 🆕 Registrar como INTEREST_SUBPARCELA_PAID (já foi paga)
+            // Formato: [INTEREST_SUBPARCELA_PAID:índice_parcela:valor:data:id_único]
+            currentNotes += ` [INTEREST_SUBPARCELA_PAID:${frozenAtIndex}:${amount.toFixed(2)}:${payment.date}:${uniqueId}]`;
             
             await registerPayment({
               loan_id: loanId,
@@ -1343,13 +1473,39 @@ export default function Loans() {
               principal_paid: 0,
               interest_paid: amount,
               payment_date: payment.date,
-              notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros parcela ${installmentIndex + 1} - ${formatDate(payment.date)}`,
+              notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Subparcela de juros da parcela ${frozenAtIndex + 1} - ${formatDate(payment.date)}`,
             });
-            
-            // Adicionar tag [INTEREST_ONLY_PAID] para tracking com índice correto
-            // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
-            currentNotes += ` [INTEREST_ONLY_PAID:${installmentIndex}:${amount.toFixed(2)}:${payment.date}]`;
           }
+          
+          // 🆕 Adicionar tag FROZEN_INSTALLMENTS para congelar parcelas futuras
+          // As parcelas após frozenAtIndex ficam com data "A definir"
+          if (frozenAtIndex < numDays - 1) {
+            currentNotes += ` [FROZEN_INSTALLMENTS:${frozenAtIndex}]`;
+          }
+          
+          // 🆕 Criar subparcela de juros PENDENTE para o próximo mês
+          // Calcular a próxima data de vencimento (3 dias após a última para pagamento único/diário)
+          const sortedPaymentDates = validPayments.map(p => p.date).sort();
+          const lastPaymentDate = sortedPaymentDates[sortedPaymentDates.length - 1];
+          const lastDate = new Date(lastPaymentDate + 'T12:00:00');
+          
+          // Para empréstimo diário/único: 3 dias de intervalo
+          // Para outros tipos: mesma lógica do tipo de pagamento
+          let nextSubparcelaDate: Date;
+          if (formData.payment_type === 'daily' || formData.payment_type === 'single') {
+            nextSubparcelaDate = new Date(lastDate);
+            nextSubparcelaDate.setDate(nextSubparcelaDate.getDate() + 3);
+          } else {
+            nextSubparcelaDate = new Date(lastDate);
+            nextSubparcelaDate.setMonth(nextSubparcelaDate.getMonth() + 1);
+          }
+          
+          const nextSubparcelaDateStr = format(nextSubparcelaDate, 'yyyy-MM-dd');
+          const pendingUniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+          const interestAmount = validPayments.length > 0 ? parseFloat(validPayments[0].amount) : dailyAmount - (principalAmount / numDays);
+          
+          // Adicionar subparcela de juros pendente
+          currentNotes += ` [INTEREST_SUBPARCELA:${frozenAtIndex}:${interestAmount.toFixed(2)}:${nextSubparcelaDateStr}:${pendingUniqueId}]`;
           
           // Atualizar notas do empréstimo
           await supabase
@@ -1358,7 +1514,7 @@ export default function Loans() {
             .eq('id', loanId);
           
           await fetchLoans();
-          toast.success(`${validPayments.length} pagamento(s) de juros históricos registrados`);
+          toast.success(`${validPayments.length} pagamento(s) de juros históricos registrados. Parcelas ${frozenAtIndex + 2} em diante congeladas.`);
         }
       }
     }
@@ -1632,18 +1788,21 @@ export default function Loans() {
           currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
         }
         
-        // Registrar cada pagamento de juros histórico
+        // Registrar cada pagamento de juros histórico como subparcela de juros PAGA
+        // Encontrar a última parcela TOTALMENTE paga (considerando selectedPastInstallments)
+        const lastPaidInstallmentIndex = selectedPastInstallments.length > 0 
+          ? Math.max(...selectedPastInstallments) 
+          : -1;
+        
+        // O cliente está "travado" na parcela seguinte à última paga
+        const frozenAtIndex = lastPaidInstallmentIndex + 1;
+        
         for (const payment of validPayments) {
           const amount = parseFloat(payment.amount);
+          const uniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
           
-          // 🆕 Encontrar o índice da parcela que corresponde à data do pagamento
-          let installmentIndex = 0; // fallback
-          for (let i = 0; i < installmentDates.length; i++) {
-            if (installmentDates[i] === payment.date) {
-              installmentIndex = i;
-              break;
-            }
-          }
+          // 🆕 Registrar como INTEREST_SUBPARCELA_PAID (já foi paga)
+          currentNotes += ` [INTEREST_SUBPARCELA_PAID:${frozenAtIndex}:${amount.toFixed(2)}:${payment.date}:${uniqueId}]`;
           
           await registerPayment({
             loan_id: loanId,
@@ -1651,13 +1810,42 @@ export default function Loans() {
             principal_paid: 0,
             interest_paid: amount,
             payment_date: payment.date,
-            notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Pagamento de juros parcela ${installmentIndex + 1} - ${formatDate(payment.date)}`,
+            notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO_DATADO] Subparcela de juros da parcela ${frozenAtIndex + 1} - ${formatDate(payment.date)}`,
           });
-          
-          // Adicionar tag [INTEREST_ONLY_PAID] para tracking com índice correto
-          // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
-          currentNotes += ` [INTEREST_ONLY_PAID:${installmentIndex}:${amount.toFixed(2)}:${payment.date}]`;
         }
+        
+        // 🆕 Adicionar tag FROZEN_INSTALLMENTS para congelar parcelas futuras
+        if (frozenAtIndex < numInstallments - 1) {
+          currentNotes += ` [FROZEN_INSTALLMENTS:${frozenAtIndex}]`;
+        }
+        
+        // 🆕 Criar subparcela de juros PENDENTE para o próximo período
+        const sortedPaymentDates = validPayments.map(p => p.date).sort();
+        const lastPaymentDate = sortedPaymentDates[sortedPaymentDates.length - 1];
+        const lastDate = new Date(lastPaymentDate + 'T12:00:00');
+        
+        // Calcular próxima data baseada no tipo de pagamento
+        let nextSubparcelaDate: Date;
+        if (formData.payment_type === 'single') {
+          nextSubparcelaDate = new Date(lastDate);
+          nextSubparcelaDate.setDate(nextSubparcelaDate.getDate() + 3);
+        } else if (formData.payment_type === 'weekly') {
+          nextSubparcelaDate = new Date(lastDate);
+          nextSubparcelaDate.setDate(nextSubparcelaDate.getDate() + 7);
+        } else if (formData.payment_type === 'biweekly') {
+          nextSubparcelaDate = new Date(lastDate);
+          nextSubparcelaDate.setDate(nextSubparcelaDate.getDate() + 15);
+        } else {
+          nextSubparcelaDate = new Date(lastDate);
+          nextSubparcelaDate.setMonth(nextSubparcelaDate.getMonth() + 1);
+        }
+        
+        const nextSubparcelaDateStr = format(nextSubparcelaDate, 'yyyy-MM-dd');
+        const pendingUniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        const interestAmount = validPayments.length > 0 ? parseFloat(validPayments[0].amount) : totalInterest / numInstallments;
+        
+        // Adicionar subparcela de juros pendente
+        currentNotes += ` [INTEREST_SUBPARCELA:${frozenAtIndex}:${interestAmount.toFixed(2)}:${nextSubparcelaDateStr}:${pendingUniqueId}]`;
         
         // Atualizar notas do empréstimo
         await supabase
@@ -1666,7 +1854,7 @@ export default function Loans() {
           .eq('id', loanId);
         
         await fetchLoans();
-        toast.success(`${validPayments.length} pagamento(s) de juros históricos registrados`);
+        toast.success(`${validPayments.length} pagamento(s) de juros históricos registrados. Parcelas ${frozenAtIndex + 2} em diante congeladas.`);
       }
     }
     
@@ -5024,6 +5212,9 @@ export default function Loans() {
                             .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g, '')
                             .replace(/\[ADVANCE_SUBPARCELA:\d+:[0-9.]+:[^\]]+\]/g, '')
                             .replace(/\[ADVANCE_SUBPARCELA_PAID:\d+:[0-9.]+:[^\]]+\]/g, '')
+                            .replace(/\[INTEREST_SUBPARCELA:\d+:[0-9.]+:[^:\]]+:[^\]]+\]/g, '')
+                            .replace(/\[INTEREST_SUBPARCELA_PAID:\d+:[0-9.]+:[^:\]]+:[^\]]+\]/g, '')
+                            .replace(/\[FROZEN_INSTALLMENTS:\d+\]/g, '')
                             .replace(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+(?::[0-9.]+)?\]/g, '')
                             .replace(/\[ORIGINAL_PRINCIPAL:[0-9.]+\]/g, '')
                             .replace(/\[ORIGINAL_RATE:[0-9.]+\]/g, '')
@@ -5037,15 +5228,32 @@ export default function Loans() {
                             .trim();
                         };
                         
+                        // 🆕 Extrair dados de subparcelas de juros e parcelas congeladas
+                        const interestSubparcelas = getInterestSubparcelasFromNotes(loan.notes);
+                        const paidInterestSubparcelas = getPaidInterestSubparcelasFromNotes(loan.notes);
+                        const frozenFromIndex = getFrozenInstallmentIndex(loan.notes);
+                        
                         const displayNotes = cleanNotes(loan.notes);
                         
                         // Calcular status de cada parcela
                         const getInstallmentStatusForDisplay = (index: number, dueDate: string) => {
                           const paidAmount = partialPayments[index] || 0;
                           const pendingSubs = advanceSubparcelas.filter(s => s.originalIndex === index);
+                          const hasPaidInterestSubs = paidInterestSubparcelas.filter(s => s.originalIndex === index).length > 0;
+                          const hasPendingInterestSubs = interestSubparcelas.filter(s => s.originalIndex === index).length > 0;
                           const today = new Date();
                           today.setHours(0, 0, 0, 0);
                           const due = new Date(dueDate + 'T12:00:00');
+                          
+                          // 🆕 Verificar se parcela está congelada
+                          if (frozenFromIndex >= 0 && index > frozenFromIndex) {
+                            return { status: 'frozen', label: '🔒 Congelada', color: 'text-muted-foreground' };
+                          }
+                          
+                          // 🆕 Verificar se está em modo de juros (travada com subparcelas de juros)
+                          if (frozenFromIndex >= 0 && index === frozenFromIndex && (hasPaidInterestSubs || hasPendingInterestSubs)) {
+                            return { status: 'interest_mode', label: '💜 Em Juros', color: 'text-purple-500' };
+                          }
                           
                           if (paidAmount >= totalPerInstallment * 0.99 && pendingSubs.length === 0) {
                             return { status: 'paid', label: 'Paga', color: 'text-emerald-500' };
@@ -5140,23 +5348,62 @@ export default function Loans() {
                             {dates.length > 0 && (
                               <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                                 <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📅 Cronograma de Parcelas</p>
-                                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                <div className="space-y-1.5 max-h-60 overflow-y-auto">
                                   {dates.map((date, idx) => {
                                     const statusInfo = getInstallmentStatusForDisplay(idx, date);
+                                    const isFrozen = frozenFromIndex >= 0 && idx > frozenFromIndex;
+                                    const isInInterestMode = frozenFromIndex >= 0 && idx === frozenFromIndex;
+                                    const paidSubsForInstallment = paidInterestSubparcelas.filter(s => s.originalIndex === idx);
+                                    const pendingSubsForInstallment = interestSubparcelas.filter(s => s.originalIndex === idx);
+                                    const totalInterestPaidForInstallment = paidSubsForInstallment.reduce((sum, s) => sum + s.amount, 0);
+                                    
                                     return (
-                                      <div key={idx} className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
-                                        <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
-                                          Parcela {idx + 1}/{numInstallments}
-                                        </span>
-                                        <span className={hasSpecialStyle ? 'text-white' : ''}>
-                                          {formatCurrency(totalPerInstallment)}
-                                        </span>
-                                        <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
-                                          {formatDate(date)}
-                                        </span>
-                                        <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
-                                          {statusInfo.label}
-                                        </span>
+                                      <div key={idx}>
+                                        <div className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
+                                          <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
+                                            Parcela {idx + 1}/{numInstallments}
+                                          </span>
+                                          <span className={hasSpecialStyle ? 'text-white' : ''}>
+                                            {formatCurrency(totalPerInstallment)}
+                                          </span>
+                                          <span className={`${isFrozen ? 'italic text-muted-foreground' : (hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground')}`}>
+                                            {isFrozen ? '📅 A definir' : formatDate(date)}
+                                          </span>
+                                          <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : statusInfo.status === 'interest_mode' ? 'text-purple-300' : 'text-white/70') : statusInfo.color}`}>
+                                            {statusInfo.label}
+                                          </span>
+                                        </div>
+                                        
+                                        {/* 🆕 Mostrar subparcelas de juros pagas e pendentes para a parcela em modo de juros */}
+                                        {isInInterestMode && (paidSubsForInstallment.length > 0 || pendingSubsForInstallment.length > 0) && (
+                                          <div className="ml-4 mt-1 mb-2 space-y-1 border-l-2 border-purple-500/50 pl-2">
+                                            {/* Subparcelas pagas */}
+                                            {paidSubsForInstallment.map((sub, subIdx) => (
+                                              <div key={`paid-${subIdx}`} className="flex items-center justify-between text-[10px] text-purple-300/80">
+                                                <span>↳ Juros {subIdx + 1}</span>
+                                                <span>{formatCurrency(sub.amount)}</span>
+                                                <span>{formatDate(sub.dueDate)}</span>
+                                                <span className="text-emerald-400">✓ Pago</span>
+                                              </div>
+                                            ))}
+                                            {/* Subparcelas pendentes */}
+                                            {pendingSubsForInstallment.map((sub, subIdx) => (
+                                              <div key={`pending-${subIdx}`} className="flex items-center justify-between text-[10px] text-purple-300">
+                                                <span>↳ Juros {paidSubsForInstallment.length + subIdx + 1}</span>
+                                                <span>{formatCurrency(sub.amount)}</span>
+                                                <span>{formatDate(sub.dueDate)}</span>
+                                                <span className="text-amber-400">⏳ Pendente</span>
+                                              </div>
+                                            ))}
+                                            {/* Total de juros pagos */}
+                                            {totalInterestPaidForInstallment > 0 && (
+                                              <div className="flex items-center justify-between text-[10px] text-purple-400 pt-1 border-t border-purple-500/30">
+                                                <span className="font-medium">Total juros pagos:</span>
+                                                <span className="font-bold">{formatCurrency(totalInterestPaidForInstallment)}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
