@@ -162,13 +162,18 @@ export default function Reports() {
   const prevStartDate = new Date(prevEndDate);
   prevStartDate.setDate(prevStartDate.getDate() - periodDuration);
 
-  // FILTERED DATA BY PERIOD
+  // FILTERED DATA BY PERIOD (para métricas de FLUXO - atividade no período)
   const filteredLoans = useMemo(() => {
     return safeLoans.filter(loan => {
       const loanDate = new Date(loan.start_date);
       return isWithinInterval(loanDate, { start: startDate, end: endDate });
     });
   }, [safeLoans, startDate, endDate]);
+
+  // ACTIVE LOANS (para métricas de SALDO - situação atual, independente da data)
+  const activeLoans = useMemo(() => {
+    return safeLoans.filter(loan => loan.status !== 'paid');
+  }, [safeLoans]);
 
   const prevPeriodLoans = useMemo(() => {
     return safeLoans.filter(loan => {
@@ -212,16 +217,25 @@ export default function Reports() {
     });
   }, [safeContracts, startDate, endDate]);
 
-  // CONSOLIDATED STATS (using filtered data)
+  // CONSOLIDATED STATS
   const consolidatedStats = useMemo(() => {
-    // Loans
-    const totalLoaned = filteredLoans.reduce((sum, l) => sum + l.principal_amount, 0);
-    const totalLoanReceived = filteredLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
-    const overdueLoansFiltered = filteredLoans.filter(l => l.status === 'overdue');
-    const totalLoanOverdue = overdueLoansFiltered.reduce((sum, l) => sum + l.remaining_balance, 0);
+    // === MÉTRICAS DE SALDO (usando TODOS os empréstimos ativos) ===
+    // Capital na rua = soma do principal de todos os empréstimos não pagos
+    const capitalNaRua = activeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    // Falta receber = soma do saldo restante de todos os empréstimos não pagos
+    const faltaReceber = activeLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
+    // Empréstimos em atraso (todos, não apenas do período)
+    const overdueLoans = activeLoans.filter(l => l.status === 'overdue');
+    const totalLoanOverdue = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
+    // Total recebido de empréstimos ativos
+    const totalLoanReceived = activeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
 
+    // === MÉTRICAS DE FLUXO (usando empréstimos do período) ===
+    const totalLoanedInPeriod = filteredLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+
+    // Cálculo de juros baseado nos empréstimos ativos (para saldo total)
     let totalLoanInterest = 0;
-    filteredLoans.forEach(loan => {
+    activeLoans.forEach(loan => {
       const isDaily = loan.payment_type === 'daily';
       if (isDaily) {
         totalLoanInterest += loan.interest_rate || 0;
@@ -234,9 +248,9 @@ export default function Reports() {
       }
     });
 
-    // Previous period loans for comparison
+    // Previous period loans for comparison (fluxo)
     const prevTotalLoaned = prevPeriodLoans.reduce((sum, l) => sum + l.principal_amount, 0);
-    const loanedVariation = prevTotalLoaned > 0 ? ((totalLoaned - prevTotalLoaned) / prevTotalLoaned) * 100 : 0;
+    const loanedVariation = prevTotalLoaned > 0 ? ((totalLoanedInPeriod - prevTotalLoaned) / prevTotalLoaned) * 100 : 0;
 
     // Products
     const totalProductSold = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
@@ -300,15 +314,15 @@ export default function Reports() {
     const prevTotalVehicleSold = prevPeriodVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
     const vehicleSoldVariation = prevTotalVehicleSold > 0 ? ((totalVehicleSold - prevTotalVehicleSold) / prevTotalVehicleSold) * 100 : 0;
 
-    // Grand totals
-    const totalToReceive = (totalLoaned + totalLoanInterest) + totalProductSold + totalContractReceivable + totalVehicleSold;
+    // Grand totals - usando métricas de SALDO para "falta receber"
+    const totalToReceive = faltaReceber + totalLoanInterest + totalProductSold + totalContractReceivable + totalVehicleSold;
     const totalReceived = totalLoanReceived + totalProductReceived + totalContractReceived + totalVehicleReceived;
-    const totalProfit = (totalLoanReceived - totalLoaned) + totalProductProfit + totalVehicleProfit;
+    const totalProfit = (totalLoanReceived - capitalNaRua) + totalProductProfit + totalVehicleProfit;
     const totalOverdue = totalLoanOverdue + totalProductOverdue + totalContractOverdue + totalVehicleOverdue;
 
-    // Health score calculation
+    // Health score calculation - usando empréstimos ativos
     const receiptRate = totalToReceive > 0 ? (totalReceived / totalToReceive) * 100 : 100;
-    const delinquencyRate = filteredLoans.length > 0 ? (overdueLoansFiltered.length / filteredLoans.length) * 100 : 0;
+    const delinquencyRate = activeLoans.length > 0 ? (overdueLoans.length / activeLoans.length) * 100 : 0;
     const profitMargin = totalToReceive > 0 ? (totalProfit / totalToReceive) * 100 : 0;
     
     let healthScore = 100;
@@ -317,23 +331,23 @@ export default function Reports() {
     if (totalProfit < 0) healthScore -= 10;
     healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
 
-    // Alerts data
+    // Alerts data - usando empréstimos ativos para alertas
     const nextWeek = addDays(today, 7);
     
     const dueThisWeek = {
-      count: filteredLoans.filter(l => {
+      count: activeLoans.filter(l => {
         const dueDate = new Date(l.due_date);
-        return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
+        return dueDate >= today && dueDate <= nextWeek;
       }).length,
-      amount: filteredLoans.filter(l => {
+      amount: activeLoans.filter(l => {
         const dueDate = new Date(l.due_date);
-        return l.status !== 'paid' && dueDate >= today && dueDate <= nextWeek;
+        return dueDate >= today && dueDate <= nextWeek;
       }).reduce((sum, l) => sum + l.remaining_balance, 0)
     };
 
     const overdueMoreThan30Days = {
-      count: overdueLoansFiltered.filter(l => differenceInDays(today, new Date(l.due_date)) > 30).length,
-      amount: overdueLoansFiltered.filter(l => differenceInDays(today, new Date(l.due_date)) > 30)
+      count: overdueLoans.filter(l => differenceInDays(today, new Date(l.due_date)) > 30).length,
+      amount: overdueLoans.filter(l => differenceInDays(today, new Date(l.due_date)) > 30)
         .reduce((sum, l) => sum + l.remaining_balance, 0)
     };
 
@@ -350,19 +364,21 @@ export default function Reports() {
       overdueMoreThan30Days,
       vehiclesOverdue: { count: overdueVehiclesList.length, amount: totalVehicleOverdue },
       productsOverdue: { count: overdueProducts.length, amount: totalProductOverdue },
-      // Category breakdown
-      loans: { total: totalLoaned + totalLoanInterest, received: totalLoanReceived, overdue: totalLoanOverdue },
+      // Category breakdown - usando métricas de saldo para empréstimos
+      loans: { total: faltaReceber + totalLoanInterest, received: totalLoanReceived, overdue: totalLoanOverdue },
       products: { total: totalProductSold, received: totalProductReceived, overdue: totalProductOverdue },
       contracts: { total: totalContractReceivable, received: totalContractReceived, overdue: totalContractOverdue },
       vehicles: { total: totalVehicleSold, received: totalVehicleReceived, overdue: totalVehicleOverdue },
-      // Loan specific
-      totalLoaned,
+      // Loan specific - métricas de saldo
+      capitalNaRua,
+      faltaReceber,
+      totalLoanedInPeriod,
       totalLoanReceived,
       totalLoanInterest,
       totalLoanOverdue,
-      overdueLoansCount: overdueLoansFiltered.length,
-      paidLoansCount: filteredLoans.filter(l => l.status === 'paid').length,
-      totalLoansCount: filteredLoans.length,
+      overdueLoansCount: overdueLoans.length,
+      paidLoansCount: safeLoans.filter(l => l.status === 'paid').length,
+      totalLoansCount: activeLoans.length,
       loanedVariation,
       // Product specific
       totalProductSold,
@@ -385,11 +401,11 @@ export default function Reports() {
       paidVehiclesCount: filteredVehicles.filter(v => v.status === 'paid').length,
       totalVehiclesCount: filteredVehicles.length,
       // Overdue lists for tables
-      overdueLoansFiltered,
+      overdueLoans,
       overdueProducts,
       overdueVehiclesList,
     };
-  }, [filteredLoans, filteredSales, filteredVehicles, filteredContracts, safeProductPayments, safeVehiclePayments, prevPeriodLoans, prevPeriodSales, prevPeriodVehicles]);
+  }, [activeLoans, filteredLoans, filteredSales, filteredVehicles, filteredContracts, safeLoans, safeProductPayments, safeContractPayments, safeVehiclePayments, prevPeriodLoans, prevPeriodSales, prevPeriodVehicles]);
 
   // Monthly evolution data for charts
   const monthlyEvolutionData = useMemo(() => {
@@ -431,7 +447,7 @@ export default function Reports() {
   // Loan chart data
   const loanChartData = useMemo(() => {
     const allData = [
-      { name: 'Emprestado', value: consolidatedStats.totalLoaned, fill: 'hsl(var(--chart-1))', key: 'emprestado' },
+      { name: 'Capital na Rua', value: consolidatedStats.capitalNaRua, fill: 'hsl(var(--chart-1))', key: 'emprestado' },
       { name: 'Juros', value: consolidatedStats.totalLoanInterest, fill: 'hsl(var(--chart-4))', key: 'juros' },
       { name: 'Recebido', value: consolidatedStats.totalLoanReceived, fill: 'hsl(var(--chart-2))', key: 'recebido' },
       { name: 'Em Atraso', value: consolidatedStats.totalLoanOverdue, fill: 'hsl(var(--chart-3))', key: 'atraso' },
@@ -617,8 +633,8 @@ export default function Reports() {
           <TabsContent value="loans" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               <MetricCard
-                label="Total Emprestado"
-                value={formatCurrency(consolidatedStats.totalLoaned)}
+                label="Capital na Rua"
+                value={formatCurrency(consolidatedStats.capitalNaRua)}
                 icon={DollarSign}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
@@ -748,8 +764,8 @@ export default function Reports() {
             <Card className="shadow-soft">
               <CardHeader className="pb-2"><CardTitle className="text-base sm:text-lg">Inadimplentes no Período</CardTitle></CardHeader>
               <CardContent className="p-2 sm:p-6">
-                {consolidatedStats.overdueLoansFiltered.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhum cliente inadimplente no período</p>
+                {consolidatedStats.overdueLoans.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-6 text-sm">Nenhum cliente inadimplente</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -762,7 +778,7 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {consolidatedStats.overdueLoansFiltered.slice(0, 10).map((loan) => (
+                        {consolidatedStats.overdueLoans.slice(0, 10).map((loan) => (
                           <TableRow key={loan.id}>
                             <TableCell className="font-medium text-xs sm:text-sm">{loan.client?.full_name}</TableCell>
                             <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{formatCurrency(loan.principal_amount)}</TableCell>
