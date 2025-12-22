@@ -4734,11 +4734,15 @@ export default function Loans() {
                                     const paidCount = getPaidInstallmentsCount(loan);
                                     let defaultNextDueDate = '';
                                     
-                                    if (dates.length > 0 && paidCount < dates.length) {
-                                      const currentInstallmentDate = new Date(dates[paidCount] + 'T12:00:00');
-                                      currentInstallmentDate.setMonth(currentInstallmentDate.getMonth() + 1);
-                                      defaultNextDueDate = format(currentInstallmentDate, 'yyyy-MM-dd');
+                                    // Usar a próxima parcela do array installment_dates
+                                    if (dates.length > 0 && paidCount + 1 < dates.length) {
+                                      // Há próxima parcela - usar ela diretamente
+                                      defaultNextDueDate = dates[paidCount + 1];
+                                    } else if (dates.length > 0 && paidCount < dates.length) {
+                                      // É a última parcela - não há próximo vencimento
+                                      defaultNextDueDate = '';
                                     } else if (loan.due_date) {
+                                      // Fallback para empréstimos sem installment_dates
                                       const dueDate = new Date(loan.due_date + 'T12:00:00');
                                       dueDate.setMonth(dueDate.getMonth() + 1);
                                       defaultNextDueDate = format(dueDate, 'yyyy-MM-dd');
@@ -5728,12 +5732,12 @@ export default function Loans() {
                                       const dates = (loan.installment_dates as string[]) || [];
                                       const paidCount = getPaidInstallmentsCount(loan);
                                       let defaultNextDueDate = '';
-                                      if (dates.length > 0 && paidCount < dates.length) {
-                                        const currentDueDate = new Date(dates[paidCount] + 'T12:00:00');
-                                        const nextDate = new Date(currentDueDate);
-                                        nextDate.setDate(nextDate.getDate() + 1);
-                                        defaultNextDueDate = format(nextDate, 'yyyy-MM-dd');
+                                      // Usar a próxima parcela do array installment_dates
+                                      if (dates.length > 0 && paidCount + 1 < dates.length) {
+                                        // Há próxima parcela - usar ela diretamente
+                                        defaultNextDueDate = dates[paidCount + 1];
                                       }
+                                      // Se é a última parcela, defaultNextDueDate fica vazio
                                       setPaymentData({ 
                                         amount: totalPerInstallmentDisplay.toFixed(2), 
                                         payment_date: format(new Date(), 'yyyy-MM-dd'),
