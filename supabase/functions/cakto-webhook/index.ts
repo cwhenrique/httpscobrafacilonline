@@ -154,12 +154,13 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 }
 
 // Send WhatsApp message via Evolution API
-async function sendWhatsAppMessage(phone: string, message: string) {
+async function sendWhatsAppMessage(phone: string, message: string, instanceName?: string) {
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-  const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+  // Use provided instanceName or fallback to env variable
+  const instance = instanceName || Deno.env.get('EVOLUTION_INSTANCE_NAME');
 
-  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
+  if (!evolutionApiUrl || !evolutionApiKey || !instance) {
     console.log('Evolution API not configured, skipping WhatsApp message');
     return;
   }
@@ -172,7 +173,7 @@ async function sendWhatsAppMessage(phone: string, message: string) {
   }
 
   const cleanedUrl = cleanApiUrl(evolutionApiUrl);
-  const fullUrl = `${cleanedUrl}/message/sendText/${evolutionInstanceName}`;
+  const fullUrl = `${cleanedUrl}/message/sendText/${instance}`;
   console.log('Sending WhatsApp to URL:', fullUrl);
 
   try {
@@ -192,11 +193,45 @@ async function sendWhatsAppMessage(phone: string, message: string) {
       const errorText = await response.text();
       console.error('Error sending WhatsApp message:', errorText);
     } else {
-      console.log('WhatsApp message sent successfully to:', formattedPhone);
+      console.log('WhatsApp message sent successfully to:', formattedPhone, 'via instance:', instance);
     }
   } catch (error) {
     console.error('Error sending WhatsApp message:', error);
   }
+}
+
+// Get subscription time label in Portuguese
+function getSubscriptionTimeLabel(plan: string): string {
+  switch (plan) {
+    case 'lifetime':
+      return 'Vitalício';
+    case 'annual':
+      return '1 ano';
+    case 'monthly':
+      return '1 mês';
+    default:
+      return plan;
+  }
+}
+
+// Get subscription price from payload
+function getSubscriptionPrice(payload: any): string {
+  const price = parseFloat(
+    payload.data?.total ||
+    payload.total ||
+    payload.data?.value ||
+    payload.value ||
+    payload.data?.amount ||
+    payload.amount ||
+    payload.data?.price ||
+    payload.price ||
+    '0'
+  );
+  
+  if (price > 0) {
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  return '';
 }
 
 serve(async (req) => {
@@ -456,21 +491,24 @@ Obrigado por continuar com a gente! 💚`;
       }
     }
 
-    // Send credentials via WhatsApp
+    // Send credentials via WhatsApp using Cobrafacilapp instance
     if (customerPhone) {
-      const welcomeMessage = `🎉 *Parabéns pela sua compra!*
+      const subscriptionTime = getSubscriptionTimeLabel(plan);
+      const subscriptionPrice = getSubscriptionPrice(payload);
+      
+      const welcomeMessage = `Olá ${customerName || 'Cliente'}!
 
-Olá ${customerName || 'Cliente'}!
+Seu acesso de ${subscriptionTime} foi ativado com sucesso!
 
-Ficamos muito felizes em ter você com a gente! 💚
+📧 Email: ${customerEmail}
+🔑 Senha: ${DEFAULT_PASSWORD}
 
-Para obter seu acesso ao *CobraFácil*, entre em contato com nosso suporte:
+🔗 Acesse agora: https://cobrafacil.online/auth
 
-📱 *WhatsApp Suporte:* (17) 99105-0811
+${subscriptionPrice ? `Obrigado pela compra de ${subscriptionPrice}` : 'Obrigado pela sua compra!'}`;
 
-Estamos prontos para te ajudar a começar! 🚀`;
-
-      await sendWhatsAppMessage(customerPhone, welcomeMessage);
+      // Send via Cobrafacilapp instance
+      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
     }
 
     return new Response(
