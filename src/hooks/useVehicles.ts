@@ -267,56 +267,7 @@ export function useVehicles() {
           .eq('id', newVehicle.id);
       }
 
-      // Send WhatsApp notification - only if enabled (default: true)
-      if (data.send_creation_notification !== false) {
-        const userPhone = await getUserPhone(user.id);
-        if (userPhone) {
-        const vehicleName = `${data.brand} ${data.model} ${data.year}`;
-        const clientName = data.buyer_name || data.seller_name;
-        const contractId = `VEI-${newVehicle.id.substring(0, 4).toUpperCase()}`;
-        const profit = data.purchase_value - (data.cost_value || 0);
-        const profitPercent = data.cost_value && data.cost_value > 0 ? (profit / data.cost_value * 100) : 0;
-        
-        // Calculate actual remaining balance considering pre-paid installments
-        const actualTotalPaid = downPayment + paidAmount;
-        const actualRemainingBalance = data.purchase_value - actualTotalPaid;
-        const pendingInstallments = data.installments - paidCount;
-        const progressPercent = data.installments > 0 ? Math.round((paidCount / data.installments) * 100) : 0;
-        
-        // Find next due date (first unpaid installment)
-        const nextDueInstallment = data.custom_installments?.find(inst => !inst.isPaid);
-        const nextDueDate = nextDueInstallment?.due_date || data.first_due_date;
-        
-        let message = `🚗 *Resumo do Veículo - ${contractId}*\n\n`;
-        message += `👤 Cliente: ${clientName}\n\n`;
-        message += `💰 *Informações do Veículo:*\n`;
-        message += `- Veículo: ${vehicleName}\n`;
-        if (data.plate) message += `- Placa: ${data.plate}\n`;
-        message += `- Valor do Veículo: ${formatCurrency(data.purchase_value)}\n`;
-        if (data.cost_value && data.cost_value > 0) {
-          message += `- Custo Aquisição: ${formatCurrency(data.cost_value)}\n`;
-          message += `- Lucro Estimado: ${formatCurrency(profit)} (${profitPercent.toFixed(1)}%)\n`;
-        }
-        message += `- Modalidade: Parcelado\n\n`;
-        
-        message += `📊 *Status das Parcelas:*\n`;
-        message += `✅ Pagas: ${paidCount} de ${data.installments} parcelas (${formatCurrency(actualTotalPaid)})\n`;
-        message += `⏰ Pendentes: ${pendingInstallments} parcelas (${formatCurrency(actualRemainingBalance)})\n`;
-        message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
-        
-        if (pendingInstallments > 0) {
-          message += `📅 *Próxima Parcela:*\n`;
-          message += `- Vencimento: ${formatDate(nextDueDate)}\n`;
-          message += `- Valor: ${formatCurrency(data.installment_value)}\n\n`;
-        }
-        
-        message += `💰 Saldo Devedor: ${formatCurrency(actualRemainingBalance)}\n\n`;
-        message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-        message += `_CobraFácil - Registro automático_`;
-
-          await sendWhatsAppNotification(userPhone, message);
-        }
-      }
+      // WhatsApp notifications removed - only sent via explicit user click
 
       return newVehicle;
     },
@@ -680,68 +631,7 @@ export function useVehiclePayments(vehicleId?: string) {
 
       if (vehicleError) throw vehicleError;
 
-      // Send WhatsApp notification
-      try {
-        const userPhone = await getUserPhone(vehicle.user_id);
-
-        if (userPhone) {
-          const { data: allPaymentsForVehicle } = await supabase
-            .from('vehicle_payments')
-            .select('*')
-            .eq('vehicle_id', vehicleId)
-            .order('installment_number', { ascending: true });
-          
-          const totalInstallments = remainder > 0.01 ? newInstallmentNumber : (vehicle?.installments || 1);
-          const paidInstallments = allPaymentsForVehicle?.filter(p => p.status === 'paid' || p.id === paymentId).length || 0;
-          const progressPercent = Math.round((paidInstallments / totalInstallments) * 100);
-          const filledBars = Math.round(progressPercent / 10);
-          const emptyBars = 10 - filledBars;
-          const progressBar = '█'.repeat(filledBars) + '░'.repeat(emptyBars);
-          
-          const vehicleName = `${vehicle.brand} ${vehicle.model} ${vehicle.year}`;
-          const clientName = vehicle.buyer_name || vehicle.seller_name;
-          
-          let message = `✅ *PAGAMENTO RECEBIDO!*\n`;
-          message += `━━━━━━━━━━━━━━━━\n\n`;
-          message += `🚗 Veículo: ${vehicleName}\n`;
-          message += `👤 Cliente: ${clientName}\n\n`;
-          message += `💰 *PAGAMENTO*\n`;
-          message += `━━━━━━━━━━━━━━━━\n`;
-          message += `💵 Valor Pago: R$ ${paidAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-          message += `📅 Data: ${paidDate.split('-').reverse().join('/')}\n`;
-          
-          if (remainder > 0.01) {
-            message += `\n⚠️ *PARCELA PARCIAL*\n`;
-            message += `Valor original: R$ ${originalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-            message += `Nova parcela criada: R$ ${remainder.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-          } else if (overpayment > 0.01) {
-            message += `\n💚 *PAGAMENTO A MAIS*\n`;
-            message += `Excedente de R$ ${overpayment.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} abatido do saldo.\n`;
-          }
-          
-          message += `\n📊 *PROGRESSO*\n`;
-          message += `━━━━━━━━━━━━━━━━\n`;
-          message += `✅ Parcelas Pagas: ${paidInstallments}/${totalInstallments}\n`;
-          message += `📈 Progresso: ${progressBar} ${progressPercent}%\n`;
-          message += `💰 Total Pago: R$ ${newTotalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-          message += `💳 Saldo Restante: R$ ${Math.max(0, newRemainingBalance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-          
-          const nextUnpaid = allPaymentsForVehicle?.find(p => p.status === 'pending' && p.id !== paymentId);
-          if (nextUnpaid) {
-            const nextDueDate = new Date(nextUnpaid.due_date + 'T12:00:00');
-            message += `\n📅 Próxima Parcela: ${nextDueDate.toLocaleDateString('pt-BR')} (R$ ${nextUnpaid.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})\n`;
-          } else if (newRemainingBalance <= 0) {
-            message += `\n🎉 *CONTRATO QUITADO!*\n`;
-          }
-          
-          message += `\n━━━━━━━━━━━━━━━━\n`;
-          message += `_CobraFácil - Registro automático_`;
-          
-          await sendWhatsAppNotification(userPhone, message);
-        }
-      } catch (err) {
-        console.error('Erro ao enviar WhatsApp:', err);
-      }
+      // WhatsApp notifications removed - only sent via explicit user click
 
       return { 
         payment, 
