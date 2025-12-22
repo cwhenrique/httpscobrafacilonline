@@ -492,6 +492,11 @@ export default function Loans() {
   const [editInstallmentValue, setEditInstallmentValue] = useState('');
   const [isEditManuallyEditingInstallment, setIsEditManuallyEditingInstallment] = useState(false);
   
+  // Skip states for edit form
+  const [editSkipSaturday, setEditSkipSaturday] = useState(false);
+  const [editSkipSunday, setEditSkipSunday] = useState(false);
+  const [editSkipHolidays, setEditSkipHolidays] = useState(false);
+  
   // Auto-regenerate installment dates when number of installments changes in edit form
   useEffect(() => {
     if (isEditDialogOpen && (editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && editFormData.start_date) {
@@ -2667,7 +2672,16 @@ export default function Loans() {
       .replace(/\[HISTORICAL_PAID:[^\]]+\]\n?/g, '')
       .replace(/\[HISTORICAL_INTEREST_PAID:[^\]]+\]\n?/g, '')
       .replace(/\[RENEGOTIATION_DATE:[^\]]+\]\n?/g, '')
+      .replace(/\[SKIP_SATURDAY\]\n?/g, '')
+      .replace(/\[SKIP_SUNDAY\]\n?/g, '')
+      .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
       .trim();
+    
+    // Load skip settings from notes
+    const loanNotes = loan.notes || '';
+    setEditSkipSaturday(loanNotes.includes('[SKIP_SATURDAY]'));
+    setEditSkipSunday(loanNotes.includes('[SKIP_SUNDAY]'));
+    setEditSkipHolidays(loanNotes.includes('[SKIP_HOLIDAYS]'));
     
     setEditingLoanId(loanId);
     setEditLoanIsOverdue(isOverdue);
@@ -2754,8 +2768,24 @@ export default function Loans() {
       overdueConfigNote = `[OVERDUE_CONFIG:fixed:${fixedAmount}]`;
     }
     
-    // Remove any existing overdue config from notes
-    let cleanNotes = (editFormData.notes || '').replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '').trim();
+    // Remove any existing overdue config and skip tags from notes
+    let cleanNotes = (editFormData.notes || '')
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+      .replace(/\[SKIP_SATURDAY\]\n?/g, '')
+      .replace(/\[SKIP_SUNDAY\]\n?/g, '')
+      .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
+      .trim();
+    
+    // Add skip tags if enabled
+    const skipTags = [
+      editSkipSaturday && '[SKIP_SATURDAY]',
+      editSkipSunday && '[SKIP_SUNDAY]',
+      editSkipHolidays && '[SKIP_HOLIDAYS]',
+    ].filter(Boolean).join('');
+    
+    if (skipTags) {
+      cleanNotes = `${skipTags}\n${cleanNotes}`.trim();
+    }
     
     // For single payment, due_date comes from start_date (first payment date)
     // For installments, due_date comes from the last installment date
@@ -7531,6 +7561,73 @@ export default function Loans() {
                       />
                     </div>
                   </div>
+                  
+                  {/* Skip weekends/holidays section for daily loans edit form */}
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox 
+                          checked={editSkipSaturday} 
+                          onCheckedChange={(checked) => setEditSkipSaturday(!!checked)} 
+                        />
+                        <span className="text-sm">Sábados</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox 
+                          checked={editSkipSunday} 
+                          onCheckedChange={(checked) => setEditSkipSunday(!!checked)} 
+                        />
+                        <span className="text-sm">Domingos</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox 
+                          checked={editSkipHolidays} 
+                          onCheckedChange={(checked) => setEditSkipHolidays(!!checked)} 
+                        />
+                        <span className="text-sm">Feriados</span>
+                      </label>
+                    </div>
+                    
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const numInstallments = parseInt(editFormData.installments) || editInstallmentDates.length || 1;
+                        const startDate = editFormData.start_date || editInstallmentDates[0];
+                        if (!startDate) {
+                          toast.error('Selecione uma data inicial primeiro');
+                          return;
+                        }
+                        const newDates = generateDailyDates(startDate, numInstallments, editSkipSaturday, editSkipSunday, editSkipHolidays);
+                        
+                        setEditInstallmentDates(newDates);
+                        if (newDates.length > 0) {
+                          setEditFormData(prev => ({ 
+                            ...prev, 
+                            due_date: newDates[newDates.length - 1],
+                            installments: newDates.length.toString()
+                          }));
+                        }
+                        toast.success('Datas recalculadas!');
+                      }}
+                      className="mt-2"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Recalcular Datas
+                    </Button>
+                    
+                    {(editSkipSaturday || editSkipSunday || editSkipHolidays) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ {[
+                          editSkipSaturday && 'Sábados',
+                          editSkipSunday && 'Domingos', 
+                          editSkipHolidays && 'Feriados'
+                        ].filter(Boolean).join(', ')} serão pulados ao recalcular
+                      </p>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
@@ -7758,6 +7855,75 @@ export default function Loans() {
                           </div>
                         ))}
                       </ScrollArea>
+                    </div>
+                  )}
+                  
+                  {/* Skip weekends/holidays section for edit form */}
+                  {(editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && (
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={editSkipSaturday} 
+                            onCheckedChange={(checked) => setEditSkipSaturday(!!checked)} 
+                          />
+                          <span className="text-sm">Sábados</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={editSkipSunday} 
+                            onCheckedChange={(checked) => setEditSkipSunday(!!checked)} 
+                          />
+                          <span className="text-sm">Domingos</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={editSkipHolidays} 
+                            onCheckedChange={(checked) => setEditSkipHolidays(!!checked)} 
+                          />
+                          <span className="text-sm">Feriados</span>
+                        </label>
+                      </div>
+                      
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          const numInstallments = parseInt(editFormData.installments) || 1;
+                          const startDate = editFormData.start_date;
+                          let newDates: string[] = [];
+                          
+                          if (editFormData.payment_type === 'weekly') {
+                            newDates = generateWeeklyDates(startDate, numInstallments, editSkipSaturday, editSkipSunday, editSkipHolidays);
+                          } else if (editFormData.payment_type === 'biweekly') {
+                            newDates = generateBiweeklyDates(startDate, numInstallments, editSkipSaturday, editSkipSunday, editSkipHolidays);
+                          } else if (editFormData.payment_type === 'installment') {
+                            newDates = generateMonthlyDates(startDate, numInstallments, editSkipSaturday, editSkipSunday, editSkipHolidays);
+                          }
+                          
+                          setEditInstallmentDates(newDates);
+                          if (newDates.length > 0) {
+                            setEditFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
+                          }
+                          toast.success('Datas recalculadas!');
+                        }}
+                        className="mt-2"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Recalcular Datas
+                      </Button>
+                      
+                      {(editSkipSaturday || editSkipSunday || editSkipHolidays) && (
+                        <p className="text-xs text-amber-500">
+                          ⚠️ {[
+                            editSkipSaturday && 'Sábados',
+                            editSkipSunday && 'Domingos', 
+                            editSkipHolidays && 'Feriados'
+                          ].filter(Boolean).join(', ')} serão pulados ao recalcular
+                        </p>
+                      )}
                     </div>
                   )}
                 </>
