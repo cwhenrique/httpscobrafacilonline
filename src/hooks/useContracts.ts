@@ -112,6 +112,23 @@ export function useContracts() {
     enabled: !!user,
   });
 
+  // Query para buscar todos os pagamentos de contratos do usuário
+  const { data: allContractPayments = [] } = useQuery({
+    queryKey: ['all_contract_payments', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('contract_payments')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      return data as ContractPayment[];
+    },
+    enabled: !!user,
+  });
+
   const createContract = useMutation({
     mutationFn: async (contractData: CreateContractData) => {
       if (!user) throw new Error('User not authenticated');
@@ -238,6 +255,7 @@ export function useContracts() {
 
   return {
     contracts,
+    allContractPayments,
     isLoading,
     error,
     createContract,
