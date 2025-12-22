@@ -13,6 +13,7 @@ export interface SimulationPDFData {
   interestMode: string;
   effectiveRate: number;
   startDate: string;
+  firstDueDate?: string;
   schedule: Array<{
     number: number;
     dueDate: string;
@@ -1489,7 +1490,7 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
   // === CONFIGURATION SECTION ===
   doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setLineWidth(0.5);
-  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 32, 2, 2, 'S');
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 40, 2, 2, 'S');
 
   doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setFontSize(11);
@@ -1516,16 +1517,23 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
   configY += 8;
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Data Inicial:', col1X, configY);
+  doc.text('Data de Início:', col1X, configY);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.startDate, col1X + 30, configY);
+  doc.text(data.startDate, col1X + 35, configY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Nº de Parcelas:', col2X, configY);
+  doc.text('Primeiro Vencimento:', col2X, configY);
   doc.setFont('helvetica', 'normal');
-  doc.text(String(data.installments), col2X + 40, configY);
+  doc.text(data.firstDueDate || data.startDate, col2X + 52, configY);
 
-  currentY += 40;
+  configY += 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nº de Parcelas:', col1X, configY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(data.installments), col1X + 40, configY);
+
+  currentY += 48;
 
   // === SIMULATION DATA SECTION ===
   doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
