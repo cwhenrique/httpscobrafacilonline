@@ -1966,6 +1966,35 @@ export default function Loans() {
       send_notification: paymentData.send_notification,
     });
     
+    // 🆕 CORREÇÃO: Atualizar due_date automaticamente para a próxima parcela não paga
+    // Isso corrige o problema de empréstimos semanais/quinzenais/parcelados ficando "atrasados"
+    // mesmo após pagamento, porque o due_date não era atualizado para a próxima parcela
+    if (!paymentData.new_due_date) {
+      const dates = (selectedLoan.installment_dates as string[]) || [];
+      const hasMultipleInstallments = ['weekly', 'biweekly', 'installment', 'daily'].includes(selectedLoan.payment_type);
+      
+      if (hasMultipleInstallments && dates.length > 1) {
+        // Usar o updatedNotes que já foi salvo no banco
+        const loanForCalc = { 
+          ...selectedLoan, 
+          notes: updatedNotes,
+          total_paid: (selectedLoan.total_paid || 0) + amount // Simular o novo total_paid
+        };
+        const newPaidInstallments = getPaidInstallmentsCount(loanForCalc);
+        
+        // Se ainda há parcelas em aberto, atualizar due_date para a próxima
+        if (newPaidInstallments < dates.length) {
+          const nextDueDate = dates[newPaidInstallments];
+          
+          await supabase.from('loans').update({ 
+            due_date: nextDueDate
+          }).eq('id', selectedLoanId);
+          
+          console.log(`[AUTO_DUE_DATE] Atualizado due_date para próxima parcela: ${nextDueDate} (parcela ${newPaidInstallments + 1})`);
+        }
+      }
+    }
+    
     // Calculate new remaining balance after payment - usar remaining_balance do banco
     const newRemainingBalance = selectedLoan.remaining_balance - amount;
     
