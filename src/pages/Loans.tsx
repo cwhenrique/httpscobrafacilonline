@@ -707,9 +707,72 @@ export default function Loans() {
     notes: '',
     daily_amount: '',
     daily_period: '15',
+    daily_interest_rate: '', // Taxa de juros para empréstimo diário
     is_historical_contract: false, // Contract being registered retroactively
     send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
   });
+  
+  // Handlers para sincronização bidirecional do empréstimo diário
+  const handleDailyAmountChange = (value: string) => {
+    const dailyAmount = parseFloat(value) || 0;
+    const principal = parseFloat(formData.principal_amount) || 0;
+    const numInstallments = installmentDates.length || parseInt(formData.daily_period) || 1;
+    
+    if (dailyAmount > 0 && principal > 0 && numInstallments > 0) {
+      const totalToReceive = dailyAmount * numInstallments;
+      const profit = totalToReceive - principal;
+      const interestRate = (profit / principal) * 100;
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        daily_amount: value,
+        daily_interest_rate: interestRate.toFixed(2)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, daily_amount: value }));
+    }
+  };
+  
+  const handleDailyInterestChange = (value: string) => {
+    const interestRate = parseFloat(value) || 0;
+    const principal = parseFloat(formData.principal_amount) || 0;
+    const numInstallments = installmentDates.length || parseInt(formData.daily_period) || 1;
+    
+    if (principal > 0 && numInstallments > 0 && interestRate >= 0) {
+      const totalInterest = principal * (interestRate / 100);
+      const totalToReceive = principal + totalInterest;
+      const dailyAmount = totalToReceive / numInstallments;
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        daily_interest_rate: value,
+        daily_amount: dailyAmount.toFixed(2)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, daily_interest_rate: value }));
+    }
+  };
+  
+  const handleDailyPrincipalChange = (value: string) => {
+    const principal = parseFloat(value) || 0;
+    const interestRate = parseFloat(formData.daily_interest_rate) || 0;
+    const numInstallments = installmentDates.length || parseInt(formData.daily_period) || 1;
+    
+    // Se já há uma taxa de juros definida, recalcular a parcela
+    if (principal > 0 && interestRate > 0 && numInstallments > 0) {
+      const totalInterest = principal * (interestRate / 100);
+      const totalToReceive = principal + totalInterest;
+      const dailyAmount = totalToReceive / numInstallments;
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        principal_amount: value,
+        daily_amount: dailyAmount.toFixed(2)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, principal_amount: value }));
+    }
+  };
   
   // Estado removido - agora usa historicalInterestReceived e historicalInterestNotes definidos anteriormente
   
@@ -2052,7 +2115,7 @@ export default function Loans() {
       interest_mode: 'per_installment', payment_type: 'single', installments: '1', 
       contract_date: format(new Date(), 'yyyy-MM-dd'),
       start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
-      daily_amount: '', daily_period: '15', is_historical_contract: false, send_creation_notification: false,
+      daily_amount: '', daily_period: '15', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -2996,7 +3059,7 @@ export default function Loans() {
                         type="number" 
                         step="0.01" 
                         value={formData.principal_amount} 
-                        onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} 
+                        onChange={(e) => handleDailyPrincipalChange(e.target.value)} 
                         placeholder="Ex: 1000"
                         required 
                         className="h-9 sm:h-10 text-sm"
@@ -3008,12 +3071,24 @@ export default function Loans() {
                         type="number" 
                         step="0.01" 
                         value={formData.daily_amount} 
-                        onChange={(e) => setFormData({ ...formData, daily_amount: e.target.value })} 
+                        onChange={(e) => handleDailyAmountChange(e.target.value)} 
                         placeholder="Ex: 50"
                         required 
                         className="h-9 sm:h-10 text-sm"
                       />
                     </div>
+                  </div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Juros (%)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={formData.daily_interest_rate} 
+                      onChange={(e) => handleDailyInterestChange(e.target.value)} 
+                      placeholder="Ex: 25"
+                      className="h-9 sm:h-10 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Altere o juros para recalcular a parcela automaticamente</p>
                   </div>
                   {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
                     <div className="bg-sky-50 dark:bg-sky-900/30 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border border-sky-200 dark:border-sky-700">
@@ -3069,12 +3144,30 @@ export default function Loans() {
                       value={formData.daily_period || ''} 
                       onChange={(e) => {
                         const count = e.target.value;
-                        setFormData({ ...formData, daily_period: count, installments: count });
+                        const numInstallments = parseInt(count) || 0;
+                        
                         // Auto-generate dates when count changes and we have start_date
-                        if (formData.start_date && count && parseInt(count) > 0) {
-                          const newDates = generateDailyDates(formData.start_date, parseInt(count), skipSaturday, skipSunday);
+                        if (formData.start_date && count && numInstallments > 0) {
+                          const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday);
                           setInstallmentDates(newDates);
-                          if (newDates.length > 0) {
+                          
+                          // Se tem juros definido, recalcular a parcela
+                          const principal = parseFloat(formData.principal_amount) || 0;
+                          const interestRate = parseFloat(formData.daily_interest_rate) || 0;
+                          
+                          if (principal > 0 && interestRate > 0 && newDates.length > 0) {
+                            const totalInterest = principal * (interestRate / 100);
+                            const totalToReceive = principal + totalInterest;
+                            const dailyAmount = totalToReceive / newDates.length;
+                            
+                            setFormData(prev => ({
+                              ...prev,
+                              daily_period: count,
+                              installments: count,
+                              due_date: newDates[newDates.length - 1],
+                              daily_amount: dailyAmount.toFixed(2)
+                            }));
+                          } else if (newDates.length > 0) {
                             setFormData(prev => ({
                               ...prev,
                               daily_period: count,
@@ -3083,6 +3176,7 @@ export default function Loans() {
                             }));
                           }
                         } else {
+                          setFormData(prev => ({ ...prev, daily_period: count, installments: count }));
                           setInstallmentDates([]);
                         }
                       }} 
