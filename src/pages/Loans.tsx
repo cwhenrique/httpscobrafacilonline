@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
+import { ClientSelector } from '@/components/ClientSelector';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -3045,12 +3046,12 @@ export default function Loans() {
                 <form onSubmit={handleDailySubmit} className="space-y-3 sm:space-y-4">
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Cliente *</Label>
-                    <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                      <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                      <SelectContent className="z-[10001] bg-popover">
-                        {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
+                    <ClientSelector
+                      selectedClientId={formData.client_id || null}
+                      onSelect={(client) => setFormData({ ...formData, client_id: client?.id || '' })}
+                      placeholder="Buscar cliente por nome, telefone ou CPF..."
+                      className="h-9 sm:h-10"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
@@ -3437,12 +3438,11 @@ export default function Loans() {
                         Cadastrar novo cliente
                       </Button>
                       <div className="tutorial-client-select">
-                        <Select value={formData.client_id} onValueChange={(v) => setFormData({ ...formData, client_id: v })}>
-                          <SelectTrigger><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                          <SelectContent className="z-[10001]">
-                            {loanClients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                          </SelectContent>
-                        </Select>
+                        <ClientSelector
+                          selectedClientId={formData.client_id || null}
+                          onSelect={(client) => setFormData({ ...formData, client_id: client?.id || '' })}
+                          placeholder="Buscar cliente por nome, telefone ou CPF..."
+                        />
                       </div>
                     </div>
                   ) : (
@@ -7363,12 +7363,12 @@ export default function Loans() {
             <form onSubmit={handleEditSubmit} className="space-y-3 sm:space-y-4">
               <div className="space-y-1 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">Cliente *</Label>
-                <Select value={editFormData.client_id} onValueChange={(v) => setEditFormData({ ...editFormData, client_id: v })} disabled={editIsRenegotiation}>
-                  <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (<SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
+                <ClientSelector
+                  selectedClientId={editFormData.client_id || null}
+                  onSelect={(client) => setEditFormData({ ...editFormData, client_id: client?.id || '' })}
+                  placeholder="Buscar cliente por nome, telefone ou CPF..."
+                  className={`h-9 sm:h-10 ${editIsRenegotiation ? 'opacity-50 pointer-events-none' : ''}`}
+                />
               </div>
               
               {editFormData.payment_type === 'daily' ? (
