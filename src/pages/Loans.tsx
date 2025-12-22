@@ -951,28 +951,40 @@ export default function Loans() {
     is_advance_payment: false, // Flag para adiantamento de pagamento
   });
 
+  // Generate monthly installment dates
+  const generateMonthlyDates = (startDateStr: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    const dates: string[] = [];
+    const startDate = new Date(startDateStr + 'T12:00:00');
+    const startDay = startDate.getDate();
+    
+    for (let i = 0; i < count; i++) {
+      let date = new Date(startDate);
+      date.setMonth(date.getMonth() + i);
+      
+      // Handle edge cases where the day doesn't exist in the target month
+      if (date.getDate() !== startDay) {
+        date.setDate(0);
+      }
+      
+      // Skip weekends and holidays if marked
+      while (
+        (skipSat && date.getDay() === 6) || 
+        (skipSun && date.getDay() === 0) || 
+        (skipHol && isHoliday(date))
+      ) {
+        date.setDate(date.getDate() + 1);
+      }
+      
+      dates.push(format(date, 'yyyy-MM-dd'));
+    }
+    return dates;
+  };
+
   // Generate installment dates when start_date or installments change
   useEffect(() => {
     if (formData.payment_type === 'installment' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
-      const startDate = new Date(formData.start_date + 'T12:00:00');
-      const startDay = startDate.getDate(); // Get the day of month from start date
-      const newDates: string[] = [];
-      
-      for (let i = 0; i < numInstallments; i++) {
-        const date = new Date(startDate);
-        // Add months instead of days - keep the same day of month
-        date.setMonth(date.getMonth() + i);
-        
-        // Handle edge cases where the day doesn't exist in the target month
-        // (e.g., day 31 in a month with 30 days)
-        if (date.getDate() !== startDay) {
-          // Go to the last day of the previous month
-          date.setDate(0);
-        }
-        
-        newDates.push(format(date, 'yyyy-MM-dd'));
-      }
+      const newDates = generateMonthlyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
       
       setInstallmentDates(newDates);
       // Set the last installment date as the due_date
@@ -980,7 +992,7 @@ export default function Loans() {
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
 
   // Generate weekly dates when start_date or installments change
   useEffect(() => {
@@ -3724,7 +3736,7 @@ export default function Loans() {
                     <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
                   </div>
                 </div>
-                {(formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
+                {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
                   <div className="space-y-2 pt-2 border-t border-border/50">
                     <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
                     <div className="flex flex-wrap gap-4">
