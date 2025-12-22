@@ -162,6 +162,15 @@ export default function Vehicles() {
     
     // Show payment receipt prompt
     const newRemainingBalance = Math.max(0, vehicle.remaining_balance - paymentAmount);
+    
+    // Calculate next due date
+    const vehiclePayments = vehiclePaymentsList?.filter(p => p.vehicle_id === vehicle.id) || [];
+    const nextPayment = vehiclePayments
+      .filter(p => p.status !== 'paid')
+      .sort((a, b) => a.installment_number - b.installment_number)
+      .find(p => p.installment_number > payment.installment_number);
+    const nextDueDateForReceipt = newRemainingBalance > 0 ? nextPayment?.due_date : undefined;
+    
     setPaymentClientPhone(vehicle.buyer_phone || null);
     setPaymentReceiptData({
       type: 'vehicle',
@@ -175,6 +184,7 @@ export default function Vehicles() {
       paymentDate: paymentDate,
       remainingBalance: newRemainingBalance,
       totalPaid: (vehicle.total_paid || 0) + paymentAmount,
+      nextDueDate: nextDueDateForReceipt,
     });
     setIsPaymentReceiptOpen(true);
   };

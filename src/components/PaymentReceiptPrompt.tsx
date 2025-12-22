@@ -74,6 +74,9 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
     message += `Obrigado pela confiança!\n`;
   } else {
     message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    if (data.nextDueDate) {
+      message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
+    }
   }
   
   message += `\n━━━━━━━━━━━━━━━━\n`;
