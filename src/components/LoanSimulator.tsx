@@ -55,6 +55,8 @@ const getDateInterval = (paymentType: PaymentType) => {
   }
 };
 
+type DateMode = 'installments' | 'end_date';
+
 export function LoanSimulator() {
   const [principal, setPrincipal] = useState(1000);
   const [interestRate, setInterestRate] = useState(10);
@@ -62,6 +64,8 @@ export function LoanSimulator() {
   const [paymentType, setPaymentType] = useState<PaymentType>('installment');
   const [interestMode, setInterestMode] = useState<InterestMode>('per_installment');
   const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [dateMode, setDateMode] = useState<DateMode>('installments');
   const [showComparison, setShowComparison] = useState(false);
 
   // Estados intermediários para permitir campo vazio durante digitação
@@ -69,12 +73,31 @@ export function LoanSimulator() {
   const [interestRateInput, setInterestRateInput] = useState('10');
   const [installmentsInput, setInstallmentsInput] = useState('6');
 
-  // Sincronizar inputs quando valores mudam externamente (ex: slider)
-  const syncInputs = () => {
-    if (Number(principalInput) !== principal) setPrincipalInput(String(principal));
-    if (Number(interestRateInput) !== interestRate) setInterestRateInput(String(interestRate));
-    if (Number(installmentsInput) !== installments) setInstallmentsInput(String(installments));
+  // Calcular parcelas a partir das datas
+  const calculateInstallmentsFromDates = (start: Date, end: Date, type: PaymentType): number => {
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 0) return 1;
+    
+    switch (type) {
+      case 'daily': return Math.max(1, diffDays);
+      case 'weekly': return Math.max(1, Math.floor(diffDays / 7));
+      case 'biweekly': return Math.max(1, Math.floor(diffDays / 15));
+      case 'installment': return Math.max(1, Math.floor(diffDays / 30));
+      case 'single': return 1;
+      default: return 1;
+    }
   };
+
+  // Sincronizar parcelas quando usar modo data final
+  useEffect(() => {
+    if (dateMode === 'end_date' && endDate && startDate) {
+      const calculatedInstallments = calculateInstallmentsFromDates(startDate, endDate, paymentType);
+      const maxInstallments = getMaxInstallments(paymentType);
+      setInstallments(Math.min(calculatedInstallments, maxInstallments));
+    }
+  }, [dateMode, startDate, endDate, paymentType]);
 
   // Calculate interest based on mode
   const calculateInterest = (mode: InterestMode, p: number, rate: number, n: number) => {
@@ -286,7 +309,7 @@ export function LoanSimulator() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Configuration Row */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Tipo de Pagamento</Label>
               <Select value={paymentType} onValueChange={(v) => handlePaymentTypeChange(v as PaymentType)}>
@@ -323,6 +346,19 @@ export function LoanSimulator() {
             </div>
 
             <div className="space-y-2">
+              <Label>Configurar por</Label>
+              <Select value={dateMode} onValueChange={(v) => setDateMode(v as DateMode)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="installments">Nº de Parcelas</SelectItem>
+                  <SelectItem value="end_date">Data de Vencimento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Data Inicial</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -343,36 +379,69 @@ export function LoanSimulator() {
               </Popover>
             </div>
 
-            <div className="space-y-2">
-              <Label>Parcelas</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={installmentsInput}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setInstallmentsInput(value);
-                    const numValue = Number(value);
-                    if (value !== '' && !isNaN(numValue) && numValue >= 1) {
-                      setInstallments(Math.min(getMaxInstallments(paymentType), numValue));
-                    }
-                  }}
-                  onBlur={() => {
-                    if (installmentsInput === '' || Number(installmentsInput) < 1) {
-                      setInstallmentsInput('1');
-                      setInstallments(1);
-                    }
-                  }}
-                  min={1}
-                  max={getMaxInstallments(paymentType)}
-                  disabled={paymentType === 'single'}
-                  className="font-semibold"
-                />
+            {dateMode === 'end_date' ? (
+              <div className="space-y-2">
+                <Label>Data de Vencimento</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !endDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={(date) => date && setEndDate(date)}
+                      disabled={(date) => date <= startDate}
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  {endDate && `${installments} parcelas calculadas`}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Máx: {getMaxInstallments(paymentType)}
-              </p>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Parcelas</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    value={installmentsInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setInstallmentsInput(value);
+                      const numValue = Number(value);
+                      if (value !== '' && !isNaN(numValue) && numValue >= 1) {
+                        setInstallments(Math.min(getMaxInstallments(paymentType), numValue));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (installmentsInput === '' || Number(installmentsInput) < 1) {
+                        setInstallmentsInput('1');
+                        setInstallments(1);
+                      }
+                    }}
+                    min={1}
+                    max={getMaxInstallments(paymentType)}
+                    disabled={paymentType === 'single'}
+                    className="font-semibold"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Máx: {getMaxInstallments(paymentType)}
+                </p>
+              </div>
+            )}
           </div>
 
           <Separator />
