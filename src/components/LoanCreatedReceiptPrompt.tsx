@@ -82,29 +82,25 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  // Mensagem para o CLIENTE (SEM juros, SEM tag CobraFácil)
+  // Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
   const generateClientMessage = () => {
     let message = `📄 *CONTRATO DE EMPRÉSTIMO*\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     
-    message += `👤 *Cliente:* ${loan.clientName}\n`;
-    message += `📋 *Tipo:* ${getPaymentTypeLabel(loan.paymentType)}\n\n`;
+    message += `Olá *${loan.clientName}*!\n\n`;
+    message += `Confirmamos o empréstimo:\n\n`;
     
-    message += `💰 *VALORES*\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `💵 Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    message += `💰 Total a Pagar: ${formatCurrency(loan.totalToReceive)}\n`;
+    message += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
+    message += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `📊 Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    message += `📅 Primeiro Vencimento: ${formatDate(loan.startDate)}\n\n`;
+    message += `\n📅 *VENCIMENTOS*\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
     
-    if (installmentDates && installmentDates.length > 0 && loan.installments > 1) {
-      message += `📅 *VENCIMENTOS*\n`;
-      message += `━━━━━━━━━━━━━━━━\n`;
-      
+    if (installmentDates && installmentDates.length > 0) {
       const maxDatesToShow = 6;
       installmentDates.slice(0, maxDatesToShow).forEach((date, index) => {
         message += `${index + 1}ª: ${formatDate(date)}\n`;
@@ -113,56 +109,54 @@ export default function LoanCreatedReceiptPrompt({
       if (installmentDates.length > maxDatesToShow) {
         message += `... e mais ${installmentDates.length - maxDatesToShow} parcela(s)\n`;
       }
-      message += `\n`;
+    } else {
+      message += `1ª: ${formatDate(loan.startDate)}\n`;
     }
     
-    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `\n━━━━━━━━━━━━━━━━\n`;
     message += `_${companyName}_`;
     
     return message;
   };
 
-  // Mensagem para o COBRADOR (COM juros, COM tag CobraFácil)
+  // Mensagem COMPLETA para USUÁRIO/COBRADOR (com juros, telefone, todas as parcelas)
   const generateCollectorMessage = () => {
     const contractId = `EMP-${loan.id.substring(0, 4).toUpperCase()}`;
     
     let message = `🏷️ *CobraFácil*\n`;
-    message += `📄 *CONTRATO DE EMPRÉSTIMO*\n`;
+    message += `📄 *EMPRÉSTIMO REGISTRADO*\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     
-    message += `👤 *Cliente:* ${loan.clientName}\n`;
-    message += `📋 *Tipo:* ${getPaymentTypeLabel(loan.paymentType)}\n\n`;
+    message += `📋 *Contrato:* ${contractId}\n\n`;
+    
+    message += `👤 *CLIENTE*\n`;
+    message += `• Nome: ${loan.clientName}\n`;
+    if (loan.clientPhone) {
+      message += `• Telefone: ${loan.clientPhone}\n`;
+    }
+    message += `\n`;
     
     message += `💰 *VALORES*\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `💵 Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    message += `📊 Taxa de Juros: ${loan.interestRate}%\n`;
-    message += `📈 Total de Juros: ${formatCurrency(loan.totalInterest)}\n`;
-    message += `💰 Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+    message += `• Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
+    message += `• Taxa de Juros: ${loan.interestRate}%\n`;
+    message += `• Total de Juros: ${formatCurrency(loan.totalInterest)}\n`;
+    message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `📊 Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
+    message += `\n`;
     
-    message += `📅 Primeiro Vencimento: ${formatDate(loan.startDate)}\n\n`;
-    
-    if (installmentDates && installmentDates.length > 0 && loan.installments > 1) {
-      message += `📅 *VENCIMENTOS*\n`;
-      message += `━━━━━━━━━━━━━━━━\n`;
-      
-      const maxDatesToShow = 6;
-      installmentDates.slice(0, maxDatesToShow).forEach((date, index) => {
+    message += `📅 *VENCIMENTOS*\n`;
+    if (installmentDates && installmentDates.length > 0) {
+      installmentDates.forEach((date, index) => {
         message += `${index + 1}ª: ${formatDate(date)}\n`;
       });
-      
-      if (installmentDates.length > maxDatesToShow) {
-        message += `... e mais ${installmentDates.length - maxDatesToShow} parcela(s)\n`;
-      }
-      message += `\n`;
+    } else {
+      message += `1ª: ${formatDate(loan.startDate)}\n`;
     }
     
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `_${companyName} - ${contractId}_`;
+    message += `\n━━━━━━━━━━━━━━━━`;
     
     return message;
   };

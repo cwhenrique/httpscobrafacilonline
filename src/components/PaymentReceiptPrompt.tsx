@@ -46,39 +46,84 @@ const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): s
   }
 };
 
-const generateWhatsAppMessage = (data: PaymentReceiptData): string => {
-  const prefix = getContractPrefix(data.type);
-  const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
+// Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
+const generateClientMessage = (data: PaymentReceiptData): string => {
   const isFullyPaid = data.remainingBalance <= 0;
+  const paidCount = data.installmentNumber;
+  const totalCount = data.totalInstallments;
+  const progressPercent = Math.round((paidCount / totalCount) * 100);
   
-  let message = `✅ *COMPROVANTE DE PAGAMENTO*\n`;
+  let message = `✅ *PAGAMENTO RECEBIDO*\n`;
   message += `━━━━━━━━━━━━━━━━\n\n`;
-  message += `📋 *Contrato:* ${contractNumber}\n`;
-  message += `👤 *Cliente:* ${data.clientName}\n`;
-  message += `📊 *Parcela:* ${data.installmentNumber}/${data.totalInstallments}\n\n`;
   
-  message += `💰 *PAGAMENTO*\n`;
-  message += `━━━━━━━━━━━━━━━━\n`;
-  message += `💵 Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
-  message += `📅 Data: ${formatDate(data.paymentDate)}\n`;
+  message += `Olá *${data.clientName}*!\n\n`;
+  message += `Confirmamos o recebimento:\n\n`;
   
-  if (data.totalPaid) {
-    message += `💰 Total Pago: ${formatCurrency(data.totalPaid)}\n`;
-  }
+  message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  message += `📊 *Parcela:* ${paidCount}/${totalCount}\n`;
+  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
+  
+  // Progress bar visual
+  const filledBlocks = Math.round(progressPercent / 10);
+  const emptyBlocks = 10 - filledBlocks;
+  message += `📈 *Progresso:*\n`;
+  message += `${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
   
   if (isFullyPaid) {
-    message += `\n🎉 *CONTRATO QUITADO!* 🎉\n`;
+    message += `🎉 *CONTRATO QUITADO!* 🎉\n`;
     message += `Obrigado pela confiança!\n`;
   } else {
-    message += `\n📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
   }
   
   message += `\n━━━━━━━━━━━━━━━━\n`;
   const signatureName = data.billingSignatureName || data.companyName;
   if (signatureName) {
-    message += `_${signatureName}_\n`;
+    message += `_${signatureName}_`;
   }
-  message += `_Comprovante automático_`;
+  
+  return message;
+};
+
+// Mensagem COMPLETA para USUÁRIO/COBRADOR (com todos os detalhes)
+const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string): string => {
+  const prefix = getContractPrefix(data.type);
+  const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
+  const isFullyPaid = data.remainingBalance <= 0;
+  
+  let message = `🏷️ *CobraFácil*\n`;
+  message += `✅ *PAGAMENTO REGISTRADO*\n`;
+  message += `━━━━━━━━━━━━━━━━\n\n`;
+  
+  message += `📋 *Contrato:* ${contractNumber}\n\n`;
+  
+  message += `👤 *CLIENTE*\n`;
+  message += `• Nome: ${data.clientName}\n`;
+  if (clientPhone) {
+    message += `• Telefone: ${clientPhone}\n`;
+  }
+  message += `\n`;
+  
+  message += `💰 *PAGAMENTO*\n`;
+  message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
+  message += `• Data: ${formatDate(data.paymentDate)}\n\n`;
+  
+  message += `📊 *SITUAÇÃO*\n`;
+  if (data.totalContract) {
+    message += `• Total do Contrato: ${formatCurrency(data.totalContract)}\n`;
+  }
+  if (data.totalPaid) {
+    message += `• Total Pago: ${formatCurrency(data.totalPaid)}\n`;
+  }
+  
+  if (isFullyPaid) {
+    message += `\n🎉 *CONTRATO QUITADO!*\n`;
+  } else {
+    message += `• Saldo Restante: ${formatCurrency(data.remainingBalance)}\n`;
+  }
+  
+  message += `\n━━━━━━━━━━━━━━━━`;
   
   return message;
 };
@@ -102,7 +147,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
-      const message = generateWhatsAppMessage(data);
+      const message = generateCollectorMessage(data, clientPhone);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
         body: { phone: profile.phone, message },
@@ -142,7 +187,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
-      const message = generateWhatsAppMessage(data);
+      const message = generateClientMessage(data);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 

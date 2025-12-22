@@ -58,32 +58,28 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  // Generate client-facing message (WITHOUT cost/profit)
+  // Mensagem SIMPLES para CLIENTE (sem custo, sem lucro)
   const generateClientMessage = () => {
-    const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
     const downPayment = sale.down_payment || 0;
     
     let message = `📦 *COMPROVANTE DE VENDA*\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     
-    message += `👤 *Cliente:* ${sale.client_name}\n`;
-    message += `📋 *Produto:* ${sale.product_name}\n\n`;
+    message += `Olá *${sale.client_name}*!\n\n`;
+    message += `Confirmamos a venda:\n\n`;
     
-    message += `💰 *VALORES*\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `💵 Valor Total: ${formatCurrency(sale.total_amount)}\n`;
+    message += `📋 *Produto:* ${sale.product_name}\n`;
+    message += `💵 *Valor Total:* ${formatCurrency(sale.total_amount)}\n`;
     
     if (downPayment > 0) {
-      message += `📥 Entrada: ${formatCurrency(downPayment)}\n`;
+      message += `📥 *Entrada:* ${formatCurrency(downPayment)}\n`;
     }
     
-    message += `📊 Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
-    message += `📅 Primeira Parcela: ${formatDate(sale.first_due_date)}\n\n`;
+    message += `📊 *Parcelas:* ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n\n`;
     
     message += `📅 *VENCIMENTOS*\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
     
-    // Show installment dates
     const dates = installmentDates || [];
     const maxDatesToShow = 6;
     dates.slice(0, maxDatesToShow).forEach((inst, index) => {
@@ -95,7 +91,56 @@ export default function SaleCreatedReceiptPrompt({
     }
     
     message += `\n━━━━━━━━━━━━━━━━\n`;
-    message += `_${companyName} - ${contractId}_`;
+    message += `_${companyName}_`;
+    
+    return message;
+  };
+
+  // Mensagem COMPLETA para USUÁRIO/COBRADOR (com custo, lucro, telefone)
+  const generateCollectorMessage = () => {
+    const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
+    const downPayment = sale.down_payment || 0;
+    const costValue = sale.cost_value || 0;
+    const profit = sale.total_amount - costValue;
+    
+    let message = `🏷️ *CobraFácil*\n`;
+    message += `📦 *VENDA REGISTRADA*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    
+    message += `📋 *Contrato:* ${contractId}\n\n`;
+    
+    message += `👤 *CLIENTE*\n`;
+    message += `• Nome: ${sale.client_name}\n`;
+    if (sale.client_phone) {
+      message += `• Telefone: ${sale.client_phone}\n`;
+    }
+    message += `\n`;
+    
+    message += `📦 *PRODUTO*\n`;
+    message += `• ${sale.product_name}\n`;
+    if (sale.product_description) {
+      message += `• ${sale.product_description}\n`;
+    }
+    message += `\n`;
+    
+    message += `💰 *VALORES*\n`;
+    message += `• Valor Total: ${formatCurrency(sale.total_amount)}\n`;
+    if (costValue > 0) {
+      message += `• Custo: ${formatCurrency(costValue)}\n`;
+      message += `• Lucro: ${formatCurrency(profit)}\n`;
+    }
+    if (downPayment > 0) {
+      message += `• Entrada: ${formatCurrency(downPayment)}\n`;
+    }
+    message += `• Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n\n`;
+    
+    message += `📅 *VENCIMENTOS*\n`;
+    const dates = installmentDates || [];
+    dates.forEach((inst, index) => {
+      message += `${index + 1}ª: ${formatDate(inst.date)}\n`;
+    });
+    
+    message += `\n━━━━━━━━━━━━━━━━`;
     
     return message;
   };
@@ -109,7 +154,7 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const message = generateClientMessage();
+      const message = generateCollectorMessage();
       
       await supabase.functions.invoke('send-whatsapp', {
         body: { phone: userPhone, message },
