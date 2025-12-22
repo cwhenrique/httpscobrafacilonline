@@ -39,6 +39,7 @@ import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
 import PriceTableDialog from '@/components/PriceTableDialog';
+import { isHoliday } from '@/lib/holidays';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -283,13 +284,14 @@ export default function Loans() {
   const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
   const [skipSaturday, setSkipSaturday] = useState(false);
   const [skipSunday, setSkipSunday] = useState(false);
+  const [skipHolidays, setSkipHolidays] = useState(false);
   
   // Estado para juros históricos simplificado
   const [historicalInterestReceived, setHistoricalInterestReceived] = useState('');
   const [historicalInterestNotes, setHistoricalInterestNotes] = useState('');
   
-  // Generate daily dates (consecutive days, optionally skipping weekends)
-  const generateDailyDates = (startDate: string, count: number, skipSat = false, skipSun = false): string[] => {
+  // Generate daily dates (consecutive days, optionally skipping weekends and holidays)
+  const generateDailyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
     const dates: string[] = [];
     let currentDate = new Date(startDate + 'T12:00:00');
     
@@ -297,9 +299,10 @@ export default function Loans() {
       const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
       const isSaturday = dayOfWeek === 6;
       const isSunday = dayOfWeek === 0;
+      const isHolidayDate = skipHol && isHoliday(currentDate);
       
       // Skip if it's a day we should skip
-      if ((skipSat && isSaturday) || (skipSun && isSunday)) {
+      if ((skipSat && isSaturday) || (skipSun && isSunday) || isHolidayDate) {
         currentDate.setDate(currentDate.getDate() + 1);
         continue;
       }
@@ -310,12 +313,58 @@ export default function Loans() {
     return dates;
   };
   
+  // Generate weekly dates (7 days apart, optionally skipping weekends and holidays)
+  const generateWeeklyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    const dates: string[] = [];
+    let currentDate = new Date(startDate + 'T12:00:00');
+    
+    for (let i = 0; i < count; i++) {
+      // Avançar para a próxima data válida se cair em dia pulado
+      while (
+        (skipSat && currentDate.getDay() === 6) || 
+        (skipSun && currentDate.getDay() === 0) || 
+        (skipHol && isHoliday(currentDate))
+      ) {
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      dates.push(format(currentDate, 'yyyy-MM-dd'));
+      
+      // Avançar 7 dias para próxima parcela
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+    return dates;
+  };
+  
+  // Generate biweekly dates (15 days apart, optionally skipping weekends and holidays)
+  const generateBiweeklyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    const dates: string[] = [];
+    let currentDate = new Date(startDate + 'T12:00:00');
+    
+    for (let i = 0; i < count; i++) {
+      // Avançar para a próxima data válida se cair em dia pulado
+      while (
+        (skipSat && currentDate.getDay() === 6) || 
+        (skipSun && currentDate.getDay() === 0) || 
+        (skipHol && isHoliday(currentDate))
+      ) {
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      dates.push(format(currentDate, 'yyyy-MM-dd'));
+      
+      // Avançar 15 dias para próxima parcela
+      currentDate.setDate(currentDate.getDate() + 15);
+    }
+    return dates;
+  };
+  
   // Auto-generate dates when auto mode is active
   useEffect(() => {
     if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
       const count = parseInt(dailyInstallmentCount) || 0;
       if (count > 0) {
-        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday);
+        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday, skipHolidays);
         setInstallmentDates(generatedDates);
         if (generatedDates.length > 0) {
           setFormData(prev => ({
@@ -328,12 +377,12 @@ export default function Loans() {
         }
       }
     }
-  }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount, skipSaturday, skipSunday]);
+  }, [dailyDateMode, dailyFirstDate, dailyInstallmentCount, skipSaturday, skipSunday, skipHolidays]);
   
   // Regenerate dates for the dedicated daily dialog when skip options change
   useEffect(() => {
     if (isDailyDialogOpen && formData.start_date && formData.daily_period && parseInt(formData.daily_period) > 0) {
-      const newDates = generateDailyDates(formData.start_date, parseInt(formData.daily_period), skipSaturday, skipSunday);
+      const newDates = generateDailyDates(formData.start_date, parseInt(formData.daily_period), skipSaturday, skipSunday, skipHolidays);
       setInstallmentDates(newDates);
       if (newDates.length > 0) {
         setFormData(prev => ({
@@ -343,7 +392,7 @@ export default function Loans() {
         }));
       }
     }
-  }, [skipSaturday, skipSunday, isDailyDialogOpen]);
+  }, [skipSaturday, skipSunday, skipHolidays, isDailyDialogOpen]);
   
   const [isRenegotiateDialogOpen, setIsRenegotiateDialogOpen] = useState(false);
   const [renegotiateData, setRenegotiateData] = useState({
@@ -937,15 +986,7 @@ export default function Loans() {
   useEffect(() => {
     if (formData.payment_type === 'weekly' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
-      const startDate = new Date(formData.start_date + 'T12:00:00');
-      const newDates: string[] = [];
-      
-      for (let i = 0; i < numInstallments; i++) {
-        const date = new Date(startDate);
-        // Add weeks (7 days) for each installment
-        date.setDate(date.getDate() + (i * 7));
-        newDates.push(format(date, 'yyyy-MM-dd'));
-      }
+      const newDates = generateWeeklyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
       
       setInstallmentDates(newDates);
       // Set the last installment date as the due_date
@@ -953,21 +994,13 @@ export default function Loans() {
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
 
   // Generate biweekly dates when start_date or installments change
   useEffect(() => {
     if (formData.payment_type === 'biweekly' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
-      const startDate = new Date(formData.start_date + 'T12:00:00');
-      const newDates: string[] = [];
-      
-      for (let i = 0; i < numInstallments; i++) {
-        const date = new Date(startDate);
-        // Add 15 days for each installment (biweekly)
-        date.setDate(date.getDate() + (i * 15));
-        newDates.push(format(date, 'yyyy-MM-dd'));
-      }
+      const newDates = generateBiweeklyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
       
       setInstallmentDates(newDates);
       // Set the last installment date as the due_date
@@ -975,7 +1008,7 @@ export default function Loans() {
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
 
   // Reset dates when switching to daily payment type
   useEffect(() => {
@@ -983,7 +1016,7 @@ export default function Loans() {
       // In auto mode, generate dates; in manual mode, clear for manual selection
       if (dailyDateMode === 'auto' && dailyFirstDate && dailyInstallmentCount) {
         const count = parseInt(dailyInstallmentCount) || 20;
-        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday);
+        const generatedDates = generateDailyDates(dailyFirstDate, count, skipSaturday, skipSunday, skipHolidays);
         setInstallmentDates(generatedDates);
       } else {
         setInstallmentDates([]);
@@ -3127,7 +3160,7 @@ export default function Loans() {
                           setFormData({ ...formData, start_date: newStartDate });
                           // Auto-generate dates when start_date changes and we have installments count
                           if (newStartDate && formData.daily_period && parseInt(formData.daily_period) > 0) {
-                            const newDates = generateDailyDates(newStartDate, parseInt(formData.daily_period), skipSaturday, skipSunday);
+                            const newDates = generateDailyDates(newStartDate, parseInt(formData.daily_period), skipSaturday, skipSunday, skipHolidays);
                             setInstallmentDates(newDates);
                             if (newDates.length > 0) {
                               setFormData(prev => ({
@@ -3157,7 +3190,7 @@ export default function Loans() {
                         
                         // Auto-generate dates when count changes and we have start_date
                         if (formData.start_date && count && numInstallments > 0) {
-                          const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday);
+                          const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
                           setInstallmentDates(newDates);
                           
                           // Se tem juros definido, recalcular a parcela
@@ -3217,10 +3250,23 @@ export default function Loans() {
                         />
                         <span className="text-sm">Domingo</span>
                       </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipHolidays}
+                          onChange={(e) => setSkipHolidays(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Feriados</span>
+                      </label>
                     </div>
-                    {(skipSaturday || skipSunday) && (
+                    {(skipSaturday || skipSunday || skipHolidays) && (
                       <p className="text-xs text-amber-500">
-                        ⚠️ {skipSaturday && skipSunday ? 'Sábados e domingos' : skipSaturday ? 'Sábados' : 'Domingos'} serão pulados na geração das datas
+                        ⚠️ {[
+                          skipSaturday && 'Sábados',
+                          skipSunday && 'Domingos',
+                          skipHolidays && 'Feriados'
+                        ].filter(Boolean).join(', ')} serão pulados na geração das datas
                       </p>
                     )}
                   </div>
@@ -3678,6 +3724,49 @@ export default function Loans() {
                     <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
                   </div>
                 </div>
+                {(formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && (
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label className="text-xs text-muted-foreground">Não cobra nos seguintes dias:</Label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipSaturday}
+                          onChange={(e) => setSkipSaturday(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Sábado</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipSunday}
+                          onChange={(e) => setSkipSunday(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Domingo</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={skipHolidays}
+                          onChange={(e) => setSkipHolidays(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        <span className="text-sm">Feriados</span>
+                      </label>
+                    </div>
+                    {(skipSaturday || skipSunday || skipHolidays) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ {[
+                          skipSaturday && 'Sábados',
+                          skipSunday && 'Domingos',
+                          skipHolidays && 'Feriados'
+                        ].filter(Boolean).join(', ')} serão pulados na geração das datas
+                      </p>
+                    )}
+                  </div>
+                )}
                 {(formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentDates.length > 0 && (
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Vencimento das {formData.payment_type === 'weekly' ? 'Semanas' : formData.payment_type === 'biweekly' ? 'Quinzenas' : 'Parcelas'}</Label>
