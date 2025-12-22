@@ -99,7 +99,7 @@ export default function Reports() {
   const { loans } = useLoans();
   const { sales } = useProductSales();
   const { payments: productPayments } = useProductSalePayments();
-  const { contracts } = useContracts();
+  const { contracts, allContractPayments } = useContracts();
   const { vehicles } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
 
@@ -151,6 +151,7 @@ export default function Reports() {
   const safeSales = sales || [];
   const safeProductPayments = productPayments || [];
   const safeContracts = contracts || [];
+  const safeContractPayments = allContractPayments || [];
   const safeVehicles = vehicles || [];
   const safeVehiclePayments = vehiclePayments || [];
 
@@ -255,12 +256,31 @@ export default function Reports() {
     const prevTotalProductSold = prevPeriodSales.reduce((sum, s) => sum + s.total_amount, 0);
     const productSoldVariation = prevTotalProductSold > 0 ? ((totalProductSold - prevTotalProductSold) / prevTotalProductSold) * 100 : 0;
 
-    // Contracts (receivable only for "to receive")
+    // Contracts (receivable only for "to receive") - Agora calculando com base nos pagamentos reais
     const receivableContracts = filteredContracts.filter(c => c.bill_type === 'receivable');
-    const totalContractReceivable = receivableContracts.reduce((sum, c) => sum + c.amount_to_receive, 0);
-    const totalContractReceived = receivableContracts.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.amount_to_receive, 0);
-    const overdueContractsReceivable = receivableContracts.filter(c => c.status === 'overdue' || (c.status === 'active' && new Date(c.first_payment_date) < new Date()));
-    const totalContractOverdue = overdueContractsReceivable.reduce((sum, c) => sum + c.amount_to_receive, 0);
+    const receivableContractIds = new Set(receivableContracts.map(c => c.id));
+    
+    // Filtrar pagamentos apenas dos contratos a receber
+    const receivableContractPayments = safeContractPayments.filter(p => receivableContractIds.has(p.contract_id));
+    
+    // Total a receber = soma de todos os pagamentos pendentes + pagos
+    const totalContractReceivable = receivableContractPayments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Total recebido = soma apenas dos pagamentos com status 'paid'
+    const totalContractReceived = receivableContractPayments
+      .filter(p => p.status === 'paid')
+      .reduce((sum, p) => sum + p.amount, 0);
+    
+    // Total em atraso = soma dos pagamentos pendentes com data de vencimento no passado
+    const today = new Date();
+    const overdueContractPayments = receivableContractPayments.filter(p => 
+      p.status === 'pending' && new Date(p.due_date) < today
+    );
+    const totalContractOverdue = overdueContractPayments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Contratos com parcelas em atraso (para contagem)
+    const contractsWithOverdue = new Set(overdueContractPayments.map(p => p.contract_id));
+    const overdueContractsReceivable = receivableContracts.filter(c => contractsWithOverdue.has(c.id));
 
     // Vehicles
     const totalVehicleSold = filteredVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
@@ -298,7 +318,6 @@ export default function Reports() {
     healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
 
     // Alerts data
-    const today = new Date();
     const nextWeek = addDays(today, 7);
     
     const dueThisWeek = {
