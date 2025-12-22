@@ -198,124 +198,7 @@ export function useLoans() {
     // Update client score after creating loan
     await updateClientScore(loan.client_id);
     
-    // Send WhatsApp notification for new loan - only if enabled (default: true)
-    if (loan.send_creation_notification !== false) {
-      const phone = await getUserPhone(user.id);
-      if (phone && data) {
-      const clientName = (data.client as any)?.full_name || 'Cliente';
-      const numInstallments = loan.installments || 1;
-      
-      // Calculate total interest and per-installment values based on loan type
-      let totalInterest = 0;
-      let totalPerInstallment = 0;
-      let totalToReceive = 0;
-      
-      if (loan.payment_type === 'daily') {
-        // For daily loans: total_interest stores the daily amount directly
-        const dailyAmount = loan.total_interest || 0;
-        totalToReceive = dailyAmount * numInstallments;
-        totalInterest = totalToReceive - loan.principal_amount;
-        totalPerInstallment = dailyAmount;
-      } else if (loan.interest_mode === 'on_total') {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-        const interestPerInstallment = totalInterest / numInstallments;
-        const principalPerInstallment = loan.principal_amount / numInstallments;
-        totalPerInstallment = principalPerInstallment + interestPerInstallment;
-        totalToReceive = loan.principal_amount + totalInterest;
-      } else if (loan.interest_mode === 'compound') {
-        // Usar fórmula PMT de amortização (Sistema Price)
-        const i = loan.interest_rate / 100;
-        if (i === 0 || !isFinite(i)) {
-          totalInterest = 0;
-        } else {
-          const factor = Math.pow(1 + i, numInstallments);
-          const pmt = loan.principal_amount * (i * factor) / (factor - 1);
-          totalInterest = (pmt * numInstallments) - loan.principal_amount;
-        }
-        const interestPerInstallment = totalInterest / numInstallments;
-        const principalPerInstallment = loan.principal_amount / numInstallments;
-        totalPerInstallment = principalPerInstallment + interestPerInstallment;
-        totalToReceive = loan.principal_amount + totalInterest;
-      } else {
-        // per_installment (padrão)
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-        const interestPerInstallment = totalInterest / numInstallments;
-        const principalPerInstallment = loan.principal_amount / numInstallments;
-        totalPerInstallment = principalPerInstallment + interestPerInstallment;
-        totalToReceive = loan.principal_amount + totalInterest;
-      }
-      
-      const contractId = `EMP-${data?.id?.substring(0, 4).toUpperCase() || '0000'}`;
-      const progressPercent = 0;
-      
-      let modalidade = 'Padrão';
-      if (loan.payment_type === 'daily') modalidade = 'Diário';
-      else if (loan.payment_type === 'weekly') modalidade = 'Semanal';
-      else if (loan.payment_type === 'biweekly') modalidade = 'Quinzenal';
-      else if (loan.payment_type === 'installment') modalidade = 'Parcelado';
-      else if (loan.payment_type === 'single') modalidade = 'Único';
-      
-      let message = `🏦 *Resumo do Empréstimo - ${contractId}*\n\n`;
-      message += `👤 Cliente: ${clientName}\n\n`;
-      message += `💰 *Informações do Empréstimo:*\n`;
-      message += `- Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
-      message += `- Valor Total: ${formatCurrency(totalToReceive)}\n`;
-      message += `- Taxa de Juros: ${loan.interest_rate}%\n`;
-      message += `- Data Início: ${formatDate(loan.start_date)}\n`;
-      message += `- Modalidade: ${modalidade}\n\n`;
-      
-      if (loan.payment_type === 'daily') {
-        // For daily loans: total_interest stores the daily amount directly
-        const dailyAmount = loan.total_interest || 0;
-        const totalToReceiveDaily = dailyAmount * numInstallments;
-        const profit = totalToReceiveDaily - loan.principal_amount;
-        message += `📊 *Detalhes Diário:*\n`;
-        message += `- Valor diário: ${formatCurrency(dailyAmount)}\n`;
-        message += `- Dias: ${numInstallments}\n`;
-        message += `- Total a receber: ${formatCurrency(totalToReceiveDaily)}\n`;
-        message += `- Lucro: ${formatCurrency(profit)}\n\n`;
-      }
-      
-      message += `📊 *Status das Parcelas:*\n`;
-      message += `✅ Pagas: 0 de ${numInstallments} parcelas (${formatCurrency(0)})\n`;
-      message += `⏰ Pendentes: ${numInstallments} parcelas (${formatCurrency(totalToReceive)})\n`;
-      message += `📈 Progresso: 0% concluído\n\n`;
-      
-      message += `📅 *Próxima Parcela:*\n`;
-      message += `- Vencimento: ${formatDate(loan.installment_dates?.[0] || loan.due_date)}\n`;
-      message += `- Valor: ${formatCurrency(totalPerInstallment)}\n\n`;
-      
-      message += `💰 Saldo Devedor: ${formatCurrency(totalToReceive)}\n\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `_CobraFácil - Registro automático_`;
-      
-      await sendWhatsAppNotification(phone, message);
-      
-      // Check if loan is already overdue (due_date in the past) and NOT a historical contract
-      const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
-      const firstDueDate = loan.installment_dates?.[0] || loan.due_date;
-      const dueDate = new Date(firstDueDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      dueDate.setHours(0, 0, 0, 0);
-
-      if (!isHistoricalContract && dueDate < today) {
-        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        let overdueMessage = `🚨 *ATENÇÃO - CONTRATO EM ATRASO*\n\n`;
-        overdueMessage += `👤 Cliente: *${clientName}*\n`;
-        overdueMessage += `📋 Contrato: ${contractId}\n`;
-        overdueMessage += `📅 Vencimento: ${formatDate(firstDueDate)}\n`;
-        overdueMessage += `⏰ Dias em atraso: *${daysOverdue} dia(s)*\n`;
-        overdueMessage += `💰 Valor: *${formatCurrency(totalPerInstallment)}*\n\n`;
-        overdueMessage += `⚠️ Este contrato foi registrado já em atraso.\n`;
-        overdueMessage += `Não deixe de cobrar!\n\n`;
-        overdueMessage += `_CobraFácil - Alerta automático_`;
-        
-        await sendWhatsAppNotification(phone, overdueMessage);
-      }
-      }
-    }
+    // WhatsApp notifications removed - only sent via explicit user click
     
     await fetchLoans();
     return { data: data as Loan };
@@ -849,25 +732,7 @@ export function useLoans() {
 
     toast.success(`${extraCount} parcela(s) extra(s) adicionada(s)!`);
 
-    // 5. Send WhatsApp notification
-    const phone = await getUserPhone(user.id);
-    if (phone) {
-      const clientName = (loanData.clients as any)?.full_name || 'Cliente';
-      let message = `➕ *Parcelas Extras Adicionadas*\n\n`;
-      message += `👤 Cliente: *${clientName}*\n`;
-      message += `📊 Parcelas adicionadas: *${extraCount}*\n`;
-      message += `💰 Valor por parcela: *${formatCurrency(dailyAmount)}*\n`;
-      message += `💵 Valor total extra: *${formatCurrency(extraValue)}*\n\n`;
-      message += `📅 *Novas datas:*\n`;
-      newDates.forEach((date, idx) => {
-        message += `• Parcela ${loanData.installments + idx + 1}: ${formatDate(date)}\n`;
-      });
-      message += `\n📊 Total de parcelas agora: *${newInstallments}*\n`;
-      message += `💵 Novo saldo devedor: *${formatCurrency(newRemainingBalance)}*\n\n`;
-      message += `_CobraFácil - Registro automático_`;
-
-      await sendWhatsAppNotification(phone, message);
-    }
+    // WhatsApp notifications removed - only sent via explicit user click
 
     await fetchLoans();
     return { success: true };
