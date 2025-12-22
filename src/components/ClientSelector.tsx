@@ -18,6 +18,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Client } from '@/types/database';
 import { useClients } from '@/hooks/useClients';
+import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
 
 interface ClientSelectorProps {
   onSelect: (client: Client | null) => void;
@@ -97,6 +98,14 @@ export function ClientSelector({
                 </AvatarFallback>
               </Avatar>
               <span className="truncate">{selectedClient.full_name}</span>
+              {selectedClient.score !== null && selectedClient.score !== undefined && (
+                <span className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap',
+                  calculateScoreLabel(selectedClient.score).color
+                )}>
+                  {getScoreIcon(selectedClient.score)} {selectedClient.score}
+                </span>
+              )}
               {selectedClient.phone && (
                 <span className="text-xs text-muted-foreground truncate hidden sm:inline">
                   • {selectedClient.phone}
@@ -150,7 +159,17 @@ export function ClientSelector({
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="truncate font-medium">{client.full_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">{client.full_name}</span>
+                      {client.score !== null && client.score !== undefined && (
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap',
+                          calculateScoreLabel(client.score).color
+                        )}>
+                          {getScoreIcon(client.score)} {client.score}
+                        </span>
+                      )}
+                    </div>
                     {client.phone && (
                       <span className="text-xs text-muted-foreground truncate">
                         {client.phone}
