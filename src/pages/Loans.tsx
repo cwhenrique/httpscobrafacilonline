@@ -2088,6 +2088,13 @@ export default function Loans() {
     // Save client phone before resetting selectedLoan
     setPaymentClientPhone(selectedLoan.client?.phone || null);
     
+    // Calculate next due date for receipt
+    const loanDates = (selectedLoan.installment_dates as string[]) || [];
+    let nextDueDateForReceipt: string | undefined;
+    if (loanDates.length > installmentNumber && newRemainingBalance > 0) {
+      nextDueDateForReceipt = loanDates[installmentNumber];
+    }
+    
     // Show payment receipt prompt
     setPaymentReceiptData({
       type: 'loan',
@@ -2102,6 +2109,7 @@ export default function Loans() {
       remainingBalance: Math.max(0, newRemainingBalance),
       totalPaid: (selectedLoan.total_paid || 0) + amount,
       totalContract: totalContractValue,
+      nextDueDate: nextDueDateForReceipt,
     });
     setIsPaymentReceiptOpen(true);
     

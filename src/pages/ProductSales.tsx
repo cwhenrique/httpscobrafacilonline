@@ -513,6 +513,15 @@ export default function ProductSales() {
     
     // Show payment receipt prompt
     if (sale) {
+      // Calculate next due date
+      const salePaymentsList = allSalePayments?.filter(p => p.product_sale_id === sale.id) || [];
+      const paidCount = salePaymentsList.filter(p => p.status === 'paid').length + 1; // +1 for current payment
+      const nextPayment = salePaymentsList
+        .filter(p => p.status !== 'paid')
+        .sort((a, b) => a.installment_number - b.installment_number)
+        .find(p => p.installment_number > (payment?.installment_number || 0));
+      const nextDueDateForReceipt = result.newRemainingBalance > 0 ? nextPayment?.due_date : undefined;
+      
       setPaymentClientPhone(sale.client_phone || null);
       setPaymentReceiptData({
         type: 'product',
@@ -526,6 +535,7 @@ export default function ProductSales() {
         paymentDate: paymentDate,
         remainingBalance: result.newRemainingBalance,
         totalPaid: result.newTotalPaid,
+        nextDueDate: nextDueDateForReceipt,
       });
       setIsPaymentReceiptOpen(true);
     }
