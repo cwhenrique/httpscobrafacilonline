@@ -608,6 +608,8 @@ export function useLoans() {
     }
 
     // 3. Delete the payment record
+    // O TRIGGER do banco de dados (revert_loan_on_payment_delete) já cuida de reverter 
+    // os valores automaticamente! Não precisamos fazer update manual aqui.
     const { error: deleteError } = await supabase
       .from('loan_payments')
       .delete()
@@ -618,39 +620,7 @@ export function useLoans() {
       return { error: deleteError };
     }
 
-    // 4. Calculate new loan values (reverse the payment)
-    const newTotalPaid = Math.max(0, (loanData.total_paid || 0) - paymentData.amount);
-    const newRemainingBalance = (loanData.remaining_balance || 0) + paymentData.amount;
-
-    // 5. Recalculate status
-    let newStatus: 'paid' | 'pending' | 'overdue' = 'pending';
-    if (newRemainingBalance <= 0) {
-      newStatus = 'paid';
-    } else {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dueDate = new Date(loanData.due_date + 'T12:00:00');
-      if (dueDate < today) {
-        newStatus = 'overdue';
-      }
-    }
-
-    // 6. Update the loan with reversed values
-    const { error: updateError } = await supabase
-      .from('loans')
-      .update({
-        total_paid: newTotalPaid,
-        remaining_balance: newRemainingBalance,
-        status: newStatus,
-      })
-      .eq('id', loanId);
-
-    if (updateError) {
-      toast.error('Erro ao atualizar empréstimo');
-      return { error: updateError };
-    }
-
-    // 7. Update client score
+    // 4. Update client score
     await updateClientScore(loanData.client_id);
 
     toast.success('Pagamento excluído e saldo restaurado!');
