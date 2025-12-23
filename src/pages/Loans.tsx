@@ -6529,34 +6529,42 @@ export default function Loans() {
                               )}
                             </div>
                             
-                            {/* Seção de multa - mostra se tem multa configurada */}
                             {/* Seção de multa dinâmica (valor fixo/dia ou %) */}
                             {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
-                              <>
-                                <div className="mt-2 pt-2 border-t border-red-400/30">
-                                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                                    <span className="text-red-300">
-                                      {overdueConfigType === 'percentage' 
-                                        ? `Multa (${overdueConfigValue}%/dia)`
-                                        : `Multa (${formatCurrency(overdueConfigValue)}/dia)`}
-                                    </span>
-                                    <span className="font-bold text-red-200">
-                                      +{formatCurrency(dynamicPenaltyAmount)}
-                                    </span>
-                                  </div>
-                                  {overdueInstallmentsDetails.length > 1 && (
-                                    <p className="text-[9px] text-red-300/60 mt-1">
-                                      Multa aplicada em cada parcela atrasada
-                                    </p>
-                                  )}
+                              <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-2">
+                                {/* Cabeçalho */}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-400 font-semibold flex items-center gap-1.5 text-sm">
+                                    <span>⚡</span> Multa por atraso
+                                  </span>
+                                  <span className="font-bold text-red-300">
+                                    +{formatCurrency(dynamicPenaltyAmount)}
+                                  </span>
                                 </div>
-                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm border-t border-red-400/30 pt-2">
-                                  <span className="text-red-300/80 font-medium">Total a Pagar:</span>
-                                  <span className="font-bold text-white text-base">
+                                
+                                {/* Detalhes da regra */}
+                                <div className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1">
+                                  <span className="text-white/80">
+                                    {overdueConfigType === 'percentage' 
+                                      ? `Regra: ${overdueConfigValue}% por dia de atraso`
+                                      : `Regra: ${formatCurrency(overdueConfigValue)} por dia de atraso`}
+                                  </span>
+                                </div>
+                                
+                                {overdueInstallmentsDetails.length > 1 && (
+                                  <p className="text-[10px] text-red-300/70">
+                                    Aplicado em {overdueInstallmentsDetails.length} parcelas atrasadas
+                                  </p>
+                                )}
+                                
+                                {/* Total a Pagar */}
+                                <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2">
+                                  <span className="text-white font-medium">Total a Pagar:</span>
+                                  <span className="font-bold text-red-400 text-lg">
                                     {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
                                   </span>
                                 </div>
-                              </>
+                              </div>
                             )}
                             
                             {/* Seção de multas MANUAIS aplicadas */}
