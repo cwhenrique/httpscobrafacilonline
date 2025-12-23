@@ -810,6 +810,9 @@ export default function Loans() {
     overdueInstallments: Array<{ index: number; dueDate: string; daysOverdue: number }>,
     installmentValue: number
   ) => {
+    // Buscar multas já aplicadas para pré-preencher
+    const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
+    
     setManualPenaltyDialog({
       isOpen: true,
       loanId: loan.id,
@@ -820,7 +823,13 @@ export default function Loans() {
         installmentValue
       }))
     });
-    setManualPenaltyValues({});
+    
+    // Preencher os valores existentes das multas
+    const initialValues: Record<number, string> = {};
+    Object.entries(existingPenalties).forEach(([idx, value]) => {
+      initialValues[parseInt(idx)] = value.toString();
+    });
+    setManualPenaltyValues(initialValues);
     setConfiguringPenaltyLoanId(null);
   };
   
@@ -6586,7 +6595,8 @@ export default function Loans() {
                             )}
                             
                             {/* Inline penalty configuration for daily loans */}
-                            {overdueConfigValue <= 0 && configuringPenaltyLoanId !== loan.id && (
+                            {/* Botão Aplicar Multa - só aparece se NÃO tem multas dinâmicas E NÃO tem multas manuais */}
+                            {overdueConfigValue <= 0 && totalAppliedPenaltiesDaily === 0 && configuringPenaltyLoanId !== loan.id && (
                               <Button 
                                 size="sm" 
                                 variant="outline" 
@@ -6599,6 +6609,25 @@ export default function Loans() {
                               >
                                 <Percent className="w-4 h-4 mr-2" />
                                 Aplicar Multa
+                              </Button>
+                            )}
+                            
+                            {/* Botão Editar Minhas Multas - aparece quando TEM multas manuais aplicadas */}
+                            {totalAppliedPenaltiesDaily > 0 && configuringPenaltyLoanId !== loan.id && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  openManualPenaltyDialog(
+                                    loan,
+                                    overdueInstallmentsDetails,
+                                    totalPerInstallmentDisplay
+                                  );
+                                }}
+                                className="w-full mt-3 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                              >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Editar Minhas Multas
                               </Button>
                             )}
                             
