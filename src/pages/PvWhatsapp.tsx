@@ -560,6 +560,152 @@ const PvWhatsapp = () => {
         </div>
       </section>
 
+      {/* Seção de Planos/Benefícios */}
+      <section className="py-20 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />
+        <div className="container mx-auto relative z-10">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-full px-5 py-2.5 text-sm font-bold text-green-400 mb-4">
+              <Sparkles className="w-4 h-4" />
+              <span>💰 Pagamento Único = Acesso Vitalício</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Escolha o <span className="gradient-text">Plano Ideal</span> para Você
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Todos os planos incluem acesso completo a todas as funcionalidades
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto"
+          >
+            {/* Card Mensal */}
+            <motion.div
+              variants={fadeInUp}
+              className="card-premium p-6 rounded-2xl border border-border/50 relative"
+            >
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-blue-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">Mensal</h3>
+                <p className="text-muted-foreground text-sm mt-1">Renovação mensal</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {[
+                  "Clientes ilimitados",
+                  "Empréstimos ilimitados",
+                  "Cálculo automático de juros",
+                  "Alertas WhatsApp",
+                  "Calendário de cobranças",
+                  "Score de clientes"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Button 
+                className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30"
+                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Falar com Especialista
+              </Button>
+            </motion.div>
+
+            {/* Card Vitalício - Destaque */}
+            <motion.div
+              variants={scaleIn}
+              className="card-premium p-6 rounded-2xl border-2 border-green-500 relative transform md:-translate-y-4"
+            >
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-bold">
+                  ⭐ Mais Vendido
+                </span>
+              </div>
+              <div className="text-center mb-6 pt-2">
+                <div className="w-16 h-16 rounded-2xl bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-8 h-8 text-green-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">Vitalício</h3>
+                <p className="text-green-400 text-sm mt-1 font-semibold">Pague uma vez, use para sempre</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {[
+                  "Acesso vitalício garantido",
+                  "Todas as funcionalidades",
+                  "Suporte via WhatsApp",
+                  "Atualizações gratuitas",
+                  "Sem mensalidades nunca mais",
+                  "Clientes e empréstimos ilimitados"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-foreground">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Button 
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
+                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Quero Acesso Vitalício
+              </Button>
+            </motion.div>
+
+            {/* Card Anual */}
+            <motion.div
+              variants={fadeInUp}
+              className="card-premium p-6 rounded-2xl border border-border/50 relative"
+            >
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 rounded-2xl bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-8 h-8 text-purple-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">Anual</h3>
+                <p className="text-muted-foreground text-sm mt-1">Acesso por 12 meses</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {[
+                  "Acesso por 12 meses",
+                  "Todas as funcionalidades",
+                  "Suporte via WhatsApp",
+                  "Atualizações gratuitas",
+                  "Clientes ilimitados",
+                  "Empréstimos ilimitados"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Button 
+                className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30"
+                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Falar com Especialista
+              </Button>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Funcionalidades Novas - Destaque */}
       <section className="py-16 px-4 bg-primary/5 relative">
         <div className="container mx-auto">
