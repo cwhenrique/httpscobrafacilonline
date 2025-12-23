@@ -6474,23 +6474,34 @@ export default function Loans() {
                                       {overdueInstallmentsDetails.length} parcelas em atraso
                                     </span>
                                     <span className="text-red-200 font-medium text-xs">
-                                      Total: {formatCurrency(cumulativePenaltyResult.totalOverdueAmount)}
+                                      Total: {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
                                     </span>
                                   </div>
                                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                                    {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
-                                      <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
-                                        <span className="text-red-300/90">
-                                          Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
-                                          {item.penaltyAmount > 0 && (
-                                            <span className="text-red-200 font-medium">+{formatCurrency(item.penaltyAmount)}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
+                                    {(() => {
+                                      const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                      return cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => {
+                                        const manualPenalty = manualPenalties[item.installmentNumber - 1] || 0;
+                                        const displayPenalty = manualPenalty > 0 ? manualPenalty : item.penaltyAmount;
+                                        
+                                        return (
+                                          <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
+                                            <span className="text-red-300/90">
+                                              Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
+                                              {displayPenalty > 0 && (
+                                                <span className={`font-medium ${manualPenalty > 0 ? 'text-orange-200' : 'text-red-200'}`}>
+                                                  +{formatCurrency(displayPenalty)}
+                                                  {manualPenalty > 0 && <span className="text-[9px] ml-1">(manual)</span>}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      });
+                                    })()}
                                   </div>
                                 </>
                               ) : (
