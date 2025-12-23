@@ -51,7 +51,19 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const paidCount = data.installmentNumber;
   const totalCount = data.totalInstallments;
-  const progressPercent = Math.round((paidCount / totalCount) * 100);
+  
+  // Calcular progresso corretamente:
+  // 1. Se quitado, sempre 100%
+  // 2. Se temos os valores, usar valor pago vs total
+  // 3. Fallback: usar contagem de parcelas
+  let progressPercent: number;
+  if (isFullyPaid) {
+    progressPercent = 100;
+  } else if (data.totalContract && data.totalPaid) {
+    progressPercent = Math.min(100, Math.round((data.totalPaid / data.totalContract) * 100));
+  } else {
+    progressPercent = Math.round((paidCount / totalCount) * 100);
+  }
   
   let message = `✅ *PAGAMENTO RECEBIDO*\n`;
   message += `━━━━━━━━━━━━━━━━\n\n`;
