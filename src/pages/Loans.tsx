@@ -6492,8 +6492,54 @@ export default function Loans() {
                         {isOverdue && (
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                             <div className="text-xs sm:text-sm">
-                              {/* Mostrar TODAS as parcelas em atraso */}
-                              {overdueInstallmentsDetails.length > 1 ? (
+                              {/* CARD UNIFICADO para múltiplas parcelas com multa dinâmica */}
+                              {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 && totalAppliedPenaltiesDaily === 0 ? (
+                                <>
+                                  {/* Cabeçalho com quantidade + regra de multa */}
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-red-300 font-bold">
+                                      {overdueInstallmentsDetails.length} parcelas em atraso
+                                    </span>
+                                    <span className="text-red-200/80 font-medium text-[10px] bg-red-500/20 px-2 py-0.5 rounded">
+                                      ⚡ {overdueConfigType === 'percentage' 
+                                        ? `${overdueConfigValue}%/dia`
+                                        : `${formatCurrency(overdueConfigValue)}/dia`}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Lista de parcelas com valor e multa separados */}
+                                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                                    {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
+                                      <div key={idx} className="bg-red-500/10 rounded px-2.5 py-1.5">
+                                        <div className="flex items-center justify-between text-xs">
+                                          <span className="text-red-300 font-medium">
+                                            Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d de atraso
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs mt-1">
+                                          <span className="text-red-300/70">
+                                            Valor: {formatCurrency(item.installmentAmount)}
+                                          </span>
+                                          {item.penaltyAmount > 0 && (
+                                            <span className="font-medium text-red-200">
+                                              Multa: +{formatCurrency(item.penaltyAmount)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
+                                  {/* Total a Pagar - integrado */}
+                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2 mt-3">
+                                    <span className="text-white font-medium">Total a Pagar:</span>
+                                    <span className="font-bold text-red-400 text-lg">
+                                      {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : overdueInstallmentsDetails.length > 1 ? (
+                                /* Múltiplas parcelas SEM multa dinâmica (mantém layout original) */
                                 <>
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="text-red-300 font-bold">
@@ -6531,6 +6577,7 @@ export default function Loans() {
                                   </div>
                                 </>
                               ) : (
+                                /* UMA parcela em atraso */
                                 <>
                                   <div className="flex items-center justify-between">
                                     <span className="text-red-300 font-medium">
@@ -6542,47 +6589,31 @@ export default function Loans() {
                                     <span>Vencimento: {formatDate(overdueDate)}</span>
                                     <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
                                   </div>
+                                  
+                                  {/* Multa dinâmica para 1 parcela */}
+                                  {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
+                                    <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-red-200/80 text-xs">
+                                          ⚡ {overdueConfigType === 'percentage' 
+                                            ? `${overdueConfigValue}%/dia`
+                                            : `${formatCurrency(overdueConfigValue)}/dia`}
+                                        </span>
+                                        <span className="font-medium text-red-200">
+                                          Multa: +{formatCurrency(dynamicPenaltyAmount)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2">
+                                        <span className="text-white font-medium">Total a Pagar:</span>
+                                        <span className="font-bold text-red-400 text-lg">
+                                          {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
-                            
-                            {/* Seção de multa dinâmica (valor fixo/dia ou %) */}
-                            {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
-                              <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-2">
-                                {/* Cabeçalho */}
-                                <div className="flex items-center justify-between">
-                                  <span className="text-red-400 font-semibold flex items-center gap-1.5 text-sm">
-                                    <span>⚡</span> Multa por atraso
-                                  </span>
-                                  <span className="font-bold text-red-300">
-                                    +{formatCurrency(dynamicPenaltyAmount)}
-                                  </span>
-                                </div>
-                                
-                                {/* Detalhes da regra */}
-                                <div className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1">
-                                  <span className="text-white/80">
-                                    {overdueConfigType === 'percentage' 
-                                      ? `Regra: ${overdueConfigValue}% por dia de atraso`
-                                      : `Regra: ${formatCurrency(overdueConfigValue)} por dia de atraso`}
-                                  </span>
-                                </div>
-                                
-                                {overdueInstallmentsDetails.length > 1 && (
-                                  <p className="text-[10px] text-red-300/70">
-                                    Aplicado em {overdueInstallmentsDetails.length} parcelas atrasadas
-                                  </p>
-                                )}
-                                
-                                {/* Total a Pagar */}
-                                <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2">
-                                  <span className="text-white font-medium">Total a Pagar:</span>
-                                  <span className="font-bold text-red-400 text-lg">
-                                    {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
                             
                             {/* Seção de multas MANUAIS aplicadas */}
                             {totalAppliedPenaltiesDaily > 0 && (
