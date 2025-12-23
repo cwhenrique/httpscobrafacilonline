@@ -6785,13 +6785,15 @@ export default function Loans() {
                                   overdueInstallmentsDetails: cumulativePenaltyResult.penaltyBreakdown,
                                   totalOverdueAmount: cumulativePenaltyResult.totalOverdueAmount,
                                   totalPenaltyAmount: cumulativePenaltyResult.totalPenalty,
-                                  // Multas manuais aplicadas
+                                  // Multas manuais aplicadas (só usadas se NÃO houver multa dinâmica)
                                   manualPenaltyAmount: totalAppliedPenaltiesDaily > 0 ? totalAppliedPenaltiesDaily : undefined,
                                   // Detalhamento das multas manuais por parcela
                                   manualPenaltiesBreakdown: (() => {
                                     const breakdown = getDailyPenaltiesFromNotes(loan.notes);
                                     return Object.keys(breakdown).length > 0 ? breakdown : undefined;
                                   })(),
+                                  // Indica se há multa dinâmica configurada
+                                  hasDynamicPenalty: overdueConfigValue > 0,
                                 }}
                                 className="w-full mt-2"
                               />

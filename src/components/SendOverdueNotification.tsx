@@ -39,10 +39,12 @@ interface OverdueData {
   }>;
   totalOverdueAmount?: number;
   totalPenaltyAmount?: number;
-  // Multas manuais aplicadas
+  // Multas manuais aplicadas (só usadas se NÃO houver multa dinâmica)
   manualPenaltyAmount?: number;
   // Detalhamento das multas manuais por parcela (índice → valor)
   manualPenaltiesBreakdown?: Record<number, number>;
+  // Indica se há multa dinâmica configurada (valor fixo/dia ou %)
+  hasDynamicPenalty?: boolean;
 }
 
 interface SendOverdueNotificationProps {
@@ -140,8 +142,11 @@ export default function SendOverdueNotification({
     
     // Para múltiplas parcelas em atraso (diários)
     if (hasMultipleOverdue && data.isDaily) {
-      // Inclui multas manuais no total
-      const totalAmount = (data.totalOverdueAmount || 0) + (data.totalPenaltyAmount || 0) + (data.manualPenaltyAmount || 0);
+      // Se há multa dinâmica configurada, usa APENAS ela; senão usa multa manual
+      const effectivePenalty = data.hasDynamicPenalty 
+        ? (data.totalPenaltyAmount || 0) 
+        : (data.manualPenaltyAmount || 0);
+      const totalAmount = (data.totalOverdueAmount || 0) + effectivePenalty;
       
       let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
       message += `Identificamos *${data.overdueInstallmentsCount} parcelas* em atraso:\n\n`;
@@ -156,11 +161,11 @@ export default function SendOverdueNotification({
         message += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue} dias\n`;
         message += `   💰 ${formatCurrency(item.installmentAmount)}`;
         
-        // Priorizar multa manual sobre multa dinâmica para exibição na linha
-        if (manualPenalty > 0) {
-          message += ` + ${formatCurrency(manualPenalty)} multa`;
-        } else if (item.penaltyAmount > 0) {
+        // Se há multa dinâmica configurada, usa apenas ela; senão usa multa manual
+        if (data.hasDynamicPenalty && item.penaltyAmount > 0) {
           message += ` + ${formatCurrency(item.penaltyAmount)} multa`;
+        } else if (!data.hasDynamicPenalty && manualPenalty > 0) {
+          message += ` + ${formatCurrency(manualPenalty)} multa`;
         }
         message += `\n`;
       }
@@ -168,10 +173,9 @@ export default function SendOverdueNotification({
       message += `\n━━━━━━━━━━━━━━━━\n`;
       message += `💰 *Subtotal Parcelas:* ${formatCurrency(data.totalOverdueAmount || 0)}\n`;
       
-      // Unificar multas dinâmicas + manuais em "Total Multas"
-      const totalPenalties = (data.totalPenaltyAmount || 0) + (data.manualPenaltyAmount || 0);
-      if (totalPenalties > 0) {
-        message += `⚠️ *Total Multas:* +${formatCurrency(totalPenalties)}\n`;
+      // Mostra apenas o tipo de multa efetivo (dinâmica OU manual)
+      if (effectivePenalty > 0) {
+        message += `⚠️ *Total Multas:* +${formatCurrency(effectivePenalty)}\n`;
       }
       
       message += `━━━━━━━━━━━━━━━━\n\n`;
