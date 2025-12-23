@@ -23,6 +23,9 @@ interface OverdueData {
   penaltyAmount?: number;
   penaltyType?: 'percentage' | 'fixed';
   penaltyValue?: number;
+  // Campos para opção de pagamento só de juros
+  interestAmount?: number;
+  principalAmount?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -143,6 +146,16 @@ export default function SendOverdueNotification({
       message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
     } else {
       message += `\n`;
+    }
+    
+    // Seção de opção de pagamento só de juros
+    if (data.interestAmount && data.interestAmount > 0) {
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS JUROS*\n`;
+      message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
+      message += `📌 *Principal fica para próximo mês*\n\n`;
+      message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     
     // PIX key section with value

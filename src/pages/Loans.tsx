@@ -4946,6 +4946,8 @@ export default function Loans() {
                                 penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                 penaltyType: overdueConfigType || undefined,
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
+                                interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                                principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                               }}
                               className="w-full mt-2"
                             />
@@ -6104,6 +6106,13 @@ export default function Loans() {
                                   penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                   penaltyType: overdueConfigType || undefined,
                                   penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
+                                  interestAmount: (() => {
+                                    // Para diários: juros = valor da parcela - (principal / numParcelas)
+                                    const principalPart = loan.principal_amount / numInstallments;
+                                    const interestPart = dailyInstallmentAmount - principalPart;
+                                    return interestPart > 0 ? interestPart : undefined;
+                                  })(),
+                                  principalAmount: loan.principal_amount / numInstallments,
                                 }}
                                 className="w-full mt-2"
                               />
