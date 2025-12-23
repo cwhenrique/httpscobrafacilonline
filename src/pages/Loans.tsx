@@ -603,17 +603,39 @@ export default function Loans() {
         if (startInstallmentIndex !== undefined && daysOverdue && daysOverdue > 0) {
           if (isDaily) {
             // Para contratos diários, aplicar multa em TODAS as parcelas atrasadas
+            // Calcular os dias de atraso de CADA parcela individualmente
+            const loan = loans.find(l => l.id === loanId);
+            const dates = (loan?.installment_dates as string[]) || [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
             // Remover multas antigas de todas as parcelas que serão atualizadas
             for (let i = 0; i < daysOverdue; i++) {
               const idx = startInstallmentIndex + i;
               cleanNotes = cleanNotes.replace(new RegExp(`\\[DAILY_PENALTY:${idx}:[0-9.]+\\]\\n?`, 'g'), '');
             }
             
-            // Adicionar multa para CADA parcela atrasada (ordem reversa para manter ordem correta nas notas)
+            // Adicionar multa para CADA parcela atrasada com cálculo individual
+            // (ordem reversa para manter ordem correta nas notas)
             for (let i = daysOverdue - 1; i >= 0; i--) {
               const idx = startInstallmentIndex + i;
-              const dailyPenaltyTag = `[DAILY_PENALTY:${idx}:${penaltyValue}]`;
-              cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
+              const dueDate = dates[idx] ? new Date(dates[idx] + 'T12:00:00') : null;
+              
+              if (dueDate) {
+                dueDate.setHours(0, 0, 0, 0);
+                const daysLateForInstallment = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+                
+                // Calcular multa total para esta parcela: dias de atraso × valor por dia
+                let penaltyForInstallment = 0;
+                if (inlinePenaltyType === 'percentage' && installmentValue) {
+                  penaltyForInstallment = (installmentValue * (penaltyValue / 100)) * daysLateForInstallment;
+                } else {
+                  penaltyForInstallment = penaltyValue * daysLateForInstallment;
+                }
+                
+                const dailyPenaltyTag = `[DAILY_PENALTY:${idx}:${penaltyForInstallment.toFixed(2)}]`;
+                cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
+              }
             }
           } else {
             // Para contratos mensais/semanais/quinzenais, salvar UMA tag com o total da multa
@@ -5622,9 +5644,8 @@ export default function Loans() {
                                   {dates.map((date, idx) => {
                                     const statusInfo = getInstallmentStatusForDisplay(idx, date);
                                     
-                                    // Get penalty for this installment (for non-daily loans)
+                                    // Get penalty for this installment (works for all loan types including daily)
                                     const installmentPenalty = (() => {
-                                      if (loan.payment_type === 'daily') return 0;
                                       const dailyPenalties = getDailyPenaltiesFromNotes(loan.notes);
                                       return dailyPenalties[idx] || 0;
                                     })();
