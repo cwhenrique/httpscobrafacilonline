@@ -520,7 +520,14 @@ export default function Loans() {
   const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
   
   // Function to save inline penalty configuration
-  const handleSaveInlinePenalty = async (loanId: string, currentNotes: string | null, startInstallmentIndex?: number, daysOverdue?: number) => {
+  const handleSaveInlinePenalty = async (
+    loanId: string, 
+    currentNotes: string | null, 
+    startInstallmentIndex?: number, 
+    daysOverdue?: number,
+    installmentValue?: number,
+    isDaily?: boolean
+  ) => {
     try {
       // Clean old OVERDUE_CONFIG
       let cleanNotes = (currentNotes || '')
@@ -533,18 +540,36 @@ export default function Loans() {
         const newConfig = `[OVERDUE_CONFIG:${inlinePenaltyType}:${penaltyValue}]`;
         cleanNotes = `${newConfig}\n${cleanNotes}`.trim();
         
-        // Para contratos diários, aplicar multa em TODAS as parcelas atrasadas
         if (startInstallmentIndex !== undefined && daysOverdue && daysOverdue > 0) {
-          // Remover multas antigas de todas as parcelas que serão atualizadas
-          for (let i = 0; i < daysOverdue; i++) {
-            const idx = startInstallmentIndex + i;
-            cleanNotes = cleanNotes.replace(new RegExp(`\\[DAILY_PENALTY:${idx}:[0-9.]+\\]\\n?`, 'g'), '');
-          }
-          
-          // Adicionar multa para CADA parcela atrasada (ordem reversa para manter ordem correta nas notas)
-          for (let i = daysOverdue - 1; i >= 0; i--) {
-            const idx = startInstallmentIndex + i;
-            const dailyPenaltyTag = `[DAILY_PENALTY:${idx}:${penaltyValue}]`;
+          if (isDaily) {
+            // Para contratos diários, aplicar multa em TODAS as parcelas atrasadas
+            // Remover multas antigas de todas as parcelas que serão atualizadas
+            for (let i = 0; i < daysOverdue; i++) {
+              const idx = startInstallmentIndex + i;
+              cleanNotes = cleanNotes.replace(new RegExp(`\\[DAILY_PENALTY:${idx}:[0-9.]+\\]\\n?`, 'g'), '');
+            }
+            
+            // Adicionar multa para CADA parcela atrasada (ordem reversa para manter ordem correta nas notas)
+            for (let i = daysOverdue - 1; i >= 0; i--) {
+              const idx = startInstallmentIndex + i;
+              const dailyPenaltyTag = `[DAILY_PENALTY:${idx}:${penaltyValue}]`;
+              cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
+            }
+          } else {
+            // Para contratos mensais/semanais/quinzenais, salvar UMA tag com o total da multa
+            // Calcular o valor total da multa baseado no tipo
+            let totalPenaltyAmount = 0;
+            if (inlinePenaltyType === 'percentage' && installmentValue) {
+              totalPenaltyAmount = (installmentValue * (penaltyValue / 100)) * daysOverdue;
+            } else {
+              totalPenaltyAmount = penaltyValue * daysOverdue;
+            }
+            
+            // Remover multa antiga desta parcela específica
+            cleanNotes = cleanNotes.replace(new RegExp(`\\[DAILY_PENALTY:${startInstallmentIndex}:[0-9.]+\\]\\n?`, 'g'), '');
+            
+            // Adicionar tag com o valor total da multa para a parcela em atraso
+            const dailyPenaltyTag = `[DAILY_PENALTY:${startInstallmentIndex}:${totalPenaltyAmount.toFixed(2)}]`;
             cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
           }
         }
@@ -562,7 +587,7 @@ export default function Loans() {
       setConfiguringPenaltyLoanId(null);
       setInlinePenaltyValue('');
       fetchLoans();
-      toast.success(`Multa aplicada em ${daysOverdue || 1} parcela(s) com sucesso!`);
+      toast.success(`Multa aplicada com sucesso!`);
     } catch (error) {
       console.error('Error saving penalty:', error);
       toast.error('Erro ao salvar configuração de multa');
@@ -4968,7 +4993,14 @@ export default function Loans() {
                               <div className="flex gap-2">
                                 <Button 
                                   size="sm" 
-                                  onClick={() => handleSaveInlinePenalty(loan.id, loan.notes)}
+                                  onClick={() => handleSaveInlinePenalty(
+                                    loan.id, 
+                                    loan.notes, 
+                                    getPaidInstallmentsCount(loan), 
+                                    daysOverdue,
+                                    totalPerInstallment,
+                                    loan.payment_type === 'daily'
+                                  )}
                                   className="flex-1 bg-red-600 hover:bg-red-700"
                                 >
                                   Salvar
@@ -6165,7 +6197,14 @@ export default function Loans() {
                                 <div className="flex gap-2">
                                   <Button 
                                     size="sm" 
-                                    onClick={() => handleSaveInlinePenalty(loan.id, loan.notes, getPaidInstallmentsCount(loan), daysOverdue)}
+                                    onClick={() => handleSaveInlinePenalty(
+                                      loan.id, 
+                                      loan.notes, 
+                                      getPaidInstallmentsCount(loan), 
+                                      daysOverdue,
+                                      totalPerInstallmentDisplay,
+                                      true // isDaily = true
+                                    )}
                                     className="flex-1 bg-red-600 hover:bg-red-700"
                                   >
                                     Salvar
