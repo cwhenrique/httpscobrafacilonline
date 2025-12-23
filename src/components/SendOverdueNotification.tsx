@@ -315,7 +315,22 @@ export default function SendOverdueNotification({
       }
     } catch (error: any) {
       console.error('Error sending overdue notification:', error);
-      toast.error('Erro ao enviar cobrança: ' + (error.message || 'Tente novamente'));
+      
+      // Parse error message for better UX
+      let errorMessage = 'Tente novamente';
+      const errorStr = error.message || '';
+      
+      if (errorStr.includes('telefone') || errorStr.includes('phone')) {
+        errorMessage = `Telefone inválido: "${data.clientPhone}". Atualize o cadastro do cliente.`;
+      } else if (errorStr.includes('WhatsApp') || errorStr.includes('instância')) {
+        errorMessage = 'Configure seu WhatsApp nas configurações primeiro.';
+      } else if (errorStr.includes('desativado')) {
+        errorMessage = 'Envio de WhatsApp para clientes está desativado.';
+      } else if (errorStr) {
+        errorMessage = errorStr;
+      }
+      
+      toast.error('Erro ao enviar cobrança: ' + errorMessage);
     } finally {
       setIsSending(false);
     }
