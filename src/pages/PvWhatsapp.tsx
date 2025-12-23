@@ -80,7 +80,7 @@ const scaleIn = {
   visible: { opacity: 1, scale: 1 },
 };
 
-const WHATSAPP_LINK = "https://wa.me/5511932935877?text=Ol%C3%A1!%20Vim%20do%20an%C3%BAncio%20e%20quero%20saber%20mais%20sobre%20o%20CobraF%C3%A1cil";
+const WHATSAPP_LINK = "https://wa.me/5511932935877?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP";
 
 const PvWhatsapp = () => {
   const [showBottomBar, setShowBottomBar] = useState(false);
