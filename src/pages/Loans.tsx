@@ -676,6 +676,16 @@ export default function Loans() {
     }
   };
   
+  // State for edit penalty dialog
+  const [editPenaltyDialog, setEditPenaltyDialog] = useState<{
+    isOpen: boolean;
+    loanId: string;
+    installmentIndex: number;
+    currentValue: number;
+    currentNotes: string | null;
+  } | null>(null);
+  const [editPenaltyValue, setEditPenaltyValue] = useState('');
+
   // Function to remove penalty from specific daily installment
   const handleRemoveDailyPenalty = async (loanId: string, installmentIndex: number, currentNotes: string | null) => {
     try {
@@ -694,6 +704,39 @@ export default function Loans() {
     } catch (error) {
       console.error('Error removing penalty:', error);
       toast.error('Erro ao remover multa');
+    }
+  };
+
+  // Function to edit penalty for specific daily installment
+  const handleEditDailyPenalty = async (
+    loanId: string, 
+    installmentIndex: number, 
+    newPenaltyValue: number,
+    currentNotes: string | null
+  ) => {
+    try {
+      // Remove old penalty for this installment
+      const regex = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g');
+      let cleanNotes = (currentNotes || '').replace(regex, '').trim();
+      
+      // Add new penalty with edited value
+      if (newPenaltyValue > 0) {
+        const dailyPenaltyTag = `[DAILY_PENALTY:${installmentIndex}:${newPenaltyValue.toFixed(2)}]`;
+        cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
+      }
+      
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', loanId);
+      
+      if (error) throw error;
+      
+      fetchLoans();
+      toast.success('Multa atualizada com sucesso!');
+    } catch (error) {
+      console.error('Error updating penalty:', error);
+      toast.error('Erro ao atualizar multa');
     }
   };
   
@@ -5698,10 +5741,27 @@ export default function Loans() {
                                               <span className={hasSpecialStyle ? 'text-orange-300' : 'text-orange-600 dark:text-orange-400'}>
                                                 🔥 Multa aplicada ({installmentDaysOverdue} dias)
                                               </span>
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-1">
                                                 <span className={`font-bold ${hasSpecialStyle ? 'text-orange-200' : 'text-orange-700 dark:text-orange-300'}`}>
                                                   + {formatCurrency(installmentPenalty)}
                                                 </span>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditPenaltyDialog({
+                                                      isOpen: true,
+                                                      loanId: loan.id,
+                                                      installmentIndex: idx,
+                                                      currentValue: installmentPenalty,
+                                                      currentNotes: loan.notes
+                                                    });
+                                                    setEditPenaltyValue(installmentPenalty.toString());
+                                                  }}
+                                                  className={`p-1 rounded hover:bg-blue-500/20 transition-colors ${hasSpecialStyle ? 'text-blue-300 hover:text-blue-200' : 'text-blue-500 hover:text-blue-600'}`}
+                                                  title="Editar multa"
+                                                >
+                                                  <Pencil className="w-3 h-3" />
+                                                </button>
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
@@ -6870,6 +6930,24 @@ export default function Loans() {
                                                 <span className={`text-[10px] font-medium ${hasSpecialStyle ? 'text-red-300' : 'text-red-500'}`}>
                                                   +{formatCurrency(penaltyForInstallment)}
                                                 </span>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className={`h-4 w-4 p-0 ${hasSpecialStyle ? 'text-blue-300 hover:text-white hover:bg-blue-500/30' : 'text-blue-500 hover:text-blue-700 hover:bg-blue-100'}`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditPenaltyDialog({
+                                                      isOpen: true,
+                                                      loanId: loan.id,
+                                                      installmentIndex: idx,
+                                                      currentValue: penaltyForInstallment,
+                                                      currentNotes: loan.notes
+                                                    });
+                                                    setEditPenaltyValue(penaltyForInstallment.toString());
+                                                  }}
+                                                >
+                                                  <Pencil className="w-3 h-3" />
+                                                </Button>
                                                 <Button
                                                   variant="ghost"
                                                   size="sm"
@@ -8908,6 +8986,51 @@ export default function Loans() {
           }}
           onNewClientClick={handleNewClientClick}
         />
+        {/* Dialog para editar multa de parcela */}
+        <Dialog open={!!editPenaltyDialog} onOpenChange={() => setEditPenaltyDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Editar Multa</DialogTitle>
+              <DialogDescription>
+                Parcela {(editPenaltyDialog?.installmentIndex || 0) + 1} - Valor atual: {formatCurrency(editPenaltyDialog?.currentValue || 0)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Novo valor da multa (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editPenaltyValue}
+                  onChange={(e) => setEditPenaltyValue(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditPenaltyDialog(null)} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (editPenaltyDialog) {
+                      handleEditDailyPenalty(
+                        editPenaltyDialog.loanId,
+                        editPenaltyDialog.installmentIndex,
+                        parseFloat(editPenaltyValue) || 0,
+                        editPenaltyDialog.currentNotes
+                      );
+                      setEditPenaltyDialog(null);
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
         
       </div>
     </DashboardLayout>
