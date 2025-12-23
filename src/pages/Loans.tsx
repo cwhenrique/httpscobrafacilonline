@@ -4671,12 +4671,26 @@ export default function Loans() {
                 // Calculate dynamic penalty based on config (percentage or fixed amount per day)
                 let dynamicPenaltyAmount = 0;
                 if (isOverdue && daysOverdue > 0 && hasOverdueConfig) {
-                  if (overdueConfigType === 'percentage') {
-                    // Percentage of installment value per day (e.g., 1% of R$500/day × 4 days = R$20)
-                    dynamicPenaltyAmount = (totalPerInstallment * (overdueConfigValue / 100)) * daysOverdue;
+                  // Para empréstimos diários, usar cálculo CUMULATIVO para TODAS as parcelas em atraso
+                  if (isDaily) {
+                    const loanStatusResult = getLoanStatus(loan);
+                    if (loanStatusResult.overdueInstallmentsDetails.length > 0) {
+                      const cumulativeResult = calculateCumulativePenalty(
+                        loanStatusResult.overdueInstallmentsDetails,
+                        overdueConfigType!,
+                        overdueConfigValue,
+                        totalPerInstallment,
+                        numInstallments
+                      );
+                      dynamicPenaltyAmount = cumulativeResult.totalPenalty;
+                    }
                   } else {
-                    // Fixed amount per day (e.g., R$ 50/day × 4 days = R$ 200)
-                    dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
+                    // Para outros tipos (mensal, semanal, etc.), manter cálculo simples
+                    if (overdueConfigType === 'percentage') {
+                      dynamicPenaltyAmount = (totalPerInstallment * (overdueConfigValue / 100)) * daysOverdue;
+                    } else {
+                      dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
+                    }
                   }
                 }
                 
