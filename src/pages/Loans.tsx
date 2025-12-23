@@ -6493,7 +6493,7 @@ export default function Loans() {
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                             <div className="text-xs sm:text-sm">
                               {/* CARD UNIFICADO para múltiplas parcelas com multa dinâmica */}
-                              {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 && totalAppliedPenaltiesDaily === 0 ? (
+                              {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 ? (
                                 <>
                                   {/* Cabeçalho com quantidade + regra de multa */}
                                   <div className="flex items-center justify-between mb-2">
@@ -6591,7 +6591,7 @@ export default function Loans() {
                                   </div>
                                   
                                   {/* Multa dinâmica para 1 parcela */}
-                                  {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
+                                  {dynamicPenaltyAmount > 0 && (
                                     <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-2">
                                       <div className="flex items-center justify-between">
                                         <span className="text-red-200/80 text-xs">
@@ -6616,7 +6616,7 @@ export default function Loans() {
                             </div>
                             
                             {/* Seção de multas MANUAIS aplicadas */}
-                            {totalAppliedPenaltiesDaily > 0 && (
+                            {totalAppliedPenaltiesDaily > 0 && overdueConfigValue === 0 && (
                               <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-3">
                                 {/* Cabeçalho */}
                                 <div className="flex items-center justify-between">
