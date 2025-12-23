@@ -1,0 +1,774 @@
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DollarSign,
+  Calculator,
+  Bell,
+  Calendar,
+  Users,
+  TrendingUp,
+  Shield,
+  Smartphone,
+  Clock,
+  FileText,
+  CheckCircle2,
+  ArrowRight,
+  Star,
+  Zap,
+  BarChart3,
+  MessageCircle,
+  Percent,
+  Check,
+  Sparkles,
+  Send,
+  QrCode,
+  CircleDollarSign,
+  Receipt,
+  AlertCircle,
+  XCircle,
+  Phone,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import heroPerson from "@/assets/hero-person.png";
+import cobraFacilLogo from "@/assets/cobrafacil-logo.png";
+import dashboardOverview from "@/assets/dashboard-overview.png";
+import whatsappAlert01 from "@/assets/whatsapp-alert-01.png";
+import whatsappAlert02 from "@/assets/whatsapp-alert-02.png";
+import whatsappAlert03 from "@/assets/whatsapp-alert-03.png";
+import scoreDeClientes from "@/assets/score-de-clientes.png";
+import calendarPage from "@/assets/calendar-page.png";
+import simulatorPage from "@/assets/simulator-page.png";
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 40 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const scaleIn = {
+  hidden: { opacity: 0, scale: 0.8 },
+  visible: { opacity: 1, scale: 1 },
+};
+
+const WHATSAPP_LINK = "https://wa.me/5511932935877?text=Ol%C3%A1!%20Vim%20do%20an%C3%BAncio%20e%20quero%20saber%20mais%20sobre%20o%20CobraF%C3%A1cil";
+
+const PvWhatsapp = () => {
+  const [showBottomBar, setShowBottomBar] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBottomBar(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const painPoints = [
+    { icon: XCircle, text: "Esquece de cobrar e perde dinheiro" },
+    { icon: XCircle, text: "Não sabe quanto tem pra receber" },
+    { icon: XCircle, text: "Calcula juros errado na mão" },
+    { icon: XCircle, text: "Anota em caderno e perde informação" },
+    { icon: XCircle, text: "Cliente atrasa e você nem lembra" },
+  ];
+
+  const newFeatures = [
+    {
+      icon: Send,
+      title: "Cobranças Direto pro Cliente",
+      description: "Envie cobranças e lembretes diretamente para o WhatsApp dos seus clientes com 1 clique",
+      badge: "🆕 EXCLUSIVO",
+    },
+    {
+      icon: QrCode,
+      title: "Conexão via QR Code",
+      description: "Conecte seu WhatsApp em segundos escaneando um QR Code. Simples assim!",
+      badge: "🆕 NOVO",
+    },
+    {
+      icon: Receipt,
+      title: "Comprovantes Automáticos",
+      description: "Ao registrar pagamento, envie comprovante pro seu WhatsApp e do cliente automaticamente",
+      badge: "🆕 NOVO",
+    },
+    {
+      icon: Bell,
+      title: "Alertas Automáticos 3x/dia",
+      description: "Receba resumos às 7h, relatório completo às 8h e lembrete às 12h no seu WhatsApp",
+      badge: "🆕 NOVO",
+    },
+    {
+      icon: Zap,
+      title: "Cobrar Parcela do Dia",
+      description: "Na tela de empréstimos, cobre a parcela do dia com apenas 1 clique no botão",
+      badge: "🆕 NOVO",
+    },
+    {
+      icon: FileText,
+      title: "Recibos de Contratos",
+      description: "Ao criar empréstimo, receba recibo completo no WhatsApp com todos os dados",
+      badge: "🆕 NOVO",
+    },
+  ];
+
+  const mainFeatures = [
+    {
+      icon: BarChart3,
+      title: "Dashboard Inteligente",
+      description: "Veja tudo que tem a receber em tempo real",
+    },
+    {
+      icon: Calculator,
+      title: "Cálculo Automático de Juros",
+      description: "Juros simples ou por parcela, o sistema calcula tudo",
+    },
+    {
+      icon: MessageCircle,
+      title: "WhatsApp Integrado PRO",
+      description: "Receba alertas E envie cobranças para clientes",
+    },
+    {
+      icon: Calendar,
+      title: "Calendário de Cobranças",
+      description: "Visualize todos os vencimentos de forma organizada",
+    },
+    {
+      icon: Users,
+      title: "Score de Clientes",
+      description: "Saiba quem paga em dia e quem atrasa",
+    },
+    {
+      icon: CircleDollarSign,
+      title: "Simulador de Empréstimos",
+      description: "Calcule parcelas e juros antes de emprestar",
+    },
+  ];
+
+  const steps = [
+    {
+      number: "1",
+      title: "Fale Conosco",
+      description: "Clique no botão e fale com nossa equipe no WhatsApp",
+      emoji: "💬",
+    },
+    {
+      number: "2",
+      title: "Receba o Acesso",
+      description: "Em minutos você terá acesso completo ao sistema",
+      emoji: "🔑",
+    },
+    {
+      number: "3",
+      title: "Cadastre Tudo",
+      description: "Adicione seus clientes e empréstimos facilmente",
+      emoji: "📝",
+    },
+    {
+      number: "4",
+      title: "Nunca Mais Esqueça",
+      description: "Receba alertas e cobre pelo WhatsApp automaticamente",
+      emoji: "🚀",
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Header Minimalista */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <img src={cobraFacilLogo} alt="CobraFácil" className="h-8 sm:h-10" />
+          <Button 
+            size="sm"
+            className="bg-green-500 hover:bg-green-600 text-white font-bold shadow-lg shadow-green-500/30"
+            onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+          >
+            <MessageCircle className="w-4 h-4 mr-2" />
+            Falar no WhatsApp
+          </Button>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="pt-24 pb-12 px-4 relative min-h-[85vh] flex items-center">
+        <div className="absolute inset-0 overflow-hidden">
+          <img 
+            src={heroPerson} 
+            alt="" 
+            className="absolute right-0 top-0 h-full w-auto object-cover opacity-10 max-w-none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-background/80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/50" />
+          <div className="absolute inset-0 grid-pattern opacity-50" />
+        </div>
+        
+        <div className="container mx-auto text-center relative">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-6">
+              <span className="animate-pulse">🔥</span>
+              <span>CHEGA DE PERDER DINHEIRO!</span>
+            </div>
+          </motion.div>
+          
+          <motion.h1 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-3xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight text-foreground"
+          >
+            Você Empresta Dinheiro a Juros?
+            <br />
+            <span className="gradient-text-animated">
+              Nunca Mais Perca uma Cobrança!
+            </span>
+          </motion.h1>
+
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6 px-2"
+          >
+            {["💰 Empréstimos", "🏠 Aluguéis", "🛠️ Serviços", "📦 Vendas a Prazo"].map((item, i) => (
+              <div key={i} className="badge-premium rounded-full px-4 py-2 text-primary font-semibold text-xs sm:text-sm">
+                {item}
+              </div>
+            ))}
+          </motion.div>
+          
+          <motion.p 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto"
+          >
+            Sistema completo para quem empresta dinheiro. 
+            <strong className="text-foreground"> Calcule juros automaticamente, receba alertas no WhatsApp</strong> e 
+            <strong className="text-primary"> cobre seus clientes direto pelo WhatsApp!</strong>
+          </motion.p>
+          
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={fadeInUp}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col items-center gap-4"
+          >
+            <Button 
+              size="lg" 
+              className="text-lg px-10 h-16 shadow-glow font-bold bg-green-500 hover:bg-green-600 transition-all duration-300 animate-bounce-subtle"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-6 h-6 mr-3" />
+              QUERO FALAR COM UM ESPECIALISTA
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              ⚡ Resposta imediata • 💬 Tire todas suas dúvidas
+            </p>
+          </motion.div>
+
+          {/* Stats */}
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={staggerContainer}
+            transition={{ delay: 0.5 }}
+            className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto"
+          >
+            {[
+              { value: "1.350+", label: "Clientes Ativos", icon: "👥" },
+              { value: "1x", label: "Pagamento Único", icon: "💎" },
+              { value: "4.9/5", label: "Avaliação", icon: "⭐" },
+              { value: "98.9%", label: "Satisfação", icon: "🏆" },
+            ].map((stat, index) => (
+              <motion.div 
+                key={index} 
+                variants={scaleIn}
+                className="stat-card text-center p-4 rounded-xl"
+              >
+                <span className="text-xl">{stat.icon}</span>
+                <div className="text-xl sm:text-2xl font-bold gradient-text mt-1">{stat.value}</div>
+                <div className="text-xs text-muted-foreground">{stat.label}</div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Problema / Agitação */}
+      <section className="py-16 px-4 bg-destructive/5 relative">
+        <div className="container mx-auto max-w-4xl">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
+              Você Ainda <span className="text-destructive">Anota em Caderno?</span>
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Se você se identifica com algum desses problemas, o CobraFácil é pra você:
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid gap-3"
+          >
+            {painPoints.map((pain, index) => (
+              <motion.div
+                key={index}
+                variants={fadeInUp}
+                className="flex items-center gap-4 bg-background/80 backdrop-blur p-4 rounded-xl border border-destructive/20"
+              >
+                <pain.icon className="w-6 h-6 text-destructive flex-shrink-0" />
+                <span className="text-foreground font-medium">{pain.text}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            transition={{ delay: 0.3 }}
+            className="text-center mt-10"
+          >
+            <p className="text-xl font-bold text-foreground mb-4">
+              😤 Chega de perder dinheiro por desorganização!
+            </p>
+            <Button 
+              size="lg"
+              className="bg-green-500 hover:bg-green-600 font-bold"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-5 h-5 mr-2" />
+              Quero Resolver Isso Agora
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Solução - Dashboard Preview */}
+      <section className="py-16 px-4 relative">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="container mx-auto relative">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <Sparkles className="w-4 h-4" />
+              <span>A Solução</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-bold mb-4 text-foreground">
+              Conheça o <span className="gradient-text">CobraFácil</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              O sistema mais completo para quem empresta dinheiro a juros
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={scaleIn}
+            className="max-w-5xl mx-auto mb-10"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 border border-border/50">
+              <img 
+                src={dashboardOverview} 
+                alt="Dashboard CobraFácil" 
+                className="w-full"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+              <div className="absolute bottom-6 left-6 right-6">
+                <div className="badge-premium rounded-full px-4 py-2 inline-flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  <span className="font-bold text-primary">Dashboard em Tempo Real</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center"
+          >
+            <div className="inline-flex items-center gap-3 stat-card rounded-full px-8 py-4">
+              <Shield className="w-6 h-6 text-primary" />
+              <span className="font-bold text-foreground">Pagamento Único = Acesso Vitalício</span>
+              <Zap className="w-6 h-6 text-primary" />
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Funcionalidades Novas - Destaque */}
+      <section className="py-16 px-4 bg-primary/5 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <div className="inline-flex items-center gap-2 bg-primary/20 border border-primary/30 rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-4">
+              <Zap className="w-4 h-4" />
+              <span>🆕 FUNCIONALIDADES EXCLUSIVAS</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              O que <span className="gradient-text">Ninguém Mais Oferece</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Recursos únicos que você só encontra no CobraFácil
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto"
+          >
+            {newFeatures.map((feature, index) => (
+              <motion.div
+                key={index}
+                variants={fadeInUp}
+                className="card-premium p-6 rounded-2xl relative overflow-hidden group hover:scale-[1.02] transition-transform"
+              >
+                <div className="absolute top-4 right-4">
+                  <span className="text-xs font-bold bg-primary/20 text-primary px-3 py-1 rounded-full">
+                    {feature.badge}
+                  </span>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <feature.icon className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-bold text-lg text-foreground mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground text-sm">{feature.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            transition={{ delay: 0.3 }}
+            className="text-center mt-10"
+          >
+            <Button 
+              size="lg"
+              className="bg-green-500 hover:bg-green-600 font-bold text-lg px-10"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-6 h-6 mr-3" />
+              Quero Essas Funcionalidades
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* WhatsApp Screenshots */}
+      <section className="py-16 px-4 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Alertas <span className="gradient-text">Direto no WhatsApp</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Veja como você vai receber as notificações no seu celular
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="flex flex-wrap justify-center gap-6"
+          >
+            {[
+              { img: whatsappAlert01, label: "Resumo às 7h" },
+              { img: whatsappAlert02, label: "Cobranças às 8h" },
+              { img: whatsappAlert03, label: "Lembrete às 12h" },
+            ].map((item, index) => (
+              <motion.div
+                key={index}
+                variants={scaleIn}
+                className="relative"
+              >
+                <img 
+                  src={item.img} 
+                  alt={item.label} 
+                  className="w-64 rounded-2xl shadow-xl shadow-black/20 border border-border/50"
+                />
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 badge-premium rounded-full px-4 py-2 text-xs font-bold text-primary whitespace-nowrap">
+                  {item.label}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Todas as Funcionalidades */}
+      <section className="py-16 px-4 bg-muted/30 relative">
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        <div className="container mx-auto relative">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Tudo em <span className="gradient-text">Um Só Lugar</span>
+            </h2>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl mx-auto"
+          >
+            {mainFeatures.map((feature, index) => (
+              <motion.div
+                key={index}
+                variants={fadeInUp}
+                className="stat-card p-5 rounded-xl text-center hover:scale-105 transition-transform"
+              >
+                <feature.icon className="w-8 h-8 text-primary mx-auto mb-3" />
+                <h3 className="font-bold text-sm text-foreground mb-1">{feature.title}</h3>
+                <p className="text-xs text-muted-foreground">{feature.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Garantia */}
+      <section className="py-16 px-4 relative">
+        <div className="container mx-auto max-w-3xl">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={scaleIn}
+            className="card-premium p-8 sm:p-12 rounded-3xl text-center relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />
+            <div className="relative">
+              <div className="w-20 h-20 mx-auto bg-primary/20 rounded-full flex items-center justify-center mb-6">
+                <Shield className="w-10 h-10 text-primary" />
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
+                Garantia de <span className="gradient-text">7 Dias</span>
+              </h2>
+              <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+                Teste o CobraFácil por 7 dias. Se não gostar, devolvemos 100% do seu dinheiro. 
+                Sem perguntas, sem burocracia.
+              </p>
+              <div className="flex flex-wrap justify-center gap-4">
+                <div className="flex items-center gap-2 text-sm text-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  <span>Reembolso Total</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  <span>Sem Perguntas</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-foreground">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  <span>Risco Zero</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Como Funciona */}
+      <section className="py-16 px-4 bg-muted/30 relative">
+        <div className="container mx-auto">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Como <span className="gradient-text">Começar?</span>
+            </h2>
+            <p className="text-muted-foreground">
+              4 passos simples para organizar suas cobranças
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto"
+          >
+            {steps.map((step, index) => (
+              <motion.div
+                key={index}
+                variants={fadeInUp}
+                className="text-center"
+              >
+                <div className="w-16 h-16 mx-auto stat-card rounded-2xl flex items-center justify-center mb-4 text-3xl">
+                  {step.emoji}
+                </div>
+                <div className="text-sm font-bold text-primary mb-1">Passo {step.number}</div>
+                <h3 className="font-bold text-foreground mb-2">{step.title}</h3>
+                <p className="text-sm text-muted-foreground">{step.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* CTA Final */}
+      <section className="py-20 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-primary/10 to-primary/5" />
+        <div className="container mx-auto max-w-3xl relative">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center"
+          >
+            <div className="inline-flex items-center gap-2 badge-premium badge-glow rounded-full px-5 py-2.5 text-sm font-bold text-primary mb-6">
+              <Zap className="w-4 h-4" />
+              <span>ÚLTIMA CHANCE</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+              Não Perca Mais <span className="gradient-text">Dinheiro!</span>
+            </h2>
+            <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+              Fale agora com nossa equipe e descubra como o CobraFácil pode transformar 
+              a forma como você gerencia seus empréstimos
+            </p>
+            
+            <Button 
+              size="lg"
+              className="text-xl px-12 h-18 py-6 bg-green-500 hover:bg-green-600 font-bold shadow-2xl shadow-green-500/30 animate-bounce-subtle"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-7 h-7 mr-3" />
+              FALAR COM ESPECIALISTA AGORA
+            </Button>
+
+            <p className="text-sm text-muted-foreground mt-4">
+              ⚡ Atendimento imediato • 🔒 Sem compromisso • ✅ Tire todas as dúvidas
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-6 mt-10">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary" />
+                <span className="text-sm text-foreground">Garantia 7 dias</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                <span className="text-sm text-foreground">Acesso vitalício</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary" />
+                <span className="text-sm text-foreground">Suporte incluso</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Footer Simples */}
+      <footer className="py-8 px-4 border-t border-border/50 bg-background/80">
+        <div className="container mx-auto text-center">
+          <img src={cobraFacilLogo} alt="CobraFácil" className="h-8 mx-auto mb-4" />
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} CobraFácil. Todos os direitos reservados.
+          </p>
+        </div>
+      </footer>
+
+      {/* Barra Fixa WhatsApp */}
+      <motion.div
+        initial={{ y: 100 }}
+        animate={{ y: showBottomBar ? 0 : 100 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background/95 backdrop-blur-lg border-t border-border/50"
+      >
+        <div className="container mx-auto flex items-center justify-between gap-4">
+          <div className="hidden sm:block">
+            <p className="font-bold text-foreground text-sm">Pronto para organizar suas cobranças?</p>
+            <p className="text-xs text-muted-foreground">Fale com nossa equipe agora</p>
+          </div>
+          <Button 
+            size="lg"
+            className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 font-bold shadow-lg shadow-green-500/30"
+            onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+          >
+            <MessageCircle className="w-5 h-5 mr-2" />
+            Falar no WhatsApp
+          </Button>
+        </div>
+      </motion.div>
+
+      {/* Espaço para barra fixa */}
+      <div className="h-20" />
+    </div>
+  );
+};
+
+export default PvWhatsapp;

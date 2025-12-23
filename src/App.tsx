@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
+import PvWhatsapp from "./pages/PvWhatsapp";
 import Affiliate from "./pages/Affiliate";
 import AffiliateId from "./pages/AffiliateId";
 import Auth from "./pages/Auth";
@@ -37,6 +38,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/pvwhatsapp" element={<PvWhatsapp />} />
             <Route path="/aff" element={<Affiliate />} />
             <Route path="/affid" element={<AffiliateId />} />
             <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
