@@ -4877,7 +4877,7 @@ export default function Loans() {
                               <span>Valor: {formatCurrency(totalPerInstallment)}</span>
                             </div>
                           </div>
-                          {dynamicPenaltyAmount > 0 && (
+                          {dynamicPenaltyAmount > 0 && totalAppliedPenalties === 0 && (
                             <>
                               <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
                                 <span className="text-red-300">
@@ -6047,7 +6047,7 @@ export default function Loans() {
                                 <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
                               </div>
                             </div>
-                            {dynamicPenaltyAmount > 0 && (
+                            {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
                               <>
                                 <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
                                   <span className="text-red-300">
