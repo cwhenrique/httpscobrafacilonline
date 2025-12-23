@@ -148,11 +148,20 @@ export default function SendOverdueNotification({
       message += `\n`;
     }
     
-    // Seção de opção de pagamento só de juros
+    // Seção de opção de pagamento só de juros (+ multa se houver)
     if (data.interestAmount && data.interestAmount > 0) {
+      const interestPlusPenalty = data.interestAmount + (data.penaltyAmount || 0);
+      const hasMulta = data.penaltyAmount && data.penaltyAmount > 0;
+      
       message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS JUROS*\n`;
+      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS ${hasMulta ? 'JUROS + MULTA' : 'JUROS'}*\n`;
       message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
+      
+      if (hasMulta) {
+        message += `⚠️ *Multa por atraso:* ${formatCurrency(data.penaltyAmount)}\n`;
+        message += `💰 *Total (Juros + Multa):* ${formatCurrency(interestPlusPenalty)}\n`;
+      }
+      
       message += `📌 *Principal fica para próximo mês*\n\n`;
       message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
