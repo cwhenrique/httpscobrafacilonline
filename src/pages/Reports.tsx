@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { getTotalDailyPenalties } from '@/lib/calculations';
 
 import { HealthScoreCard } from '@/components/reports/HealthScoreCard';
 import { PeriodFilter, PeriodType } from '@/components/reports/PeriodFilter';
@@ -222,8 +223,11 @@ export default function Reports() {
     // === MÉTRICAS DE SALDO (usando TODOS os empréstimos ativos) ===
     // Capital na rua = soma do principal de todos os empréstimos não pagos
     const capitalNaRua = activeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
-    // Falta receber = soma do saldo restante de todos os empréstimos não pagos
-    const faltaReceber = activeLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
+    // Falta receber = soma do saldo restante + multas aplicadas de todos os empréstimos não pagos
+    const faltaReceber = activeLoans.reduce((sum, l) => {
+      const penalties = getTotalDailyPenalties(l.notes);
+      return sum + l.remaining_balance + penalties;
+    }, 0);
     // Empréstimos em atraso (todos, não apenas do período)
     const overdueLoans = activeLoans.filter(l => l.status === 'overdue');
     const totalLoanOverdue = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
