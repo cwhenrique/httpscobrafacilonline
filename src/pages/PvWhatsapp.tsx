@@ -343,7 +343,7 @@ const PvWhatsapp = () => {
       </section>
 
       {/* Solução - Dashboard Preview */}
-      <section className="py-16 px-4 relative">
+      <section className="pt-6 pb-16 px-4 relative">
         <div className="absolute inset-0 grid-pattern opacity-30" />
         <div className="container mx-auto relative">
           <motion.div 
