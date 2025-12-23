@@ -453,123 +453,13 @@ const PvWhatsapp = () => {
             );
           })()}
 
+          {/* Seção de Planos/Benefícios */}
           <motion.div 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={fadeInUp}
-            className="text-center"
-          >
-            <div className="inline-flex items-center gap-3 stat-card rounded-full px-8 py-4">
-              <Shield className="w-6 h-6 text-primary" />
-              <span className="font-bold text-foreground">Pagamento Único = Acesso Vitalício</span>
-              <Zap className="w-6 h-6 text-primary" />
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Comparação Caderno vs CobraFácil */}
-      <section className="py-16 px-4 bg-muted/30 relative">
-        <div className="container mx-auto max-w-5xl">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="text-center mb-10"
-          >
-            <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
-              <span className="text-destructive">Caderno</span> vs <span className="gradient-text">CobraFácil</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Veja a diferença entre continuar anotando no papel ou usar o sistema:
-            </p>
-          </motion.div>
-
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid md:grid-cols-2 gap-6"
-          >
-            {/* Coluna Caderno - Problemas */}
-            <motion.div 
-              variants={fadeInUp}
-              className="bg-destructive/5 border border-destructive/20 rounded-2xl p-6"
-            >
-              <h3 className="flex items-center gap-2 text-xl font-bold text-destructive mb-6">
-                📓 Com Caderno
-              </h3>
-              <div className="space-y-3">
-                {painPoints.map((pain, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 bg-background/60 backdrop-blur p-3 rounded-xl"
-                  >
-                    <pain.icon className="w-5 h-5 text-destructive flex-shrink-0" />
-                    <span className="text-foreground/80 text-sm">{pain.text}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Coluna CobraFácil - Benefícios */}
-            <motion.div 
-              variants={fadeInUp}
-              className="bg-primary/5 border border-primary/20 rounded-2xl p-6"
-            >
-              <h3 className="flex items-center gap-2 text-xl font-bold text-primary mb-6">
-                📱 Com CobraFácil
-              </h3>
-              <div className="space-y-3">
-                {benefits.map((benefit, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 bg-background/60 backdrop-blur p-3 rounded-xl"
-                  >
-                    <benefit.icon className="w-5 h-5 text-primary flex-shrink-0" />
-                    <span className="text-foreground text-sm font-medium">{benefit.text}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ delay: 0.3 }}
-            className="text-center mt-10"
-          >
-            <p className="text-xl font-bold text-foreground mb-4">
-              🚀 Faça a escolha certa!
-            </p>
-            <Button 
-              size="lg"
-              className="bg-green-500 hover:bg-green-600 font-bold"
-              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
-            >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Quero o CobraFácil
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Seção de Planos/Benefícios */}
-      <section className="py-20 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />
-        <div className="container mx-auto relative z-10">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="text-center mb-12"
+            className="text-center mb-12 mt-16"
           >
             <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-full px-5 py-2.5 text-sm font-bold text-green-400 mb-4">
               <Sparkles className="w-4 h-4" />
@@ -705,6 +595,98 @@ const PvWhatsapp = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* Comparação Caderno vs CobraFácil */}
+      <section className="py-16 px-4 bg-muted/30 relative">
+        <div className="container mx-auto max-w-5xl">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
+              <span className="text-destructive">Caderno</span> vs <span className="gradient-text">CobraFácil</span>
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Veja a diferença entre continuar anotando no papel ou usar o sistema:
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-2 gap-6"
+          >
+            {/* Coluna Caderno - Problemas */}
+            <motion.div 
+              variants={fadeInUp}
+              className="bg-destructive/5 border border-destructive/20 rounded-2xl p-6"
+            >
+              <h3 className="flex items-center gap-2 text-xl font-bold text-destructive mb-6">
+                📓 Com Caderno
+              </h3>
+              <div className="space-y-3">
+                {painPoints.map((pain, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 bg-background/60 backdrop-blur p-3 rounded-xl"
+                  >
+                    <pain.icon className="w-5 h-5 text-destructive flex-shrink-0" />
+                    <span className="text-foreground/80 text-sm">{pain.text}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Coluna CobraFácil - Benefícios */}
+            <motion.div 
+              variants={fadeInUp}
+              className="bg-primary/5 border border-primary/20 rounded-2xl p-6"
+            >
+              <h3 className="flex items-center gap-2 text-xl font-bold text-primary mb-6">
+                📱 Com CobraFácil
+              </h3>
+              <div className="space-y-3">
+                {benefits.map((benefit, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 bg-background/60 backdrop-blur p-3 rounded-xl"
+                  >
+                    <benefit.icon className="w-5 h-5 text-primary flex-shrink-0" />
+                    <span className="text-foreground text-sm font-medium">{benefit.text}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            transition={{ delay: 0.3 }}
+            className="text-center mt-10"
+          >
+            <p className="text-xl font-bold text-foreground mb-4">
+              🚀 Faça a escolha certa!
+            </p>
+            <Button 
+              size="lg"
+              className="bg-green-500 hover:bg-green-600 font-bold"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-5 h-5 mr-2" />
+              Quero o CobraFácil
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
 
       {/* Funcionalidades Novas - Destaque */}
       <section className="py-16 px-4 bg-primary/5 relative">
