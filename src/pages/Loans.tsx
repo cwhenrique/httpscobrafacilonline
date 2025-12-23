@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
@@ -576,8 +577,23 @@ export default function Loans() {
   
   // Inline penalty configuration states
   const [configuringPenaltyLoanId, setConfiguringPenaltyLoanId] = useState<string | null>(null);
-  const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed'>('percentage');
+  const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed' | 'manual'>('percentage');
   const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
+  
+  // Manual penalty dialog state
+  const [manualPenaltyDialog, setManualPenaltyDialog] = useState<{
+    isOpen: boolean;
+    loanId: string;
+    currentNotes: string | null;
+    penaltyMode: 'percentage' | 'fixed';
+    overdueInstallments: Array<{
+      index: number;
+      dueDate: string;
+      daysOverdue: number;
+      installmentValue: number;
+    }>;
+  } | null>(null);
+  const [manualPenaltyValues, setManualPenaltyValues] = useState<Record<number, string>>({});
   
   // Function to save inline penalty configuration
   const handleSaveInlinePenalty = async (
@@ -738,6 +754,74 @@ export default function Loans() {
       console.error('Error updating penalty:', error);
       toast.error('Erro ao atualizar multa');
     }
+  };
+  
+  // Function to save manual penalties
+  const handleSaveManualPenalties = async () => {
+    if (!manualPenaltyDialog) return;
+    
+    try {
+      let cleanNotes = (manualPenaltyDialog.currentNotes || '')
+        .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+        .trim();
+      
+      // Apply penalty for each installment that has a value
+      for (const inst of manualPenaltyDialog.overdueInstallments) {
+        const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+        if (enteredValue > 0) {
+          // Calculate penalty amount
+          const penaltyAmount = manualPenaltyDialog.penaltyMode === 'percentage'
+            ? inst.installmentValue * (enteredValue / 100)
+            : enteredValue;
+          
+          // Remove old penalty for this installment
+          cleanNotes = cleanNotes.replace(
+            new RegExp(`\\[DAILY_PENALTY:${inst.index}:[0-9.]+\\]\\n?`, 'g'), 
+            ''
+          );
+          
+          // Add new FIXED penalty
+          const penaltyTag = `[DAILY_PENALTY:${inst.index}:${penaltyAmount.toFixed(2)}]`;
+          cleanNotes = `${penaltyTag}\n${cleanNotes}`.trim();
+        }
+      }
+      
+      // Save to database
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', manualPenaltyDialog.loanId);
+      
+      if (error) throw error;
+      
+      setManualPenaltyDialog(null);
+      setManualPenaltyValues({});
+      fetchLoans();
+      toast.success('Multas aplicadas com sucesso!');
+    } catch (error) {
+      console.error('Error saving manual penalties:', error);
+      toast.error('Erro ao aplicar multas');
+    }
+  };
+
+  // Function to open manual penalty dialog
+  const openManualPenaltyDialog = (
+    loan: any, 
+    overdueInstallments: Array<{ index: number; dueDate: string; daysOverdue: number }>,
+    installmentValue: number
+  ) => {
+    setManualPenaltyDialog({
+      isOpen: true,
+      loanId: loan.id,
+      currentNotes: loan.notes,
+      penaltyMode: 'percentage',
+      overdueInstallments: overdueInstallments.map(inst => ({
+        ...inst,
+        installmentValue
+      }))
+    });
+    setManualPenaltyValues({});
+    setConfiguringPenaltyLoanId(null);
   };
   
   // Auto-regenerate installment dates when number of installments changes in edit form
@@ -5125,13 +5209,29 @@ export default function Loans() {
                           {configuringPenaltyLoanId === loan.id && (
                             <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
                               <Label className="text-xs text-red-300">Tipo de multa</Label>
-                              <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
+                              <Select 
+                                value={inlinePenaltyType} 
+                                onValueChange={(v) => {
+                                  if (v === 'manual') {
+                                    // Open manual penalty dialog for monthly loans
+                                    const paidCount = getPaidInstallmentsCount(loan);
+                                    openManualPenaltyDialog(
+                                      loan,
+                                      [{ index: paidCount, dueDate: loan.due_date, daysOverdue }],
+                                      totalPerInstallment
+                                    );
+                                  } else {
+                                    setInlinePenaltyType(v as 'percentage' | 'fixed');
+                                  }
+                                }}
+                              >
                                 <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
                                   <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
+                                  <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                 </SelectContent>
                               </Select>
                               
@@ -6458,13 +6558,28 @@ export default function Loans() {
                             {configuringPenaltyLoanId === loan.id && (
                               <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
                                 <Label className="text-xs text-red-300">Tipo de multa</Label>
-                                <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
+                                <Select 
+                                  value={inlinePenaltyType} 
+                                  onValueChange={(v) => {
+                                    if (v === 'manual') {
+                                      // Open manual penalty dialog for daily loans
+                                      openManualPenaltyDialog(
+                                        loan,
+                                        overdueInstallmentsDetails,
+                                        totalPerInstallmentDisplay
+                                      );
+                                    } else {
+                                      setInlinePenaltyType(v as 'percentage' | 'fixed');
+                                    }
+                                  }}
+                                >
                                   <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
                                     <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
+                                    <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 
@@ -9026,6 +9141,105 @@ export default function Loans() {
                   className="flex-1"
                 >
                   Salvar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Dialog para aplicar multa manualmente */}
+        <Dialog open={!!manualPenaltyDialog} onOpenChange={() => setManualPenaltyDialog(null)}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Aplicar Multa Manualmente</DialogTitle>
+              <DialogDescription>
+                Escolha o tipo e defina o valor para cada parcela. O valor será fixo (não acumula com os dias).
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Escolha: % ou R$ */}
+              <div className="space-y-2">
+                <Label>Tipo de valor</Label>
+                <Select 
+                  value={manualPenaltyDialog?.penaltyMode} 
+                  onValueChange={(v) => setManualPenaltyDialog(prev => prev ? {...prev, penaltyMode: v as 'percentage' | 'fixed'} : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Porcentagem (%)</SelectItem>
+                    <SelectItem value="fixed">Valor em Reais (R$)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Lista de parcelas em atraso */}
+              <div className="space-y-2">
+                <Label>Parcelas em atraso ({manualPenaltyDialog?.overdueInstallments.length})</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {manualPenaltyDialog?.overdueInstallments.map((inst) => {
+                    const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+                    const calculatedPenalty = manualPenaltyDialog.penaltyMode === 'percentage'
+                      ? inst.installmentValue * (enteredValue / 100)
+                      : enteredValue;
+                    
+                    return (
+                      <div key={inst.index} className="flex items-center gap-2 p-2 bg-muted rounded">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Parcela {inst.index + 1}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Venc: {format(new Date(inst.dueDate + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })} • {inst.daysOverdue} dias atraso
+                          </p>
+                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-20 h-8"
+                          placeholder={manualPenaltyDialog.penaltyMode === 'percentage' ? '%' : 'R$'}
+                          value={manualPenaltyValues[inst.index] || ''}
+                          onChange={(e) => setManualPenaltyValues(prev => ({
+                            ...prev,
+                            [inst.index]: e.target.value
+                          }))}
+                        />
+                        {enteredValue > 0 && (
+                          <span className="text-xs text-orange-500 w-20 text-right">
+                            +{formatCurrency(calculatedPenalty)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Total preview */}
+              {Object.keys(manualPenaltyValues).some(k => parseFloat(manualPenaltyValues[parseInt(k)] || '0') > 0) && (
+                <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
+                  <p className="text-sm font-medium text-orange-600">
+                    Total de multas: {formatCurrency(
+                      manualPenaltyDialog?.overdueInstallments.reduce((sum, inst) => {
+                        const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+                        const calculatedPenalty = manualPenaltyDialog.penaltyMode === 'percentage'
+                          ? inst.installmentValue * (enteredValue / 100)
+                          : enteredValue;
+                        return sum + calculatedPenalty;
+                      }, 0) || 0
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              {/* Botões */}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setManualPenaltyDialog(null)} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveManualPenalties} className="flex-1">
+                  Aplicar Multas
                 </Button>
               </div>
             </div>
