@@ -272,7 +272,7 @@ const PvWhatsapp = () => {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6 px-2"
           >
-            {["💰 Empréstimos", "🏠 Aluguéis", "🛠️ Serviços", "📦 Vendas a Prazo"].map((item, i) => (
+            {["📊 Controle Total", "💸 Cobranças Automáticas", "📅 Calendário de Pagamentos", "📈 Relatórios"].map((item, i) => (
               <div key={i} className="badge-premium rounded-full px-4 py-2 text-primary font-semibold text-xs sm:text-sm">
                 {item}
               </div>
