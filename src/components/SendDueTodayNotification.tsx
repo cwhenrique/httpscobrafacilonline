@@ -239,7 +239,7 @@ export default function SendDueTodayNotification({
         ) : (
           <>
             <Bell className="w-4 h-4 mr-2" />
-            Lembrete pro Cliente
+            Cobrar Parcela de Hoje
           </>
         )}
         {messageCount > 0 && (
