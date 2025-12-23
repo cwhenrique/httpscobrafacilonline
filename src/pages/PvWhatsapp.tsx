@@ -278,9 +278,10 @@ const PvWhatsapp = () => {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto"
           >
-            Sistema completo para quem empresta dinheiro. 
-            <strong className="text-foreground"> Calcule juros automaticamente, receba alertas no WhatsApp</strong> e 
-            <strong className="text-primary"> cobre seus clientes direto pelo WhatsApp!</strong>
+              Sistema completo para quem empresta dinheiro. 
+              <strong className="text-foreground"> Calcule juros automaticamente, receba alertas no WhatsApp</strong> e 
+              <strong className="text-primary"> cobre seus clientes direto pelo WhatsApp!</strong>
+              <span className="block mt-2">Use no seu celular e computador simultaneamente.</span>
           </motion.p>
           
           <motion.div 
