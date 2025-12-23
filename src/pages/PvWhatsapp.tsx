@@ -513,11 +513,11 @@ const PvWhatsapp = () => {
                 </div>
               </div>
               <Button 
-                className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 font-semibold"
-                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
+                onClick={() => window.open("https://wa.me/5511932935877?text=Olá! Tenho interesse no plano MENSAL do CobraFácil. Pode me passar mais informações?", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
-                Falar com Especialista
+                Quero Plano Mensal
               </Button>
             </motion.div>
 
@@ -564,7 +564,7 @@ const PvWhatsapp = () => {
               </div>
               <Button 
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
-                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+                onClick={() => window.open("https://wa.me/5511932935877?text=Olá! Tenho interesse no plano VITALÍCIO do CobraFácil. Quero acesso para sempre!", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Quero Acesso Vitalício
@@ -607,11 +607,11 @@ const PvWhatsapp = () => {
                 </div>
               </div>
               <Button 
-                className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 font-semibold"
-                onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
+                onClick={() => window.open("https://wa.me/5511932935877?text=Olá! Tenho interesse no plano ANUAL do CobraFácil. Pode me passar mais detalhes?", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
-                Falar com Especialista
+                Quero Plano Anual
               </Button>
             </motion.div>
           </motion.div>
