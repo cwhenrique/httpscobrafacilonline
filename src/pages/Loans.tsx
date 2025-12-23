@@ -133,6 +133,66 @@ const getTotalDailyPenalties = (notes: string | null): number => {
   return Object.values(penalties).reduce((sum, val) => sum + val, 0);
 };
 
+// Helper para calcular multas cumulativas para TODAS as parcelas em atraso
+interface OverdueInstallmentDetail {
+  index: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
+interface CumulativePenaltyResult {
+  totalPenalty: number;
+  penaltyBreakdown: Array<{
+    installmentNumber: number;
+    daysOverdue: number;
+    penaltyAmount: number;
+    installmentAmount: number;
+    totalWithPenalty: number;
+  }>;
+  totalOverdueAmount: number;
+  totalWithPenalties: number;
+}
+
+const calculateCumulativePenalty = (
+  overdueInstallmentsDetails: OverdueInstallmentDetail[],
+  penaltyType: 'percentage' | 'fixed',
+  penaltyValue: number,
+  installmentValue: number,
+  numInstallments: number
+): CumulativePenaltyResult => {
+  let totalPenalty = 0;
+  let totalOverdueAmount = 0;
+  const penaltyBreakdown: CumulativePenaltyResult['penaltyBreakdown'] = [];
+  
+  for (const detail of overdueInstallmentsDetails) {
+    let penaltyForInstallment = 0;
+    
+    if (penaltyType === 'percentage') {
+      penaltyForInstallment = (installmentValue * (penaltyValue / 100)) * detail.daysOverdue;
+    } else {
+      penaltyForInstallment = penaltyValue * detail.daysOverdue;
+    }
+    
+    totalPenalty += penaltyForInstallment;
+    totalOverdueAmount += installmentValue;
+    
+    penaltyBreakdown.push({
+      installmentNumber: detail.index + 1,
+      daysOverdue: detail.daysOverdue,
+      penaltyAmount: penaltyForInstallment,
+      installmentAmount: installmentValue,
+      totalWithPenalty: installmentValue + penaltyForInstallment
+    });
+  }
+  
+  return { 
+    totalPenalty, 
+    penaltyBreakdown,
+    totalOverdueAmount,
+    totalWithPenalties: totalOverdueAmount + totalPenalty
+  };
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -1222,82 +1282,105 @@ export default function Loans() {
     let overdueDate = '';
     let daysOverdue = 0;
     
+    // NOVO: Array com detalhes de TODAS as parcelas em atraso
+    const overdueInstallmentsDetails: Array<{
+      index: number;
+      dueDate: string;
+      daysOverdue: number;
+    }> = [];
+    
     if (!isPaid && remainingToReceive > 0) {
       const paidInstallments = getPaidInstallmentsCount(loan);
       const dates = (loan.installment_dates as string[]) || [];
       
-      // Lógica SIMPLIFICADA: se tem parcelas pagas, próxima parcela não paga determina status
-      // Determinar a próxima data de vencimento
-      let nextDueDateStr: string | null = null;
-      
-      if (dates.length > 0) {
-        // Tem installment_dates - verificar a próxima parcela não paga
-        if (paidInstallments < dates.length) {
-          nextDueDateStr = dates[paidInstallments];
-          overdueInstallmentIndex = paidInstallments;
-        } else {
-          // Todas as parcelas das datas foram pagas, mas ainda há saldo
-          // Usar a última data como referência
-          nextDueDateStr = dates[dates.length - 1];
-          overdueInstallmentIndex = dates.length - 1;
+      // Para empréstimos diários, verificar TODAS as parcelas não pagas que já venceram
+      if (isDaily && dates.length > 0) {
+        for (let i = paidInstallments; i < dates.length; i++) {
+          const installmentDueDate = new Date(dates[i] + 'T12:00:00');
+          installmentDueDate.setHours(0, 0, 0, 0);
+          
+          if (today > installmentDueDate) {
+            const daysDiff = Math.ceil((today.getTime() - installmentDueDate.getTime()) / (1000 * 60 * 60 * 24));
+            overdueInstallmentsDetails.push({
+              index: i,
+              dueDate: dates[i],
+              daysOverdue: daysDiff
+            });
+          } else {
+            // Parcelas futuras - não estão em atraso
+            break;
+          }
+        }
+        
+        // Se há parcelas em atraso, definir os valores da primeira (para compatibilidade)
+        if (overdueInstallmentsDetails.length > 0) {
+          isOverdue = true;
+          overdueInstallmentIndex = overdueInstallmentsDetails[0].index;
+          overdueDate = overdueInstallmentsDetails[0].dueDate;
+          daysOverdue = overdueInstallmentsDetails[0].daysOverdue;
         }
       } else {
-        // Não tem installment_dates - usar due_date
-        nextDueDateStr = loan.due_date;
-      }
-      
-      if (nextDueDateStr) {
-        const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
-        nextDueDate.setHours(0, 0, 0, 0);
+        // Lógica para empréstimos NÃO diários (mantém comportamento original)
+        let nextDueDateStr: string | null = null;
         
-        if (isHistoricalContract || isHistoricalInterestContract) {
-          // Para contratos históricos, só considerar em atraso se há parcelas realmente não pagas
-          // e a data de vencimento já passou
-          // Verificar se há parcelas futuras que ainda não venceram
-          const futureDates = dates.filter(d => {
-            const date = new Date(d + 'T12:00:00');
-            date.setHours(0, 0, 0, 0);
-            return date > today;
-          });
-          
-          // Se não há datas futuras e há saldo, verificar próxima data não paga
-          if (futureDates.length === 0 && paidInstallments < dates.length) {
-            const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
-            overdueCheckDate.setHours(0, 0, 0, 0);
-            isOverdue = today > overdueCheckDate;
-            if (isOverdue) {
-              overdueDate = dates[paidInstallments];
-              daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
-          } else if (futureDates.length > 0) {
-            // Há datas futuras, verificar se a próxima data não paga já passou
-            if (paidInstallments < dates.length) {
-              const nextUnpaidDate = dates[paidInstallments];
-              const nextUnpaidDateObj = new Date(nextUnpaidDate + 'T12:00:00');
-              nextUnpaidDateObj.setHours(0, 0, 0, 0);
-              isOverdue = today > nextUnpaidDateObj;
-              if (isOverdue) {
-                overdueDate = nextUnpaidDate;
-                overdueInstallmentIndex = paidInstallments;
-                daysOverdue = Math.ceil((today.getTime() - nextUnpaidDateObj.getTime()) / (1000 * 60 * 60 * 24));
-              }
-            }
-          } else if (dates.length === 0) {
-            // Sem datas, usar due_date
-            const dueDate = new Date(loan.due_date + 'T12:00:00');
-            dueDate.setHours(0, 0, 0, 0);
-            isOverdue = today > dueDate;
-            if (isOverdue) {
-              overdueDate = loan.due_date;
-              daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            }
+        if (dates.length > 0) {
+          if (paidInstallments < dates.length) {
+            nextDueDateStr = dates[paidInstallments];
+            overdueInstallmentIndex = paidInstallments;
+          } else {
+            nextDueDateStr = dates[dates.length - 1];
+            overdueInstallmentIndex = dates.length - 1;
           }
         } else {
-          // Lógica normal para contratos não históricos
-          isOverdue = today > nextDueDate;
-          if (isOverdue) {
-            overdueDate = nextDueDateStr;
-            daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          nextDueDateStr = loan.due_date;
+        }
+        
+        if (nextDueDateStr) {
+          const nextDueDate = new Date(nextDueDateStr + 'T12:00:00');
+          nextDueDate.setHours(0, 0, 0, 0);
+          
+          if (isHistoricalContract || isHistoricalInterestContract) {
+            const futureDates = dates.filter(d => {
+              const date = new Date(d + 'T12:00:00');
+              date.setHours(0, 0, 0, 0);
+              return date > today;
+            });
+            
+            if (futureDates.length === 0 && paidInstallments < dates.length) {
+              const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
+              overdueCheckDate.setHours(0, 0, 0, 0);
+              isOverdue = today > overdueCheckDate;
+              if (isOverdue) {
+                overdueDate = dates[paidInstallments];
+                daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
+              }
+            } else if (futureDates.length > 0) {
+              if (paidInstallments < dates.length) {
+                const nextUnpaidDate = dates[paidInstallments];
+                const nextUnpaidDateObj = new Date(nextUnpaidDate + 'T12:00:00');
+                nextUnpaidDateObj.setHours(0, 0, 0, 0);
+                isOverdue = today > nextUnpaidDateObj;
+                if (isOverdue) {
+                  overdueDate = nextUnpaidDate;
+                  overdueInstallmentIndex = paidInstallments;
+                  daysOverdue = Math.ceil((today.getTime() - nextUnpaidDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                }
+              }
+            } else if (dates.length === 0) {
+              const dueDate = new Date(loan.due_date + 'T12:00:00');
+              dueDate.setHours(0, 0, 0, 0);
+              isOverdue = today > dueDate;
+              if (isOverdue) {
+                overdueDate = loan.due_date;
+                daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+              }
+            }
+          } else {
+            isOverdue = today > nextDueDate;
+            if (isOverdue) {
+              overdueDate = nextDueDateStr;
+              daysOverdue = Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
           }
         }
       }
@@ -1310,7 +1393,8 @@ export default function Loans() {
       overdueInstallmentIndex, 
       overdueDate, 
       daysOverdue,
-      totalPerInstallment 
+      totalPerInstallment,
+      overdueInstallmentsDetails
     };
   };
 
@@ -5911,7 +5995,7 @@ export default function Loans() {
                   const dailyProfit = isDaily ? (dailyTotalToReceive - loan.principal_amount) : 0;
                   const totalPerInstallment = dailyInstallmentAmount;
                   
-                  const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue } = getLoanStatus(loan);
+                  const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue, overdueInstallmentsDetails } = getLoanStatus(loan);
                   const totalAppliedPenaltiesDaily = getTotalDailyPenalties(loan.notes);
                   const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
                   
@@ -5956,13 +6040,20 @@ export default function Loans() {
                   })();
                   const overdueConfigType = overdueConfigResult.type;
                   const overdueConfigValue = overdueConfigResult.value;
-                  const dynamicPenaltyAmount = (() => {
-                    if (overdueConfigValue <= 0 || daysOverdue <= 0) return 0;
-                    if (overdueConfigType === 'percentage') {
-                      return (dailyInstallmentAmount * (overdueConfigValue / 100)) * daysOverdue;
-                    }
-                    return overdueConfigValue * daysOverdue;
-                  })();
+                  
+                  // NOVO: Calcular multa CUMULATIVA para TODAS as parcelas em atraso
+                  const cumulativePenaltyResult = overdueConfigValue > 0 && overdueInstallmentsDetails.length > 0
+                    ? calculateCumulativePenalty(
+                        overdueInstallmentsDetails,
+                        overdueConfigType,
+                        overdueConfigValue,
+                        dailyInstallmentAmount,
+                        numInstallments
+                      )
+                    : { totalPenalty: 0, penaltyBreakdown: [], totalOverdueAmount: 0, totalWithPenalties: 0 };
+                  
+                  // Usar multa cumulativa para contratos diários
+                  const dynamicPenaltyAmount = cumulativePenaltyResult.totalPenalty;
 
                   // Cálculos adicionais para o card completo
                   const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '';
@@ -6180,33 +6271,73 @@ export default function Loans() {
                         {isOverdue && (
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
                             <div className="text-xs sm:text-sm">
-                              <div className="flex items-center justify-between">
-                                <span className="text-red-300 font-medium">
-                                  Parcela {getPaidInstallmentsCount(loan) + 1}/{numInstallments} em atraso
-                                </span>
-                                <span className="text-red-200 font-bold">{daysOverdue} dias</span>
-                              </div>
-                              <div className="flex items-center justify-between mt-1 text-red-300/70">
-                                <span>Vencimento: {formatDate(overdueDate)}</span>
-                                <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
-                              </div>
+                              {/* Mostrar TODAS as parcelas em atraso */}
+                              {overdueInstallmentsDetails.length > 1 ? (
+                                <>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-red-300 font-bold">
+                                      {overdueInstallmentsDetails.length} parcelas em atraso
+                                    </span>
+                                    <span className="text-red-200 font-medium text-xs">
+                                      Total: {formatCurrency(cumulativePenaltyResult.totalOverdueAmount)}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
+                                      <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
+                                        <span className="text-red-300/90">
+                                          Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
+                                          {item.penaltyAmount > 0 && (
+                                            <span className="text-red-200 font-medium">+{formatCurrency(item.penaltyAmount)}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-red-300 font-medium">
+                                      Parcela {getPaidInstallmentsCount(loan) + 1}/{numInstallments} em atraso
+                                    </span>
+                                    <span className="text-red-200 font-bold">{daysOverdue} dias</span>
+                                  </div>
+                                  <div className="flex items-center justify-between mt-1 text-red-300/70">
+                                    <span>Vencimento: {formatDate(overdueDate)}</span>
+                                    <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
+                                  </div>
+                                </>
+                              )}
                             </div>
+                            
+                            {/* Seção de multa - mostra se tem multa configurada */}
                             {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
                               <>
-                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                  <span className="text-red-300">
-                                    {overdueConfigType === 'percentage' 
-                                      ? `Multa (${overdueConfigValue}%/dia de ${formatCurrency(totalPerInstallmentDisplay)})`
-                                      : `Multa (${formatCurrency(overdueConfigValue)}/dia)`}
-                                  </span>
-                                  <span className="font-bold text-red-200">
-                                    +{formatCurrency(dynamicPenaltyAmount)}
-                                  </span>
+                                <div className="mt-2 pt-2 border-t border-red-400/30">
+                                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                                    <span className="text-red-300">
+                                      {overdueConfigType === 'percentage' 
+                                        ? `Multa (${overdueConfigValue}%/dia)`
+                                        : `Multa (${formatCurrency(overdueConfigValue)}/dia)`}
+                                    </span>
+                                    <span className="font-bold text-red-200">
+                                      +{formatCurrency(dynamicPenaltyAmount)}
+                                    </span>
+                                  </div>
+                                  {overdueInstallmentsDetails.length > 1 && (
+                                    <p className="text-[9px] text-red-300/60 mt-1">
+                                      Multa aplicada em cada parcela atrasada
+                                    </p>
+                                  )}
                                 </div>
-                                <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
-                                  <span className="text-red-300/80">Total com Atraso:</span>
-                                  <span className="font-bold text-white">
-                                    {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
+                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm border-t border-red-400/30 pt-2">
+                                  <span className="text-red-300/80 font-medium">Total a Pagar:</span>
+                                  <span className="font-bold text-white text-base">
+                                    {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
                                   </span>
                                 </div>
                               </>
@@ -6251,12 +6382,34 @@ export default function Loans() {
                                   className="h-8 bg-white/10 border-blue-400/50 text-red-100 placeholder:text-red-300/50"
                                 />
                                 
-                                {parseFloat(inlinePenaltyValue) > 0 && (
-                                  <div className="text-xs text-red-300/80 p-2 bg-red-500/10 rounded">
-                                    {inlinePenaltyType === 'percentage' 
-                                      ? `${inlinePenaltyValue}% de ${formatCurrency(totalPerInstallmentDisplay)}/dia × ${daysOverdue} dias = ${formatCurrency((totalPerInstallmentDisplay * (parseFloat(inlinePenaltyValue) / 100)) * daysOverdue)}`
-                                      : `R$ ${inlinePenaltyValue}/dia × ${daysOverdue} dias = ${formatCurrency(parseFloat(inlinePenaltyValue) * daysOverdue)}`
-                                    }
+                                {parseFloat(inlinePenaltyValue) > 0 && overdueInstallmentsDetails.length > 0 && (
+                                  <div className="text-xs text-red-300/80 p-2 bg-red-500/10 rounded space-y-1">
+                                    <p className="font-medium">Prévia da multa ({overdueInstallmentsDetails.length} parcelas):</p>
+                                    {overdueInstallmentsDetails.slice(0, 3).map((detail, idx) => {
+                                      const penaltyVal = parseFloat(inlinePenaltyValue);
+                                      const penalty = inlinePenaltyType === 'percentage' 
+                                        ? (totalPerInstallmentDisplay * (penaltyVal / 100)) * detail.daysOverdue
+                                        : penaltyVal * detail.daysOverdue;
+                                      return (
+                                        <p key={idx} className="text-[10px]">
+                                          Parc. {detail.index + 1}: {detail.daysOverdue}d × {inlinePenaltyType === 'percentage' ? `${penaltyVal}%` : formatCurrency(penaltyVal)} = {formatCurrency(penalty)}
+                                        </p>
+                                      );
+                                    })}
+                                    {overdueInstallmentsDetails.length > 3 && (
+                                      <p className="text-[10px] text-red-300/60">...e mais {overdueInstallmentsDetails.length - 3} parcelas</p>
+                                    )}
+                                    <p className="font-medium border-t border-red-400/30 pt-1 mt-1">
+                                      Total: {formatCurrency((() => {
+                                        const penaltyVal = parseFloat(inlinePenaltyValue);
+                                        return overdueInstallmentsDetails.reduce((sum, detail) => {
+                                          const penalty = inlinePenaltyType === 'percentage' 
+                                            ? (totalPerInstallmentDisplay * (penaltyVal / 100)) * detail.daysOverdue
+                                            : penaltyVal * detail.daysOverdue;
+                                          return sum + penalty;
+                                        }, 0);
+                                      })())}
+                                    </p>
                                   </div>
                                 )}
                                 
@@ -6267,7 +6420,7 @@ export default function Loans() {
                                       loan.id, 
                                       loan.notes, 
                                       getPaidInstallmentsCount(loan), 
-                                      daysOverdue,
+                                      overdueInstallmentsDetails.length, // Passa quantidade de parcelas em atraso
                                       totalPerInstallmentDisplay,
                                       true // isDaily = true
                                     )}
@@ -6304,7 +6457,9 @@ export default function Loans() {
                             )}
                             
                             <p className="text-[10px] text-red-300/60 mt-2">
-                              Pague a parcela em atraso para regularizar o empréstimo
+                              {overdueInstallmentsDetails.length > 1 
+                                ? `Regularize as ${overdueInstallmentsDetails.length} parcelas em atraso`
+                                : 'Pague a parcela em atraso para regularizar o empréstimo'}
                             </p>
                             {/* Manual overdue notification button */}
                             {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
@@ -6323,13 +6478,17 @@ export default function Loans() {
                                   penaltyType: overdueConfigType || undefined,
                                   penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                   interestAmount: (() => {
-                                    // Para diários: juros = valor da parcela - (principal / numParcelas)
                                     const principalPart = loan.principal_amount / numInstallments;
                                     const interestPart = dailyInstallmentAmount - principalPart;
                                     return interestPart > 0 ? interestPart : undefined;
                                   })(),
                                   principalAmount: loan.principal_amount / numInstallments,
                                   isDaily: true,
+                                  // NOVO: Passar dados de TODAS as parcelas em atraso
+                                  overdueInstallmentsCount: overdueInstallmentsDetails.length,
+                                  overdueInstallmentsDetails: cumulativePenaltyResult.penaltyBreakdown,
+                                  totalOverdueAmount: cumulativePenaltyResult.totalOverdueAmount,
+                                  totalPenaltyAmount: cumulativePenaltyResult.totalPenalty,
                                 }}
                                 className="w-full mt-2"
                               />

@@ -28,6 +28,17 @@ interface OverdueData {
   principalAmount?: number;
   // Indica se é contrato diário (não mostra opção de pagar só juros)
   isDaily?: boolean;
+  // NOVO: Campos para múltiplas parcelas em atraso (empréstimos diários)
+  overdueInstallmentsCount?: number;
+  overdueInstallmentsDetails?: Array<{
+    installmentNumber: number;
+    daysOverdue: number;
+    penaltyAmount: number;
+    installmentAmount: number;
+    totalWithPenalty: number;
+  }>;
+  totalOverdueAmount?: number;
+  totalPenaltyAmount?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -119,12 +130,67 @@ export default function SendOverdueNotification({
 
   const generateOverdueMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
+    const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
+    const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
+    
+    // Para múltiplas parcelas em atraso (diários)
+    if (hasMultipleOverdue && data.isDaily) {
+      const totalAmount = (data.totalOverdueAmount || 0) + (data.totalPenaltyAmount || 0);
+      
+      let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
+      message += `Identificamos *${data.overdueInstallmentsCount} parcelas* em atraso:\n\n`;
+      message += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `📊 *PARCELAS EM ATRASO:*\n\n`;
+      
+      for (const item of data.overdueInstallmentsDetails!) {
+        message += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue} dias\n`;
+        message += `   💰 ${formatCurrency(item.installmentAmount)}`;
+        if (item.penaltyAmount > 0) {
+          message += ` + ${formatCurrency(item.penaltyAmount)} multa`;
+        }
+        message += `\n`;
+      }
+      
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `💰 *Subtotal Parcelas:* ${formatCurrency(data.totalOverdueAmount || 0)}\n`;
+      if (data.totalPenaltyAmount && data.totalPenaltyAmount > 0) {
+        message += `⚠️ *Total Multas:* +${formatCurrency(data.totalPenaltyAmount)}\n`;
+      }
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+      message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
+      
+      // PIX key section
+      if (profile?.pix_key) {
+        message += `━━━━━━━━━━━━━━━━\n`;
+        message += `💳 *PIX para pagamento:*\n`;
+        message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
+        message += `${profile.pix_key}\n\n`;
+        message += `💰 *Valor a pagar:* ${formatCurrency(totalAmount)}\n\n`;
+        message += `_Copie a chave e faça o PIX no valor exato!_\n`;
+        message += `━━━━━━━━━━━━━━━━\n\n`;
+      }
+      
+      if (profile?.payment_link) {
+        message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
+      }
+      
+      message += `Por favor, entre em contato para regularizar sua situação.`;
+      
+      const signatureName = profile?.billing_signature_name || profile?.company_name;
+      if (signatureName) {
+        message += `\n\n_${signatureName}_`;
+      }
+      
+      return message;
+    }
+    
+    // Mensagem padrão para parcela única
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
 
-    const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
-    const totalAmount = hasPenalty ? data.amount + data.penaltyAmount : data.amount;
+    const totalAmount = hasPenalty ? data.amount + data.penaltyAmount! : data.amount;
 
     let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
     message += `Identificamos que você possui uma parcela em atraso:\n\n`;
@@ -143,7 +209,7 @@ export default function SendOverdueNotification({
       } else if (data.penaltyValue) {
         message += `📊 *Cálculo:* R$ ${data.penaltyValue.toFixed(2)}/dia × ${data.daysOverdue} dias\n`;
       }
-      message += `💸 *Valor da Multa:* +${formatCurrency(data.penaltyAmount)}\n`;
+      message += `💸 *Valor da Multa:* +${formatCurrency(data.penaltyAmount!)}\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
       message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
     } else {
