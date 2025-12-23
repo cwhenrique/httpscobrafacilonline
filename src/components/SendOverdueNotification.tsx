@@ -19,7 +19,7 @@ interface OverdueData {
   dueDate: string;
   daysOverdue: number;
   loanId: string;
-  // Campos de multa
+  // Campos de multa dinâmica
   penaltyAmount?: number;
   penaltyType?: 'percentage' | 'fixed';
   penaltyValue?: number;
@@ -39,6 +39,8 @@ interface OverdueData {
   }>;
   totalOverdueAmount?: number;
   totalPenaltyAmount?: number;
+  // Multas manuais aplicadas
+  manualPenaltyAmount?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -132,10 +134,12 @@ export default function SendOverdueNotification({
     const typeLabel = getContractTypeLabel(data.contractType);
     const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
     const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
+    const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
     
     // Para múltiplas parcelas em atraso (diários)
     if (hasMultipleOverdue && data.isDaily) {
-      const totalAmount = (data.totalOverdueAmount || 0) + (data.totalPenaltyAmount || 0);
+      // Inclui multas manuais no total
+      const totalAmount = (data.totalOverdueAmount || 0) + (data.totalPenaltyAmount || 0) + (data.manualPenaltyAmount || 0);
       
       let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
       message += `Identificamos *${data.overdueInstallmentsCount} parcelas* em atraso:\n\n`;
@@ -155,7 +159,11 @@ export default function SendOverdueNotification({
       message += `\n━━━━━━━━━━━━━━━━\n`;
       message += `💰 *Subtotal Parcelas:* ${formatCurrency(data.totalOverdueAmount || 0)}\n`;
       if (data.totalPenaltyAmount && data.totalPenaltyAmount > 0) {
-        message += `⚠️ *Total Multas:* +${formatCurrency(data.totalPenaltyAmount)}\n`;
+        message += `⚠️ *Multas Dinâmicas:* +${formatCurrency(data.totalPenaltyAmount)}\n`;
+      }
+      // Exibir multas manuais separadamente
+      if (hasManualPenalty) {
+        message += `📝 *Multas Manuais:* +${formatCurrency(data.manualPenaltyAmount!)}\n`;
       }
       message += `━━━━━━━━━━━━━━━━\n\n`;
       message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
