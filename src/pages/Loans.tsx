@@ -497,6 +497,45 @@ export default function Loans() {
   const [editSkipSunday, setEditSkipSunday] = useState(false);
   const [editSkipHolidays, setEditSkipHolidays] = useState(false);
   
+  // Inline penalty configuration states
+  const [configuringPenaltyLoanId, setConfiguringPenaltyLoanId] = useState<string | null>(null);
+  const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed'>('percentage');
+  const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
+  
+  // Function to save inline penalty configuration
+  const handleSaveInlinePenalty = async (loanId: string, currentNotes: string | null) => {
+    try {
+      // Clean old config
+      let cleanNotes = (currentNotes || '')
+        .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+        .trim();
+      
+      // Add new config
+      const penaltyValue = parseFloat(inlinePenaltyValue) || 0;
+      if (penaltyValue > 0) {
+        const newConfig = `[OVERDUE_CONFIG:${inlinePenaltyType}:${penaltyValue}]`;
+        cleanNotes = `${newConfig}\n${cleanNotes}`.trim();
+      }
+      
+      // Update in database
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', loanId);
+      
+      if (error) throw error;
+      
+      // Reset states and reload
+      setConfiguringPenaltyLoanId(null);
+      setInlinePenaltyValue('');
+      fetchLoans();
+      toast.success('Multa configurada com sucesso!');
+    } catch (error) {
+      console.error('Error saving penalty:', error);
+      toast.error('Erro ao salvar configuração de multa');
+    }
+  };
+  
   // Auto-regenerate installment dates when number of installments changes in edit form
   useEffect(() => {
     if (isEditDialogOpen && (editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && editFormData.start_date) {
@@ -4814,6 +4853,91 @@ export default function Loans() {
                               </div>
                             </>
                           )}
+                          
+                          {/* Inline penalty configuration */}
+                          {!hasOverdueConfig && configuringPenaltyLoanId !== loan.id && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setConfiguringPenaltyLoanId(loan.id);
+                                setInlinePenaltyType('percentage');
+                                setInlinePenaltyValue('');
+                              }}
+                              className="w-full mt-3 border-red-400/50 text-red-300 hover:bg-red-500/20"
+                            >
+                              <Percent className="w-4 h-4 mr-2" />
+                              Aplicar Multa
+                            </Button>
+                          )}
+                          
+                          {configuringPenaltyLoanId === loan.id && (
+                            <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
+                              <Label className="text-xs text-red-300">Tipo de multa</Label>
+                              <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
+                                <SelectTrigger className="h-8 bg-red-500/10 border-red-500/30 text-red-100">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
+                                  <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              
+                              <Input 
+                                type="number" 
+                                step="0.01"
+                                value={inlinePenaltyValue}
+                                onChange={(e) => setInlinePenaltyValue(e.target.value)}
+                                placeholder={inlinePenaltyType === 'percentage' ? 'Ex: 1.00' : 'Ex: 50.00'}
+                                className="h-8 bg-red-500/10 border-red-500/30 text-red-100 placeholder:text-red-300/50"
+                              />
+                              
+                              {parseFloat(inlinePenaltyValue) > 0 && (
+                                <div className="text-xs text-red-300/80 p-2 bg-red-500/10 rounded">
+                                  {inlinePenaltyType === 'percentage' 
+                                    ? `${inlinePenaltyValue}% de ${formatCurrency(totalPerInstallment)}/dia × ${daysOverdue} dias = ${formatCurrency((totalPerInstallment * (parseFloat(inlinePenaltyValue) / 100)) * daysOverdue)}`
+                                    : `R$ ${inlinePenaltyValue}/dia × ${daysOverdue} dias = ${formatCurrency(parseFloat(inlinePenaltyValue) * daysOverdue)}`
+                                  }
+                                </div>
+                              )}
+                              
+                              <div className="flex gap-2">
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => handleSaveInlinePenalty(loan.id, loan.notes)}
+                                  className="flex-1 bg-red-600 hover:bg-red-700"
+                                >
+                                  Salvar
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => setConfiguringPenaltyLoanId(null)}
+                                  className="border-red-400/50 text-red-300"
+                                >
+                                  Cancelar
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {hasOverdueConfig && configuringPenaltyLoanId !== loan.id && (
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => {
+                                setConfiguringPenaltyLoanId(loan.id);
+                                setInlinePenaltyType(overdueConfigType || 'percentage');
+                                setInlinePenaltyValue(overdueConfigValue.toString());
+                              }}
+                              className="w-full mt-2 text-red-300/70 hover:text-red-300 hover:bg-red-500/10"
+                            >
+                              <Pencil className="w-3 h-3 mr-1" />
+                              Editar multa
+                            </Button>
+                          )}
+                          
                           <p className="text-[10px] text-red-300/60 mt-2">
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
@@ -5888,6 +6012,91 @@ export default function Loans() {
                                 </div>
                               </>
                             )}
+                            
+                            {/* Inline penalty configuration for daily loans */}
+                            {overdueConfigValue <= 0 && configuringPenaltyLoanId !== loan.id && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  setConfiguringPenaltyLoanId(loan.id);
+                                  setInlinePenaltyType('percentage');
+                                  setInlinePenaltyValue('');
+                                }}
+                                className="w-full mt-3 border-red-400/50 text-red-300 hover:bg-red-500/20"
+                              >
+                                <Percent className="w-4 h-4 mr-2" />
+                                Aplicar Multa
+                              </Button>
+                            )}
+                            
+                            {configuringPenaltyLoanId === loan.id && (
+                              <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
+                                <Label className="text-xs text-red-300">Tipo de multa</Label>
+                                <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
+                                  <SelectTrigger className="h-8 bg-red-500/10 border-red-500/30 text-red-100">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
+                                    <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                
+                                <Input 
+                                  type="number" 
+                                  step="0.01"
+                                  value={inlinePenaltyValue}
+                                  onChange={(e) => setInlinePenaltyValue(e.target.value)}
+                                  placeholder={inlinePenaltyType === 'percentage' ? 'Ex: 1.00' : 'Ex: 50.00'}
+                                  className="h-8 bg-red-500/10 border-red-500/30 text-red-100 placeholder:text-red-300/50"
+                                />
+                                
+                                {parseFloat(inlinePenaltyValue) > 0 && (
+                                  <div className="text-xs text-red-300/80 p-2 bg-red-500/10 rounded">
+                                    {inlinePenaltyType === 'percentage' 
+                                      ? `${inlinePenaltyValue}% de ${formatCurrency(totalPerInstallmentDisplay)}/dia × ${daysOverdue} dias = ${formatCurrency((totalPerInstallmentDisplay * (parseFloat(inlinePenaltyValue) / 100)) * daysOverdue)}`
+                                      : `R$ ${inlinePenaltyValue}/dia × ${daysOverdue} dias = ${formatCurrency(parseFloat(inlinePenaltyValue) * daysOverdue)}`
+                                    }
+                                  </div>
+                                )}
+                                
+                                <div className="flex gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handleSaveInlinePenalty(loan.id, loan.notes)}
+                                    className="flex-1 bg-red-600 hover:bg-red-700"
+                                  >
+                                    Salvar
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => setConfiguringPenaltyLoanId(null)}
+                                    className="border-red-400/50 text-red-300"
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {overdueConfigValue > 0 && configuringPenaltyLoanId !== loan.id && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => {
+                                  setConfiguringPenaltyLoanId(loan.id);
+                                  setInlinePenaltyType(overdueConfigType || 'percentage');
+                                  setInlinePenaltyValue(overdueConfigValue.toString());
+                                }}
+                                className="w-full mt-2 text-red-300/70 hover:text-red-300 hover:bg-red-500/10"
+                              >
+                                <Pencil className="w-3 h-3 mr-1" />
+                                Editar multa
+                              </Button>
+                            )}
+                            
                             <p className="text-[10px] text-red-300/60 mt-2">
                               Pague a parcela em atraso para regularizar o empréstimo
                             </p>
