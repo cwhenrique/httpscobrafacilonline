@@ -93,12 +93,12 @@ const PvWhatsapp = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const painPoints = [
-    { icon: XCircle, text: "Esquece de cobrar e perde dinheiro" },
-    { icon: XCircle, text: "Não sabe quanto tem pra receber" },
-    { icon: XCircle, text: "Calcula juros errado na mão" },
-    { icon: XCircle, text: "Anota em caderno e perde informação" },
-    { icon: XCircle, text: "Cliente atrasa e você nem lembra" },
+  const benefits = [
+    { icon: CheckCircle2, text: "Receba alertas e nunca esqueça de cobrar" },
+    { icon: CheckCircle2, text: "Saiba exatamente quanto tem a receber" },
+    { icon: CheckCircle2, text: "Cálculo automático de juros sem erros" },
+    { icon: CheckCircle2, text: "Tudo organizado digitalmente, sem perder informação" },
+    { icon: CheckCircle2, text: "Notificações automáticas quando cliente atrasa" },
   ];
 
   const newFeatures = [
@@ -461,8 +461,8 @@ const PvWhatsapp = () => {
         </div>
       </section>
 
-      {/* Problema / Agitação */}
-      <section className="py-16 px-4 bg-destructive/5 relative">
+      {/* Benefícios do CobraFácil */}
+      <section className="py-16 px-4 bg-primary/5 relative">
         <div className="container mx-auto max-w-4xl">
           <motion.div 
             initial="hidden"
@@ -472,10 +472,10 @@ const PvWhatsapp = () => {
             className="text-center mb-10"
           >
             <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
-              Você Ainda <span className="text-destructive">Anota em Caderno?</span>
+              Por que escolher o <span className="gradient-text">CobraFácil?</span>
             </h2>
             <p className="text-muted-foreground text-lg">
-              Se você se identifica com algum desses problemas, o CobraFácil é pra você:
+              Tudo que você precisa para organizar seus empréstimos:
             </p>
           </motion.div>
 
@@ -486,14 +486,14 @@ const PvWhatsapp = () => {
             variants={staggerContainer}
             className="grid gap-3"
           >
-            {painPoints.map((pain, index) => (
+            {benefits.map((benefit, index) => (
               <motion.div
                 key={index}
                 variants={fadeInUp}
-                className="flex items-center gap-4 bg-background/80 backdrop-blur p-4 rounded-xl border border-destructive/20"
+                className="flex items-center gap-4 bg-background/80 backdrop-blur p-4 rounded-xl border border-primary/20"
               >
-                <pain.icon className="w-6 h-6 text-destructive flex-shrink-0" />
-                <span className="text-foreground font-medium">{pain.text}</span>
+                <benefit.icon className="w-6 h-6 text-primary flex-shrink-0" />
+                <span className="text-foreground font-medium">{benefit.text}</span>
               </motion.div>
             ))}
           </motion.div>
@@ -507,7 +507,7 @@ const PvWhatsapp = () => {
             className="text-center mt-10"
           >
             <p className="text-xl font-bold text-foreground mb-4">
-              😤 Chega de perder dinheiro por desorganização!
+              🚀 Comece agora e organize seus empréstimos!
             </p>
             <Button 
               size="lg"
@@ -515,7 +515,7 @@ const PvWhatsapp = () => {
               onClick={() => window.open(WHATSAPP_LINK, '_blank')}
             >
               <MessageCircle className="w-5 h-5 mr-2" />
-              Quero Resolver Isso Agora
+              Querer Começar Agora
             </Button>
           </motion.div>
         </div>
