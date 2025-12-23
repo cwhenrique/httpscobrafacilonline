@@ -4749,31 +4749,45 @@ export default function Loans() {
                           ? Math.round((realizedProfit / expectedProfit) * 100) 
                           : 0;
                         
+                        const interestPart = isDaily ? dailyProfit : effectiveTotalInterest;
+                        
                         return (
-                          <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
-                            <div>
-                              <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
-                              <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                                {formatCurrency(expectedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
-                              <div className="flex items-center gap-1">
-                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                                  {formatCurrency(realizedProfit)}
+                          <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                            <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
+                              <div>
+                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                  {formatCurrency(expectedProfit)}
                                 </p>
-                                {expectedProfit > 0 && (
-                                  <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
-                                    hasSpecialStyle 
-                                      ? 'bg-white/20 text-white' 
-                                      : profitPercentage >= 100 
-                                        ? 'bg-emerald-500/20 text-emerald-500' 
-                                        : 'bg-muted text-muted-foreground'
-                                  }`}>
-                                    {profitPercentage}%
-                                  </span>
+                                {penaltiesForProfit > 0 && (
+                                  <div className={`flex flex-wrap gap-1 mt-0.5 text-[8px] sm:text-[9px] ${mutedTextColor}`}>
+                                    <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
+                                      📊 Juros: {formatCurrency(interestPart)}
+                                    </span>
+                                    <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
+                                      ⚠️ Multas: {formatCurrency(penaltiesForProfit)}
+                                    </span>
+                                  </div>
                                 )}
+                              </div>
+                              <div>
+                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                <div className="flex items-center gap-1">
+                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                    {formatCurrency(realizedProfit)}
+                                  </p>
+                                  {expectedProfit > 0 && (
+                                    <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
+                                      hasSpecialStyle 
+                                        ? 'bg-white/20 text-white' 
+                                        : profitPercentage >= 100 
+                                          ? 'bg-emerald-500/20 text-emerald-500' 
+                                          : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      {profitPercentage}%
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -5361,6 +5375,8 @@ export default function Loans() {
                           ? Math.round((realizedProfit / expectedProfit) * 100) 
                           : 0;
                         
+                        const interestPart = isDaily ? dailyProfit : effectiveTotalInterest;
+                        
                         return (
                           <motion.div 
                             initial={{ opacity: 0, height: 0 }}
@@ -5370,30 +5386,42 @@ export default function Loans() {
                             className={`mt-3 pt-3 border-t space-y-3 overflow-hidden ${hasSpecialStyle ? 'border-white/20' : 'border-border'}`}
                           >
                             {/* Seção de Lucro - Previsto e Realizado (movido para área expandível) */}
-                            <div className={`grid grid-cols-2 gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
-                              <div>
-                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
-                                <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                                  {formatCurrency(expectedProfit)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
-                                <div className="flex items-center gap-1.5">
-                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                                    {formatCurrency(realizedProfit)}
+                            <div className={`p-2 sm:p-3 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                <div>
+                                  <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                  <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                    {formatCurrency(expectedProfit)}
                                   </p>
-                                  {expectedProfit > 0 && (
-                                    <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
-                                      hasSpecialStyle 
-                                        ? 'bg-white/20 text-white' 
-                                        : profitPercentage >= 100 
-                                          ? 'bg-emerald-500/20 text-emerald-500' 
-                                          : 'bg-muted text-muted-foreground'
-                                    }`}>
-                                      {profitPercentage}%
-                                    </span>
+                                  {penaltiesForProfit > 0 && (
+                                    <div className={`flex flex-wrap gap-1 mt-1 text-[9px] sm:text-[10px] ${mutedTextColor}`}>
+                                      <span className={`px-1.5 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
+                                        📊 Juros: {formatCurrency(interestPart)}
+                                      </span>
+                                      <span className={`px-1.5 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
+                                        ⚠️ Multas: {formatCurrency(penaltiesForProfit)}
+                                      </span>
+                                    </div>
                                   )}
+                                </div>
+                                <div>
+                                  <p className={`text-[10px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className={`font-semibold text-sm sm:text-base ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                      {formatCurrency(realizedProfit)}
+                                    </p>
+                                    {expectedProfit > 0 && (
+                                      <span className={`text-[9px] sm:text-[10px] px-1 py-0.5 rounded ${
+                                        hasSpecialStyle 
+                                          ? 'bg-white/20 text-white' 
+                                          : profitPercentage >= 100 
+                                            ? 'bg-emerald-500/20 text-emerald-500' 
+                                            : 'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {profitPercentage}%
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -5991,30 +6019,42 @@ export default function Loans() {
                             : 0;
                           
                           return (
-                            <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
-                              <div>
-                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
-                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
-                                  {formatCurrency(expectedProfitCard)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
-                                <div className="flex items-center gap-1">
-                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
-                                    {formatCurrency(realizedProfitCard)}
+                            <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                              <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
+                                <div>
+                                  <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
+                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                    {formatCurrency(expectedProfitCard)}
                                   </p>
-                                  {expectedProfitCard > 0 && (
-                                    <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
-                                      hasSpecialStyle 
-                                        ? 'bg-white/20 text-white' 
-                                        : profitPercentageCard >= 100 
-                                          ? 'bg-emerald-500/20 text-emerald-500' 
-                                          : 'bg-muted text-muted-foreground'
-                                    }`}>
-                                      {profitPercentageCard}%
-                                    </span>
+                                  {totalAppliedPenaltiesDaily > 0 && (
+                                    <div className={`flex flex-wrap gap-1 mt-0.5 text-[8px] sm:text-[9px] ${mutedTextColor}`}>
+                                      <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
+                                        📊 Juros: {formatCurrency(dailyProfit)}
+                                      </span>
+                                      <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
+                                        ⚠️ Multas: {formatCurrency(totalAppliedPenaltiesDaily)}
+                                      </span>
+                                    </div>
                                   )}
+                                </div>
+                                <div>
+                                  <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
+                                  <div className="flex items-center gap-1">
+                                    <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                      {formatCurrency(realizedProfitCard)}
+                                    </p>
+                                    {expectedProfitCard > 0 && (
+                                      <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
+                                        hasSpecialStyle 
+                                          ? 'bg-white/20 text-white' 
+                                          : profitPercentageCard >= 100 
+                                            ? 'bg-emerald-500/20 text-emerald-500' 
+                                            : 'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {profitPercentageCard}%
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
