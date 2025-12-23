@@ -4740,7 +4740,8 @@ export default function Loans() {
                       
                       {/* Seção de Lucro - Previsto e Realizado (visível direto no card) */}
                       {(() => {
-                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
+                        const penaltiesForProfit = getTotalDailyPenalties(loan.notes);
+                        const expectedProfit = (isDaily ? dailyProfit : effectiveTotalInterest) + penaltiesForProfit;
                         const payments = (loan as any).loan_payments || [];
                         const realizedProfit = payments.reduce((sum: number, p: any) => 
                           sum + Number(p.interest_paid || 0), 0);
@@ -5351,7 +5352,8 @@ export default function Loans() {
                         };
                         
                         // Lucro previsto e realizado
-                        const expectedProfit = isDaily ? dailyProfit : effectiveTotalInterest;
+                        const penaltiesForProfit = getTotalDailyPenalties(loan.notes);
+                        const expectedProfit = (isDaily ? dailyProfit : effectiveTotalInterest) + penaltiesForProfit;
                         const payments = (loan as any).loan_payments || [];
                         const realizedProfit = payments.reduce((sum: number, p: any) => 
                           sum + Number(p.interest_paid || 0), 0);
@@ -5810,7 +5812,7 @@ export default function Loans() {
                   const hasSpecialStyle = isOverdue || isPaid;
                   const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
                   
-                  const expectedProfit = dailyProfit;
+                  const expectedProfit = dailyProfit + totalAppliedPenaltiesDaily;
                   const realizedProfit = loan.total_paid ? Math.min(loan.total_paid - (loan.principal_amount * (loan.total_paid / dailyTotalToReceive)), expectedProfit * (loan.total_paid / dailyTotalToReceive)) : 0;
                   const profitPercentage = expectedProfit > 0 ? Math.round((realizedProfit / expectedProfit) * 100) : 0;
                   
@@ -5980,7 +5982,7 @@ export default function Loans() {
                         
                         {/* Seção de Lucro - Previsto e Realizado (visível direto no card) */}
                         {(() => {
-                          const expectedProfitCard = dailyProfit;
+                          const expectedProfitCard = dailyProfit + totalAppliedPenaltiesDaily;
                           const paymentsCard = (loan as any).loan_payments || [];
                           const realizedProfitCard = paymentsCard.reduce((sum: number, p: any) => 
                             sum + Number(p.interest_paid || 0), 0);
