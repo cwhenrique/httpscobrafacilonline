@@ -5562,9 +5562,21 @@ export default function Loans() {
                                               <span className={hasSpecialStyle ? 'text-orange-300' : 'text-orange-600 dark:text-orange-400'}>
                                                 🔥 Multa aplicada ({installmentDaysOverdue} dias)
                                               </span>
-                                              <span className={`font-bold ${hasSpecialStyle ? 'text-orange-200' : 'text-orange-700 dark:text-orange-300'}`}>
-                                                + {formatCurrency(installmentPenalty)}
-                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <span className={`font-bold ${hasSpecialStyle ? 'text-orange-200' : 'text-orange-700 dark:text-orange-300'}`}>
+                                                  + {formatCurrency(installmentPenalty)}
+                                                </span>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveDailyPenalty(loan.id, idx, loan.notes);
+                                                  }}
+                                                  className={`p-1 rounded hover:bg-red-500/20 transition-colors ${hasSpecialStyle ? 'text-red-300 hover:text-red-200' : 'text-red-500 hover:text-red-600'}`}
+                                                  title="Remover multa"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              </div>
                                             </div>
                                             <div className={`text-[10px] mt-0.5 ${hasSpecialStyle ? 'text-orange-300/70' : 'text-orange-500/70'}`}>
                                               Total com multa: {formatCurrency(totalPerInstallment + installmentPenalty)}
