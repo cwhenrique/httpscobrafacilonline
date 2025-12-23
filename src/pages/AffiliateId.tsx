@@ -320,7 +320,7 @@ const AffiliateId = () => {
             className="mt-6 px-2"
           >
             <a 
-              href="https://wa.me/5517991050811?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20AF2"
+              href="https://wa.me/5511932935877?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20AF2"
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
@@ -1043,7 +1043,7 @@ const AffiliateId = () => {
               Fale diretamente com nossa equipe pelo WhatsApp. Estamos prontos para ajudar!
             </p>
             <a 
-              href="https://wa.me/5517991050811?text=Ol%C3%A1!%20Tenho%20uma%20d%C3%BAvida%20sobre%20o%20CobraF%C3%A1cil.%20AF2" 
+              href="https://wa.me/5511932935877?text=Ol%C3%A1!%20Tenho%20uma%20d%C3%BAvida%20sobre%20o%20CobraF%C3%A1cil.%20AF2" 
               target="_blank" 
               rel="noopener noreferrer"
             >
@@ -1169,7 +1169,7 @@ const AffiliateId = () => {
             <span className="text-sm text-muted-foreground hidden sm:inline">Sistema de Gestão de Cobranças</span>
           </div>
           <a 
-            href="https://wa.me/5517991050811?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20AF2" 
+            href="https://wa.me/5511932935877?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20AF2" 
             target="_blank" 
             rel="noopener noreferrer"
           >
