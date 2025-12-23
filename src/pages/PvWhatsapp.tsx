@@ -39,6 +39,21 @@ import whatsappAlert03 from "@/assets/whatsapp-alert-03.png";
 import scoreDeClientes from "@/assets/score-de-clientes.png";
 import calendarPage from "@/assets/calendar-page.png";
 import simulatorPage from "@/assets/simulator-page.png";
+import simuladorEmprestimos from "@/assets/simulador-emprestimos.png";
+import emprestimosMensais from "@/assets/emprestimos-mensais.png";
+import emprestimosDiarios from "@/assets/emprestimos-diarios.png";
+import calendarioCobrancas from "@/assets/calendario-cobrancas.png";
+import scoreClientes from "@/assets/score-clientes.png";
+import relatoriosEmprestimos from "@/assets/relatorios-emprestimos.png";
+import vendasProdutos from "@/assets/vendas-produtos.png";
+import vendasVeiculos from "@/assets/vendas-veiculos.png";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -399,28 +414,93 @@ const PvWhatsapp = () => {
             </p>
           </motion.div>
 
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={scaleIn}
-            className="max-w-5xl mx-auto mb-10"
-          >
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 border border-border/50">
-              <img 
-                src={dashboardOverview} 
-                alt="Dashboard CobraFácil" 
-                className="w-full"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
-              <div className="absolute bottom-6 left-6 right-6">
-                <div className="badge-premium rounded-full px-4 py-2 inline-flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  <span className="font-bold text-primary">Dashboard em Tempo Real</span>
+          {(() => {
+            const carouselSlides = [
+              {
+                image: simuladorEmprestimos,
+                title: "Simulador de Empréstimo",
+                description: "Calcule parcelas, juros e total a receber antes de emprestar. Visualize o cronograma completo!",
+              },
+              {
+                image: emprestimosMensais,
+                title: "Empréstimos Mensais/Semanais",
+                description: "Veja todos seus empréstimos em cards organizados com lucro previsto, valor pago e parcelas em atraso",
+              },
+              {
+                image: emprestimosDiarios,
+                title: "Empréstimos Diários",
+                description: "Controle empréstimos com cobrança diária. Botão de cobrança direto no WhatsApp do cliente!",
+              },
+              {
+                image: calendarioCobrancas,
+                title: "Calendário de Cobranças",
+                description: "Visualize todos os vencimentos do mês de forma organizada. Nunca mais esqueça uma cobrança!",
+              },
+              {
+                image: scoreClientes,
+                title: "Score de Clientes",
+                description: "Ranking automático de confiabilidade. Saiba quem paga em dia e quem sempre atrasa!",
+              },
+              {
+                image: relatoriosEmprestimos,
+                title: "Relatório Operacional",
+                description: "Acompanhe capital na rua, juros a receber, total recebido e evolução mensal em tempo real",
+              },
+              {
+                image: vendasProdutos,
+                title: "Vendas de Produtos",
+                description: "Gerencie vendas parceladas de produtos com controle de lucro e parcelas pendentes",
+              },
+              {
+                image: vendasVeiculos,
+                title: "Vendas de Veículos",
+                description: "Controle vendas de veículos parcelados com acompanhamento de pagamentos e lucro",
+              },
+            ];
+
+            return (
+              <motion.div 
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                variants={scaleIn}
+                className="max-w-5xl mx-auto mb-10"
+              >
+                <Carousel className="w-full" opts={{ loop: true }}>
+                  <CarouselContent>
+                    {carouselSlides.map((slide, index) => (
+                      <CarouselItem key={index}>
+                        <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 border border-border/50">
+                          <img 
+                            src={slide.image} 
+                            alt={slide.title} 
+                            className="w-full"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+                          <div className="absolute bottom-0 left-0 right-0 p-6 text-left">
+                            <div className="badge-premium rounded-full px-4 py-2 inline-flex items-center gap-2 mb-3">
+                              <CheckCircle2 className="w-5 h-5 text-primary" />
+                              <span className="font-bold text-primary">{slide.title}</span>
+                            </div>
+                            <p className="text-foreground/90 text-sm sm:text-base max-w-xl">
+                              {slide.description}
+                            </p>
+                          </div>
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="left-2 sm:-left-12 bg-background/80 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground" />
+                  <CarouselNext className="right-2 sm:-right-12 bg-background/80 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground" />
+                </Carousel>
+                <div className="flex justify-center gap-2 mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    ← Deslize para ver todas as funcionalidades →
+                  </p>
                 </div>
-              </div>
-            </div>
-          </motion.div>
+              </motion.div>
+            );
+          })()}
 
           <motion.div 
             initial="hidden"
