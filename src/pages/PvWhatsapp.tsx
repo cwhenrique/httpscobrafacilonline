@@ -693,7 +693,7 @@ const PvWhatsapp = () => {
                 Garantia de <span className="gradient-text">7 Dias</span>
               </h2>
               <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-                Teste o CobraFácil por 7 dias. Se não gostar, devolvemos 100% do seu dinheiro. 
+                Compre o CobraFácil e utilize por 7 dias. Se não ficar satisfeito, devolvemos 100% do seu dinheiro. 
                 Sem perguntas, sem burocracia.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
