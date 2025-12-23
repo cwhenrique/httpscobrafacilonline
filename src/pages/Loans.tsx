@@ -6245,12 +6245,13 @@ export default function Loans() {
                   const overdueConfigType = overdueConfigResult.type;
                   const overdueConfigValue = overdueConfigResult.value;
                   
-                  // NOVO: Calcular multa CUMULATIVA para TODAS as parcelas em atraso
-                  const cumulativePenaltyResult = overdueConfigValue > 0 && overdueInstallmentsDetails.length > 0
+                  // NOVO: Calcular breakdown para TODAS as parcelas em atraso (mesmo sem multa dinâmica)
+                  // Isso garante que a mensagem WhatsApp tenha todas as parcelas, mesmo que overdueConfigValue seja 0
+                  const cumulativePenaltyResult = overdueInstallmentsDetails.length > 0
                     ? calculateCumulativePenalty(
                         overdueInstallmentsDetails,
                         overdueConfigType,
-                        overdueConfigValue,
+                        overdueConfigValue, // Se for 0, penaltyAmount será 0, mas o breakdown será gerado
                         dailyInstallmentAmount,
                         numInstallments
                       )
