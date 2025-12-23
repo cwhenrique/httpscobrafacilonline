@@ -2800,19 +2800,7 @@ export default function Loans() {
     const interestRate = parseFloat(editFormData.interest_rate);
     const numInstallments = parseInt(editFormData.installments) || 1;
     
-    // Build overdue config to store in notes if applying penalty (percentage or fixed)
-    let overdueConfigNote = '';
-    if (editFormData.apply_overdue_penalty && editLoanIsOverdue) {
-      if (editFormData.overdue_penalty_type === 'percentage') {
-        const percentValue = parseFloat(editFormData.overdue_daily_rate) || 0;
-        overdueConfigNote = `[OVERDUE_CONFIG:percentage:${percentValue}]`;
-      } else {
-        const fixedAmount = parseFloat(editFormData.overdue_fixed_amount) || 0;
-        overdueConfigNote = `[OVERDUE_CONFIG:fixed:${fixedAmount}]`;
-      }
-    }
-    
-    // Remove any existing overdue config and skip tags from notes
+    // Remove any existing skip tags from notes (overdue config is now managed via card)
     let cleanNotes = (editFormData.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
       .replace(/\[SKIP_SATURDAY\]\n?/g, '')
@@ -2857,9 +2845,6 @@ export default function Loans() {
       finalNotes = `${renegotiationTags}\n${cleanNotes}`.trim();
     }
     
-    if (overdueConfigNote) {
-      finalNotes = `${overdueConfigNote}\n${finalNotes}`.trim();
-    }
     
     let updateData: any = {
       client_id: editFormData.client_id,
@@ -8167,126 +8152,6 @@ export default function Loans() {
                     </div>
                   )}
                 </>
-              )}
-              
-              {/* Overdue penalty section - only shown when loan is overdue */}
-              {editLoanIsOverdue && editOverdueDays > 0 && (
-                <div className="p-3 sm:p-4 rounded-lg bg-red-500/10 border border-red-500/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-red-400">Juros de Atraso</p>
-                      <p className="text-xs text-red-300/70">{editOverdueDays} dias em atraso</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox 
-                        id="apply_overdue"
-                        checked={editFormData.apply_overdue_penalty}
-                        onCheckedChange={(checked) => setEditFormData({ ...editFormData, apply_overdue_penalty: !!checked })}
-                      />
-                      <Label htmlFor="apply_overdue" className="text-xs sm:text-sm text-red-300 cursor-pointer">
-                        Aplicar juros de atraso
-                      </Label>
-                    </div>
-                  </div>
-                  
-                  {editFormData.apply_overdue_penalty && (
-                    <>
-                      {/* Seletor de tipo de multa */}
-                      <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm text-red-300">Tipo de multa</Label>
-                        <Select 
-                          value={editFormData.overdue_penalty_type} 
-                          onValueChange={(v) => setEditFormData({ ...editFormData, overdue_penalty_type: v as 'percentage' | 'fixed' })}
-                        >
-                          <SelectTrigger className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="percentage">% do valor da parcela (por dia)</SelectItem>
-                            <SelectItem value="fixed">R$ valor fixo (por dia)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      {/* Campo de valor conforme o tipo */}
-                      {editFormData.overdue_penalty_type === 'percentage' ? (
-                        <div className="space-y-1 sm:space-y-2">
-                          <Label className="text-xs sm:text-sm text-red-300">Porcentagem por dia de atraso (%)</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={editFormData.overdue_daily_rate} 
-                            onChange={(e) => setEditFormData({ ...editFormData, overdue_daily_rate: e.target.value })} 
-                            className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
-                            placeholder="Ex: 1.00"
-                          />
-                          <p className="text-[10px] sm:text-xs text-red-300/60">
-                            Este % será aplicado sobre o valor da parcela por dia de atraso
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1 sm:space-y-2">
-                          <Label className="text-xs sm:text-sm text-red-300">Valor de juros por dia de atraso (R$)</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={editFormData.overdue_fixed_amount} 
-                            onChange={(e) => setEditFormData({ ...editFormData, overdue_fixed_amount: e.target.value })} 
-                            className="h-9 sm:h-10 text-sm bg-red-500/10 border-red-500/30"
-                            placeholder="Ex: 50.00"
-                          />
-                          <p className="text-[10px] sm:text-xs text-red-300/60">
-                            Este valor será multiplicado pelos dias em atraso
-                          </p>
-                        </div>
-                      )}
-                      
-                      {(() => {
-                        const principal = parseFloat(editFormData.principal_amount) || 0;
-                        const rate = parseFloat(editFormData.interest_rate) || 0;
-                        const numInst = parseInt(editFormData.installments) || 1;
-                        const interestPerInst = principal * (rate / 100);
-                        const totalToReceive = principal + (interestPerInst * numInst);
-                        const loan = loans.find(l => l.id === editingLoanId);
-                        const totalPaid = loan?.total_paid || 0;
-                        const remainingToReceive = totalToReceive - totalPaid;
-                        const installmentValue = totalToReceive / numInst;
-                        
-                        // Calcular penalidade baseado no tipo
-                        let penaltyAmount = 0;
-                        let penaltyLabel = '';
-                        if (editFormData.overdue_penalty_type === 'percentage') {
-                          const percentValue = parseFloat(editFormData.overdue_daily_rate) || 0;
-                          penaltyAmount = (installmentValue * (percentValue / 100)) * editOverdueDays;
-                          penaltyLabel = `${editOverdueDays} dias x ${percentValue}% de ${formatCurrency(installmentValue)}`;
-                        } else {
-                          const dailyValue = parseFloat(editFormData.overdue_fixed_amount) || 0;
-                          penaltyAmount = dailyValue * editOverdueDays;
-                          penaltyLabel = `${editOverdueDays} dias x ${formatCurrency(dailyValue)}`;
-                        }
-                        
-                        return (
-                          <div className="bg-red-500/20 rounded-lg p-2 sm:p-3 space-y-1">
-                            <div className="flex justify-between text-xs sm:text-sm">
-                              <span className="text-red-300">Saldo devedor:</span>
-                              <span className="font-medium text-red-200">{formatCurrency(remainingToReceive)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs sm:text-sm">
-                              <span className="text-red-300">
-                                Juros de atraso ({penaltyLabel}):
-                              </span>
-                              <span className="font-bold text-red-200">+ {formatCurrency(penaltyAmount)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs sm:text-sm border-t border-red-500/30 pt-1 mt-1">
-                              <span className="text-red-300 font-medium">Novo total:</span>
-                              <span className="font-bold text-white">{formatCurrency(remainingToReceive + penaltyAmount)}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
               )}
               
               <div className="space-y-1 sm:space-y-2">
