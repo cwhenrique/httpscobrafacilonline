@@ -6776,6 +6776,8 @@ export default function Loans() {
                                   overdueInstallmentsDetails: cumulativePenaltyResult.penaltyBreakdown,
                                   totalOverdueAmount: cumulativePenaltyResult.totalOverdueAmount,
                                   totalPenaltyAmount: cumulativePenaltyResult.totalPenalty,
+                                  // Multas manuais aplicadas
+                                  manualPenaltyAmount: totalAppliedPenaltiesDaily > 0 ? totalAppliedPenaltiesDaily : undefined,
                                 }}
                                 className="w-full mt-2"
                               />
