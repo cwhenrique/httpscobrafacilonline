@@ -6694,14 +6694,26 @@ export default function Loans() {
                     };
                     
                     const partialPayments = getPartialPayments(selectedLoan.notes);
+                    
+                    // Ler multas diárias aplicadas por parcela
+                    const dailyPenalties = getDailyPenaltiesFromNotes(selectedLoan.notes);
 
-                    const getInstallmentValue = (index: number) => {
+                    const getInstallmentBaseValue = (index: number) => {
                       // Se há taxa de renovação aplicada nesta parcela específica
                       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
                         return renewalFeeValue;
                       }
                       // Caso contrário, usar o valor normal da parcela
                       return totalPerInstallment;
+                    };
+                    
+                    // Obter multa para uma parcela específica
+                    const getPenaltyForInstallment = (index: number) => dailyPenalties[index] || 0;
+                    
+                    const getInstallmentValue = (index: number) => {
+                      const baseValue = getInstallmentBaseValue(index);
+                      const penalty = getPenaltyForInstallment(index);
+                      return baseValue + penalty;
                     };
                     
                     // Verificar se parcela está paga (totalmente ou parcialmente)
@@ -6891,13 +6903,19 @@ export default function Loans() {
                                     </span>
                                     <span className="flex flex-col items-end gap-0.5">
                                       <span className="text-xs opacity-70">{formatDate(date)}</span>
+                                      {/* Mostrar multa se existir */}
+                                      {getPenaltyForInstallment(index) > 0 && !status.isPaid && (
+                                        <span className="text-xs text-red-500 font-medium">
+                                          +{formatCurrency(getPenaltyForInstallment(index))} multa
+                                        </span>
+                                      )}
                                       <span className="font-medium">
                                         {status.isPaid 
                                           ? formatCurrency(status.paidAmount)
                                           : hasSubparcelas
                                             ? formatCurrency(status.subparcelas.reduce((sum, s) => sum + s.amount, 0))
                                             : status.isPartial 
-                                              ? formatCurrency(status.remaining) 
+                                              ? formatCurrency(status.remaining)
                                               : formatCurrency(installmentValue)
                                         }
                                       </span>
