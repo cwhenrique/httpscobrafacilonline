@@ -436,7 +436,8 @@ const handler = async (req: Request): Promise<Response> => {
       message += `• Saldo previsto: *${formatCurrency(balance)}*\n\n`;
 
       message += `Bons negócios esta semana! 💪\n\n`;
-      message += `_CobraFácil - Resumo semanal_`;
+      message += `_CobraFácil - Resumo semanal_\n\n`;
+      message += `📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
 
       console.log(`Sending weekly summary to user ${profile.id}`);
       

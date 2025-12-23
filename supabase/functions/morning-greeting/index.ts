@@ -298,7 +298,8 @@ const handler = async (req: Request): Promise<Response> => {
       message += `⏰ _Às 8h você receberá o relatório completo de cobranças e atrasados._\n\n`;
 
       message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `_CobraFácil - Resumo às 7h_`;
+      message += `_CobraFácil - Resumo às 7h_\n\n`;
+      message += `📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
 
       console.log(`Sending morning greeting to user ${profile.id}`);
       

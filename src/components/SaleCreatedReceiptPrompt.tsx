@@ -141,6 +141,7 @@ export default function SaleCreatedReceiptPrompt({
     });
     
     message += `\n━━━━━━━━━━━━━━━━`;
+    message += `\n\n📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
     
     return message;
   };

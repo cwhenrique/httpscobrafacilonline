@@ -157,6 +157,7 @@ export default function LoanCreatedReceiptPrompt({
     }
     
     message += `\n━━━━━━━━━━━━━━━━`;
+    message += `\n\n📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
     
     return message;
   };
