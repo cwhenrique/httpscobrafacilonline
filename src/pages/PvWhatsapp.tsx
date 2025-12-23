@@ -331,66 +331,6 @@ const PvWhatsapp = () => {
         </div>
       </section>
 
-      {/* Problema / Agitação */}
-      <section className="py-16 px-4 bg-destructive/5 relative">
-        <div className="container mx-auto max-w-4xl">
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            className="text-center mb-10"
-          >
-            <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
-              Você Ainda <span className="text-destructive">Anota em Caderno?</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Se você se identifica com algum desses problemas, o CobraFácil é pra você:
-            </p>
-          </motion.div>
-
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid gap-3"
-          >
-            {painPoints.map((pain, index) => (
-              <motion.div
-                key={index}
-                variants={fadeInUp}
-                className="flex items-center gap-4 bg-background/80 backdrop-blur p-4 rounded-xl border border-destructive/20"
-              >
-                <pain.icon className="w-6 h-6 text-destructive flex-shrink-0" />
-                <span className="text-foreground font-medium">{pain.text}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          <motion.div 
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeInUp}
-            transition={{ delay: 0.3 }}
-            className="text-center mt-10"
-          >
-            <p className="text-xl font-bold text-foreground mb-4">
-              😤 Chega de perder dinheiro por desorganização!
-            </p>
-            <Button 
-              size="lg"
-              className="bg-green-500 hover:bg-green-600 font-bold"
-              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
-            >
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Quero Resolver Isso Agora
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
       {/* Solução - Dashboard Preview */}
       <section className="py-16 px-4 relative">
         <div className="absolute inset-0 grid-pattern opacity-30" />
@@ -514,6 +454,66 @@ const PvWhatsapp = () => {
               <span className="font-bold text-foreground">Pagamento Único = Acesso Vitalício</span>
               <Zap className="w-6 h-6 text-primary" />
             </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Problema / Agitação */}
+      <section className="py-16 px-4 bg-destructive/5 relative">
+        <div className="container mx-auto max-w-4xl">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl sm:text-4xl font-bold mb-4 text-foreground">
+              Você Ainda <span className="text-destructive">Anota em Caderno?</span>
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Se você se identifica com algum desses problemas, o CobraFácil é pra você:
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid gap-3"
+          >
+            {painPoints.map((pain, index) => (
+              <motion.div
+                key={index}
+                variants={fadeInUp}
+                className="flex items-center gap-4 bg-background/80 backdrop-blur p-4 rounded-xl border border-destructive/20"
+              >
+                <pain.icon className="w-6 h-6 text-destructive flex-shrink-0" />
+                <span className="text-foreground font-medium">{pain.text}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            transition={{ delay: 0.3 }}
+            className="text-center mt-10"
+          >
+            <p className="text-xl font-bold text-foreground mb-4">
+              😤 Chega de perder dinheiro por desorganização!
+            </p>
+            <Button 
+              size="lg"
+              className="bg-green-500 hover:bg-green-600 font-bold"
+              onClick={() => window.open(WHATSAPP_LINK, '_blank')}
+            >
+              <MessageCircle className="w-5 h-5 mr-2" />
+              Quero Resolver Isso Agora
+            </Button>
           </motion.div>
         </div>
       </section>
