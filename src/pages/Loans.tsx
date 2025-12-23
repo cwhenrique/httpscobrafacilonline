@@ -4377,10 +4377,14 @@ export default function Loans() {
                 // Total a Receber base + taxa extra se existir
                 let totalToReceive = isDaily ? dailyTotalToReceive : originalTotal;
                 
+                // Adicionar multas aplicadas ao total a receber
+                const totalAppliedPenaltiesForTotal = getTotalDailyPenalties(loan.notes);
+                totalToReceive += totalAppliedPenaltiesForTotal;
+                
                 // Para pagamentos "só juros", o totalToReceive deve refletir o remaining + total_paid
                 // porque o usuário pode ter adicionado juros extras
                 if (isInterestOnlyPayment) {
-                  totalToReceive = loan.remaining_balance + (loan.total_paid || 0);
+                  totalToReceive = loan.remaining_balance + (loan.total_paid || 0) + totalAppliedPenaltiesForTotal;
                 } else if (hasRenewalFee && renewalFeeAmount > 0) {
                   totalToReceive += renewalFeeAmount;
                 }
@@ -5834,7 +5838,7 @@ export default function Loans() {
 
                   // Cálculos adicionais para o card completo
                   const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '';
-                  const totalToReceive = dailyTotalToReceive;
+                  const totalToReceive = dailyTotalToReceive + totalAppliedPenaltiesDaily;
                   const effectiveTotalInterest = dailyProfit;
                   const totalPerInstallmentDisplay = dailyInstallmentAmount;
                   
