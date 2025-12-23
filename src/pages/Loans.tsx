@@ -5834,8 +5834,8 @@ export default function Loans() {
                                           </span>
                                         </div>
                                         
-                                        {/* Show penalty details for overdue installment */}
-                                        {installmentPenalty > 0 && statusInfo.status === 'overdue' && (
+                                        {/* Show penalty details for installment with penalty */}
+                                        {installmentPenalty > 0 && (
                                           <div className={`mt-1.5 p-2 rounded ${hasSpecialStyle ? 'bg-orange-500/20' : 'bg-orange-50 dark:bg-orange-500/10'}`}>
                                             <div className="flex items-center justify-between text-xs">
                                               <span className={hasSpecialStyle ? 'text-orange-300' : 'text-orange-600 dark:text-orange-400'}>
