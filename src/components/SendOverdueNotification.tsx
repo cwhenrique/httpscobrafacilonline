@@ -19,6 +19,10 @@ interface OverdueData {
   dueDate: string;
   daysOverdue: number;
   loanId: string;
+  // Campos de multa
+  penaltyAmount?: number;
+  penaltyType?: 'percentage' | 'fixed';
+  penaltyValue?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -114,13 +118,32 @@ export default function SendOverdueNotification({
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
 
+    const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
+    const totalAmount = hasPenalty ? data.amount + data.penaltyAmount : data.amount;
+
     let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
     message += `Identificamos que você possui uma parcela em atraso:\n\n`;
     message += `📋 *Tipo:* ${typeLabel}\n`;
     message += `📊 *${installmentInfo}*\n`;
-    message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
+    message += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
-    message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
+    message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n`;
+    
+    // Seção de multa
+    if (hasPenalty) {
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `⚠️ *MULTA POR ATRASO*\n`;
+      if (data.penaltyType === 'percentage' && data.penaltyValue) {
+        message += `📊 *Cálculo:* ${data.penaltyValue}% × ${data.daysOverdue} dias\n`;
+      } else if (data.penaltyValue) {
+        message += `📊 *Cálculo:* R$ ${data.penaltyValue.toFixed(2)}/dia × ${data.daysOverdue} dias\n`;
+      }
+      message += `💸 *Valor da Multa:* +${formatCurrency(data.penaltyAmount)}\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+      message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
+    } else {
+      message += `\n`;
+    }
     
     // PIX key section with value
     if (profile?.pix_key) {
@@ -128,7 +151,7 @@ export default function SendOverdueNotification({
       message += `💳 *PIX para pagamento:*\n`;
       message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
       message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor a pagar:* ${formatCurrency(data.amount)}\n\n`;
+      message += `💰 *Valor a pagar:* ${formatCurrency(totalAmount)}\n\n`;
       message += `_Copie a chave e faça o PIX no valor exato!_\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
     }
