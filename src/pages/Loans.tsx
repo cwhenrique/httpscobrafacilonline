@@ -6521,6 +6521,7 @@ export default function Loans() {
                             </div>
                             
                             {/* Seção de multa - mostra se tem multa configurada */}
+                            {/* Seção de multa dinâmica (valor fixo/dia ou %) */}
                             {dynamicPenaltyAmount > 0 && totalAppliedPenaltiesDaily === 0 && (
                               <>
                                 <div className="mt-2 pt-2 border-t border-red-400/30">
@@ -6544,6 +6545,41 @@ export default function Loans() {
                                   <span className="text-red-300/80 font-medium">Total a Pagar:</span>
                                   <span className="font-bold text-white text-base">
                                     {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                            
+                            {/* Seção de multas MANUAIS aplicadas */}
+                            {totalAppliedPenaltiesDaily > 0 && (
+                              <>
+                                <div className="mt-2 pt-2 border-t border-orange-400/30">
+                                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                                    <span className="text-orange-300 flex items-center gap-1">
+                                      <span>📝</span> Multas aplicadas (manual)
+                                    </span>
+                                    <span className="font-bold text-orange-200">
+                                      +{formatCurrency(totalAppliedPenaltiesDaily)}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Detalhamento por parcela */}
+                                  <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                                    {(() => {
+                                      const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                      return Object.entries(manualPenalties).map(([idx, penalty]) => (
+                                        <div key={idx} className="flex items-center justify-between text-[10px] text-orange-300/80 bg-orange-500/10 rounded px-2 py-0.5">
+                                          <span>Parcela {parseInt(idx) + 1}/{numInstallments}</span>
+                                          <span className="font-medium">+{formatCurrency(penalty)}</span>
+                                        </div>
+                                      ));
+                                    })()}
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm border-t border-orange-400/30 pt-2">
+                                  <span className="text-orange-300/80 font-medium">Total a Pagar:</span>
+                                  <span className="font-bold text-white text-base">
+                                    {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
                                   </span>
                                 </div>
                               </>
