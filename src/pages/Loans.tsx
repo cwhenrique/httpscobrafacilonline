@@ -6638,8 +6638,8 @@ export default function Loans() {
                               </Button>
                             )}
                             
-                            {/* Botão Editar Minhas Multas - aparece quando TEM multas manuais aplicadas */}
-                            {totalAppliedPenaltiesDaily > 0 && configuringPenaltyLoanId !== loan.id && (
+                            {/* Botão Editar Minhas Multas - aparece quando TEM multas manuais aplicadas E NÃO há multa dinâmica */}
+                            {totalAppliedPenaltiesDaily > 0 && overdueConfigValue === 0 && configuringPenaltyLoanId !== loan.id && (
                               <Button 
                                 size="sm" 
                                 variant="outline" 
