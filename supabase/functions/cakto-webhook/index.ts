@@ -505,7 +505,7 @@ Seu acesso de ${subscriptionTime} foi ativado com sucesso!
 
 🔗 Acesse agora: https://cobrafacil.online/auth
 
-${subscriptionPrice ? `Obrigado pela compra de ${subscriptionPrice}` : 'Obrigado pela sua compra!'}`;
+Obrigado pela sua compra!`;
 
       // Send via Cobrafacilapp instance
       await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
