@@ -71,11 +71,14 @@ serve(async (req) => {
 
     if (enabled) {
       // Configure webhook on Evolution API
+      // Importante: configurar para NÃO bloquear a entrega normal de mensagens
       const webhookConfig = {
         url: webhookUrl,
         webhook_by_events: true,
         webhook_base64: false,
         events: ['MESSAGES_UPSERT'],
+        // Parâmetros para não interferir na entrega de mensagens
+        enabled: true,
       };
 
       console.log('Webhook config:', JSON.stringify(webhookConfig));
@@ -104,6 +107,26 @@ serve(async (req) => {
       }
 
       console.log('Webhook configured successfully');
+
+      // Também configurar settings da instância para não bloquear mensagens
+      try {
+        const settingsResponse = await fetch(`${evolutionApiUrl}/settings/set/${instanceName}`, {
+          method: 'POST',
+          headers: {
+            'apikey': evolutionApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            rejectCall: false,
+            readMessages: false,  // NÃO marcar como lida automaticamente
+            readStatus: false,
+            alwaysOnline: false,
+          }),
+        });
+        console.log('Settings response:', settingsResponse.status, await settingsResponse.text());
+      } catch (settingsError) {
+        console.log('Could not set instance settings (may not be supported):', settingsError);
+      }
 
       return new Response(JSON.stringify({ 
         success: true,

@@ -118,6 +118,12 @@ serve(async (req) => {
         instanceName: instanceName,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
+        // Configurações para NÃO bloquear entrega de mensagens
+        rejectCall: false,
+        readMessages: false,  // Não marcar mensagens como lidas automaticamente
+        readStatus: false,    // Não marcar status como lido
+        alwaysOnline: false,  // Não ficar sempre online
+        syncFullHistory: false,
       }),
     });
 
