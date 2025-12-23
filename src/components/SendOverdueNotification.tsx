@@ -26,6 +26,8 @@ interface OverdueData {
   // Campos para opção de pagamento só de juros
   interestAmount?: number;
   principalAmount?: number;
+  // Indica se é contrato diário (não mostra opção de pagar só juros)
+  isDaily?: boolean;
 }
 
 interface SendOverdueNotificationProps {
@@ -149,7 +151,8 @@ export default function SendOverdueNotification({
     }
     
     // Seção de opção de pagamento só de juros (+ multa se houver)
-    if (data.interestAmount && data.interestAmount > 0) {
+    // NÃO mostra para contratos diários - cliente tem que pagar o valor completo todo dia
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
       const interestPlusPenalty = data.interestAmount + (data.penaltyAmount || 0);
       const hasMulta = data.penaltyAmount && data.penaltyAmount > 0;
       

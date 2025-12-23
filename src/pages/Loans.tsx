@@ -5058,6 +5058,7 @@ export default function Loans() {
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                 interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                 principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                isDaily: loan.payment_type === 'daily',
                               }}
                               className="w-full mt-2"
                             />
@@ -6312,6 +6313,7 @@ export default function Loans() {
                                     return interestPart > 0 ? interestPart : undefined;
                                   })(),
                                   principalAmount: loan.principal_amount / numInstallments,
+                                  isDaily: true,
                                 }}
                                 className="w-full mt-2"
                               />
