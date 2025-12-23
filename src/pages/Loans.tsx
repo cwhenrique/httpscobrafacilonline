@@ -6561,37 +6561,38 @@ export default function Loans() {
                             
                             {/* Seção de multas MANUAIS aplicadas */}
                             {totalAppliedPenaltiesDaily > 0 && (
-                              <>
-                                <div className="mt-2 pt-2 border-t border-orange-400/30">
-                                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                                    <span className="text-orange-300 flex items-center gap-1">
-                                      <span>📝</span> Multas aplicadas (manual)
-                                    </span>
-                                    <span className="font-bold text-orange-200">
-                                      +{formatCurrency(totalAppliedPenaltiesDaily)}
-                                    </span>
-                                  </div>
-                                  
-                                  {/* Detalhamento por parcela */}
-                                  <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
-                                    {(() => {
-                                      const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
-                                      return Object.entries(manualPenalties).map(([idx, penalty]) => (
-                                        <div key={idx} className="flex items-center justify-between text-[10px] text-orange-300/80 bg-orange-500/10 rounded px-2 py-0.5">
-                                          <span>Parcela {parseInt(idx) + 1}/{numInstallments}</span>
-                                          <span className="font-medium">+{formatCurrency(penalty)}</span>
-                                        </div>
-                                      ));
-                                    })()}
-                                  </div>
+                              <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-3">
+                                {/* Cabeçalho */}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-amber-400 font-semibold flex items-center gap-1.5 text-sm">
+                                    <span>📝</span> Multas aplicadas (manual)
+                                  </span>
+                                  <span className="font-bold text-amber-300">
+                                    +{formatCurrency(totalAppliedPenaltiesDaily)}
+                                  </span>
                                 </div>
-                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm border-t border-orange-400/30 pt-2">
-                                  <span className="text-orange-300/80 font-medium">Total a Pagar:</span>
-                                  <span className="font-bold text-white text-base">
+                                
+                                {/* Detalhamento por parcela */}
+                                <div className="space-y-1.5 max-h-24 overflow-y-auto">
+                                  {(() => {
+                                    const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                    return Object.entries(manualPenalties).map(([idx, penalty]) => (
+                                      <div key={idx} className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1">
+                                        <span className="text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
+                                        <span className="font-medium text-amber-400">+{formatCurrency(penalty)}</span>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                                
+                                {/* Total a Pagar */}
+                                <div className="flex items-center justify-between bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg px-3 py-2">
+                                  <span className="text-white font-medium">Total a Pagar:</span>
+                                  <span className="font-bold text-amber-400 text-lg">
                                     {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
                                   </span>
                                 </div>
-                              </>
+                              </div>
                             )}
                             
                             {/* Inline penalty configuration for daily loans */}
