@@ -491,8 +491,8 @@ const PvWhatsapp = () => {
               </div>
               <div className="space-y-3 mb-6">
                 {[
-                  "Clientes ilimitados",
-                  "Empréstimos ilimitados",
+                  "Clientes e empréstimos ilimitados",
+                  "App nativo para iOS e Android",
                   "Cálculo automático de juros",
                   "Calendário de cobranças",
                   "Score de clientes",
@@ -542,6 +542,7 @@ const PvWhatsapp = () => {
                 {[
                   "Acesso vitalício garantido",
                   "Todas as funcionalidades",
+                  "App nativo para iOS e Android",
                   "Atualizações gratuitas vitalícias",
                   "Sem mensalidades nunca mais",
                   "Clientes e empréstimos ilimitados",
@@ -586,9 +587,9 @@ const PvWhatsapp = () => {
                 {[
                   "Acesso por 12 meses",
                   "Todas as funcionalidades",
+                  "App nativo para iOS e Android",
                   "Atualizações durante o período",
-                  "Clientes ilimitados",
-                  "Empréstimos ilimitados",
+                  "Clientes e empréstimos ilimitados",
                   "Suporte via WhatsApp"
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3">
