@@ -41,6 +41,8 @@ interface OverdueData {
   totalPenaltyAmount?: number;
   // Multas manuais aplicadas
   manualPenaltyAmount?: number;
+  // Detalhamento das multas manuais por parcela (índice → valor)
+  manualPenaltiesBreakdown?: Record<number, number>;
 }
 
 interface SendOverdueNotificationProps {
@@ -148,9 +150,16 @@ export default function SendOverdueNotification({
       message += `📊 *PARCELAS EM ATRASO:*\n\n`;
       
       for (const item of data.overdueInstallmentsDetails!) {
+        // Verificar se essa parcela tem multa manual (índice = installmentNumber - 1)
+        const manualPenalty = data.manualPenaltiesBreakdown?.[item.installmentNumber - 1] || 0;
+        
         message += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue} dias\n`;
         message += `   💰 ${formatCurrency(item.installmentAmount)}`;
-        if (item.penaltyAmount > 0) {
+        
+        // Priorizar multa manual sobre multa dinâmica para exibição na linha
+        if (manualPenalty > 0) {
+          message += ` + ${formatCurrency(manualPenalty)} multa`;
+        } else if (item.penaltyAmount > 0) {
           message += ` + ${formatCurrency(item.penaltyAmount)} multa`;
         }
         message += `\n`;
@@ -158,13 +167,13 @@ export default function SendOverdueNotification({
       
       message += `\n━━━━━━━━━━━━━━━━\n`;
       message += `💰 *Subtotal Parcelas:* ${formatCurrency(data.totalOverdueAmount || 0)}\n`;
-      if (data.totalPenaltyAmount && data.totalPenaltyAmount > 0) {
-        message += `⚠️ *Multas Dinâmicas:* +${formatCurrency(data.totalPenaltyAmount)}\n`;
+      
+      // Unificar multas dinâmicas + manuais em "Total Multas"
+      const totalPenalties = (data.totalPenaltyAmount || 0) + (data.manualPenaltyAmount || 0);
+      if (totalPenalties > 0) {
+        message += `⚠️ *Total Multas:* +${formatCurrency(totalPenalties)}\n`;
       }
-      // Exibir multas manuais separadamente
-      if (hasManualPenalty) {
-        message += `📝 *Multas Manuais:* +${formatCurrency(data.manualPenaltyAmount!)}\n`;
-      }
+      
       message += `━━━━━━━━━━━━━━━━\n\n`;
       message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
       

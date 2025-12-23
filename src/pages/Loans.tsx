@@ -6786,6 +6786,11 @@ export default function Loans() {
                                   totalPenaltyAmount: cumulativePenaltyResult.totalPenalty,
                                   // Multas manuais aplicadas
                                   manualPenaltyAmount: totalAppliedPenaltiesDaily > 0 ? totalAppliedPenaltiesDaily : undefined,
+                                  // Detalhamento das multas manuais por parcela
+                                  manualPenaltiesBreakdown: (() => {
+                                    const breakdown = getDailyPenaltiesFromNotes(loan.notes);
+                                    return Object.keys(breakdown).length > 0 ? breakdown : undefined;
+                                  })(),
                                 }}
                                 className="w-full mt-2"
                               />
