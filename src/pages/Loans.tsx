@@ -116,6 +116,17 @@ const getHistoricalInterestReceived = (notes: string | null): number => {
   return 0;
 };
 
+// Helper para extrair multas por parcela específica em contratos diários
+// Formato: [DAILY_PENALTY:índice_parcela:valor]
+const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number> => {
+  const penalties: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    penalties[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return penalties;
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -503,9 +514,9 @@ export default function Loans() {
   const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
   
   // Function to save inline penalty configuration
-  const handleSaveInlinePenalty = async (loanId: string, currentNotes: string | null) => {
+  const handleSaveInlinePenalty = async (loanId: string, currentNotes: string | null, installmentIndex?: number) => {
     try {
-      // Clean old config
+      // Clean old OVERDUE_CONFIG
       let cleanNotes = (currentNotes || '')
         .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
         .trim();
@@ -515,6 +526,15 @@ export default function Loans() {
       if (penaltyValue > 0) {
         const newConfig = `[OVERDUE_CONFIG:${inlinePenaltyType}:${penaltyValue}]`;
         cleanNotes = `${newConfig}\n${cleanNotes}`.trim();
+        
+        // Para contratos diários, também salvar multa específica da parcela
+        if (installmentIndex !== undefined) {
+          // Remover multa antiga desta parcela se existir
+          cleanNotes = cleanNotes.replace(new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g'), '');
+          // Adicionar nova multa para esta parcela
+          const dailyPenaltyTag = `[DAILY_PENALTY:${installmentIndex}:${penaltyValue}]`;
+          cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
+        }
       }
       
       // Update in database
@@ -533,6 +553,27 @@ export default function Loans() {
     } catch (error) {
       console.error('Error saving penalty:', error);
       toast.error('Erro ao salvar configuração de multa');
+    }
+  };
+  
+  // Function to remove penalty from specific daily installment
+  const handleRemoveDailyPenalty = async (loanId: string, installmentIndex: number, currentNotes: string | null) => {
+    try {
+      const regex = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g');
+      const cleanNotes = (currentNotes || '').replace(regex, '').trim();
+      
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', loanId);
+      
+      if (error) throw error;
+      
+      fetchLoans();
+      toast.success('Multa removida com sucesso!');
+    } catch (error) {
+      console.error('Error removing penalty:', error);
+      toast.error('Erro ao remover multa');
     }
   };
   
@@ -6054,7 +6095,7 @@ export default function Loans() {
                                 <div className="flex gap-2">
                                   <Button 
                                     size="sm" 
-                                    onClick={() => handleSaveInlinePenalty(loan.id, loan.notes)}
+                                    onClick={() => handleSaveInlinePenalty(loan.id, loan.notes, getPaidInstallmentsCount(loan))}
                                     className="flex-1 bg-red-600 hover:bg-red-700"
                                   >
                                     Salvar
@@ -6419,25 +6460,47 @@ export default function Loans() {
                                 <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                                   <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📅 Cronograma de Parcelas</p>
                                   <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                                    {dates.map((date, idx) => {
-                                      const statusInfo = getInstallmentStatusForDisplay(idx, date);
-                                      return (
-                                        <div key={idx} className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
-                                          <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
-                                            Parcela {idx + 1}/{numInstallments}
-                                          </span>
-                                          <span className={hasSpecialStyle ? 'text-white' : ''}>
-                                            {formatCurrency(totalPerInstallmentDisplay)}
-                                          </span>
-                                          <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
-                                            {formatDate(date)}
-                                          </span>
-                                          <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
-                                            {statusInfo.label}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
+                                    {(() => {
+                                      const dailyPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                      return dates.map((date, idx) => {
+                                        const statusInfo = getInstallmentStatusForDisplay(idx, date);
+                                        const penaltyForInstallment = dailyPenalties[idx] || 0;
+                                        return (
+                                          <div key={idx} className={`flex items-center justify-between gap-1 text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
+                                            <span className={`flex-shrink-0 ${hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}`}>
+                                              {idx + 1}/{numInstallments}
+                                            </span>
+                                            <span className={`flex-shrink-0 ${hasSpecialStyle ? 'text-white' : ''}`}>
+                                              {formatCurrency(totalPerInstallmentDisplay)}
+                                            </span>
+                                            <span className={`flex-shrink-0 ${hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}`}>
+                                              {formatDate(date)}
+                                            </span>
+                                            <span className={`font-medium flex-shrink-0 ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
+                                              {statusInfo.label}
+                                            </span>
+                                            {penaltyForInstallment > 0 && (
+                                              <div className="flex items-center gap-1">
+                                                <span className={`text-[10px] font-medium ${hasSpecialStyle ? 'text-red-300' : 'text-red-500'}`}>
+                                                  +{formatCurrency(penaltyForInstallment)}
+                                                </span>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className={`h-4 w-4 p-0 ${hasSpecialStyle ? 'text-red-300 hover:text-white hover:bg-red-500/30' : 'text-red-500 hover:text-red-700 hover:bg-red-100'}`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveDailyPenalty(loan.id, idx, loan.notes);
+                                                  }}
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      });
+                                    })()}
                                   </div>
                                 </div>
                               )}
