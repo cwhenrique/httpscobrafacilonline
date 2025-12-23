@@ -324,7 +324,7 @@ const PvWhatsapp = () => {
             {[
               { icon: Smartphone, text: "App disponível para iOS e Android" },
               { icon: MessageCircle, text: "Envie cobranças diretamente pros seus clientes" },
-              { icon: Phone, text: "Suporte das 8 às 22 horas" },
+              { icon: Phone, text: "Suporte humanizado das 8 às 22h (nada de IA!)" },
               { icon: Sparkles, text: "Fácil usabilidade" },
             ].map((benefit, index) => (
               <motion.div 
@@ -847,7 +847,7 @@ const PvWhatsapp = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-primary" />
-                <span className="text-sm text-foreground">Suporte incluso</span>
+                <span className="text-sm text-foreground">Suporte humanizado incluso</span>
               </div>
             </div>
           </motion.div>
