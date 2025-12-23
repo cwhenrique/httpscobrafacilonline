@@ -292,11 +292,12 @@ const PvWhatsapp = () => {
           >
             <Button 
               size="lg" 
-              className="text-lg px-10 h-16 shadow-glow font-bold bg-green-500 hover:bg-green-600 transition-all duration-300 animate-bounce-subtle"
+              className="text-base sm:text-lg px-6 sm:px-10 h-14 sm:h-16 shadow-glow font-bold bg-green-500 hover:bg-green-600 transition-all duration-300 animate-bounce-subtle"
               onClick={() => window.open(WHATSAPP_LINK, '_blank')}
             >
-              <MessageCircle className="w-6 h-6 mr-3" />
-              QUERO FALAR COM UM ESPECIALISTA
+              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3" />
+              <span className="hidden sm:inline">QUERO FALAR COM UM ESPECIALISTA</span>
+              <span className="sm:hidden">FALAR COM ESPECIALISTA</span>
             </Button>
             <p className="text-sm text-muted-foreground">
               ⚡ Resposta imediata • 💬 Tire todas suas dúvidas
@@ -417,12 +418,12 @@ const PvWhatsapp = () => {
                             className="w-full"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-                          <div className="absolute bottom-0 left-0 right-0 p-6 text-left">
-                            <div className="badge-premium rounded-full px-4 py-2 inline-flex items-center gap-2 mb-3">
-                              <CheckCircle2 className="w-5 h-5 text-primary" />
-                              <span className="font-bold text-primary">{slide.title}</span>
+                          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-left">
+                            <div className="badge-premium rounded-full px-3 sm:px-4 py-1.5 sm:py-2 inline-flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+                              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                              <span className="font-bold text-primary text-sm sm:text-base">{slide.title}</span>
                             </div>
-                            <p className="text-foreground/90 text-sm sm:text-base max-w-xl">
+                            <p className="text-foreground/90 text-xs sm:text-base max-w-xl line-clamp-2 sm:line-clamp-none">
                               {slide.description}
                             </p>
                           </div>
@@ -430,8 +431,8 @@ const PvWhatsapp = () => {
                       </CarouselItem>
                     ))}
                   </CarouselContent>
-                  <CarouselPrevious className="left-2 sm:-left-12 bg-background/80 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground" />
-                  <CarouselNext className="right-2 sm:-right-12 bg-background/80 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground" />
+                  <CarouselPrevious className="left-1 sm:left-2 md:-left-12 bg-background/90 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground w-8 h-8 sm:w-10 sm:h-10" />
+                  <CarouselNext className="right-1 sm:right-2 md:-right-12 bg-background/90 backdrop-blur border-border hover:bg-primary hover:text-primary-foreground w-8 h-8 sm:w-10 sm:h-10" />
                 </Carousel>
                 <div className="flex justify-center gap-2 mt-4">
                   <p className="text-sm text-muted-foreground">
