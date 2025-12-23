@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loan } from '@/types/database';
-import { isLoanOverdue } from '@/lib/calculations';
+import { isLoanOverdue, getTotalDailyPenalties } from '@/lib/calculations';
 
 export interface OperationalStats {
   // Empréstimos Ativos (Na Rua)
@@ -167,8 +167,11 @@ export function useOperationalStats() {
       }
     });
 
-    // Pendente = soma de remaining_balance dos ativos
-    const pendingAmount = activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance), 0);
+    // Pendente = soma de remaining_balance + multas aplicadas dos ativos
+    const pendingAmount = activeLoans.reduce((sum, loan) => {
+      const penalties = getTotalDailyPenalties(loan.notes);
+      return sum + Number(loan.remaining_balance) + penalties;
+    }, 0);
 
     // Lucro realizado = juros proporcionalmente recebidos
     const realizedProfit = totalProfitRealized;

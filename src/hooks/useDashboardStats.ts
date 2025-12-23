@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { isLoanOverdue } from '@/lib/calculations';
+import { isLoanOverdue, getTotalDailyPenalties } from '@/lib/calculations';
 
 export interface DashboardStats {
   totalLoaned: number;
@@ -79,7 +79,7 @@ export function useDashboardStats() {
       { data: contractPaymentsThisWeek },
       { data: allLoanPayments },
     ] = await Promise.all([
-      supabase.from('loans').select('id, principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date'),
+      supabase.from('loans').select('id, principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date, notes'),
       supabase.from('loans').select('id, created_at').gte('created_at', weekAgo.toISOString()),
       supabase.from('monthly_fee_payments').select('amount, status, due_date'),
       supabase.from('clients').select('*', { count: 'exact', head: true }),
@@ -109,6 +109,7 @@ export function useDashboardStats() {
         const principal = Number(loan.principal_amount);
         const totalPaid = Number(loan.total_paid || 0);
         const remainingBalance = Number(loan.remaining_balance);
+        const penalties = getTotalDailyPenalties((loan as any).notes);
         
         // Calcular principal já pago para este empréstimo
         const loanPayments = allLoanPayments?.filter(p => p.loan_id === loan.id) || [];
@@ -121,11 +122,11 @@ export function useDashboardStats() {
         // Apenas empréstimos ATIVOS contam para "Na Rua" e "Pendente"
         if (loan.status !== 'paid') {
           totalLoaned += capitalNaRua; // Na Rua = principal - principal já pago
-          totalPending += remainingBalance; // Pendente = remaining_balance do banco
+          totalPending += remainingBalance + penalties; // Pendente = remaining_balance + multas aplicadas
           
-          // Total a receber (principal + juros) apenas de ativos
+          // Total a receber (principal + juros + multas) apenas de ativos
           if (loan.payment_type === 'daily') {
-            totalToReceive += remainingBalance + totalPaid;
+            totalToReceive += remainingBalance + totalPaid + penalties;
           } else {
             const rate = Number(loan.interest_rate);
             const numInstallments = Number(loan.installments) || 1;
@@ -138,7 +139,7 @@ export function useDashboardStats() {
               totalInterest = principal * (rate / 100);
             }
             
-            totalToReceive += principal + totalInterest;
+            totalToReceive += principal + totalInterest + penalties;
           }
         }
         

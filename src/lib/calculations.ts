@@ -226,6 +226,30 @@ export function getClientTypeLabel(type: string): string {
 }
 
 /**
+ * Extrai multas diárias das notas do empréstimo
+ * @param notes - Campo notes do empréstimo
+ * @returns Objeto com índice da parcela como chave e valor da multa
+ */
+export function getDailyPenaltiesFromNotes(notes: string | null): Record<number, number> {
+  const penalties: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    penalties[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return penalties;
+}
+
+/**
+ * Calcula o total de multas aplicadas nas notas do empréstimo
+ * @param notes - Campo notes do empréstimo
+ * @returns Total de multas aplicadas
+ */
+export function getTotalDailyPenalties(notes: string | null): number {
+  const penalties = getDailyPenaltiesFromNotes(notes);
+  return Object.values(penalties).reduce((sum, val) => sum + val, 0);
+}
+
+/**
  * Interface para empréstimos usados nas funções de cálculo
  */
 interface LoanForCalculation {
