@@ -4860,7 +4860,7 @@ export default function Loans() {
                             <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
                               <Label className="text-xs text-red-300">Tipo de multa</Label>
                               <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
-                                <SelectTrigger className="h-8 bg-red-500/10 border-red-500/30 text-red-100">
+                                <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -4875,7 +4875,7 @@ export default function Loans() {
                                 value={inlinePenaltyValue}
                                 onChange={(e) => setInlinePenaltyValue(e.target.value)}
                                 placeholder={inlinePenaltyType === 'percentage' ? 'Ex: 1.00' : 'Ex: 50.00'}
-                                className="h-8 bg-red-500/10 border-red-500/30 text-red-100 placeholder:text-red-300/50"
+                                className="h-8 bg-white/10 border-blue-400/50 text-red-100 placeholder:text-red-300/50"
                               />
                               
                               {parseFloat(inlinePenaltyValue) > 0 && (
@@ -6019,7 +6019,7 @@ export default function Loans() {
                               <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
                                 <Label className="text-xs text-red-300">Tipo de multa</Label>
                                 <Select value={inlinePenaltyType} onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}>
-                                  <SelectTrigger className="h-8 bg-red-500/10 border-red-500/30 text-red-100">
+                                  <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -6034,7 +6034,7 @@ export default function Loans() {
                                   value={inlinePenaltyValue}
                                   onChange={(e) => setInlinePenaltyValue(e.target.value)}
                                   placeholder={inlinePenaltyType === 'percentage' ? 'Ex: 1.00' : 'Ex: 50.00'}
-                                  className="h-8 bg-red-500/10 border-red-500/30 text-red-100 placeholder:text-red-300/50"
+                                  className="h-8 bg-white/10 border-blue-400/50 text-red-100 placeholder:text-red-300/50"
                                 />
                                 
                                 {parseFloat(inlinePenaltyValue) > 0 && (
