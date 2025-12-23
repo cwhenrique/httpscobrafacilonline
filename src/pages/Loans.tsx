@@ -5520,20 +5520,57 @@ export default function Loans() {
                                 <div className="space-y-1.5 max-h-60 overflow-y-auto">
                                   {dates.map((date, idx) => {
                                     const statusInfo = getInstallmentStatusForDisplay(idx, date);
+                                    
+                                    // Get penalty for this installment (for non-daily loans)
+                                    const installmentPenalty = (() => {
+                                      if (loan.payment_type === 'daily') return 0;
+                                      const dailyPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                      return dailyPenalties[idx] || 0;
+                                    })();
+                                    
+                                    // Calculate days overdue for this specific installment
+                                    const installmentDaysOverdue = (() => {
+                                      if (statusInfo.status !== 'overdue') return 0;
+                                      const dueDate = new Date(date + 'T12:00:00');
+                                      dueDate.setHours(0, 0, 0, 0);
+                                      const todayDate = new Date();
+                                      todayDate.setHours(0, 0, 0, 0);
+                                      return Math.ceil((todayDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                                    })();
+                                    
                                     return (
-                                      <div key={idx} className={`flex items-center justify-between text-xs py-1 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
-                                        <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
-                                          Parcela {idx + 1}/{numInstallments}
-                                        </span>
-                                        <span className={hasSpecialStyle ? 'text-white' : ''}>
-                                          {formatCurrency(totalPerInstallment)}
-                                        </span>
-                                        <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
-                                          {formatDate(date)}
-                                        </span>
-                                        <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
-                                          {statusInfo.label}
-                                        </span>
+                                      <div key={idx} className={`py-1.5 ${idx < dates.length - 1 ? 'border-b border-border/30' : ''}`}>
+                                        <div className="flex items-center justify-between text-xs">
+                                          <span className={hasSpecialStyle ? 'text-white/80' : 'text-muted-foreground'}>
+                                            Parcela {idx + 1}/{numInstallments}
+                                          </span>
+                                          <span className={hasSpecialStyle ? 'text-white' : ''}>
+                                            {formatCurrency(totalPerInstallment)}
+                                          </span>
+                                          <span className={hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground'}>
+                                            {formatDate(date)}
+                                          </span>
+                                          <span className={`font-medium ${hasSpecialStyle ? (statusInfo.status === 'paid' ? 'text-emerald-300' : statusInfo.status === 'overdue' ? 'text-red-300' : 'text-white/70') : statusInfo.color}`}>
+                                            {statusInfo.label}
+                                          </span>
+                                        </div>
+                                        
+                                        {/* Show penalty details for overdue installment */}
+                                        {installmentPenalty > 0 && statusInfo.status === 'overdue' && (
+                                          <div className={`mt-1.5 p-2 rounded ${hasSpecialStyle ? 'bg-orange-500/20' : 'bg-orange-50 dark:bg-orange-500/10'}`}>
+                                            <div className="flex items-center justify-between text-xs">
+                                              <span className={hasSpecialStyle ? 'text-orange-300' : 'text-orange-600 dark:text-orange-400'}>
+                                                🔥 Multa aplicada ({installmentDaysOverdue} dias)
+                                              </span>
+                                              <span className={`font-bold ${hasSpecialStyle ? 'text-orange-200' : 'text-orange-700 dark:text-orange-300'}`}>
+                                                + {formatCurrency(installmentPenalty)}
+                                              </span>
+                                            </div>
+                                            <div className={`text-[10px] mt-0.5 ${hasSpecialStyle ? 'text-orange-300/70' : 'text-orange-500/70'}`}>
+                                              Total com multa: {formatCurrency(totalPerInstallment + installmentPenalty)}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
