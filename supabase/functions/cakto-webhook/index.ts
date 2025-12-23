@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Default password for new users
-const DEFAULT_PASSWORD = 'mudar@123';
+const DEFAULT_PASSWORD = 'mudar@@';
 
 // Clean API URL - remove trailing slashes and any path segments
 function cleanApiUrl(url: string): string {
@@ -505,7 +505,7 @@ Seu acesso de ${subscriptionTime} foi ativado com sucesso!
 
 🔗 Acesse agora: https://cobrafacil.online/auth
 
-Obrigado pela sua compra!`;
+Obrigado pela compra de ${subscriptionPrice || 'sua assinatura'}!`;
 
       // Send via Cobrafacilapp instance
       await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
