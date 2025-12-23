@@ -28,6 +28,7 @@ import {
   AlertCircle,
   XCircle,
   Phone,
+  Gift,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import heroPerson from "@/assets/hero-person.png";
@@ -453,7 +454,7 @@ const PvWhatsapp = () => {
             );
           })()}
 
-          {/* Seção de Planos/Benefícios */}
+          {/* Seção de Planos/Benefícios - Estilo Nectar */}
           <motion.div 
             initial="hidden"
             whileInView="visible"
@@ -461,15 +462,11 @@ const PvWhatsapp = () => {
             variants={fadeInUp}
             className="text-center mb-12 mt-16"
           >
-            <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-full px-5 py-2.5 text-sm font-bold text-green-400 mb-4">
-              <Sparkles className="w-4 h-4" />
-              <span>💰 Pagamento Único = Acesso Vitalício</span>
-            </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
               Escolha o <span className="gradient-text">Plano Ideal</span> para Você
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Todos os planos incluem acesso completo a todas as funcionalidades
+              ✨ Tudo que você precisa incluído em cada plano
             </p>
           </motion.div>
 
@@ -478,37 +475,45 @@ const PvWhatsapp = () => {
             whileInView="visible"
             viewport={{ once: true }}
             variants={staggerContainer}
-            className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto"
+            className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto"
           >
-            {/* Card Mensal */}
+            {/* Card Mensal - Estilo Nectar */}
             <motion.div
               variants={fadeInUp}
-              className="card-premium p-6 rounded-2xl border border-border/50 relative"
+              className="bg-card/80 backdrop-blur-sm p-6 rounded-2xl border border-border/50 relative"
             >
               <div className="text-center mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-8 h-8 text-blue-400" />
+                <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-7 h-7 text-blue-400" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">Mensal</h3>
                 <p className="text-muted-foreground text-sm mt-1">Renovação mensal</p>
               </div>
-              <ul className="space-y-3 mb-6">
+              <div className="space-y-3 mb-6">
                 {[
                   "Clientes ilimitados",
                   "Empréstimos ilimitados",
                   "Cálculo automático de juros",
-                  "Alertas WhatsApp",
                   "Calendário de cobranças",
-                  "Score de clientes"
+                  "Score de clientes",
+                  "Suporte via WhatsApp"
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    {item}
-                  </li>
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground">{item}</span>
+                  </div>
                 ))}
-              </ul>
+                {/* Bônus */}
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-purple-500/40 bg-gradient-to-r from-purple-500/20 to-blue-500/20 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground font-medium">Alertas via WhatsApp</span>
+                  </div>
+                  <span className="text-xs bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full font-semibold">BÔNUS</span>
+                </div>
+              </div>
               <Button 
-                className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30"
+                className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 font-semibold"
                 onClick={() => window.open(WHATSAPP_LINK, '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
@@ -516,10 +521,10 @@ const PvWhatsapp = () => {
               </Button>
             </motion.div>
 
-            {/* Card Vitalício - Destaque */}
+            {/* Card Vitalício - Destaque Estilo Nectar */}
             <motion.div
               variants={scaleIn}
-              className="card-premium p-6 rounded-2xl border-2 border-green-500 relative transform md:-translate-y-4"
+              className="bg-card/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-green-500 relative transform md:-translate-y-4 shadow-lg shadow-green-500/20"
             >
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-bold">
@@ -527,27 +532,35 @@ const PvWhatsapp = () => {
                 </span>
               </div>
               <div className="text-center mb-6 pt-2">
-                <div className="w-16 h-16 rounded-2xl bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-8 h-8 text-green-400" />
+                <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="w-7 h-7 text-green-400" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">Vitalício</h3>
                 <p className="text-green-400 text-sm mt-1 font-semibold">Pague uma vez, use para sempre</p>
               </div>
-              <ul className="space-y-3 mb-6">
+              <div className="space-y-3 mb-6">
                 {[
                   "Acesso vitalício garantido",
                   "Todas as funcionalidades",
-                  "Suporte via WhatsApp",
-                  "Atualizações gratuitas",
+                  "Atualizações gratuitas vitalícias",
                   "Sem mensalidades nunca mais",
-                  "Clientes e empréstimos ilimitados"
+                  "Clientes e empréstimos ilimitados",
+                  "Suporte via WhatsApp"
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    {item}
-                  </li>
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground">{item}</span>
+                  </div>
                 ))}
-              </ul>
+                {/* Bônus */}
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-purple-500/40 bg-gradient-to-r from-purple-500/20 to-blue-500/20 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Gift className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground font-medium">Novas funcionalidades</span>
+                  </div>
+                  <span className="text-xs bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full font-semibold">BÔNUS</span>
+                </div>
+              </div>
               <Button 
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
                 onClick={() => window.open(WHATSAPP_LINK, '_blank')}
@@ -557,35 +570,43 @@ const PvWhatsapp = () => {
               </Button>
             </motion.div>
 
-            {/* Card Anual */}
+            {/* Card Anual - Estilo Nectar */}
             <motion.div
               variants={fadeInUp}
-              className="card-premium p-6 rounded-2xl border border-border/50 relative"
+              className="bg-card/80 backdrop-blur-sm p-6 rounded-2xl border border-border/50 relative"
             >
               <div className="text-center mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="w-8 h-8 text-purple-400" />
+                <div className="w-14 h-14 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-7 h-7 text-purple-400" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">Anual</h3>
                 <p className="text-muted-foreground text-sm mt-1">Acesso por 12 meses</p>
               </div>
-              <ul className="space-y-3 mb-6">
+              <div className="space-y-3 mb-6">
                 {[
                   "Acesso por 12 meses",
                   "Todas as funcionalidades",
-                  "Suporte via WhatsApp",
-                  "Atualizações gratuitas",
+                  "Atualizações durante o período",
                   "Clientes ilimitados",
-                  "Empréstimos ilimitados"
+                  "Empréstimos ilimitados",
+                  "Suporte via WhatsApp"
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    {item}
-                  </li>
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground">{item}</span>
+                  </div>
                 ))}
-              </ul>
+                {/* Bônus */}
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-purple-500/40 bg-gradient-to-r from-purple-500/20 to-blue-500/20 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    <span className="text-sm text-foreground font-medium">Economia garantida</span>
+                  </div>
+                  <span className="text-xs bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full font-semibold">BÔNUS</span>
+                </div>
+              </div>
               <Button 
-                className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30"
+                className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 font-semibold"
                 onClick={() => window.open(WHATSAPP_LINK, '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
