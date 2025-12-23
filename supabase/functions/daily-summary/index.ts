@@ -530,10 +530,11 @@ const handler = async (req: Request): Promise<Response> => {
 
       message += `━━━━━━━━━━━━━━━━━━━━━\n`;
       if (isReminder) {
-        message += `_CobraFácil - Lembrete às 12h_`;
+        message += `_CobraFácil - Lembrete às 12h_\n\n`;
       } else {
-        message += `_CobraFácil - Relatório Diário_`;
+        message += `_CobraFácil - Relatório Diário_\n\n`;
       }
+      message += `📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
       
