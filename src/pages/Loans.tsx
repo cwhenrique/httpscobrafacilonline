@@ -127,6 +127,12 @@ const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number
   return penalties;
 };
 
+// Helper para calcular o total de todas as multas aplicadas
+const getTotalDailyPenalties = (notes: string | null): number => {
+  const penalties = getDailyPenaltiesFromNotes(notes);
+  return Object.values(penalties).reduce((sum, val) => sum + val, 0);
+};
+
 // Helper para calcular quantas parcelas estão pagas usando o sistema de tracking
 const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number => {
   const numInstallments = loan.installments || 1;
@@ -4396,13 +4402,13 @@ export default function Loans() {
                 // Para casos onde o remaining_balance foi atualizado diretamente (taxa extra, juros só, etc)
                 // usamos o valor do banco. Nos demais, calculamos normalmente.
                 // IMPORTANTE: Se o status é 'paid', o remaining é sempre 0
+                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
                 } else {
-                  // SEMPRE usar remaining_balance do banco como fonte de verdade
-                  // (funciona para diários e não-diários)
-                  remainingToReceive = Math.max(0, loan.remaining_balance);
+                  // SEMPRE usar remaining_balance do banco + multas aplicadas como fonte de verdade
+                  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -4707,7 +4713,12 @@ export default function Loans() {
                           
                           {/* LINHA 3: Valor em destaque */}
                           <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
-                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
+                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
+                            restante a receber
+                            {totalAppliedPenalties > 0 && (
+                              <span className="ml-1 text-red-400 font-medium">(+{formatCurrency(totalAppliedPenalties)} multas)</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       
@@ -5769,7 +5780,8 @@ export default function Loans() {
                   const totalPerInstallment = dailyInstallmentAmount;
                   
                   const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue } = getLoanStatus(loan);
-                  const remainingToReceive = loan.remaining_balance;
+                  const totalAppliedPenaltiesDaily = getTotalDailyPenalties(loan.notes);
+                  const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
                   
                   const isDueToday = (() => {
                     if (isPaid) return false;
@@ -5941,7 +5953,12 @@ export default function Loans() {
                             
                             {/* LINHA 3: Valor em destaque */}
                             <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
-                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>restante a receber</p>
+                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
+                              restante a receber
+                              {totalAppliedPenaltiesDaily > 0 && (
+                                <span className="ml-1 text-red-400 font-medium">(+{formatCurrency(totalAppliedPenaltiesDaily)} multas)</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                         
