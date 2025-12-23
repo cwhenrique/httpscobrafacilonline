@@ -4943,6 +4943,9 @@ export default function Loans() {
                                 dueDate: overdueDate,
                                 daysOverdue: daysOverdue,
                                 loanId: loan.id,
+                                penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                                penaltyType: overdueConfigType || undefined,
+                                penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                               }}
                               className="w-full mt-2"
                             />
@@ -6098,6 +6101,9 @@ export default function Loans() {
                                   dueDate: overdueDate,
                                   daysOverdue: daysOverdue,
                                   loanId: loan.id,
+                                  penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                                  penaltyType: overdueConfigType || undefined,
+                                  penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                 }}
                                 className="w-full mt-2"
                               />
