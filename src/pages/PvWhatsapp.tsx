@@ -313,19 +313,20 @@ const PvWhatsapp = () => {
             className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto"
           >
             {[
-              { value: "1.350+", label: "Clientes Ativos", icon: "👥" },
-              { value: "1x", label: "Pagamento Único", icon: "💎" },
-              { value: "4.9/5", label: "Avaliação", icon: "⭐" },
-              { value: "98.9%", label: "Satisfação", icon: "🏆" },
-            ].map((stat, index) => (
+              { icon: Smartphone, text: "App disponível para iOS e Android" },
+              { icon: MessageCircle, text: "Envie cobranças diretamente pros seus clientes" },
+              { icon: Phone, text: "Suporte das 8 às 22 horas" },
+              { icon: Sparkles, text: "Fácil usabilidade" },
+            ].map((benefit, index) => (
               <motion.div 
                 key={index} 
                 variants={scaleIn}
-                className="stat-card text-center p-4 rounded-xl"
+                className="stat-card text-center p-4 rounded-xl flex flex-col items-center gap-2"
               >
-                <span className="text-xl">{stat.icon}</span>
-                <div className="text-xl sm:text-2xl font-bold gradient-text mt-1">{stat.value}</div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
+                <benefit.icon className="w-6 h-6 text-primary" />
+                <div className="text-xs sm:text-sm font-medium text-foreground leading-tight">
+                  {benefit.text}
+                </div>
               </motion.div>
             ))}
           </motion.div>
