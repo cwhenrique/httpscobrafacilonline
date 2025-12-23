@@ -5063,6 +5063,22 @@ export default function Loans() {
                               className="w-full mt-2"
                             />
                           )}
+                          {/* Botão de lembrete do dia para contratos diários em atraso */}
+                          {profile?.whatsapp_to_clients_enabled && loan.client?.phone && loan.payment_type === 'daily' && (
+                            <SendDueTodayNotification
+                              data={{
+                                clientName: loan.client?.full_name || 'Cliente',
+                                clientPhone: loan.client.phone,
+                                contractType: 'loan',
+                                installmentNumber: getPaidInstallmentsCount(loan) + 1,
+                                totalInstallments: loan.installments || 1,
+                                amount: totalPerInstallment,
+                                dueDate: new Date().toISOString().split('T')[0],
+                                loanId: loan.id,
+                              }}
+                              className="w-full mt-2"
+                            />
+                          )}
                         </div>
                       )}
                       
@@ -6314,6 +6330,22 @@ export default function Loans() {
                                   })(),
                                   principalAmount: loan.principal_amount / numInstallments,
                                   isDaily: true,
+                                }}
+                                className="w-full mt-2"
+                              />
+                            )}
+                            {/* Botão de lembrete do dia para contratos diários em atraso */}
+                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                              <SendDueTodayNotification
+                                data={{
+                                  clientName: loan.client?.full_name || 'Cliente',
+                                  clientPhone: loan.client.phone,
+                                  contractType: 'loan',
+                                  installmentNumber: getPaidInstallmentsCount(loan) + 1,
+                                  totalInstallments: numInstallments,
+                                  amount: totalPerInstallmentDisplay,
+                                  dueDate: new Date().toISOString().split('T')[0],
+                                  loanId: loan.id,
                                 }}
                                 className="w-full mt-2"
                               />
