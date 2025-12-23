@@ -6497,10 +6497,10 @@ export default function Loans() {
                                 <>
                                   {/* Cabeçalho com quantidade + regra de multa */}
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-red-300 font-bold">
+                                    <span className="text-white font-bold">
                                       {overdueInstallmentsDetails.length} parcelas em atraso
                                     </span>
-                                    <span className="text-red-200/80 font-medium text-[10px] bg-red-500/20 px-2 py-0.5 rounded">
+                                    <span className="text-red-100 font-medium text-[10px] bg-red-500/30 px-2 py-0.5 rounded">
                                       ⚡ {overdueConfigType === 'percentage' 
                                         ? `${overdueConfigValue}%/dia`
                                         : `${formatCurrency(overdueConfigValue)}/dia`}
@@ -6510,18 +6510,18 @@ export default function Loans() {
                                   {/* Lista de parcelas com valor e multa separados */}
                                   <div className="space-y-2 max-h-40 overflow-y-auto">
                                     {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
-                                      <div key={idx} className="bg-red-500/10 rounded px-2.5 py-1.5">
+                                      <div key={idx} className="bg-red-900/60 rounded px-2.5 py-1.5">
                                         <div className="flex items-center justify-between text-xs">
-                                          <span className="text-red-300 font-medium">
+                                          <span className="text-white font-medium">
                                             Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d de atraso
                                           </span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs mt-1">
-                                          <span className="text-red-300/70">
+                                          <span className="text-gray-200">
                                             Valor: {formatCurrency(item.installmentAmount)}
                                           </span>
                                           {item.penaltyAmount > 0 && (
-                                            <span className="font-medium text-red-200">
+                                            <span className="font-semibold text-yellow-300">
                                               Multa: +{formatCurrency(item.penaltyAmount)}
                                             </span>
                                           )}
@@ -6531,9 +6531,9 @@ export default function Loans() {
                                   </div>
                                   
                                   {/* Total a Pagar - integrado */}
-                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2 mt-3">
+                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-800/80 to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-700/50">
                                     <span className="text-white font-medium">Total a Pagar:</span>
-                                    <span className="font-bold text-red-400 text-lg">
+                                    <span className="font-bold text-yellow-300 text-lg">
                                       {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
                                     </span>
                                   </div>
