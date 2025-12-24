@@ -368,6 +368,21 @@ export default function Loans() {
   const [historicalInterestReceived, setHistoricalInterestReceived] = useState('');
   const [historicalInterestNotes, setHistoricalInterestNotes] = useState('');
   
+  // Estado para controlar expansão das parcelas em atraso
+  const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
+  
+  const toggleOverdueExpand = (loanId: string) => {
+    setExpandedOverdueCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(loanId)) {
+        newSet.delete(loanId);
+      } else {
+        newSet.add(loanId);
+      }
+      return newSet;
+    });
+  };
+  
   // Generate daily dates (consecutive days, optionally skipping weekends and holidays)
   const generateDailyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
     const dates: string[] = [];
@@ -6564,11 +6579,21 @@ export default function Loans() {
                               {/* CARD UNIFICADO para múltiplas parcelas com multa dinâmica */}
                               {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 ? (
                                 <>
-                                  {/* Cabeçalho com quantidade + regra de multa */}
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-white font-bold">
-                                      {overdueInstallmentsDetails.length} parcelas em atraso
-                                    </span>
+                                  {/* Cabeçalho clicável com quantidade + regra de multa */}
+                                  <div 
+                                    onClick={() => toggleOverdueExpand(loan.id)}
+                                    className="flex items-center justify-between mb-2 cursor-pointer hover:bg-red-500/10 rounded px-1 py-0.5 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-white font-bold">
+                                        {overdueInstallmentsDetails.length} parcelas em atraso
+                                      </span>
+                                      {expandedOverdueCards.has(loan.id) ? (
+                                        <ChevronUp className="w-4 h-4 text-white" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 text-white" />
+                                      )}
+                                    </div>
                                     <span className="text-red-100 font-medium text-[10px] bg-red-500/30 px-2 py-0.5 rounded">
                                       ⚡ {overdueConfigType === 'percentage' 
                                         ? `${overdueConfigValue}%/dia`
@@ -6576,30 +6601,32 @@ export default function Loans() {
                                     </span>
                                   </div>
                                   
-                                  {/* Lista de parcelas com valor e multa separados */}
-                                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                                    {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
-                                      <div key={idx} className="bg-red-900/60 rounded px-2.5 py-1.5">
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-white font-medium">
-                                            Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d de atraso
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-xs mt-1">
-                                          <span className="text-gray-200">
-                                            Valor: {formatCurrency(item.installmentAmount)}
-                                          </span>
-                                          {item.penaltyAmount > 0 && (
-                                            <span className="font-semibold text-yellow-300">
-                                              Multa: +{formatCurrency(item.penaltyAmount)}
+                                  {/* Lista de parcelas colapsável */}
+                                  {expandedOverdueCards.has(loan.id) && (
+                                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                                      {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
+                                        <div key={idx} className="bg-red-900/60 rounded px-2.5 py-1.5">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-white font-medium">
+                                              Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d de atraso
                                             </span>
-                                          )}
+                                          </div>
+                                          <div className="flex items-center justify-between text-xs mt-1">
+                                            <span className="text-gray-200">
+                                              Valor: {formatCurrency(item.installmentAmount)}
+                                            </span>
+                                            {item.penaltyAmount > 0 && (
+                                              <span className="font-semibold text-yellow-300">
+                                                Multa: +{formatCurrency(item.penaltyAmount)}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
-                                  </div>
+                                      ))}
+                                    </div>
+                                  )}
                                   
-                                  {/* Total a Pagar - integrado */}
+                                  {/* Total a Pagar - sempre visível */}
                                   <div className="flex items-center justify-between bg-gradient-to-r from-red-800/80 to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-700/50 animate-[pulse_2s_ease-in-out_infinite]">
                                     <span className="text-white font-medium">Total a Pagar:</span>
                                     <span className="font-bold text-yellow-300 text-lg">
@@ -6608,42 +6635,54 @@ export default function Loans() {
                                   </div>
                                 </>
                               ) : overdueInstallmentsDetails.length > 1 ? (
-                                /* Múltiplas parcelas SEM multa dinâmica (mantém layout original) */
+                                /* Múltiplas parcelas SEM multa dinâmica */
                                 <>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-red-300 font-bold">
-                                      {overdueInstallmentsDetails.length} parcelas em atraso
-                                    </span>
+                                  <div 
+                                    onClick={() => toggleOverdueExpand(loan.id)}
+                                    className="flex items-center justify-between mb-2 cursor-pointer hover:bg-red-500/10 rounded px-1 py-0.5 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-red-300 font-bold">
+                                        {overdueInstallmentsDetails.length} parcelas em atraso
+                                      </span>
+                                      {expandedOverdueCards.has(loan.id) ? (
+                                        <ChevronUp className="w-4 h-4 text-red-300" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 text-red-300" />
+                                      )}
+                                    </div>
                                     <span className="text-red-200 font-medium text-xs">
                                       Total: {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
                                     </span>
                                   </div>
-                                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                                    {(() => {
-                                      const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
-                                      return cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => {
-                                        const manualPenalty = manualPenalties[item.installmentNumber - 1] || 0;
-                                        const displayPenalty = manualPenalty > 0 ? manualPenalty : item.penaltyAmount;
-                                        
-                                        return (
-                                          <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
-                                            <span className="text-red-300/90">
-                                              Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
-                                              {displayPenalty > 0 && (
-                                                <span className={`font-medium ${manualPenalty > 0 ? 'text-orange-200' : 'text-red-200'}`}>
-                                                  +{formatCurrency(displayPenalty)}
-                                                  {manualPenalty > 0 && <span className="text-[9px] ml-1">(manual)</span>}
-                                                </span>
-                                              )}
+                                  {expandedOverdueCards.has(loan.id) && (
+                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                      {(() => {
+                                        const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
+                                        return cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => {
+                                          const manualPenalty = manualPenalties[item.installmentNumber - 1] || 0;
+                                          const displayPenalty = manualPenalty > 0 ? manualPenalty : item.penaltyAmount;
+                                          
+                                          return (
+                                            <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
+                                              <span className="text-red-300/90">
+                                                Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
+                                                {displayPenalty > 0 && (
+                                                  <span className={`font-medium ${manualPenalty > 0 ? 'text-orange-200' : 'text-red-200'}`}>
+                                                    +{formatCurrency(displayPenalty)}
+                                                    {manualPenalty > 0 && <span className="text-[9px] ml-1">(manual)</span>}
+                                                  </span>
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
-                                        );
-                                      });
-                                    })()}
-                                  </div>
+                                          );
+                                        });
+                                      })()}
+                                    </div>
+                                  )}
                                 </>
                               ) : (
                                 /* UMA parcela em atraso */
