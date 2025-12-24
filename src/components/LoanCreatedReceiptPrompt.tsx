@@ -28,7 +28,8 @@ interface LoanData {
   totalToReceive: number;
   installments: number;
   installmentValue: number;
-  startDate: string;
+  contractDate: string; // Data do contrato (quando foi fechado)
+  startDate: string; // Data da primeira parcela (primeiro vencimento)
   dueDate: string;
   paymentType: string;
 }
@@ -127,7 +128,8 @@ export default function LoanCreatedReceiptPrompt({
     message += `📄 *EMPRÉSTIMO REGISTRADO*\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     
-    message += `📋 *Contrato:* ${contractId}\n\n`;
+    message += `📋 *Contrato:* ${contractId}\n`;
+    message += `📅 *Data do Contrato:* ${formatDate(loan.contractDate)}\n\n`;
     
     message += `👤 *CLIENTE*\n`;
     message += `• Nome: ${loan.clientName}\n`;

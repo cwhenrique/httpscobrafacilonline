@@ -539,6 +539,7 @@ export default function Loans() {
     totalToReceive: number;
     installments: number;
     installmentValue: number;
+    contractDate: string;
     startDate: string;
     dueDate: string;
     paymentType: string;
@@ -1852,6 +1853,7 @@ export default function Loans() {
         totalToReceive: totalToReceive,
         installments: numDays,
         installmentValue: dailyAmount,
+        contractDate: formData.contract_date,
         startDate: formData.start_date,
         dueDate: installmentDates[installmentDates.length - 1],
         paymentType: 'daily',
@@ -2145,6 +2147,7 @@ export default function Loans() {
         totalToReceive: principal + totalInterest,
         installments: numInstallments,
         installmentValue: installmentValueNum,
+        contractDate: formData.contract_date,
         startDate: formData.start_date,
         dueDate: finalDueDate,
         paymentType: formData.payment_type,
