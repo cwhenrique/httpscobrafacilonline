@@ -209,6 +209,11 @@ export default function ProductSales() {
     notes: '',
   });
 
+  // Contract payment dialog states
+  const [contractPaymentDialogOpen, setContractPaymentDialogOpen] = useState(false);
+  const [selectedContractPayment, setSelectedContractPayment] = useState<{ payment: ContractPayment; contract: Contract } | null>(null);
+  const [contractPaymentDate, setContractPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -559,38 +564,49 @@ export default function ProductSales() {
   };
 
 
-  // Wrapper for contract payment with receipt prompt
-  const handleMarkContractPaymentAsPaid = async (paymentId: string, contract: Contract) => {
-    const payments = contractPayments[contract.id] || [];
-    const payment = payments.find(p => p.id === paymentId);
+  // Open contract payment dialog
+  const openContractPaymentDialog = (payment: ContractPayment, contract: Contract) => {
+    setSelectedContractPayment({ payment, contract });
+    setContractPaymentDate(format(new Date(), 'yyyy-MM-dd'));
+    setContractPaymentDialogOpen(true);
+  };
+
+  // Confirm contract payment with selected date
+  const confirmContractPayment = async () => {
+    if (!selectedContractPayment) return;
     
-    await markPaymentAsPaid.mutateAsync(paymentId);
+    const { payment, contract } = selectedContractPayment;
+    const payments = contractPayments[contract.id] || [];
+    
+    await markPaymentAsPaid.mutateAsync({ paymentId: payment.id, paidDate: contractPaymentDate });
     
     // Show payment receipt prompt
-    if (payment) {
-      const paidPayments = payments.filter(p => p.status === 'paid').length;
-      const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-      const newRemainingBalance = Math.max(0, contract.amount_to_receive - paidAmount - payment.amount);
-      setPaymentClientPhone(contract.client_phone || null);
-      setPaymentReceiptData({
-        type: 'contract',
-        contractId: contract.id,
-        companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-        billingSignatureName: profile?.billing_signature_name || undefined,
-        clientName: contract.client_name,
-        installmentNumber: payment.installment_number,
-        totalInstallments: contract.installments,
-        amountPaid: payment.amount,
-        paymentDate: format(new Date(), 'yyyy-MM-dd'),
-        remainingBalance: newRemainingBalance,
-        totalPaid: paidAmount + payment.amount,
-      });
-      setIsPaymentReceiptOpen(true);
-    }
+    const paidPayments = payments.filter(p => p.status === 'paid').length;
+    const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+    const newRemainingBalance = Math.max(0, contract.amount_to_receive - paidAmount - payment.amount);
+    setPaymentClientPhone(contract.client_phone || null);
+    setPaymentReceiptData({
+      type: 'contract',
+      contractId: contract.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      billingSignatureName: profile?.billing_signature_name || undefined,
+      clientName: contract.client_name,
+      installmentNumber: payment.installment_number,
+      totalInstallments: contract.installments,
+      amountPaid: payment.amount,
+      paymentDate: contractPaymentDate,
+      remainingBalance: newRemainingBalance,
+      totalPaid: paidAmount + payment.amount,
+    });
+    setIsPaymentReceiptOpen(true);
     
     // Refresh contract payments
     const updatedPayments = await getContractPayments(contract.id);
     setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
+    
+    // Close dialog
+    setContractPaymentDialogOpen(false);
+    setSelectedContractPayment(null);
   };
 
 
@@ -1436,7 +1452,7 @@ export default function ProductSales() {
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold">{formatCurrency(payment.amount)}</span>
                                 {payment.status !== 'paid' ? (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleMarkContractPaymentAsPaid(payment.id, contract)}>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openContractPaymentDialog(payment, contract)}>
                                     <Check className="w-3 h-3" />
                                   </Button>
                                 ) : (
@@ -1802,6 +1818,55 @@ export default function ProductSales() {
           userPhone={profile?.phone || undefined}
           installmentDates={newSaleInstallmentDates}
         />
+
+        {/* Contract Payment Date Dialog */}
+        <Dialog open={contractPaymentDialogOpen} onOpenChange={(open) => {
+          setContractPaymentDialogOpen(open);
+          if (!open) setSelectedContractPayment(null);
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Registrar Pagamento</DialogTitle>
+            </DialogHeader>
+            {selectedContractPayment && (
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Parcela:</span>
+                    <span className="font-medium">{selectedContractPayment.payment.installment_number}ª de {selectedContractPayment.contract.installments}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Valor:</span>
+                    <span className="font-semibold text-primary">{formatCurrency(selectedContractPayment.payment.amount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vencimento:</span>
+                    <span>{format(parseISO(selectedContractPayment.payment.due_date), "dd/MM/yyyy")}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contractPaymentDate">Data do Pagamento</Label>
+                  <Input
+                    id="contractPaymentDate"
+                    type="date"
+                    value={contractPaymentDate}
+                    onChange={(e) => setContractPaymentDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setContractPaymentDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={confirmContractPayment} disabled={markPaymentAsPaid.isPending}>
+                    {markPaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar Pagamento'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
