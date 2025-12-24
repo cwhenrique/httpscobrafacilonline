@@ -85,6 +85,8 @@ serve(async (req) => {
         connected: false,
         status: 'disconnected',
         instanceName,
+        needsNewQR: true,
+        message: 'Instância não encontrada. Gere um novo QR Code.'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -95,8 +97,30 @@ serve(async (req) => {
       let state = stateData?.instance?.state || stateData?.state;
       let isConnected = state === 'open';
       let reconnected = false;
+      let needsNewQR = false;
+      let statusMessage = '';
 
-      // If disconnected and attemptReconnect is true, try to restart the instance
+      console.log(`Instance state: ${state}, isConnected: ${isConnected}`);
+
+      // Handle "connecting" state - this means QR was shown but not scanned or connection is stuck
+      if (state === 'connecting') {
+        console.log('Instance is in "connecting" state - waiting for QR scan or stuck');
+        
+        // Don't try to reconnect, just report the status
+        // The user needs to scan the QR code
+        return new Response(JSON.stringify({ 
+          connected: false,
+          status: 'connecting',
+          instanceName,
+          needsNewQR: false, // Don't suggest new QR yet, user might be scanning
+          waitingForScan: true,
+          message: 'Aguardando leitura do QR Code...'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // If disconnected (close state) and attemptReconnect is true, try to restart
       if (!isConnected && attemptReconnect && (state === 'close' || state === 'disconnected')) {
         console.log(`Attempting to restart instance: ${instanceName}`);
         
@@ -133,6 +157,11 @@ serve(async (req) => {
                 state = newState;
                 isConnected = true;
                 reconnected = true;
+                statusMessage = 'Conexão restaurada automaticamente!';
+              } else if (newState === 'connecting') {
+                // Restart triggered QR code - needs scan
+                needsNewQR = true;
+                statusMessage = 'Escaneie o QR Code para reconectar.';
               }
             }
           }
@@ -140,8 +169,8 @@ serve(async (req) => {
           console.error('Error restarting instance:', restartError);
         }
 
-        // Method 2: If restart didn't work, try connect endpoint
-        if (!isConnected) {
+        // Method 2: If restart didn't fully connect, try connect endpoint
+        if (!isConnected && !needsNewQR) {
           try {
             const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
               method: 'GET',
@@ -153,26 +182,34 @@ serve(async (req) => {
             console.log('Connect response:', connectResponse.status);
             
             if (connectResponse.ok) {
-              // Wait a bit
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              const connectData = await connectResponse.json();
               
-              // Check status again
-              const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
-                method: 'GET',
-                headers: {
-                  'apikey': evolutionApiKey,
-                },
-              });
-              
-              if (recheckResponse.ok) {
-                const recheckData = await recheckResponse.json();
-                const newState = recheckData?.instance?.state || recheckData?.state;
-                console.log('State after connect:', newState);
+              // Check if we got a QR code (meaning it needs scanning)
+              if (connectData.base64 || connectData.code) {
+                needsNewQR = true;
+                statusMessage = 'QR Code disponível para reconexão.';
+              } else {
+                // Wait a bit and check status
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                if (newState === 'open') {
-                  state = newState;
-                  isConnected = true;
-                  reconnected = true;
+                const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+                  method: 'GET',
+                  headers: {
+                    'apikey': evolutionApiKey,
+                  },
+                });
+                
+                if (recheckResponse.ok) {
+                  const recheckData = await recheckResponse.json();
+                  const newState = recheckData?.instance?.state || recheckData?.state;
+                  console.log('State after connect:', newState);
+                  
+                  if (newState === 'open') {
+                    state = newState;
+                    isConnected = true;
+                    reconnected = true;
+                    statusMessage = 'Conexão restaurada!';
+                  }
                 }
               }
             }
@@ -180,6 +217,18 @@ serve(async (req) => {
             console.error('Error connecting instance:', connectError);
           }
         }
+
+        // If still not connected after attempts, mark as needing new QR
+        if (!isConnected && !needsNewQR) {
+          needsNewQR = true;
+          statusMessage = 'Não foi possível reconectar. Gere um novo QR Code.';
+        }
+      }
+
+      // If disconnected without attemptReconnect
+      if (!isConnected && !attemptReconnect && (state === 'close' || state === 'disconnected')) {
+        needsNewQR = true;
+        statusMessage = 'Conexão perdida. Gere um novo QR Code para reconectar.';
       }
 
       // If connected, try to get the phone number
@@ -264,6 +313,8 @@ serve(async (req) => {
         phoneNumber: phoneNumber || null,
         connectedAt: profile.whatsapp_connected_at,
         reconnected,
+        needsNewQR,
+        message: statusMessage || undefined,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -274,6 +325,8 @@ serve(async (req) => {
         connected: false,
         status: 'error',
         instanceName,
+        needsNewQR: true,
+        message: 'Erro ao verificar conexão. Tente gerar um novo QR Code.'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

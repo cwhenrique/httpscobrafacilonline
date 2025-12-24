@@ -20,6 +20,9 @@ interface WhatsAppStatus {
   instanceName?: string;
   phoneNumber?: string;
   connectedAt?: string;
+  needsNewQR?: boolean;
+  waitingForScan?: boolean;
+  message?: string;
 }
 
 // Emails com acesso privilegiado ao assistente de voz (independente do plano)
@@ -63,9 +66,10 @@ export default function Settings() {
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
   const [togglingVoice, setTogglingVoice] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
-  const [qrTimeRemaining, setQrTimeRemaining] = useState(60);
+  const [qrTimeRemaining, setQrTimeRemaining] = useState(90);
   const [qrExpired, setQrExpired] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [resettingInstance, setResettingInstance] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -106,11 +110,11 @@ export default function Settings() {
     return () => clearInterval(interval);
   }, [showQrModal, qrCode]);
 
-  // QR Code expiration timer - 60 seconds
+  // QR Code expiration timer - 90 seconds (more time for users to scan)
   useEffect(() => {
     if (!qrCode || generatingQr) return;
     
-    setQrTimeRemaining(60);
+    setQrTimeRemaining(90);
     setQrExpired(false);
     
     const timer = setInterval(() => {
@@ -219,14 +223,15 @@ export default function Settings() {
     }
   };
 
-  const handleRefreshQrCode = async () => {
+  const handleRefreshQrCode = async (forceReset = false) => {
     if (!user?.id) return;
     
     setGeneratingQr(true);
+    setQrExpired(false);
     
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-get-qrcode', {
-        body: { userId: user.id }
+        body: { userId: user.id, forceReset }
       });
 
       if (error) {
@@ -243,12 +248,33 @@ export default function Settings() {
 
       if (data.qrCode) {
         setQrCode(data.qrCode);
+        setQrTimeRemaining(90);
+      } else {
+        toast.error(data.error || 'Não foi possível gerar o QR Code');
       }
     } catch (error) {
       console.error('Error refreshing QR:', error);
       toast.error('Erro ao atualizar QR Code');
     } finally {
       setGeneratingQr(false);
+    }
+  };
+
+  const handleResetInstance = async () => {
+    if (!user?.id) return;
+    
+    setResettingInstance(true);
+    toast.info('Reiniciando instância...');
+    
+    try {
+      // Force a reset by doing logout + new QR
+      await handleRefreshQrCode(true);
+      toast.success('Instância reiniciada! Escaneie o novo QR Code.');
+    } catch (error) {
+      console.error('Error resetting instance:', error);
+      toast.error('Erro ao reiniciar instância');
+    } finally {
+      setResettingInstance(false);
     }
   };
 
@@ -713,6 +739,22 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   </div>
                 </div>
 
+                {/* Status: connecting (waiting for QR scan) */}
+                {whatsappStatus?.status === 'connecting' && (
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                    <div className="flex items-start gap-2">
+                      <Loader2 className="w-4 h-4 text-blue-500 mt-0.5 shrink-0 animate-spin" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-600">Aguardando leitura do QR Code...</p>
+                        <p className="text-xs text-muted-foreground">
+                          Escaneie o QR Code no WhatsApp do seu celular para conectar.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status: close (connection lost) */}
                 {whatsappStatus?.status === 'close' && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                     <div className="flex items-start gap-2">
@@ -724,6 +766,31 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                         </p>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Button to reset instance if having problems */}
+                {(whatsappStatus?.needsNewQR || whatsappStatus?.status === 'connecting') && (
+                  <div className="flex justify-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleResetInstance}
+                      disabled={resettingInstance}
+                      className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                    >
+                      {resettingInstance ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Reiniciando...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Reiniciar e Gerar Novo QR
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
 
@@ -838,8 +905,8 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
               <div className="w-full mb-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 10 ? 'text-amber-500' : 'text-green-500'}`} />
-                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 10 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-green-500'}`} />
+                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-muted-foreground'}`}>
                       {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
                     </span>
                   </div>
@@ -848,8 +915,8 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   )}
                 </div>
                 <Progress 
-                  value={(qrTimeRemaining / 60) * 100} 
-                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 10 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
+                  value={(qrTimeRemaining / 90) * 100} 
+                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 15 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
                 />
               </div>
             )}
@@ -879,7 +946,7 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                     <p className="font-medium text-destructive text-center">QR Code expirado!</p>
                     <p className="text-sm text-muted-foreground text-center mt-1">Clique abaixo para gerar um novo</p>
                     <Button 
-                      onClick={handleRefreshQrCode}
+                      onClick={() => handleRefreshQrCode()}
                       disabled={generatingQr}
                       className="mt-4 bg-green-600 hover:bg-green-700"
                     >
@@ -897,7 +964,7 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   <Button 
                     variant="outline"
                     size="sm"
-                    onClick={handleRefreshQrCode}
+                    onClick={() => handleRefreshQrCode()}
                     disabled={generatingQr}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
@@ -965,7 +1032,7 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={handleRefreshQrCode}
+                onClick={() => handleRefreshQrCode()}
                 disabled={generatingQr}
                 className="mt-3 text-muted-foreground hover:text-foreground"
               >

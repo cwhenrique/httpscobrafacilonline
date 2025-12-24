@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json();
+    const { userId, forceReset } = await req.json();
 
     if (!userId) {
       return new Response(JSON.stringify({ error: 'userId é obrigatório' }), {
@@ -55,9 +55,55 @@ serve(async (req) => {
     }
 
     const instanceName = profile.whatsapp_instance_id;
-    console.log(`Fetching QR code for instance: ${instanceName}`);
+    console.log(`Getting QR code for instance: ${instanceName}, forceReset: ${forceReset}`);
 
-    // Get new QR code by reconnecting
+    // First, check current state
+    const stateResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+      method: 'GET',
+      headers: {
+        'apikey': evolutionApiKey,
+      },
+    });
+
+    if (stateResponse.ok) {
+      const stateData = await stateResponse.json();
+      const state = stateData?.instance?.state || stateData?.state;
+      console.log('Current state:', state);
+
+      // If already connected, no need for QR
+      if (state === 'open') {
+        return new Response(JSON.stringify({ 
+          success: true, 
+          alreadyConnected: true,
+          message: 'WhatsApp já está conectado'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // If stuck in connecting state or force reset requested, do a logout first
+      if (state === 'connecting' || forceReset) {
+        console.log('Instance is stuck in connecting state or reset requested, doing logout first...');
+        
+        try {
+          const logoutResponse = await fetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
+            method: 'DELETE',
+            headers: {
+              'apikey': evolutionApiKey,
+            },
+          });
+          console.log('Logout response:', logoutResponse.status);
+          
+          // Wait a bit for logout to take effect
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        } catch (e) {
+          console.log('Logout attempt error (continuing anyway):', e);
+        }
+      }
+    }
+
+    // Get new QR code by connecting
+    console.log('Requesting new QR code...');
     const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
       method: 'GET',
       headers: {
@@ -66,10 +112,54 @@ serve(async (req) => {
     });
 
     const connectText = await connectResponse.text();
-    console.log('Connect response:', connectResponse.status, connectText);
+    console.log('Connect response:', connectResponse.status, connectText.substring(0, 200));
 
     if (!connectResponse.ok) {
-      return new Response(JSON.stringify({ error: 'Erro ao obter QR Code' }), {
+      // If connect fails, try to restart the instance first
+      console.log('Connect failed, trying restart...');
+      
+      try {
+        const restartResponse = await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+          method: 'POST',
+          headers: {
+            'apikey': evolutionApiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log('Restart response:', restartResponse.status);
+        
+        if (restartResponse.ok) {
+          // Wait for restart
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Try connect again
+          const retryConnectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+            method: 'GET',
+            headers: {
+              'apikey': evolutionApiKey,
+            },
+          });
+          
+          if (retryConnectResponse.ok) {
+            const retryData = await retryConnectResponse.json();
+            
+            if (retryData.base64) {
+              return new Response(JSON.stringify({ 
+                success: true, 
+                qrCode: retryData.base64,
+                instanceName,
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+          }
+        }
+      } catch (restartError) {
+        console.error('Restart error:', restartError);
+      }
+
+      return new Response(JSON.stringify({ error: 'Erro ao obter QR Code. Tente novamente.' }), {
         status: connectResponse.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -79,6 +169,7 @@ serve(async (req) => {
       const connectData = JSON.parse(connectText);
       
       if (connectData.base64) {
+        console.log('Successfully got QR code');
         return new Response(JSON.stringify({ 
           success: true, 
           qrCode: connectData.base64,
@@ -98,7 +189,44 @@ serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ error: 'QR Code não disponível' }), {
+      // If we got here but no QR, the instance might need a restart
+      console.log('No QR code in response, attempting restart...');
+      
+      try {
+        await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+          method: 'POST',
+          headers: {
+            'apikey': evolutionApiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const retryResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+          method: 'GET',
+          headers: {
+            'apikey': evolutionApiKey,
+          },
+        });
+        
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          if (retryData.base64) {
+            return new Response(JSON.stringify({ 
+              success: true, 
+              qrCode: retryData.base64,
+              instanceName,
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Retry error:', e);
+      }
+
+      return new Response(JSON.stringify({ error: 'QR Code não disponível. Tente novamente em alguns segundos.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
