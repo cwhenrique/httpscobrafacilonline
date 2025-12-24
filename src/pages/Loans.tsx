@@ -5906,11 +5906,12 @@ export default function Loans() {
                             </div>
                             
                             {/* Cronograma de Parcelas */}
-                            {dates.length > 0 && (
+                            {(dates.length > 0 || loan.payment_type === 'single') && (
                               <div className={`rounded-lg p-3 ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
                                 <p className={`font-medium text-sm mb-2 ${hasSpecialStyle ? 'text-white' : ''}`}>📅 Cronograma de Parcelas</p>
                                 <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                                  {dates.map((date, idx) => {
+                                  {/* Para pagamento único sem dates, usar due_date como parcela única */}
+                                  {(dates.length > 0 ? dates : [loan.due_date]).map((date, idx) => {
                                     const statusInfo = getInstallmentStatusForDisplay(idx, date);
                                     
                                     // Get penalty for this installment (works for all loan types including daily)
