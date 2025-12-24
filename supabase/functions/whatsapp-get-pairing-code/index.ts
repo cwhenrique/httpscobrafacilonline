@@ -153,17 +153,14 @@ serve(async (req) => {
       }
     }
 
-    // Request pairing code by calling connect with the phone number in the body
+    // Request pairing code by calling connect with the phone number as query parameter
+    // Evolution API v2 uses GET method with number as query param
     console.log('Requesting pairing code...');
-    const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-      method: 'POST',
+    const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}?number=${cleanPhone}`, {
+      method: 'GET',
       headers: {
         'apikey': evolutionApiKey,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        number: cleanPhone,
-      }),
     });
 
     const connectText = await connectResponse.text();
@@ -184,15 +181,11 @@ serve(async (req) => {
         
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        const retryResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-          method: 'POST',
+        const retryResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}?number=${cleanPhone}`, {
+          method: 'GET',
           headers: {
             'apikey': evolutionApiKey,
-            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            number: cleanPhone,
-          }),
         });
         
         if (retryResponse.ok) {
