@@ -84,7 +84,11 @@ export default function SendDueTodayNotification({
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const canSend = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && data.clientPhone;
+  const canSend =
+    profile?.whatsapp_instance_id &&
+    profile?.whatsapp_connected_phone &&
+    profile?.whatsapp_to_clients_enabled &&
+    data.clientPhone;
 
   // Update cooldown state every minute
   useEffect(() => {
@@ -157,7 +161,9 @@ export default function SendDueTodayNotification({
 
   const handleSend = async () => {
     if (!canSend) {
-      if (!profile?.whatsapp_to_clients_enabled) {
+      if (!profile?.whatsapp_connected_phone) {
+        toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
+      } else if (!profile?.whatsapp_to_clients_enabled) {
         toast.error('Configure seu WhatsApp para clientes nas configurações');
       } else {
         toast.error('Cliente não possui telefone cadastrado');
