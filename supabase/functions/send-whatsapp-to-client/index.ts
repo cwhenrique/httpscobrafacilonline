@@ -102,11 +102,94 @@ serve(async (req) => {
       });
     }
 
-    // Check if instance is actually connected (has a connected phone number)
-    if (!profile.whatsapp_connected_phone) {
-      console.error('WhatsApp instance exists but not connected for user:', userId, 'Instance:', profile.whatsapp_instance_id);
-      return new Response(JSON.stringify({ error: 'Seu WhatsApp não está conectado. Reconecte nas configurações escaneando o QR Code novamente.' }), {
-        status: 400,
+    const instanceName = profile.whatsapp_instance_id;
+    
+    // CRITICAL: Check real-time connection state before attempting to send
+    console.log(`Checking real-time connection state for instance: ${instanceName}`);
+    
+    try {
+      const stateResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+        method: 'GET',
+        headers: {
+          'apikey': evolutionApiKey,
+        },
+      });
+      
+      const stateText = await stateResponse.text();
+      console.log('Connection state check:', stateResponse.status, stateText);
+      
+      if (!stateResponse.ok) {
+        console.error('Instance not found or error checking state');
+        return new Response(JSON.stringify({ 
+          error: 'WhatsApp desconectado. Reconecte nas configurações escaneando o QR Code.' 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const stateData = JSON.parse(stateText);
+      const instanceState = stateData?.instance?.state || stateData?.state;
+      console.log(`Real-time instance state: ${instanceState}`);
+      
+      if (instanceState !== 'open') {
+        console.error(`Instance not connected. State: ${instanceState}`);
+        
+        let errorMessage = 'WhatsApp não conectado.';
+        if (instanceState === 'connecting') {
+          errorMessage = 'WhatsApp aguardando leitura do QR Code. Acesse as configurações para escanear.';
+        } else if (instanceState === 'close' || instanceState === 'disconnected') {
+          errorMessage = 'WhatsApp desconectado. Reconecte nas configurações escaneando o QR Code.';
+        }
+        
+        return new Response(JSON.stringify({ error: errorMessage }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Also update the profile if we detect it's connected but phone is missing
+      if (instanceState === 'open' && !profile.whatsapp_connected_phone) {
+        console.log('Instance is open but phone is missing in profile, attempting to update...');
+        
+        try {
+          const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+            method: 'GET',
+            headers: { 'apikey': evolutionApiKey },
+          });
+          
+          if (fetchResponse.ok) {
+            const instances = await fetchResponse.json();
+            const inst = Array.isArray(instances) ? instances[0] : instances;
+            
+            // Extract phone from ownerJid
+            const ownerJid = inst?.ownerJid || inst?.owner || inst?.instance?.ownerJid || inst?.instance?.owner;
+            if (typeof ownerJid === 'string' && ownerJid.includes('@')) {
+              const phoneNumber = ownerJid.split('@')[0].replace(/\D/g, '');
+              if (phoneNumber.length >= 10) {
+                console.log('Found and updating phone number:', phoneNumber);
+                await supabase
+                  .from('profiles')
+                  .update({
+                    whatsapp_connected_phone: phoneNumber,
+                    whatsapp_connected_at: new Date().toISOString(),
+                    whatsapp_to_clients_enabled: true,
+                  })
+                  .eq('id', userId);
+              }
+            }
+          }
+        } catch (e) {
+          console.log('Could not update missing phone:', e);
+        }
+      }
+      
+    } catch (stateError) {
+      console.error('Error checking connection state:', stateError);
+      return new Response(JSON.stringify({ 
+        error: 'Erro ao verificar conexão do WhatsApp. Tente novamente.' 
+      }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -127,11 +210,11 @@ serve(async (req) => {
     const phoneWithCountryCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
 
     console.log(`Sending WhatsApp to client via user's instance`);
-    console.log(`Instance: ${profile.whatsapp_instance_id}`);
+    console.log(`Instance: ${instanceName}`);
     console.log(`Phone: ${phoneWithCountryCode}`);
 
     // Send message via central Evolution API using user's instance
-    const apiUrl = `${evolutionApiUrl}/message/sendText/${profile.whatsapp_instance_id}`;
+    const apiUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -151,8 +234,20 @@ serve(async (req) => {
 
     if (!response.ok) {
       console.error('Evolution API error:', responseText);
+      
+      // Try to parse error for better message
+      let errorDetail = 'Erro ao enviar mensagem pelo WhatsApp';
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData?.message) {
+          errorDetail = errorData.message;
+        }
+      } catch {
+        // Use default error message
+      }
+      
       return new Response(JSON.stringify({ 
-        error: 'Erro ao enviar mensagem pelo WhatsApp',
+        error: errorDetail,
         details: responseText 
       }), {
         status: response.status,
