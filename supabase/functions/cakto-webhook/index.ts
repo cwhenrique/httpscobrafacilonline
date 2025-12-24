@@ -491,11 +491,22 @@ Obrigado por continuar com a gente! 💚`;
       }
     }
 
-    // Send welcome message via WhatsApp using Cobra Fácil instance
+    // Send welcome message via WhatsApp using Cobrafacilapp instance
     if (customerPhone) {
-      const welcomeMessage = `Olá ${customerName || 'Cliente'}
-Parabéns pela sua compra!
-Para obter acesso ao aplicativo por favor nos chame nesse número 11 93293-5877`;
+      const welcomeMessage = `🎉 *Parabéns pela sua compra!*
+
+Olá ${customerName || 'Cliente'}!
+
+Seu acesso ao *CobraFácil* está liberado! 🚀
+
+🔗 *Acesse o sistema:* https://cobrafacil.online/auth
+
+📧 *Seu email:* ${customerEmail}
+🔑 *Sua senha:* mudar@@
+
+⚠️ Recomendamos que você altere sua senha após o primeiro acesso.
+
+Qualquer dúvida, estamos à disposição! 💚`;
 
       // Send via Cobrafacilapp instance
       await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
