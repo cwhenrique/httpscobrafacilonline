@@ -102,6 +102,15 @@ serve(async (req) => {
       });
     }
 
+    // Check if instance is actually connected (has a connected phone number)
+    if (!profile.whatsapp_connected_phone) {
+      console.error('WhatsApp instance exists but not connected for user:', userId, 'Instance:', profile.whatsapp_instance_id);
+      return new Response(JSON.stringify({ error: 'Seu WhatsApp não está conectado. Reconecte nas configurações escaneando o QR Code novamente.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Format phone number (remove non-digits)
     const formattedPhone = clientPhone.replace(/\D/g, '');
     
