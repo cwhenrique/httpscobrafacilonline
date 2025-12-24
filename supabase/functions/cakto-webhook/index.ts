@@ -157,13 +157,15 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 async function sendWhatsAppMessage(phone: string, message: string, instanceName?: string) {
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-  // Use provided instanceName or fallback to env variable
-  const instance = instanceName || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+  // Usar instância fixa "VendaApp" para notificações do sistema
+  const instance = instanceName || "VendaApp";
 
-  if (!evolutionApiUrl || !evolutionApiKey || !instance) {
+  if (!evolutionApiUrl || !evolutionApiKey) {
     console.log('Evolution API not configured, skipping WhatsApp message');
     return;
   }
+  
+  console.log("Using fixed system instance:", instance);
 
   let formattedPhone = phone.replace(/\D/g, '');
   if (formattedPhone.startsWith('0')) {
