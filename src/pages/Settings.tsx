@@ -983,6 +983,23 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
             {/* Toggle between QR and Pairing Code */}
             {!showPairingCodeOption ? (
               <>
+                {/* Mobile Connection Option - Now at the TOP */}
+                {qrCode && !generatingQr && !qrExpired && (
+                  <div className="w-full mb-4">
+                    <Button
+                      variant="outline"
+                      className="w-full border-green-500/30 text-green-600 hover:bg-green-500/10"
+                      onClick={() => {
+                        setShowPairingCodeOption(true);
+                        setPairingCode(null);
+                      }}
+                    >
+                      <Smartphone className="w-4 h-4 mr-2" />
+                      📱 Está no celular? Conecte com código
+                    </Button>
+                  </div>
+                )}
+
                 {/* Timer and Progress Bar */}
                 {qrCode && !generatingQr && (
                   <div className="w-full mb-4 space-y-2">
@@ -1124,22 +1141,6 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   </Button>
                 )}
 
-                {/* Mobile Connection Option */}
-                {qrCode && !generatingQr && (
-                  <div className="mt-4 pt-4 border-t w-full">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        setShowPairingCodeOption(true);
-                        setPairingCode(null);
-                      }}
-                    >
-                      <Smartphone className="w-4 h-4 mr-2" />
-                      📱 Está no celular? Conecte com código
-                    </Button>
-                  </div>
-                )}
               </>
             ) : (
               /* Pairing Code View */
