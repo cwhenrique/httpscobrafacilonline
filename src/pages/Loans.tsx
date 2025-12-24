@@ -2772,7 +2772,9 @@ export default function Loans() {
         installments: numInstallments,
         installmentValue: installmentValue,
         totalToReceive: totalToReceive,
-        startDate: loan.start_date,
+        startDate: loan.contract_date || loan.start_date, // Fallback para compatibilidade
+        contractDate: loan.contract_date || loan.start_date, // Data do contrato
+        firstDueDate: loan.start_date, // Data do primeiro vencimento
       },
       dueDates: (() => {
         const dates = (loan.installment_dates as string[]) || [loan.due_date];
