@@ -109,6 +109,10 @@ serve(async (req) => {
     console.log(`Creating/fetching instance: ${instanceName}`);
 
     // First, try to create the instance (if it already exists, Evolution API will return it)
+    // Configure webhook URL for automatic reconnection
+    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
+    console.log('Configuring webhook URL:', webhookUrl);
+    
     const createResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
       method: 'POST',
       headers: {
@@ -118,12 +122,22 @@ serve(async (req) => {
         instanceName: instanceName,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-        // Configurações para NÃO bloquear entrega de mensagens
+        // Configurações para manter conexão PERSISTENTE
         rejectCall: false,
         readMessages: false,  // Não marcar mensagens como lidas automaticamente
         readStatus: false,    // Não marcar status como lido
-        alwaysOnline: false,  // Não ficar sempre online
+        alwaysOnline: true,   // ✅ MANTER SEMPRE ONLINE - conexão persistente
         syncFullHistory: false,
+        // ✅ Webhook para notificação de mudanças de conexão
+        webhook: {
+          url: webhookUrl,
+          byEvents: true,
+          base64: false,
+          events: [
+            "CONNECTION_UPDATE",
+            "QRCODE_UPDATED"
+          ]
+        }
       }),
     });
 
