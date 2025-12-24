@@ -55,11 +55,11 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
     const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-    // Fixed instance name for purchases
-    const instanceName = "Cobrafacilapp";
+    // Usar instância fixa "VendaApp" para notificações do sistema
+    const instanceName = "VendaApp";
 
     console.log("Raw EVOLUTION_API_URL:", evolutionApiUrlRaw);
-    console.log("Using fixed instance:", instanceName);
+    console.log("Using fixed system instance: VendaApp");
 
     if (!evolutionApiUrlRaw || !evolutionApiKey) {
       console.error("Missing Evolution API configuration");

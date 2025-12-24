@@ -22,12 +22,15 @@ function cleanApiUrl(url: string): string {
 async function sendWhatsApp(phone: string, message: string): Promise<boolean> {
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-  const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+  // Usar instância fixa "VendaApp" para notificações do sistema
+  const evolutionInstance = "VendaApp";
 
-  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
+  if (!evolutionApiUrl || !evolutionApiKey) {
     console.log('Evolution API not configured');
     return false;
   }
+  
+  console.log("Using fixed system instance: VendaApp");
 
   let formattedPhone = phone.replace(/\D/g, '').replace(/^0+/, '');
   if (!formattedPhone.startsWith('55')) {

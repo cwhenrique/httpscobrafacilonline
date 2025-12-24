@@ -35,11 +35,13 @@ async function sendWhatsAppMessage(phone: string, message: string): Promise<{ su
   try {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    // Usar instância fixa "VendaApp" para notificações do sistema
+    const evolutionInstanceName = "VendaApp";
 
     console.log(`Evolution config - URL: ${evolutionApiUrl ? 'SET' : 'MISSING'}, Key: ${evolutionApiKey ? 'SET' : 'MISSING'}, Instance: ${evolutionInstanceName}`);
+    console.log("Using fixed system instance: VendaApp");
 
-    if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
+    if (!evolutionApiUrl || !evolutionApiKey) {
       console.log('Evolution API not configured - missing env vars');
       return { success: false, error: 'Evolution API not configured' };
     }

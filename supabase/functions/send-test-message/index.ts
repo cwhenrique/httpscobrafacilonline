@@ -43,14 +43,17 @@ serve(async (req) => {
 
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    // Usar instância fixa "VendaApp" para notificações do sistema
+    const evolutionInstanceName = "VendaApp";
 
-    if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
+    if (!evolutionApiUrl || !evolutionApiKey) {
       return new Response(
         JSON.stringify({ error: 'Evolution API not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log("Using fixed system instance: VendaApp");
 
     const formattedPhone = formatPhoneNumber(phone);
     const cleanedUrl = cleanApiUrl(evolutionApiUrl);
