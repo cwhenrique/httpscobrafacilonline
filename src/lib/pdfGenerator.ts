@@ -141,6 +141,7 @@ export interface PaymentReceiptData {
   totalContract?: number;
   billingSignatureName?: string;
   nextDueDate?: string;
+  discountAmount?: number;
 }
 
 export const generateContractReceipt = async (data: ContractReceiptData): Promise<void> => {

@@ -72,6 +72,9 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
   message += `Confirmamos o recebimento:\n\n`;
   
   message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  if (data.discountAmount && data.discountAmount > 0) {
+    message += `🏷️ *Desconto Concedido:* ${formatCurrency(data.discountAmount)}\n`;
+  }
   message += `📊 *Parcela:* ${paidCount}/${totalCount}\n`;
   message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
   
@@ -121,6 +124,9 @@ const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string
   
   message += `💰 *PAGAMENTO*\n`;
   message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  if (data.discountAmount && data.discountAmount > 0) {
+    message += `• Desconto Concedido: ${formatCurrency(data.discountAmount)}\n`;
+  }
   message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
   message += `• Data: ${formatDate(data.paymentDate)}\n\n`;
   
