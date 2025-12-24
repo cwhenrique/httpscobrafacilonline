@@ -595,6 +595,12 @@ export default function Loans() {
   } | null>(null);
   const [manualPenaltyValues, setManualPenaltyValues] = useState<Record<number | string, string>>({});
   
+  // Discount settlement state
+  const [discountSettlementData, setDiscountSettlementData] = useState({
+    receivedAmount: '',
+    discountAmount: 0,
+  });
+  
   // Function to save inline penalty configuration
   const handleSaveInlinePenalty = async (
     loanId: string, 
@@ -1301,7 +1307,7 @@ export default function Loans() {
     amount: '',
     payment_date: format(new Date(), 'yyyy-MM-dd'),
     new_due_date: '', // Nova data de vencimento (opcional)
-    payment_type: 'partial' as 'partial' | 'total' | 'installment',
+    payment_type: 'partial' as 'partial' | 'total' | 'installment' | 'discount',
     selected_installments: [] as number[],
     partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
@@ -2196,7 +2202,49 @@ export default function Loans() {
     let interest_paid: number;
     let principal_paid: number;
     
-    if (paymentData.payment_type === 'total') {
+    if (paymentData.payment_type === 'discount') {
+      // Pagamento com desconto para quitação
+      const receivedAmount = parseFloat(discountSettlementData.receivedAmount) || 0;
+      if (receivedAmount <= 0) {
+        toast.error('Informe o valor recebido');
+        return;
+      }
+      if (receivedAmount > selectedLoan.remaining_balance) {
+        toast.error('O valor recebido não pode ser maior que o saldo devedor');
+        return;
+      }
+      
+      const discountAmount = selectedLoan.remaining_balance - receivedAmount;
+      
+      // Registrar pagamento com o valor recebido
+      await registerPayment({
+        loan_id: selectedLoanId,
+        amount: receivedAmount,
+        principal_paid: receivedAmount,
+        interest_paid: 0,
+        payment_date: paymentData.payment_date,
+        notes: `Quitação com desconto de ${formatCurrency(discountAmount)} [DISCOUNT_SETTLEMENT:${discountAmount.toFixed(2)}]`,
+      });
+      
+      // Forçar remaining_balance = 0 e status = 'paid'
+      const existingNotes = selectedLoan.notes || '';
+      const newNotes = existingNotes 
+        ? `${existingNotes}\n[DISCOUNT_SETTLEMENT:${discountAmount.toFixed(2)}]`
+        : `[DISCOUNT_SETTLEMENT:${discountAmount.toFixed(2)}]`;
+      
+      await supabase.from('loans').update({
+        remaining_balance: 0,
+        status: 'paid',
+        notes: newNotes.trim(),
+      }).eq('id', selectedLoanId);
+      
+      setIsPaymentDialogOpen(false);
+      setDiscountSettlementData({ receivedAmount: '', discountAmount: 0 });
+      await fetchLoans();
+      
+      toast.success(`Empréstimo quitado com desconto de ${formatCurrency(discountAmount)}!`);
+      return;
+    } else if (paymentData.payment_type === 'total') {
       // Usar o remaining_balance real do banco (inclui principal + juros restantes)
       amount = selectedLoan.remaining_balance;
       
@@ -7365,7 +7413,7 @@ export default function Loans() {
                   
                   <div className="space-y-2">
                     <Label>Tipo de Pagamento</Label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       <Button
                         type="button"
                         variant={paymentData.payment_type === 'installment' ? 'default' : 'outline'}
@@ -7389,6 +7437,18 @@ export default function Loans() {
                         className="text-xs sm:text-sm"
                       >
                         Total
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentData.payment_type === 'discount' ? 'default' : 'outline'}
+                        onClick={() => {
+                          setPaymentData({ ...paymentData, payment_type: 'discount', amount: '', selected_installments: [], partial_installment_index: null });
+                          setDiscountSettlementData({ receivedAmount: '', discountAmount: 0 });
+                        }}
+                        className={`text-xs sm:text-sm ${paymentData.payment_type === 'discount' ? 'bg-emerald-600 hover:bg-emerald-700' : 'border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950'}`}
+                      >
+                        <Percent className="w-3 h-3 mr-1" />
+                        Desconto
                       </Button>
                     </div>
                   </div>
@@ -7941,6 +8001,77 @@ export default function Loans() {
                     );
                   })()}
                   
+                  {/* Seção de Desconto para Quitação */}
+                  {paymentData.payment_type === 'discount' && (() => {
+                    const remainingBalance = selectedLoan?.remaining_balance || 0;
+                    const receivedAmount = parseFloat(discountSettlementData.receivedAmount) || 0;
+                    const discountAmount = remainingBalance - receivedAmount;
+                    const isValidDiscount = receivedAmount > 0 && receivedAmount <= remainingBalance;
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                            <Percent className="w-5 h-5" />
+                            <span className="font-semibold">Quitação com Desconto</span>
+                          </div>
+                          
+                          <div className="flex justify-between items-center py-2 border-b border-emerald-500/20">
+                            <span className="text-muted-foreground">Saldo Devedor:</span>
+                            <span className="font-bold text-lg">{formatCurrency(remainingBalance)}</span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Valor Recebido *</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={discountSettlementData.receivedAmount}
+                              onChange={(e) => setDiscountSettlementData({ 
+                                ...discountSettlementData, 
+                                receivedAmount: e.target.value,
+                                discountAmount: remainingBalance - (parseFloat(e.target.value) || 0)
+                              })}
+                              placeholder={`Máximo: ${formatCurrency(remainingBalance)}`}
+                              className="text-lg font-semibold"
+                              required
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Quanto o cliente efetivamente pagou para quitar
+                            </p>
+                          </div>
+                          
+                          {receivedAmount > 0 && (
+                            <div className={`p-3 rounded-lg ${isValidDiscount ? 'bg-emerald-500/20 border border-emerald-500' : 'bg-destructive/10 border border-destructive'}`}>
+                              <div className="flex justify-between items-center">
+                                <span className={isValidDiscount ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-destructive font-medium'}>
+                                  Desconto Aplicado:
+                                </span>
+                                <span className={`text-xl font-bold ${isValidDiscount ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
+                                  {isValidDiscount ? formatCurrency(discountAmount) : 'Valor inválido'}
+                                </span>
+                              </div>
+                              {isValidDiscount && discountAmount > 0 && (
+                                <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-1">
+                                  {((discountAmount / remainingBalance) * 100).toFixed(1)}% de desconto sobre o saldo
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {isValidDiscount && (
+                          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                            <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4" />
+                              O contrato será encerrado como <strong className="mx-1">QUITADO</strong>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  
                   <div className="space-y-2">
                     <Label>Data do Pagamento</Label>
                     <Input 
@@ -7951,7 +8082,7 @@ export default function Loans() {
                     <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
                   </div>
                   
-                  {!paymentData.is_advance_payment && (
+                  {!paymentData.is_advance_payment && paymentData.payment_type !== 'discount' && (
                     <div className="space-y-2">
                       <Label>Nova Data de Vencimento</Label>
                       <Input 
@@ -7965,7 +8096,12 @@ export default function Loans() {
                   
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
-                    <Button type="submit">Registrar Pagamento</Button>
+                    <Button 
+                      type="submit" 
+                      className={paymentData.payment_type === 'discount' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                    >
+                      {paymentData.payment_type === 'discount' ? 'Quitar com Desconto' : 'Registrar Pagamento'}
+                    </Button>
                   </div>
                 </form>
               );
