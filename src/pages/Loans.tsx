@@ -6531,7 +6531,7 @@ export default function Loans() {
                                   </div>
                                   
                                   {/* Total a Pagar - integrado */}
-                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-800/80 to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-700/50">
+                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-800/80 to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-700/50 animate-[pulse_2s_ease-in-out_infinite]">
                                     <span className="text-white font-medium">Total a Pagar:</span>
                                     <span className="font-bold text-yellow-300 text-lg">
                                       {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
