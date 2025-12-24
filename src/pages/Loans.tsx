@@ -272,6 +272,39 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   return paidCount;
 };
 
+// 🆕 Função para encontrar a parcela que vence EXATAMENTE hoje
+// Retorna null se nenhuma parcela vence hoje
+type LoanForTodayCheck = {
+  installment_dates?: unknown;
+  due_date: string;
+};
+
+const getTodayInstallmentInfo = (loan: LoanForTodayCheck): { installmentNumber: number; totalInstallments: number; dueDate: string } | null => {
+  const today = new Date().toISOString().split('T')[0];
+  const dates = (loan.installment_dates as string[]) || [];
+  
+  // Se não tem array de datas, verificar due_date única
+  if (dates.length === 0) {
+    if (loan.due_date === today) {
+      return { installmentNumber: 1, totalInstallments: 1, dueDate: today };
+    }
+    return null;
+  }
+  
+  // Encontrar qual parcela vence exatamente hoje
+  const todayIndex = dates.findIndex(d => d === today);
+  
+  if (todayIndex === -1) {
+    return null; // Nenhuma parcela vence hoje
+  }
+  
+  return {
+    installmentNumber: todayIndex + 1, // 1-indexed
+    totalInstallments: dates.length,
+    dueDate: today
+  };
+};
+
 // 🆕 Função para encontrar a primeira parcela NÃO QUITADA (ignorando pagamentos de juros)
 // Esta função é usada especificamente para pagamentos de "só juros" 
 // para garantir que o juros sempre vá para a parcela 1 até que ela seja quitada
@@ -5443,25 +5476,31 @@ export default function Loans() {
                               className="w-full mt-2"
                             />
                           )}
-                          {/* Botão de lembrete do dia para contratos diários em atraso */}
-                          {profile?.whatsapp_to_clients_enabled && loan.client?.phone && loan.payment_type === 'daily' && (
-                            <SendDueTodayNotification
-                              data={{
-                                clientName: loan.client?.full_name || 'Cliente',
-                                clientPhone: loan.client.phone,
-                                contractType: 'loan',
-                                installmentNumber: getPaidInstallmentsCount(loan) + 1,
-                                totalInstallments: loan.installments || 1,
-                                amount: totalPerInstallment,
-                                dueDate: new Date().toISOString().split('T')[0],
-                                loanId: loan.id,
-                                interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
-                                isDaily: loan.payment_type === 'daily',
-                              }}
-                              className="w-full mt-2"
-                            />
-                          )}
+                          {/* Botão de lembrete do dia para contratos diários em atraso - SÓ mostrar se há parcela vencendo HOJE */}
+                          {(() => {
+                            const todayInfo = getTodayInstallmentInfo(loan);
+                            if (!todayInfo || !profile?.whatsapp_to_clients_enabled || !loan.client?.phone || loan.payment_type !== 'daily') {
+                              return null;
+                            }
+                            return (
+                              <SendDueTodayNotification
+                                data={{
+                                  clientName: loan.client?.full_name || 'Cliente',
+                                  clientPhone: loan.client.phone,
+                                  contractType: 'loan',
+                                  installmentNumber: todayInfo.installmentNumber,
+                                  totalInstallments: todayInfo.totalInstallments,
+                                  amount: totalPerInstallment,
+                                  dueDate: todayInfo.dueDate,
+                                  loanId: loan.id,
+                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  isDaily: loan.payment_type === 'daily',
+                                }}
+                                className="w-full mt-2"
+                              />
+                            );
+                          })()}
                         </div>
                       )}
                       
@@ -6971,29 +7010,35 @@ export default function Loans() {
                                 className="w-full mt-2"
                               />
                             )}
-                            {/* Botão de lembrete do dia para contratos diários em atraso */}
-                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
-                              <SendDueTodayNotification
-                                data={{
-                                  clientName: loan.client?.full_name || 'Cliente',
-                                  clientPhone: loan.client.phone,
-                                  contractType: 'loan',
-                                  installmentNumber: getPaidInstallmentsCount(loan) + 1,
-                                  totalInstallments: numInstallments,
-                                  amount: totalPerInstallmentDisplay,
-                                  dueDate: new Date().toISOString().split('T')[0],
-                                  loanId: loan.id,
-                                  interestAmount: (() => {
-                                    const principalPart = loan.principal_amount / numInstallments;
-                                    const interestPart = dailyInstallmentAmount - principalPart;
-                                    return interestPart > 0 ? interestPart : undefined;
-                                  })(),
-                                  principalAmount: loan.principal_amount / numInstallments,
-                                  isDaily: true,
-                                }}
-                                className="w-full mt-2"
-                              />
-                            )}
+                            {/* Botão de lembrete do dia para contratos diários em atraso - SÓ mostrar se há parcela vencendo HOJE */}
+                            {(() => {
+                              const todayInfo = getTodayInstallmentInfo(loan);
+                              if (!todayInfo || !profile?.whatsapp_to_clients_enabled || !loan.client?.phone) {
+                                return null;
+                              }
+                              return (
+                                <SendDueTodayNotification
+                                  data={{
+                                    clientName: loan.client?.full_name || 'Cliente',
+                                    clientPhone: loan.client.phone,
+                                    contractType: 'loan',
+                                    installmentNumber: todayInfo.installmentNumber,
+                                    totalInstallments: todayInfo.totalInstallments,
+                                    amount: totalPerInstallmentDisplay,
+                                    dueDate: todayInfo.dueDate,
+                                    loanId: loan.id,
+                                    interestAmount: (() => {
+                                      const principalPart = loan.principal_amount / numInstallments;
+                                      const interestPart = dailyInstallmentAmount - principalPart;
+                                      return interestPart > 0 ? interestPart : undefined;
+                                    })(),
+                                    principalAmount: loan.principal_amount / numInstallments,
+                                    isDaily: true,
+                                  }}
+                                  className="w-full mt-2"
+                                />
+                              );
+                            })()}
                           </div>
                         )}
                         
