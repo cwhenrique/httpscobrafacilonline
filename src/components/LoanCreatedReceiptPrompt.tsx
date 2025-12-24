@@ -196,6 +196,11 @@ export default function LoanCreatedReceiptPrompt({
       return;
     }
 
+    if (!profile?.whatsapp_connected_phone) {
+      toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
+      return;
+    }
+
     if (!profile?.whatsapp_to_clients_enabled) {
       toast.error('Configure seu WhatsApp para clientes nas configurações');
       return;
@@ -277,7 +282,11 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  const canSendToClient = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && loan.clientPhone;
+  const canSendToClient =
+    profile?.whatsapp_instance_id &&
+    profile?.whatsapp_connected_phone &&
+    profile?.whatsapp_to_clients_enabled &&
+    loan.clientPhone;
 
   return (
     <>

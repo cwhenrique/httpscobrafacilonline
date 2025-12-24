@@ -82,7 +82,11 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const canSend = profile?.whatsapp_to_clients_enabled && data.clientPhone;
+  const canSend =
+    profile?.whatsapp_instance_id &&
+    profile?.whatsapp_connected_phone &&
+    profile?.whatsapp_to_clients_enabled &&
+    data.clientPhone;
 
   const generateEarlyMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);

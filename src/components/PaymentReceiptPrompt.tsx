@@ -197,6 +197,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       return;
     }
 
+    if (!profile?.whatsapp_connected_phone) {
+      toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
+      return;
+    }
+
     if (!profile?.whatsapp_to_clients_enabled) {
       toast.error('Configure seu WhatsApp para clientes nas configurações');
       return;
@@ -258,7 +263,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   };
 
   const isFullyPaid = data.remainingBalance <= 0;
-  const canSendToClient = profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && clientPhone;
+  const canSendToClient =
+    profile?.whatsapp_instance_id &&
+    profile?.whatsapp_connected_phone &&
+    profile?.whatsapp_to_clients_enabled &&
+    clientPhone;
 
   return (
     <>
