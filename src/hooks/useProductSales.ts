@@ -197,7 +197,47 @@ export function useProductSales() {
           .eq('id', sale.id);
       }
 
-      // WhatsApp notifications removed - only sent via explicit user click
+      // Send WhatsApp notification via Cobrafacilapp instance
+      if (saleData.client_phone) {
+        try {
+          const formatCurrency = (value: number) => {
+            return new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL'
+            }).format(value);
+          };
+
+          const formatDate = (dateStr: string) => {
+            const date = new Date(dateStr + 'T12:00:00');
+            return date.toLocaleDateString('pt-BR');
+          };
+
+          const message = `✅ *COMPRA REALIZADA*
+
+Olá ${saleData.client_name}!
+
+Sua compra foi registrada com sucesso:
+
+📦 *Produto:* ${saleData.product_name}
+💰 *Valor Total:* ${formatCurrency(saleData.total_amount)}
+${downPayment > 0 ? `💵 *Entrada:* ${formatCurrency(downPayment)}\n` : ''}📅 *Parcelas:* ${saleData.installments}x de ${formatCurrency(saleData.installment_value)}
+📆 *1º Vencimento:* ${formatDate(saleData.first_due_date)}
+
+Obrigado pela preferência! 🙏`;
+
+          await supabase.functions.invoke('send-whatsapp-cobrafacil', {
+            body: {
+              phone: saleData.client_phone,
+              message: message,
+            },
+          });
+
+          console.log('WhatsApp notification sent via Cobrafacilapp');
+        } catch (whatsappError) {
+          console.error('Error sending WhatsApp notification:', whatsappError);
+          // Don't throw - sale was created successfully
+        }
+      }
 
       return sale;
     },
