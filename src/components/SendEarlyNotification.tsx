@@ -27,6 +27,9 @@ export interface EarlyNotificationData {
   dueDate: string;
   daysUntilDue: number;
   loanId: string;
+  interestAmount?: number;
+  principalAmount?: number;
+  isDaily?: boolean;
 }
 
 interface SendEarlyNotificationProps {
@@ -100,6 +103,16 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
     }
     message += `\n\n`;
+
+    // Opção de pagamento só de juros (apenas se tiver juros e não for diário)
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS JUROS*\n`;
+      message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
+      message += `📌 *Principal fica para próximo mês*\n\n`;
+      message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+    }
 
     if (profile?.pix_key) {
       const pixTypeLabel = getPixKeyTypeLabel(profile.pix_key_type);
