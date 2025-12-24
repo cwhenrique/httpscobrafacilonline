@@ -59,20 +59,32 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user's instance name
+    const desiredInstanceName = `cf_${userId.substring(0, 8)}`;
+
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('whatsapp_instance_id')
       .eq('id', userId)
       .single();
 
-    if (profileError || !profile?.whatsapp_instance_id) {
-      // If no instance exists, we need to create one first
-      console.log('No instance found, creating new instance first...');
-      
-      // Generate instance name
-      const instanceName = `cf_${userId.substring(0, 8)}`;
-      
-      // Create the instance
+    console.log('Profile lookup:', {
+      userId,
+      profileError: profileError?.message,
+      whatsapp_instance_id: profile?.whatsapp_instance_id ?? null,
+      desiredInstanceName,
+    });
+
+    // IMPORTANT: Avoid using generic/legacy instance names (e.g. "wx") that can be shared and cause disconnects.
+    // We enforce a per-user instance name.
+    const currentInstance = profile?.whatsapp_instance_id ?? null;
+    const instanceName = currentInstance && currentInstance.startsWith('cf_')
+      ? currentInstance
+      : desiredInstanceName;
+
+    if (!currentInstance || instanceName !== currentInstance) {
+      console.log('Normalizing instance name for user:', { currentInstance, instanceName });
+
+      // Create the instance (safe to call even if it already exists)
       const createResponse = await fetch(`${evolutionApiUrl}/instance/create`, {
         method: 'POST',
         headers: {
@@ -80,18 +92,18 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          instanceName: instanceName,
-          qrcode: false, // We don't need QR code for pairing code method
+          instanceName,
+          qrcode: false, // pairing code flow
           integration: 'WHATSAPP-BAILEYS',
         }),
       });
 
       if (!createResponse.ok) {
         const errorText = await createResponse.text();
-        console.error('Error creating instance:', errorText);
-        
-        // Instance might already exist, try to continue
-        if (!errorText.includes('already exists')) {
+        console.error('Error creating instance:', createResponse.status, errorText);
+
+        // Instance might already exist; only fail on other errors
+        if (!errorText.toLowerCase().includes('already') && !errorText.toLowerCase().includes('exists')) {
           return new Response(JSON.stringify({ error: 'Erro ao criar instância WhatsApp' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -99,14 +111,17 @@ serve(async (req) => {
         }
       }
 
-      // Update user profile with instance ID
-      await supabase
+      // Persist normalized instance name
+      const { error: updateErr } = await supabase
         .from('profiles')
         .update({ whatsapp_instance_id: instanceName })
         .eq('id', userId);
+
+      if (updateErr) {
+        console.error('Error updating profile whatsapp_instance_id:', updateErr);
+      }
     }
 
-    const instanceName = profile?.whatsapp_instance_id || `cf_${userId.substring(0, 8)}`;
     console.log(`Getting pairing code for instance: ${instanceName}, phone: ${cleanPhone}`);
 
     // First, check current state
