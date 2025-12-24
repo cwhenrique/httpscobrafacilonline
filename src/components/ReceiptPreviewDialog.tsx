@@ -90,7 +90,12 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   }
   
   message += `📊 Parcelas: ${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}\n`;
-  message += `📅 Início: ${formatDate(data.negotiation.startDate)}\n`;
+  
+  // Mostrar data do contrato e primeiro vencimento separadamente
+  const contractDate = data.negotiation.contractDate || data.negotiation.startDate;
+  const firstDueDate = data.negotiation.firstDueDate || data.negotiation.startDate;
+  message += `📅 Data do Contrato: ${formatDate(contractDate)}\n`;
+  message += `🗓️ 1ª Parcela: ${formatDate(firstDueDate)}\n`;
   message += `\n✅ *TOTAL A RECEBER: ${formatCurrency(data.negotiation.totalToReceive)}*\n`;
   
   if (data.type === 'vehicle' && data.vehicleInfo) {
@@ -317,8 +322,12 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
                   <p className="font-medium">{data.negotiation.installments}x de {formatCurrency(data.negotiation.installmentValue)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Início:</span>
-                  <p className="font-medium">{formatDate(data.negotiation.startDate)}</p>
+                  <span className="text-muted-foreground">Data do Contrato:</span>
+                  <p className="font-medium">{formatDate(data.negotiation.contractDate || data.negotiation.startDate)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">1ª Parcela:</span>
+                  <p className="font-medium">{formatDate(data.negotiation.firstDueDate || data.negotiation.startDate)}</p>
                 </div>
               </div>
               
