@@ -497,8 +497,8 @@ Obrigado por continuar com a gente! 💚`;
 Parabéns pela sua compra!
 Para obter acesso ao aplicativo por favor nos chame nesse número 11 93293-5877`;
 
-      // Send via Cobra Fácil instance
-      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobra Fácil');
+      // Send via Cobrafacilapp instance
+      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
     }
 
     return new Response(
