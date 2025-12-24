@@ -225,14 +225,15 @@ ${downPayment > 0 ? `💵 *Entrada:* ${formatCurrency(downPayment)}\n` : ''}📅
 
 Obrigado pela preferência! 🙏`;
 
-          await supabase.functions.invoke('send-whatsapp-cobrafacil', {
+          await supabase.functions.invoke('send-whatsapp-to-client', {
             body: {
-              phone: saleData.client_phone,
+              userId: user?.id,
+              clientPhone: saleData.client_phone,
               message: message,
             },
           });
 
-          console.log('WhatsApp notification sent via Cobrafacilapp');
+          console.log('WhatsApp notification sent via user instance');
         } catch (whatsappError) {
           console.error('Error sending WhatsApp notification:', whatsappError);
           // Don't throw - sale was created successfully
