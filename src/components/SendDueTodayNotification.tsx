@@ -18,6 +18,9 @@ interface DueTodayData {
   amount: number;
   dueDate: string;
   loanId: string;
+  interestAmount?: number;
+  principalAmount?: number;
+  isDaily?: boolean;
 }
 
 interface SendDueTodayNotificationProps {
@@ -116,6 +119,16 @@ export default function SendDueTodayNotification({
     message += `📊 *${installmentInfo}*\n`;
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
+    
+    // Opção de pagamento só de juros (apenas se tiver juros e não for diário)
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS JUROS*\n`;
+      message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
+      message += `📌 *Principal fica para próximo mês*\n\n`;
+      message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+    }
     
     // PIX key section with value
     if (profile?.pix_key) {

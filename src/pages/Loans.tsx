@@ -5455,6 +5455,9 @@ export default function Loans() {
                                 amount: totalPerInstallment,
                                 dueDate: new Date().toISOString().split('T')[0],
                                 loanId: loan.id,
+                                interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                                principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                isDaily: loan.payment_type === 'daily',
                               }}
                               className="w-full mt-2"
                             />
@@ -5492,6 +5495,9 @@ export default function Loans() {
                                   amount: totalPerInstallment,
                                   dueDate: dueTodayDate,
                                   loanId: loan.id,
+                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  isDaily: loan.payment_type === 'daily',
                                 }}
                                 className="w-full mt-2"
                               />
@@ -5525,6 +5531,9 @@ export default function Loans() {
                                   dueDate: nextDueDate,
                                   daysUntilDue: daysUntilDue,
                                   loanId: loan.id,
+                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  isDaily: loan.payment_type === 'daily',
                                 }}
                                 className="w-full"
                               />
@@ -6974,6 +6983,13 @@ export default function Loans() {
                                   amount: totalPerInstallmentDisplay,
                                   dueDate: new Date().toISOString().split('T')[0],
                                   loanId: loan.id,
+                                  interestAmount: (() => {
+                                    const principalPart = loan.principal_amount / numInstallments;
+                                    const interestPart = dailyInstallmentAmount - principalPart;
+                                    return interestPart > 0 ? interestPart : undefined;
+                                  })(),
+                                  principalAmount: loan.principal_amount / numInstallments,
+                                  isDaily: true,
                                 }}
                                 className="w-full mt-2"
                               />
@@ -7011,6 +7027,13 @@ export default function Loans() {
                                     amount: totalPerInstallmentDisplay,
                                     dueDate: dueTodayDate,
                                     loanId: loan.id,
+                                    interestAmount: (() => {
+                                      const principalPart = loan.principal_amount / numInstallments;
+                                      const interestPart = dailyInstallmentAmount - principalPart;
+                                      return interestPart > 0 ? interestPart : undefined;
+                                    })(),
+                                    principalAmount: loan.principal_amount / numInstallments,
+                                    isDaily: true,
                                   }}
                                   className="w-full mt-2"
                                 />
@@ -7044,6 +7067,13 @@ export default function Loans() {
                                     dueDate: nextDueDate,
                                     daysUntilDue: daysUntilDue,
                                     loanId: loan.id,
+                                    interestAmount: (() => {
+                                      const principalPart = loan.principal_amount / numInstallments;
+                                      const interestPart = dailyInstallmentAmount - principalPart;
+                                      return interestPart > 0 ? interestPart : undefined;
+                                    })(),
+                                    principalAmount: loan.principal_amount / numInstallments,
+                                    isDaily: true,
                                   }}
                                   className="w-full"
                                 />
