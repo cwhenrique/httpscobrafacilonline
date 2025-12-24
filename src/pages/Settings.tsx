@@ -978,27 +978,28 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                 : 'Conecte seu WhatsApp para enviar mensagens aos clientes'}
             </DialogDescription>
           </DialogHeader>
-          
+
+          {/* Mobile Connection Option - fixed at the TOP of the modal */}
+          {!showPairingCodeOption && qrCode && !generatingQr && !qrExpired && (
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                className="w-full border-green-500/30 text-green-600 hover:bg-green-500/10"
+                onClick={() => {
+                  setShowPairingCodeOption(true);
+                  setPairingCode(null);
+                }}
+              >
+                <Smartphone className="w-4 h-4 mr-2" />
+                Está no celular? Conecte com código
+              </Button>
+            </div>
+          )}
+
           <div className="flex flex-col items-center py-4">
             {/* Toggle between QR and Pairing Code */}
             {!showPairingCodeOption ? (
               <>
-                {/* Mobile Connection Option - Now at the TOP */}
-                {qrCode && !generatingQr && !qrExpired && (
-                  <div className="w-full mb-4">
-                    <Button
-                      variant="outline"
-                      className="w-full border-green-500/30 text-green-600 hover:bg-green-500/10"
-                      onClick={() => {
-                        setShowPairingCodeOption(true);
-                        setPairingCode(null);
-                      }}
-                    >
-                      <Smartphone className="w-4 h-4 mr-2" />
-                      📱 Está no celular? Conecte com código
-                    </Button>
-                  </div>
-                )}
 
                 {/* Timer and Progress Bar */}
                 {qrCode && !generatingQr && (
