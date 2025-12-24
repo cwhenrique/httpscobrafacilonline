@@ -80,7 +80,44 @@ serve(async (req) => {
     console.log('Connection state response:', stateResponse.status, stateText);
 
     if (!stateResponse.ok) {
-      // Instance might not exist
+      // Instance might not exist - try to recreate it
+      console.log('Instance not found, may need recreation');
+      
+      // Try to restart/create the instance
+      if (attemptReconnect) {
+        try {
+          const createResponse = await fetch(`${evolutionApiUrl}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'apikey': evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              instanceName: instanceName,
+              qrcode: true,
+              integration: 'WHATSAPP-BAILEYS',
+              alwaysOnline: true,
+            }),
+          });
+          
+          console.log('Recreate instance response:', createResponse.status);
+          
+          if (createResponse.ok) {
+            return new Response(JSON.stringify({ 
+              connected: false,
+              status: 'recreated',
+              instanceName,
+              needsNewQR: true,
+              message: 'Instância recriada. Escaneie o QR Code para conectar.'
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (e) {
+          console.error('Error recreating instance:', e);
+        }
+      }
+      
       return new Response(JSON.stringify({ 
         connected: false,
         status: 'disconnected',

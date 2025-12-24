@@ -671,6 +671,12 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                       Conectado há {getConnectedDays(whatsappStatus.connectedAt)} dias
                     </p>
                   )}
+                  <div className="mt-2 p-2 rounded bg-green-500/5 border border-green-500/10">
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <Wifi className="w-3 h-3" />
+                      Conexão persistente ativa - permanece conectado mesmo com navegador fechado
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
