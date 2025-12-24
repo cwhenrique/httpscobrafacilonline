@@ -23,7 +23,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, Minimize2, Maximize2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -594,6 +595,20 @@ export default function Loans() {
     }>;
   } | null>(null);
   const [manualPenaltyValues, setManualPenaltyValues] = useState<Record<number | string, string>>({});
+  
+  // State for minimized penalty cards
+  const [minimizedPenaltyCards, setMinimizedPenaltyCards] = useState<Set<string>>(new Set());
+  const togglePenaltyCardMinimized = (loanId: string) => {
+    setMinimizedPenaltyCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(loanId)) {
+        newSet.delete(loanId);
+      } else {
+        newSet.add(loanId);
+      }
+      return newSet;
+    });
+  };
   
   // Discount settlement state
   const [discountSettlementData, setDiscountSettlementData] = useState({
@@ -5436,6 +5451,7 @@ export default function Loans() {
                               className="w-full mt-2"
                             />
                           )}
+                          </div>
                         </div>
                       )}
                       
@@ -6560,7 +6576,41 @@ export default function Loans() {
                         {/* Overdue installment info */}
                         {isOverdue && (
                           <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
-                            <div className="text-xs sm:text-sm">
+                            <Collapsible 
+                              open={!minimizedPenaltyCards.has(loan.id)}
+                              onOpenChange={() => togglePenaltyCardMinimized(loan.id)}
+                            >
+                              {/* Header - sempre visível */}
+                              <CollapsibleTrigger asChild>
+                                <button className="w-full flex items-center justify-between cursor-pointer hover:bg-red-500/10 rounded p-1.5 -m-1 transition-colors group">
+                                  <span className="text-white font-bold text-xs sm:text-sm flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-red-300" />
+                                    {overdueInstallmentsDetails.length > 1 
+                                      ? `${overdueInstallmentsDetails.length} parcelas em atraso`
+                                      : `Parcela ${getPaidInstallmentsCount(loan) + 1}/${numInstallments} em atraso`
+                                    }
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {/* Mostra total quando minimizado */}
+                                    {minimizedPenaltyCards.has(loan.id) && (
+                                      <span className="text-yellow-300 font-bold text-xs sm:text-sm">
+                                        {formatCurrency(cumulativePenaltyResult.totalWithPenalties > 0 
+                                          ? cumulativePenaltyResult.totalWithPenalties 
+                                          : cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily
+                                        )}
+                                      </span>
+                                    )}
+                                    {minimizedPenaltyCards.has(loan.id) ? (
+                                      <Maximize2 className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
+                                    ) : (
+                                      <Minimize2 className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
+                                    )}
+                                  </div>
+                                </button>
+                              </CollapsibleTrigger>
+                              
+                              <CollapsibleContent className="mt-2">
+                                <div className="text-xs sm:text-sm">
                               {/* CARD UNIFICADO para múltiplas parcelas com multa dinâmica */}
                               {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 ? (
                                 <>
@@ -6930,6 +6980,9 @@ export default function Loans() {
                                 className="w-full mt-2"
                               />
                             )}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                           </div>
                         )}
                         
