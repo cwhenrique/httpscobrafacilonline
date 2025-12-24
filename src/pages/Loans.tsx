@@ -1029,8 +1029,11 @@ export default function Loans() {
     toast.success('Tutorial concluído! 🎉');
   };
 
-  // Dialog open handler - simplified (no form tutorial)
+  // Dialog open handler - reset form when opening or closing
   const handleDialogOpen = (open: boolean) => {
+    if (open) {
+      resetForm(); // Reset to defaults (installments: '1') when opening
+    }
     setIsDialogOpen(open);
   };
 
