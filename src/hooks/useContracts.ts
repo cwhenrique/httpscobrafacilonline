@@ -211,12 +211,12 @@ export function useContracts() {
   };
 
   const markPaymentAsPaid = useMutation({
-    mutationFn: async (paymentId: string) => {
+    mutationFn: async ({ paymentId, paidDate }: { paymentId: string; paidDate?: string }) => {
       const { error } = await supabase
         .from('contract_payments')
         .update({
           status: 'paid',
-          paid_date: new Date().toISOString().split('T')[0],
+          paid_date: paidDate || new Date().toISOString().split('T')[0],
         })
         .eq('id', paymentId);
 
@@ -225,6 +225,7 @@ export function useContracts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['contract_payments'] });
+      queryClient.invalidateQueries({ queryKey: ['all_contract_payments'] });
       toast.success('Parcela marcada como paga!');
     },
     onError: (error) => {
