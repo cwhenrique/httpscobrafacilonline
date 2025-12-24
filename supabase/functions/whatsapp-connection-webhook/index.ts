@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to extract phone number from ownerJid or owner field
+function extractPhoneNumber(instance: Record<string, unknown>): string | null {
+  // Try multiple paths where the phone might be
+  const possibleSources = [
+    instance?.ownerJid,
+    instance?.owner,
+    (instance?.instance as Record<string, unknown>)?.ownerJid,
+    (instance?.instance as Record<string, unknown>)?.owner,
+  ];
+  
+  for (const source of possibleSources) {
+    if (typeof source === 'string' && source.includes('@')) {
+      // Format: "5517992415708@s.whatsapp.net" -> "5517992415708"
+      const phone = source.split('@')[0].replace(/\D/g, '');
+      if (phone.length >= 10) {
+        return phone;
+      }
+    }
+  }
+  return null;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -119,18 +141,38 @@ serve(async (req) => {
             if (newState === 'open') {
               console.log('Auto-reconnect successful!');
               
-              // Update profile with reconnection time
+              // Try to get phone number from fetchInstances
+              let phoneNumber = null;
+              try {
+                const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+                  method: 'GET',
+                  headers: { 'apikey': evolutionApiKey },
+                });
+                if (fetchResponse.ok) {
+                  const instances = await fetchResponse.json();
+                  const inst = Array.isArray(instances) ? instances[0] : instances;
+                  phoneNumber = extractPhoneNumber(inst);
+                  console.log('Phone number after reconnect:', phoneNumber);
+                }
+              } catch (e) {
+                console.log('Could not fetch phone after reconnect:', e);
+              }
+              
+              // Update profile with reconnection time and phone
               await supabase
                 .from('profiles')
                 .update({
                   whatsapp_connected_at: new Date().toISOString(),
+                  whatsapp_to_clients_enabled: true,
+                  ...(phoneNumber ? { whatsapp_connected_phone: phoneNumber } : {}),
                 })
                 .eq('id', profile.id);
 
               return new Response(JSON.stringify({ 
                 received: true, 
                 reconnected: true,
-                state: newState 
+                state: newState,
+                phoneNumber,
               }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
@@ -165,6 +207,7 @@ serve(async (req) => {
                 .update({
                   whatsapp_connected_phone: null,
                   whatsapp_connected_at: null,
+                  whatsapp_to_clients_enabled: false,
                 })
                 .eq('id', profile.id);
 
@@ -184,7 +227,17 @@ serve(async (req) => {
         console.error('Error during auto-reconnect:', reconnectError);
       }
 
-      console.log('Auto-reconnect failed');
+      console.log('Auto-reconnect failed - clearing connection status');
+      
+      // Clear connection status on failed reconnect
+      await supabase
+        .from('profiles')
+        .update({
+          whatsapp_connected_phone: null,
+          whatsapp_to_clients_enabled: false,
+        })
+        .eq('id', profile.id);
+      
       return new Response(JSON.stringify({ 
         received: true, 
         reconnected: false,
@@ -196,10 +249,10 @@ serve(async (req) => {
 
     // Handle successful connection
     if (state === 'open' || state === 'connected' || state === 'CONNECTED') {
-      console.log(`Instance ${instanceName} connected`);
+      console.log(`Instance ${instanceName} connected - fetching phone number...`);
 
-      // Try to get phone number
-      let phoneNumber = profile.whatsapp_connected_phone;
+      // Try to get phone number from fetchInstances
+      let phoneNumber: string | null = null;
 
       try {
         const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
@@ -211,27 +264,36 @@ serve(async (req) => {
 
         if (fetchResponse.ok) {
           const instances = await fetchResponse.json();
-          const inst = Array.isArray(instances) ? instances[0] : instances;
-          const owner = inst?.instance?.owner || inst?.owner;
+          console.log('Fetch instances response:', JSON.stringify(instances));
           
-          if (owner) {
-            phoneNumber = owner.replace('@s.whatsapp.net', '').replace(/\D/g, '');
-            console.log('Found phone number:', phoneNumber);
-          }
+          const inst = Array.isArray(instances) ? instances[0] : instances;
+          phoneNumber = extractPhoneNumber(inst);
+          console.log('Extracted phone number:', phoneNumber);
         }
       } catch (e) {
         console.log('Could not fetch phone number:', e);
       }
 
-      // Update profile
-      await supabase
+      // Update profile - always set connected_at and enabled, phone if found
+      const updateData: Record<string, unknown> = {
+        whatsapp_connected_at: new Date().toISOString(),
+        whatsapp_to_clients_enabled: true,
+      };
+      
+      if (phoneNumber) {
+        updateData.whatsapp_connected_phone = phoneNumber;
+      }
+
+      const { error: updateError } = await supabase
         .from('profiles')
-        .update({
-          whatsapp_connected_at: new Date().toISOString(),
-          whatsapp_to_clients_enabled: true,
-          ...(phoneNumber ? { whatsapp_connected_phone: phoneNumber } : {}),
-        })
+        .update(updateData)
         .eq('id', profile.id);
+        
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+      } else {
+        console.log('Profile updated successfully:', updateData);
+      }
 
       return new Response(JSON.stringify({ 
         received: true, 

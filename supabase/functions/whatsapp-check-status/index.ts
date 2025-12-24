@@ -6,6 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to extract phone number from ownerJid or owner field
+function extractPhoneNumber(instance: Record<string, unknown>): string | null {
+  // Try multiple paths where the phone might be
+  const possibleSources = [
+    instance?.ownerJid,
+    instance?.owner,
+    (instance?.instance as Record<string, unknown>)?.ownerJid,
+    (instance?.instance as Record<string, unknown>)?.owner,
+  ];
+  
+  for (const source of possibleSources) {
+    if (typeof source === 'string' && source.includes('@')) {
+      // Format: "5517992415708@s.whatsapp.net" -> "5517992415708"
+      const phone = source.split('@')[0].replace(/\D/g, '');
+      if (phone.length >= 10) {
+        console.log(`Extracted phone ${phone} from source: ${source}`);
+        return phone;
+      }
+    }
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -274,7 +297,7 @@ serve(async (req) => {
       if (isConnected) {
         // Always try to fetch the phone number if connected (even if we have one stored)
         try {
-          // Method 1: Try fetchInstances
+          // Method 1: Try fetchInstances - this has ownerJid
           const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
             method: 'GET',
             headers: {
@@ -287,15 +310,11 @@ serve(async (req) => {
             console.log('Fetch instances response:', JSON.stringify(instances));
             const instance = Array.isArray(instances) ? instances[0] : instances;
             
-            // Try multiple paths to find the phone number
-            const owner = instance?.instance?.owner || 
-                          instance?.owner || 
-                          stateData?.instance?.owner ||
-                          stateData?.owner;
-            
-            if (owner) {
-              phoneNumber = owner.replace('@s.whatsapp.net', '').replace(/\D/g, '');
-              console.log('Found phone number:', phoneNumber);
+            // Use the helper function to extract phone from ownerJid or owner
+            const extractedPhone = extractPhoneNumber(instance);
+            if (extractedPhone) {
+              phoneNumber = extractedPhone;
+              console.log('Found phone number from fetchInstances:', phoneNumber);
             }
           }
         } catch (e) {
@@ -314,10 +333,10 @@ serve(async (req) => {
             
             if (connectResponse.ok) {
               const connectData = await connectResponse.json();
-              console.log('Connect response:', JSON.stringify(connectData));
-              const owner = connectData?.instance?.owner || connectData?.owner;
-              if (owner) {
-                phoneNumber = owner.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+              console.log('Connect response for phone:', JSON.stringify(connectData));
+              const extractedPhone = extractPhoneNumber(connectData);
+              if (extractedPhone) {
+                phoneNumber = extractedPhone;
                 console.log('Found phone number from connect:', phoneNumber);
               }
             }
@@ -337,10 +356,16 @@ serve(async (req) => {
           updateData.whatsapp_connected_phone = phoneNumber;
         }
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('profiles')
           .update(updateData)
           .eq('id', userId);
+          
+        if (updateError) {
+          console.error('Error updating profile:', updateError);
+        } else {
+          console.log('Profile updated with:', updateData);
+        }
       }
 
       return new Response(JSON.stringify({ 
