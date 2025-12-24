@@ -2238,9 +2238,30 @@ export default function Loans() {
         notes: newNotes.trim(),
       }).eq('id', selectedLoanId);
       
+      // Preparar dados do comprovante
+      setPaymentClientPhone(selectedLoan.client?.phone || null);
+      setPaymentReceiptData({
+        type: 'loan',
+        contractId: selectedLoanId,
+        companyName: profile?.company_name || '',
+        clientName: selectedLoan.client?.full_name || 'Cliente',
+        installmentNumber: selectedLoan.installments || 1,
+        totalInstallments: selectedLoan.installments || 1,
+        amountPaid: receivedAmount,
+        paymentDate: paymentData.payment_date,
+        remainingBalance: 0,
+        totalPaid: (selectedLoan.total_paid || 0) + receivedAmount,
+        nextDueDate: undefined,
+        discountAmount: discountAmount,
+        billingSignatureName: profile?.billing_signature_name || undefined,
+      });
+      
       setIsPaymentDialogOpen(false);
       setDiscountSettlementData({ receivedAmount: '', discountAmount: 0 });
       await fetchLoans();
+      
+      // Abrir diálogo de comprovante
+      setIsPaymentReceiptOpen(true);
       
       toast.success(`Empréstimo quitado com desconto de ${formatCurrency(discountAmount)}!`);
       return;
