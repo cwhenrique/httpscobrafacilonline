@@ -39,10 +39,8 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
     const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-    const instanceName = "VendaApp";
 
     console.log("Using Evolution API URL:", evolutionApiUrlRaw);
-    console.log("Using instance: VendaApp");
 
     if (!evolutionApiUrlRaw || !evolutionApiKey) {
       console.error("Missing Evolution API configuration");
@@ -51,11 +49,17 @@ const handler = async (req: Request): Promise<Response> => {
 
     const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
-    const { phone, message }: { phone: string; message: string } = await req.json();
+    const { phone, message, instanceName = "VendaApp" }: { 
+      phone: string; 
+      message: string; 
+      instanceName?: string;
+    } = await req.json();
     
     if (!phone || !message) {
       throw new Error("Phone and message are required");
     }
+
+    console.log(`Using instance: ${instanceName}`);
 
     const formattedPhone = formatPhoneNumber(phone);
     const fullUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
