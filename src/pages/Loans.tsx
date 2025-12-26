@@ -596,24 +596,42 @@ export default function Loans() {
     realizedProfit: number;
     remainingBalance: number;
   } | null>(null);
-  const [editFormData, setEditFormData] = useState({
+  const [editFormData, setEditFormData] = useState<{
+    client_id: string;
+    principal_amount: string;
+    interest_rate: string;
+    interest_type: InterestType;
+    interest_mode: 'per_installment' | 'on_total' | 'compound';
+    payment_type: LoanPaymentType;
+    installments: string;
+    contract_date: string;
+    start_date: string;
+    due_date: string;
+    notes: string;
+    daily_amount: string;
+    overdue_daily_rate: string;
+    overdue_fixed_amount: string;
+    overdue_penalty_type: 'percentage' | 'fixed';
+    apply_overdue_penalty: boolean;
+    send_notification: boolean;
+  }>({
     client_id: '',
     principal_amount: '',
     interest_rate: '',
-    interest_type: 'simple' as InterestType,
-    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound',
-    payment_type: 'single' as LoanPaymentType | 'daily',
+    interest_type: 'simple',
+    interest_mode: 'per_installment',
+    payment_type: 'single',
     installments: '1',
     contract_date: '',
     start_date: '',
     due_date: '',
     notes: '',
     daily_amount: '',
-    overdue_daily_rate: '', // Custom daily rate for overdue penalty (%)
-    overdue_fixed_amount: '', // Fixed amount for overdue penalty (R$)
-    overdue_penalty_type: 'percentage' as 'percentage' | 'fixed', // Type of penalty
+    overdue_daily_rate: '',
+    overdue_fixed_amount: '',
+    overdue_penalty_type: 'percentage',
     apply_overdue_penalty: false,
-    send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
+    send_notification: false,
   });
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   const [editInstallmentValue, setEditInstallmentValue] = useState('');
@@ -8987,11 +9005,14 @@ export default function Loans() {
                         <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="single">Pagamento Único</SelectItem>
-                          <SelectItem value="installment">Parcelado</SelectItem>
+                          <SelectItem value="installment">Parcelado (Mensal)</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="biweekly">Quinzenal</SelectItem>
+                          <SelectItem value="daily">Diário</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {editFormData.payment_type === 'installment' && (
+                    {(editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && (
                       <div className="space-y-1 sm:space-y-2">
                         <Label className="text-xs sm:text-sm">Parcelas</Label>
                         <Input 
@@ -9018,7 +9039,7 @@ export default function Loans() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {editFormData.payment_type === 'installment' && (
+                  {(editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && (
                     <>
                       <div className="grid grid-cols-2 gap-2 sm:gap-4">
                         <div className="space-y-1 sm:space-y-2">
@@ -9154,7 +9175,7 @@ export default function Loans() {
                       <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
                     </div>
                   </div>
-                  {editFormData.payment_type === 'installment' && (
+                  {(editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly') && (
                     <div className="space-y-1 sm:space-y-2">
                       <Label className="text-xs sm:text-sm">Datas das Parcelas</Label>
                       <ScrollArea className="h-32 border rounded-md p-2">
