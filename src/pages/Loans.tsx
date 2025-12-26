@@ -1134,20 +1134,27 @@ export default function Loans() {
     const currentDates = (loan.installment_dates as string[]) || [];
     const updatedDates = [...currentDates];
     
-    // Calcular a diferença de dias entre a data antiga e a nova
-    const oldDate = new Date(currentDates[index] + 'T12:00:00');
-    const newDate = new Date(newDateStr + 'T12:00:00');
-    const diffDays = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+    // Verificar se é empréstimo diário (só diário tem cascata)
+    const isDaily = loan.payment_type === 'daily';
     
     // Atualizar a data da parcela selecionada
     updatedDates[index] = newDateStr;
     
-    // CASCATA: Mover todas as parcelas SEGUINTES pela mesma quantidade de dias
-    for (let i = index + 1; i < updatedDates.length; i++) {
-      const originalDate = new Date(currentDates[i] + 'T12:00:00');
-      originalDate.setDate(originalDate.getDate() + diffDays);
-      updatedDates[i] = format(originalDate, 'yyyy-MM-dd');
+    let diffDays = 0;
+    
+    // CASCATA: Mover todas as parcelas SEGUINTES apenas para empréstimos DIÁRIOS
+    if (isDaily) {
+      const oldDate = new Date(currentDates[index] + 'T12:00:00');
+      const newDate = new Date(newDateStr + 'T12:00:00');
+      diffDays = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      for (let i = index + 1; i < updatedDates.length; i++) {
+        const originalDate = new Date(currentDates[i] + 'T12:00:00');
+        originalDate.setDate(originalDate.getDate() + diffDays);
+        updatedDates[i] = format(originalDate, 'yyyy-MM-dd');
+      }
     }
+    // Para mensal/semanal/quinzenal: só atualiza a parcela específica (sem cascata)
 
     // Atualizar due_date para a última data do array
     const newDueDateForLoan = updatedDates[updatedDates.length - 1];
@@ -1166,11 +1173,14 @@ export default function Loans() {
         return;
       }
 
-      const diffText = diffDays > 0 ? `+${diffDays}` : `${diffDays}`;
-      const cascadeMsg = updatedDates.length > index + 1 
-        ? ` (${diffText} dias aplicado às ${updatedDates.length - index - 1} parcelas seguintes)`
-        : '';
-      toast.success(`Data atualizada!${cascadeMsg}`);
+      // Mensagem de sucesso diferente para diário (com cascata) vs outros (sem cascata)
+      if (isDaily && updatedDates.length > index + 1) {
+        const diffText = diffDays > 0 ? `+${diffDays}` : `${diffDays}`;
+        toast.success(`Data atualizada! (${diffText} dias aplicado às ${updatedDates.length - index - 1} parcelas seguintes)`);
+      } else {
+        toast.success('Data da parcela atualizada!');
+      }
+      
       setEditingInstallmentIndex(null);
       setNewDueDate(undefined);
       fetchLoans(); // Recarrega e recalcula status automaticamente (sai do atraso se data for futura)
