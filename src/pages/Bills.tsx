@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
-import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths } from 'date-fns';
+import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths, differenceInMonths, getDaysInMonth, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2, Tag } from 'lucide-react';
+import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2, Tag, Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
@@ -53,6 +53,12 @@ const getCategoryInfo = (category: BillCategory) => {
 
 type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today';
 type PeriodFilter = 'all' | '1' | '2' | '3' | '6' | '12';
+
+// Tipo para contas virtuais (recorrentes projetadas)
+interface VirtualBill extends Bill {
+  isVirtual?: boolean;
+  originalBillId?: string;
+}
 
 // Interface para props do BillForm
 interface BillFormProps {
@@ -267,20 +273,86 @@ export default function Bills() {
     setCustomCategory('');
   };
 
+  // Gerar contas virtuais para meses futuros baseadas nas recorrentes
+  const billsWithRecurring = useMemo((): VirtualBill[] => {
+    if (!selectedMonth) return bills as VirtualBill[];
+    
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
+    
+    // Pegar contas recorrentes
+    const recurringBills = bills.filter(b => b.is_recurring);
+    
+    // Criar contas virtuais para o mês selecionado
+    const virtualBills: VirtualBill[] = [];
+    
+    recurringBills.forEach(bill => {
+      const originalDueDate = parseISO(bill.due_date);
+      const originalDay = originalDueDate.getDate();
+      const originalMonth = startOfMonth(originalDueDate);
+      
+      // Só projeta para meses futuros (após o mês original)
+      if (isAfter(monthStart, originalMonth) || monthStart.getTime() === originalMonth.getTime()) {
+        // Verificar se já existe uma conta real para este mês
+        const existsRealBill = bills.some(b => 
+          b.description === bill.description &&
+          b.payee_name === bill.payee_name &&
+          b.id !== bill.id &&
+          isWithinInterval(parseISO(b.due_date), { 
+            start: monthStart, 
+            end: monthEnd 
+          })
+        );
+        
+        // Se é o mês original da conta, não precisa criar virtual
+        if (monthStart.getTime() === originalMonth.getTime()) {
+          return;
+        }
+        
+        if (!existsRealBill) {
+          // Verificar limite de recorrência
+          const monthsDiff = differenceInMonths(monthStart, originalMonth);
+          
+          // Se tem limite de meses e já passou, não cria virtual
+          if (bill.recurrence_months !== null && monthsDiff > bill.recurrence_months) {
+            return;
+          }
+          
+          // Criar conta virtual - ajusta o dia para o máximo do mês se necessário
+          const daysInMonth = getDaysInMonth(selectedMonth);
+          const adjustedDay = Math.min(originalDay, daysInMonth);
+          const virtualDueDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), adjustedDay);
+          
+          virtualBills.push({
+            ...bill,
+            id: `virtual-${bill.id}-${format(selectedMonth, 'yyyy-MM')}`,
+            due_date: format(virtualDueDate, 'yyyy-MM-dd'),
+            status: 'pending',
+            paid_date: null,
+            isVirtual: true,
+            originalBillId: bill.id,
+          });
+        }
+      }
+    });
+    
+    return [...(bills as VirtualBill[]), ...virtualBills];
+  }, [bills, selectedMonth]);
+
   // Filtros do mês selecionado (ou todos)
-  const currentMonthBills = useMemo(() => {
+  const currentMonthBills = useMemo((): VirtualBill[] => {
     if (!selectedMonth) {
-      return bills; // Todos os meses
+      return billsWithRecurring; // Todos os meses
     }
     
     const monthStart = startOfMonth(selectedMonth);
     const monthEnd = endOfMonth(selectedMonth);
     
-    return bills.filter(bill => {
+    return billsWithRecurring.filter(bill => {
       const dueDate = parseISO(bill.due_date);
       return isWithinInterval(dueDate, { start: monthStart, end: monthEnd });
     });
-  }, [bills, selectedMonth]);
+  }, [billsWithRecurring, selectedMonth]);
 
   // Gastos por categoria (para o gráfico)
   const categoryExpenses = useMemo(() => {
@@ -351,7 +423,7 @@ export default function Bills() {
 
   // Filtrar por categoria e período
   const categoryFilteredBills = useMemo(() => {
-    let filtered = [...bills];
+    let filtered = [...billsWithRecurring];
 
     // Filtro por categoria
     if (categoryFilter !== 'all') {
@@ -369,7 +441,7 @@ export default function Bills() {
     }
 
     return filtered;
-  }, [bills, categoryFilter, periodFilter]);
+  }, [billsWithRecurring, categoryFilter, periodFilter]);
 
   // Stats por categoria filtrada
   const categoryStats = useMemo(() => {
@@ -394,7 +466,7 @@ export default function Bills() {
   // Filtrar contas (aplicando todos os filtros)
   const filteredBills = useMemo(() => {
     // Usar bills filtrados por categoria se houver filtro de categoria
-    let filtered = categoryFilter !== 'all' ? [...categoryFilteredBills] : [...bills];
+    let filtered = categoryFilter !== 'all' ? [...categoryFilteredBills] : [...billsWithRecurring];
 
     // Filtro por status
     if (filter === 'pending') {
@@ -420,7 +492,7 @@ export default function Bills() {
     filtered.sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime());
 
     return filtered;
-  }, [bills, categoryFilteredBills, categoryFilter, filter, searchTerm, periodFilter]);
+  }, [billsWithRecurring, categoryFilteredBills, categoryFilter, filter, searchTerm, periodFilter]);
 
   const handleCreate = async () => {
     // Valor é opcional apenas para cartão de crédito
@@ -446,6 +518,41 @@ export default function Bills() {
     });
     setIsCreateOpen(false);
     resetForm();
+  };
+
+  // Função para criar conta real a partir de uma conta virtual e marcar como paga
+  const handlePayVirtualBill = async (virtualBill: VirtualBill) => {
+    if (!virtualBill.isVirtual || !virtualBill.originalBillId) return;
+    
+    // Buscar a conta original para copiar os dados
+    const originalBill = bills.find(b => b.id === virtualBill.originalBillId);
+    if (!originalBill) {
+      toast.error('Erro ao encontrar conta original');
+      return;
+    }
+    
+    try {
+      // Criar a conta real com os dados da virtual
+      const newBill = await createBill.mutateAsync({
+        description: originalBill.description,
+        payee_name: originalBill.payee_name,
+        amount: virtualBill.amount,
+        due_date: virtualBill.due_date,
+        category: originalBill.category || 'outros',
+        is_recurring: false, // A nova conta não é recorrente, só a original
+        recurrence_months: null,
+        pix_key: originalBill.pix_key || '',
+        notes: originalBill.notes || '',
+      });
+      
+      // Marcar como paga
+      if (newBill?.id) {
+        await markAsPaid.mutateAsync(newBill.id);
+      }
+    } catch (error) {
+      console.error('Erro ao pagar conta virtual:', error);
+      toast.error('Erro ao processar pagamento');
+    }
   };
 
   const handleEdit = async () => {
@@ -935,9 +1042,14 @@ export default function Bills() {
               const categoryInfo = getCategoryInfo(bill.category || 'outros');
               const CategoryIcon = categoryInfo.icon;
               const status = getBillStatus(bill);
+              const isVirtual = (bill as VirtualBill).isVirtual;
 
               // Cores sólidas para diferenciar de empréstimos (que usam transparência)
               const getCardStyle = () => {
+                // Conta virtual tem estilo especial
+                if (isVirtual) {
+                  return 'bg-blue-600 border-blue-700 border-dashed border-2';
+                }
                 switch (status) {
                   case 'overdue':
                     return 'bg-red-600 border-red-700';
@@ -996,11 +1108,17 @@ export default function Bills() {
                           <span>Vence {format(parseISO(bill.due_date), "dd 'de' MMM", { locale: ptBR })}</span>
                         </div>
                       </div>
-                      {bill.is_recurring && (
+                      {(bill as VirtualBill).isVirtual ? (
+                        <Badge variant="outline" className="text-xs bg-blue-500/30 text-white border-blue-400/50">
+                          <Repeat className="h-3 w-3 mr-1" />
+                          Conta Prevista
+                        </Badge>
+                      ) : bill.is_recurring ? (
                         <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/30">
+                          <Repeat className="h-3 w-3 mr-1" />
                           Recorrente
                         </Badge>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* PIX Key Section */}
@@ -1058,7 +1176,14 @@ export default function Bills() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => markAsPaid.mutateAsync(bill.id)}>
+                              <AlertDialogAction onClick={() => {
+                                const virtualBill = bill as VirtualBill;
+                                if (virtualBill.isVirtual) {
+                                  handlePayVirtualBill(virtualBill);
+                                } else {
+                                  markAsPaid.mutateAsync(bill.id);
+                                }
+                              }}>
                                 Confirmar Pagamento
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -1100,35 +1225,40 @@ export default function Bills() {
                           </AlertDialogContent>
                         </AlertDialog>
                       )}
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        className="bg-white/10 hover:bg-white/20 text-white border-white/30"
-                        onClick={() => openEditDialog(bill)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="bg-white/10 hover:bg-red-500/50 text-white border-white/30">
-                            <Trash2 className="h-4 w-4" />
+                      {/* Botões de editar e excluir - não mostrar para contas virtuais */}
+                      {!isVirtual && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="bg-white/10 hover:bg-white/20 text-white border-white/30"
+                            onClick={() => openEditDialog(bill)}
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja excluir "{bill.description}"? Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteBill.mutateAsync(bill.id)}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline" className="bg-white/10 hover:bg-red-500/50 text-white border-white/30">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir "{bill.description}"? Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteBill.mutateAsync(bill.id)}>
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
