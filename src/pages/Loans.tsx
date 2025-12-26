@@ -5436,8 +5436,8 @@ export default function Loans() {
                             </div>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            {isDaily ? (
-                              // Empréstimo DIÁRIO: Lista de todas as parcelas
+                            {((loan.installment_dates as string[]) || []).length > 1 ? (
+                              // Empréstimo com MÚLTIPLAS PARCELAS: Lista de todas as parcelas
                               <div className="p-3 max-w-[320px]">
                                 <div className="flex items-center justify-between mb-3">
                                   <p className="text-sm font-medium">Datas das Parcelas</p>
@@ -5544,7 +5544,7 @@ export default function Loans() {
                                 </div>
                               </div>
                             ) : (
-                              // Outros empréstimos: comportamento atual
+                              // Empréstimo com 1 PARCELA: calendário simples
                               <div className="p-3">
                                 <p className="text-xs text-muted-foreground mb-2">
                                   Alterar vencimento da parcela {getPaidInstallmentsCount(loan) + 1}
