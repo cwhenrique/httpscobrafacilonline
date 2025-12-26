@@ -35,6 +35,12 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
+// Helper para extrair valor customizado de parcela do notes
+const getCustomInstallmentValue = (notes: string | null): number | null => {
+  const match = (notes || '').match(/\[CUSTOM_INSTALLMENT_VALUE:([0-9.]+)\]/);
+  return match ? parseFloat(match[1]) : null;
+};
+
 interface DueDateInfo {
   loan?: Loan;
   vehiclePayment?: {
@@ -77,6 +83,20 @@ export default function CalendarView() {
 
   // Calculate installment and interest values for a loan
   const calculateLoanValues = (loan: Loan) => {
+    // First check if there's a custom installment value set manually
+    const customValue = getCustomInstallmentValue(loan.notes);
+    if (customValue) {
+      const installments = loan.installments || 1;
+      const totalToReceive = customValue * installments;
+      const totalInterest = totalToReceive - loan.principal_amount;
+      return {
+        installmentValue: customValue,
+        interestOnlyValue: totalInterest / installments,
+        principalAmount: loan.principal_amount,
+        totalToReceive
+      };
+    }
+    
     const principal = loan.principal_amount;
     const rate = loan.interest_rate;
     const installments = loan.installments || 1;
