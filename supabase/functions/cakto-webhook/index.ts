@@ -154,18 +154,25 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 }
 
 // Send WhatsApp message via Evolution API
-async function sendWhatsAppMessage(phone: string, message: string, instanceName?: string) {
+async function sendWhatsAppMessage(phone: string, message: string, instanceName?: string): Promise<boolean> {
+  console.log('=== SEND WHATSAPP MESSAGE START ===');
+  console.log('Input phone:', phone);
+  console.log('Instance requested:', instanceName || 'default (VendaApp)');
+  
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
   // Usar instância fixa "VendaApp" para notificações do sistema
   const instance = instanceName || "VendaApp";
 
   if (!evolutionApiUrl || !evolutionApiKey) {
-    console.log('Evolution API not configured, skipping WhatsApp message');
-    return;
+    console.error('=== WHATSAPP ERROR: Evolution API not configured ===');
+    console.error('EVOLUTION_API_URL:', evolutionApiUrl ? 'SET' : 'NOT SET');
+    console.error('EVOLUTION_API_KEY:', evolutionApiKey ? 'SET' : 'NOT SET');
+    return false;
   }
   
-  console.log("Using fixed system instance:", instance);
+  console.log('Evolution API URL:', evolutionApiUrl);
+  console.log('Using instance:', instance);
 
   let formattedPhone = phone.replace(/\D/g, '');
   if (formattedPhone.startsWith('0')) {
@@ -173,12 +180,15 @@ async function sendWhatsAppMessage(phone: string, message: string, instanceName?
   } else if (!formattedPhone.startsWith('55')) {
     formattedPhone = '55' + formattedPhone;
   }
+  
+  console.log('Formatted phone:', formattedPhone);
 
   const cleanedUrl = cleanApiUrl(evolutionApiUrl);
   const fullUrl = `${cleanedUrl}/message/sendText/${instance}`;
-  console.log('Sending WhatsApp to URL:', fullUrl);
+  console.log('Full API URL:', fullUrl);
 
   try {
+    console.log('Making fetch request to Evolution API...');
     const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
@@ -191,14 +201,27 @@ async function sendWhatsAppMessage(phone: string, message: string, instanceName?
       }),
     });
 
+    console.log('Evolution API response status:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Error sending WhatsApp message:', errorText);
-    } else {
-      console.log('WhatsApp message sent successfully to:', formattedPhone, 'via instance:', instance);
+      console.error('=== WHATSAPP ERROR: API returned error ===');
+      console.error('Status:', response.status);
+      console.error('Error response:', errorText);
+      return false;
     }
+    
+    const responseData = await response.json();
+    console.log('=== WHATSAPP SUCCESS ===');
+    console.log('Response data:', JSON.stringify(responseData));
+    console.log('Message sent to:', formattedPhone, 'via instance:', instance);
+    return true;
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
+    console.error('=== WHATSAPP ERROR: Fetch failed ===');
+    console.error('Error type:', error instanceof Error ? error.name : 'Unknown');
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Full error:', error);
+    return false;
   }
 }
 
@@ -493,8 +516,15 @@ Obrigado por continuar com a gente! 💚`;
       }
     }
 
-    // Send welcome message via WhatsApp using Cobrafacilapp instance
+    // Send welcome message via WhatsApp using VendaApp instance
+    console.log('=== WELCOME MESSAGE SECTION ===');
+    console.log('Customer phone:', customerPhone);
+    console.log('Customer name:', customerName);
+    console.log('Customer email:', customerEmail);
+    
     if (customerPhone) {
+      console.log('Phone is present, preparing welcome message...');
+      
       const welcomeMessage = `🎉 *Parabéns pela sua compra!*
 
 Olá ${customerName || 'Cliente'}!
@@ -510,8 +540,16 @@ Seu acesso ao *CobraFácil* está liberado! 🚀
 
 Qualquer dúvida, estamos à disposição! 💚`;
 
-      // Send via VendaApp instance
-      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'VendaApp');
+      console.log('Sending welcome message via VendaApp instance...');
+      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'VendaApp');
+      
+      if (messageSent) {
+        console.log('=== WELCOME MESSAGE SENT SUCCESSFULLY ===');
+      } else {
+        console.error('=== WELCOME MESSAGE FAILED TO SEND ===');
+      }
+    } else {
+      console.log('=== NO PHONE NUMBER - SKIPPING WELCOME MESSAGE ===');
     }
 
     return new Response(
