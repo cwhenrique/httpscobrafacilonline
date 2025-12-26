@@ -647,6 +647,10 @@ export default function Loans() {
   const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed' | 'manual'>('percentage');
   const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
   
+  // Edit due date inline states
+  const [editingDueDateLoanId, setEditingDueDateLoanId] = useState<string | null>(null);
+  const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
+  
   // Manual penalty dialog state
   const [manualPenaltyDialog, setManualPenaltyDialog] = useState<{
     isOpen: boolean;
@@ -1077,6 +1081,48 @@ export default function Loans() {
         .eq('id', user.id);
     }
     toast.success('Tutorial concluído! 🎉');
+  };
+
+  // Handle inline due date update from card
+  const handleUpdateDueDate = async (loanId: string, newDateStr: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+
+    const currentDates = (loan.installment_dates as string[]) || [];
+    const paidCount = getPaidInstallmentsCount(loan);
+    
+    // Update the next unpaid installment date
+    const updatedDates = [...currentDates];
+    if (paidCount < updatedDates.length) {
+      updatedDates[paidCount] = newDateStr;
+    }
+
+    // Calculate new due_date (last installment or the new date)
+    const newDueDateForLoan = updatedDates.length > 0 
+      ? updatedDates[updatedDates.length - 1] 
+      : newDateStr;
+
+    try {
+      const { error } = await supabase
+        .from('loans')
+        .update({
+          installment_dates: updatedDates,
+          due_date: newDueDateForLoan,
+        })
+        .eq('id', loanId);
+
+      if (error) {
+        toast.error('Erro ao atualizar data');
+        return;
+      }
+
+      toast.success('Data de vencimento atualizada!');
+      setEditingDueDateLoanId(null);
+      setNewDueDate(undefined);
+      fetchLoans();
+    } catch (err) {
+      toast.error('Erro ao atualizar data');
+    }
   };
 
   // Dialog open handler - reset form when opening or closing
@@ -5294,15 +5340,78 @@ export default function Loans() {
                       
                       {/* Info resumida - Vencimento e Pago */}
                       <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-3 text-[10px] sm:text-sm">
-                        <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor}`}>
-                          <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="truncate">Venc: {(() => {
-                            const dates = (loan.installment_dates as string[]) || [];
-                            const paidCount = getPaidInstallmentsCount(loan);
-                            const nextDate = dates[paidCount] || loan.due_date;
-                            return formatDate(nextDate);
-                          })()}</span>
-                        </div>
+                        <Popover 
+                          open={editingDueDateLoanId === loan.id} 
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setEditingDueDateLoanId(loan.id);
+                              const dates = (loan.installment_dates as string[]) || [];
+                              const paidCount = getPaidInstallmentsCount(loan);
+                              const nextDate = dates[paidCount] || loan.due_date;
+                              setNewDueDate(new Date(nextDate + 'T12:00:00'));
+                            } else {
+                              setEditingDueDateLoanId(null);
+                              setNewDueDate(undefined);
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor} cursor-pointer hover:text-primary transition-colors group`}>
+                              <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                              <span className="truncate group-hover:underline">
+                                Venc: {(() => {
+                                  const dates = (loan.installment_dates as string[]) || [];
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  const nextDate = dates[paidCount] || loan.due_date;
+                                  return formatDate(nextDate);
+                                })()}
+                              </span>
+                              <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <div className="p-3">
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Alterar vencimento da parcela {(() => {
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  return paidCount + 1;
+                                })()}
+                              </p>
+                              <Calendar
+                                mode="single"
+                                selected={newDueDate}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    setNewDueDate(date);
+                                  }
+                                }}
+                                initialFocus
+                                locale={ptBR}
+                                className="pointer-events-auto"
+                              />
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    if (newDueDate) {
+                                      handleUpdateDueDate(loan.id, format(newDueDate, 'yyyy-MM-dd'));
+                                    }
+                                  }}
+                                >
+                                  Salvar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingDueDateLoanId(null)}
+                                >
+                                  Cancelar
+                                </Button>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                         <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                           <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
