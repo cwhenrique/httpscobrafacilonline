@@ -1133,9 +1133,23 @@ export default function Loans() {
 
     const currentDates = (loan.installment_dates as string[]) || [];
     const updatedDates = [...currentDates];
+    
+    // Calcular a diferença de dias entre a data antiga e a nova
+    const oldDate = new Date(currentDates[index] + 'T12:00:00');
+    const newDate = new Date(newDateStr + 'T12:00:00');
+    const diffDays = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Atualizar a data da parcela selecionada
     updatedDates[index] = newDateStr;
+    
+    // CASCATA: Mover todas as parcelas SEGUINTES pela mesma quantidade de dias
+    for (let i = index + 1; i < updatedDates.length; i++) {
+      const originalDate = new Date(currentDates[i] + 'T12:00:00');
+      originalDate.setDate(originalDate.getDate() + diffDays);
+      updatedDates[i] = format(originalDate, 'yyyy-MM-dd');
+    }
 
-    // Update due_date to the last date in the array
+    // Atualizar due_date para a última data do array
     const newDueDateForLoan = updatedDates[updatedDates.length - 1];
 
     try {
@@ -1152,10 +1166,14 @@ export default function Loans() {
         return;
       }
 
-      toast.success('Data atualizada!');
+      const diffText = diffDays > 0 ? `+${diffDays}` : `${diffDays}`;
+      const cascadeMsg = updatedDates.length > index + 1 
+        ? ` (${diffText} dias aplicado às ${updatedDates.length - index - 1} parcelas seguintes)`
+        : '';
+      toast.success(`Data atualizada!${cascadeMsg}`);
       setEditingInstallmentIndex(null);
       setNewDueDate(undefined);
-      fetchLoans();
+      fetchLoans(); // Recarrega e recalcula status automaticamente (sai do atraso se data for futura)
     } catch (err) {
       toast.error('Erro ao atualizar data');
     }
