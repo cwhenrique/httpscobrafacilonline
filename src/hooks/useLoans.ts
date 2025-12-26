@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Loan, LoanPayment, InterestType, LoanPaymentType } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,31 +89,43 @@ const formatDate = (date: string): string => {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(date));
 };
 
+// Query function for fetching loans
+const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
+  const { data, error } = await supabase
+    .from('loans')
+    .select(`
+      *,
+      client:clients(*),
+      loan_payments(interest_paid)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+  
+  return data as Loan[];
+};
+
 export function useLoans() {
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const fetchLoans = async () => {
-    if (!user) return;
+  // Use React Query for fetching loans with shared cache
+  const { 
+    data: loans = [], 
+    isLoading: loading,
+    refetch: fetchLoans
+  } = useQuery({
+    queryKey: ['loans', user?.id],
+    queryFn: () => fetchLoansFromDB(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('loans')
-      .select(`
-        *,
-        client:clients(*),
-        loan_payments(interest_paid)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Erro ao carregar empréstimos');
-      console.error(error);
-    } else {
-      setLoans(data as Loan[]);
-    }
-    setLoading(false);
+  // Function to invalidate loans cache - all components using useLoans will be updated
+  const invalidateLoans = () => {
+    queryClient.invalidateQueries({ queryKey: ['loans'] });
   };
 
   const createLoan = async (loan: {
@@ -200,7 +212,7 @@ export function useLoans() {
     
     // WhatsApp notifications removed - only sent via explicit user click
     
-    await fetchLoans();
+    invalidateLoans();
     return { data: data as Loan };
   };
 
@@ -302,7 +314,7 @@ export function useLoans() {
       }
     }
     
-    await fetchLoans();
+    invalidateLoans();
     return { data: data as LoanPayment };
   };
 
@@ -333,7 +345,7 @@ export function useLoans() {
     }
 
     toast.success('Empréstimo excluído com sucesso!');
-    await fetchLoans();
+    invalidateLoans();
     return { success: true };
   };
 
@@ -432,7 +444,7 @@ export function useLoans() {
       }
     }
     
-    await fetchLoans();
+    invalidateLoans();
     return { success: true };
   };
 
@@ -576,7 +588,7 @@ export function useLoans() {
       }
     }
     
-    await fetchLoans();
+    invalidateLoans();
     return { success: true };
   };
 
@@ -624,7 +636,7 @@ export function useLoans() {
     await updateClientScore(loanData.client_id);
 
     toast.success('Pagamento excluído e saldo restaurado!');
-    await fetchLoans();
+    invalidateLoans();
     return { success: true };
   };
 
@@ -643,6 +655,7 @@ export function useLoans() {
     }
 
     toast.success('Data do pagamento atualizada!');
+    invalidateLoans();
     return { success: true };
   };
 
@@ -704,13 +717,9 @@ export function useLoans() {
 
     // WhatsApp notifications removed - only sent via explicit user click
 
-    await fetchLoans();
+    invalidateLoans();
     return { success: true };
   };
-
-  useEffect(() => {
-    fetchLoans();
-  }, [user]);
 
   return {
     loans,
@@ -725,5 +734,6 @@ export function useLoans() {
     updateLoan,
     updatePaymentDate,
     addExtraInstallments,
+    invalidateLoans,
   };
 }
