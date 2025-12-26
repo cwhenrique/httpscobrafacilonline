@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -941,18 +941,16 @@ export default function Loans() {
             newDates.push(prev[i]);
           } else {
             // Generate new date based on payment type
-            const date = new Date(startDate);
+            let date: Date;
             if (editFormData.payment_type === 'weekly') {
+              date = new Date(startDate);
               date.setDate(date.getDate() + (i * 7));
             } else if (editFormData.payment_type === 'biweekly') {
+              date = new Date(startDate);
               date.setDate(date.getDate() + (i * 15));
             } else {
-              // Monthly (installment)
-              date.setMonth(date.getMonth() + i);
-              // Handle edge cases where the day doesn't exist in the target month
-              if (date.getDate() !== startDay) {
-                date.setDate(0);
-              }
+              // Monthly (installment) - usar addMonths do date-fns
+              date = addMonths(startDate, i);
             }
             newDates.push(format(date, 'yyyy-MM-dd'));
           }
@@ -1391,13 +1389,8 @@ export default function Loans() {
     const startDay = startDate.getDate();
     
     for (let i = 0; i < count; i++) {
-      let date = new Date(startDate);
-      date.setMonth(date.getMonth() + i);
-      
-      // Handle edge cases where the day doesn't exist in the target month
-      if (date.getDate() !== startDay) {
-        date.setDate(0);
-      }
+      // Usar addMonths do date-fns para evitar bugs na virada de ano/mês
+      let date = addMonths(startDate, i);
       
       // Skip weekends and holidays if marked
       while (
@@ -2942,14 +2935,18 @@ export default function Loans() {
       // ROLAR TODAS AS DATAS DAS PARCELAS PARA FRENTE baseado no tipo de pagamento
       let newInstallmentDates = currentDates.map(dateStr => {
         const date = new Date(dateStr + 'T12:00:00');
+        let newDate: Date;
         if (loan.payment_type === 'weekly') {
-          date.setDate(date.getDate() + 7);  // +1 semana
+          newDate = new Date(date);
+          newDate.setDate(newDate.getDate() + 7);  // +1 semana
         } else if (loan.payment_type === 'biweekly') {
-          date.setDate(date.getDate() + 15); // +15 dias (quinzenal)
+          newDate = new Date(date);
+          newDate.setDate(newDate.getDate() + 15); // +15 dias (quinzenal)
         } else {
-          date.setMonth(date.getMonth() + 1); // +1 mês (mensal/outros)
+          // Usar addMonths do date-fns para evitar bugs na virada de ano
+          newDate = addMonths(date, 1);
         }
-        return format(date, 'yyyy-MM-dd');
+        return format(newDate, 'yyyy-MM-dd');
       });
       
       // Se a data prometida foi especificada, usar como base para a próxima parcela em aberto
@@ -3237,8 +3234,8 @@ export default function Loans() {
       const startDate = new Date();
       const newDates: string[] = [];
       for (let i = 0; i < numInst; i++) {
-        const date = new Date(startDate);
-        date.setMonth(date.getMonth() + i);
+        // Usar addMonths do date-fns para evitar bugs na virada de ano
+        const date = addMonths(startDate, i);
         newDates.push(format(date, 'yyyy-MM-dd'));
       }
       setEditInstallmentDates(newDates);
@@ -3421,17 +3418,22 @@ export default function Loans() {
             // Get due date from installment_dates or calculate
             let dueDate = installmentDates[i] || loan.start_date;
             if (!installmentDates[i] && loan.start_date) {
-              const startDate = new Date(loan.start_date + 'T12:00:00');
+              const baseDate = new Date(loan.start_date + 'T12:00:00');
+              let calculatedDate: Date;
               if (loan.payment_type === 'daily') {
-                startDate.setDate(startDate.getDate() + i);
+                calculatedDate = new Date(baseDate);
+                calculatedDate.setDate(calculatedDate.getDate() + i);
               } else if (loan.payment_type === 'weekly') {
-                startDate.setDate(startDate.getDate() + (i * 7));
+                calculatedDate = new Date(baseDate);
+                calculatedDate.setDate(calculatedDate.getDate() + (i * 7));
               } else if (loan.payment_type === 'biweekly') {
-                startDate.setDate(startDate.getDate() + (i * 15));
+                calculatedDate = new Date(baseDate);
+                calculatedDate.setDate(calculatedDate.getDate() + (i * 15));
               } else {
-                startDate.setMonth(startDate.getMonth() + i);
+                // Usar addMonths do date-fns para evitar bugs na virada de ano
+                calculatedDate = addMonths(baseDate, i);
               }
-              dueDate = format(startDate, 'yyyy-MM-dd');
+              dueDate = format(calculatedDate, 'yyyy-MM-dd');
             }
             
             const paidAmount = partialPayments[i] || 0;
@@ -5677,8 +5679,9 @@ export default function Loans() {
                                     } else if (loan.due_date) {
                                       // Fallback para empréstimos sem installment_dates
                                       const dueDate = new Date(loan.due_date + 'T12:00:00');
-                                      dueDate.setMonth(dueDate.getMonth() + 1);
-                                      defaultNextDueDate = format(dueDate, 'yyyy-MM-dd');
+                                      // Usar addMonths do date-fns para evitar bugs na virada de ano
+                                      const nextDueDate = addMonths(dueDate, 1);
+                                      defaultNextDueDate = format(nextDueDate, 'yyyy-MM-dd');
                                     }
                                     
                                     setPaymentData({ 
@@ -8369,13 +8372,18 @@ export default function Loans() {
                         type="button"
                         onClick={() => {
                           // Função helper para rolar data baseado no tipo de pagamento
-                          const rollDateForward = (date: Date, paymentType: string) => {
+                          const rollDateForward = (date: Date, paymentType: string): Date => {
                             if (paymentType === 'weekly') {
-                              date.setDate(date.getDate() + 7);  // +1 semana
+                              const newDate = new Date(date);
+                              newDate.setDate(newDate.getDate() + 7);  // +1 semana
+                              return newDate;
                             } else if (paymentType === 'biweekly') {
-                              date.setDate(date.getDate() + 15); // +15 dias
+                              const newDate = new Date(date);
+                              newDate.setDate(newDate.getDate() + 15); // +15 dias
+                              return newDate;
                             } else {
-                              date.setMonth(date.getMonth() + 1); // +1 mês (mensal/outros)
+                              // Usar addMonths do date-fns para evitar bugs na virada de ano
+                              return addMonths(date, 1);
                             }
                           };
                           

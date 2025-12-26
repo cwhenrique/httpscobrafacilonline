@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,14 +90,8 @@ export default function PriceTableDialog({
     const dates: string[] = [];
     
     for (let i = 0; i < numInstallments; i++) {
-      const date = new Date(startDate);
-      date.setMonth(date.getMonth() + i);
-      
-      // Handle edge cases where the day doesn't exist in the target month
-      if (date.getDate() !== startDay) {
-        date.setDate(0);
-      }
-      
+      // Usar addMonths do date-fns para evitar bugs na virada de ano/mês
+      const date = addMonths(startDate, i);
       dates.push(format(date, 'yyyy-MM-dd'));
     }
     
