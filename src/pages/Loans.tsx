@@ -6902,15 +6902,140 @@ export default function Loans() {
                         
                         {/* Info resumida - Vencimento e Pago */}
                         <div className="grid grid-cols-2 gap-1.5 sm:gap-3 mt-1.5 sm:mt-3 text-[10px] sm:text-sm">
-                          <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor}`}>
-                            <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                            <span className="truncate">Venc: {(() => {
-                              const dates = (loan.installment_dates as string[]) || [];
-                              const paidCount = getPaidInstallmentsCount(loan);
-                              const nextDate = dates[paidCount] || loan.due_date;
-                              return formatDate(nextDate);
-                            })()}</span>
-                          </div>
+                          <Popover 
+                            open={editingDueDateLoanId === loan.id} 
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setEditingDueDateLoanId(loan.id);
+                                setEditingInstallmentIndex(null);
+                                const dates = (loan.installment_dates as string[]) || [];
+                                const paidCount = getPaidInstallmentsCount(loan);
+                                const nextDate = dates[paidCount] || loan.due_date;
+                                setNewDueDate(new Date(nextDate + 'T12:00:00'));
+                              } else {
+                                setEditingDueDateLoanId(null);
+                                setEditingInstallmentIndex(null);
+                                setNewDueDate(undefined);
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <div className={`flex items-center gap-1 sm:gap-2 ${mutedTextColor} cursor-pointer hover:text-primary transition-colors group`}>
+                                <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span className="truncate group-hover:underline">
+                                  Venc: {(() => {
+                                    const dates = (loan.installment_dates as string[]) || [];
+                                    const paidCount = getPaidInstallmentsCount(loan);
+                                    const nextDate = dates[paidCount] || loan.due_date;
+                                    return formatDate(nextDate);
+                                  })()}
+                                </span>
+                                <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <div className="p-3 max-w-[320px]">
+                                <div className="flex items-center justify-between mb-3">
+                                  <p className="text-sm font-medium">Datas das Parcelas</p>
+                                  <p className="text-xs text-muted-foreground">Clique para editar</p>
+                                </div>
+                                
+                                <ScrollArea className="h-[280px]">
+                                  <div className="space-y-1">
+                                    {((loan.installment_dates as string[]) || []).map((dateStr, index) => {
+                                      const dailyPaidCount = getPaidInstallmentsCount(loan);
+                                      const isPaidInstallment = index < dailyPaidCount;
+                                      const isEditingThis = editingInstallmentIndex === index;
+                                      const dateObj = new Date(dateStr + 'T12:00:00');
+                                      const dayName = format(dateObj, 'EEE', { locale: ptBR });
+                                      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                                      
+                                      return (
+                                        <div key={index}>
+                                          {isEditingThis ? (
+                                            <div className="p-2 rounded-lg bg-muted/50 border border-primary/30">
+                                              <p className="text-xs text-muted-foreground mb-2">
+                                                Alterar data da parcela {index + 1}
+                                              </p>
+                                              <Calendar
+                                                mode="single"
+                                                selected={newDueDate}
+                                                onSelect={(date) => date && setNewDueDate(date)}
+                                                locale={ptBR}
+                                                className="pointer-events-auto"
+                                              />
+                                              <div className="flex gap-2 mt-2">
+                                                <Button
+                                                  size="sm"
+                                                  className="flex-1"
+                                                  onClick={() => {
+                                                    if (newDueDate) {
+                                                      handleUpdateSpecificDate(loan.id, index, format(newDueDate, 'yyyy-MM-dd'));
+                                                    }
+                                                  }}
+                                                >
+                                                  Salvar
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => setEditingInstallmentIndex(null)}
+                                                >
+                                                  Cancelar
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div 
+                                              className={`flex items-center gap-2 p-1.5 rounded-md transition-colors ${
+                                                isPaidInstallment 
+                                                  ? 'bg-green-500/10' 
+                                                  : isWeekend 
+                                                    ? 'bg-amber-500/5 hover:bg-muted/50' 
+                                                    : 'hover:bg-muted/50'
+                                              }`}
+                                            >
+                                              <span className={`w-7 text-xs font-medium ${isPaidInstallment ? 'text-green-400' : 'text-muted-foreground'}`}>
+                                                {index + 1}ª
+                                              </span>
+                                              <span className={`flex-1 text-xs ${isPaidInstallment ? 'text-green-400' : isWeekend ? 'text-amber-400' : ''}`}>
+                                                {formatDate(dateStr)} ({dayName})
+                                              </span>
+                                              {isPaidInstallment ? (
+                                                <Check className="w-3 h-3 text-green-400" />
+                                              ) : (
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-6 w-6 p-0 hover:bg-primary/20"
+                                                  onClick={() => {
+                                                    setEditingInstallmentIndex(index);
+                                                    setNewDueDate(new Date(dateStr + 'T12:00:00'));
+                                                  }}
+                                                >
+                                                  <Pencil className="w-3 h-3" />
+                                                </Button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                                
+                                <div className="flex justify-end mt-3 pt-3 border-t">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingDueDateLoanId(null)}
+                                  >
+                                    Fechar
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                           <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                             <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                             <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
