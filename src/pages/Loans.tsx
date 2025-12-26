@@ -650,6 +650,7 @@ export default function Loans() {
   // Edit due date inline states
   const [editingDueDateLoanId, setEditingDueDateLoanId] = useState<string | null>(null);
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
+  const [editingInstallmentIndex, setEditingInstallmentIndex] = useState<number | null>(null);
   
   // Manual penalty dialog state
   const [manualPenaltyDialog, setManualPenaltyDialog] = useState<{
@@ -1118,6 +1119,41 @@ export default function Loans() {
 
       toast.success('Data de vencimento atualizada!');
       setEditingDueDateLoanId(null);
+      setNewDueDate(undefined);
+      fetchLoans();
+    } catch (err) {
+      toast.error('Erro ao atualizar data');
+    }
+  };
+
+  // Handle update of a specific installment date (for daily loans)
+  const handleUpdateSpecificDate = async (loanId: string, index: number, newDateStr: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+
+    const currentDates = (loan.installment_dates as string[]) || [];
+    const updatedDates = [...currentDates];
+    updatedDates[index] = newDateStr;
+
+    // Update due_date to the last date in the array
+    const newDueDateForLoan = updatedDates[updatedDates.length - 1];
+
+    try {
+      const { error } = await supabase
+        .from('loans')
+        .update({
+          installment_dates: updatedDates,
+          due_date: newDueDateForLoan,
+        })
+        .eq('id', loanId);
+
+      if (error) {
+        toast.error('Erro ao atualizar data');
+        return;
+      }
+
+      toast.success('Data atualizada!');
+      setEditingInstallmentIndex(null);
       setNewDueDate(undefined);
       fetchLoans();
     } catch (err) {
@@ -5345,12 +5381,14 @@ export default function Loans() {
                           onOpenChange={(open) => {
                             if (open) {
                               setEditingDueDateLoanId(loan.id);
+                              setEditingInstallmentIndex(null);
                               const dates = (loan.installment_dates as string[]) || [];
                               const paidCount = getPaidInstallmentsCount(loan);
                               const nextDate = dates[paidCount] || loan.due_date;
                               setNewDueDate(new Date(nextDate + 'T12:00:00'));
                             } else {
                               setEditingDueDateLoanId(null);
+                              setEditingInstallmentIndex(null);
                               setNewDueDate(undefined);
                             }
                           }}
@@ -5370,46 +5408,153 @@ export default function Loans() {
                             </div>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <div className="p-3">
-                              <p className="text-xs text-muted-foreground mb-2">
-                                Alterar vencimento da parcela {(() => {
-                                  const paidCount = getPaidInstallmentsCount(loan);
-                                  return paidCount + 1;
-                                })()}
-                              </p>
-                              <Calendar
-                                mode="single"
-                                selected={newDueDate}
-                                onSelect={(date) => {
-                                  if (date) {
-                                    setNewDueDate(date);
-                                  }
-                                }}
-                                initialFocus
-                                locale={ptBR}
-                                className="pointer-events-auto"
-                              />
-                              <div className="flex gap-2 mt-3">
-                                <Button
-                                  size="sm"
-                                  className="flex-1"
-                                  onClick={() => {
-                                    if (newDueDate) {
-                                      handleUpdateDueDate(loan.id, format(newDueDate, 'yyyy-MM-dd'));
+                            {isDaily ? (
+                              // Empréstimo DIÁRIO: Lista de todas as parcelas
+                              <div className="p-3 max-w-[320px]">
+                                <div className="flex items-center justify-between mb-3">
+                                  <p className="text-sm font-medium">Datas das Parcelas</p>
+                                  <p className="text-xs text-muted-foreground">Clique para editar</p>
+                                </div>
+                                
+                                <ScrollArea className="h-[280px]">
+                                  <div className="space-y-1">
+                                    {((loan.installment_dates as string[]) || []).map((dateStr, index) => {
+                                      const dailyPaidCount = getPaidInstallmentsCount(loan);
+                                      const isPaidInstallment = index < dailyPaidCount;
+                                      const isEditingThis = editingInstallmentIndex === index;
+                                      const dateObj = new Date(dateStr + 'T12:00:00');
+                                      const dayName = format(dateObj, 'EEE', { locale: ptBR });
+                                      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                                      
+                                      return (
+                                        <div key={index}>
+                                          {isEditingThis ? (
+                                            // Modo edição: mostrar calendário
+                                            <div className="p-2 rounded-lg bg-muted/50 border border-primary/30">
+                                              <p className="text-xs text-muted-foreground mb-2">
+                                                Alterar data da parcela {index + 1}
+                                              </p>
+                                              <Calendar
+                                                mode="single"
+                                                selected={newDueDate}
+                                                onSelect={(date) => date && setNewDueDate(date)}
+                                                locale={ptBR}
+                                                className="pointer-events-auto"
+                                              />
+                                              <div className="flex gap-2 mt-2">
+                                                <Button
+                                                  size="sm"
+                                                  className="flex-1"
+                                                  onClick={() => {
+                                                    if (newDueDate) {
+                                                      handleUpdateSpecificDate(loan.id, index, format(newDueDate, 'yyyy-MM-dd'));
+                                                    }
+                                                  }}
+                                                >
+                                                  Salvar
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() => {
+                                                    setEditingInstallmentIndex(null);
+                                                    setNewDueDate(undefined);
+                                                  }}
+                                                >
+                                                  Cancelar
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            // Modo visualização
+                                            <div 
+                                              className={`flex items-center gap-2 p-1.5 rounded-md transition-colors ${
+                                                isPaidInstallment 
+                                                  ? 'bg-green-500/10' 
+                                                  : 'hover:bg-muted/50 cursor-pointer'
+                                              }`}
+                                              onClick={() => {
+                                                if (!isPaidInstallment) {
+                                                  setEditingInstallmentIndex(index);
+                                                  setNewDueDate(new Date(dateStr + 'T12:00:00'));
+                                                }
+                                              }}
+                                            >
+                                              <span className={`w-7 text-xs font-medium ${
+                                                isPaidInstallment ? 'text-green-400' : 'text-muted-foreground'
+                                              }`}>
+                                                {index + 1}ª
+                                              </span>
+                                              
+                                              <span className={`flex-1 text-xs ${
+                                                isPaidInstallment ? 'text-green-400' : isWeekend ? 'text-orange-400' : ''
+                                              }`}>
+                                                {formatDate(dateStr)} ({dayName})
+                                              </span>
+                                              
+                                              {isPaidInstallment ? (
+                                                <Check className="w-3.5 h-3.5 text-green-400" />
+                                              ) : (
+                                                <Pencil className="w-3 h-3 text-muted-foreground hover:text-primary" />
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </ScrollArea>
+                                
+                                <div className="flex justify-end mt-3 pt-3 border-t">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingDueDateLoanId(null)}
+                                  >
+                                    Fechar
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              // Outros empréstimos: comportamento atual
+                              <div className="p-3">
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Alterar vencimento da parcela {getPaidInstallmentsCount(loan) + 1}
+                                </p>
+                                <Calendar
+                                  mode="single"
+                                  selected={newDueDate}
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      setNewDueDate(date);
                                     }
                                   }}
-                                >
-                                  Salvar
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setEditingDueDateLoanId(null)}
-                                >
-                                  Cancelar
-                                </Button>
+                                  initialFocus
+                                  locale={ptBR}
+                                  className="pointer-events-auto"
+                                />
+                                <div className="flex gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      if (newDueDate) {
+                                        handleUpdateDueDate(loan.id, format(newDueDate, 'yyyy-MM-dd'));
+                                      }
+                                    }}
+                                  >
+                                    Salvar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingDueDateLoanId(null)}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </PopoverContent>
                         </Popover>
                         <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
