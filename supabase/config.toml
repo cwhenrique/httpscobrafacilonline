@@ -1,5 +1,8 @@
 project_id = "yulegybknvtanqkipsbj"
 
+[functions.send-test-whatsapp]
+verify_jwt = false
+
 [functions.check-trial-expiring]
 verify_jwt = false
 
