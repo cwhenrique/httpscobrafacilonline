@@ -510,8 +510,8 @@ Seu acesso ao *CobraFácil* está liberado! 🚀
 
 Qualquer dúvida, estamos à disposição! 💚`;
 
-      // Send via Cobrafacilapp instance
-      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'Cobrafacilapp');
+      // Send via VendaApp instance
+      await sendWhatsAppMessage(customerPhone, welcomeMessage, 'VendaApp');
     }
 
     return new Response(
