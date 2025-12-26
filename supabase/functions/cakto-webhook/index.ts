@@ -525,20 +525,17 @@ Obrigado por continuar com a gente! 💚`;
     if (customerPhone) {
       console.log('Phone is present, preparing welcome message...');
       
-      const welcomeMessage = `🎉 *Parabéns pela sua compra!*
+      const welcomeMessage = `Olá ${customerName || ''}!
 
-Olá ${customerName || 'Cliente'}!
+Seu acesso ao CobraFácil está liberado.
 
-Seu acesso ao *CobraFácil* está liberado! 🚀
+Acesse: https://cobrafacil.online/auth
+Email: ${customerEmail}
+Senha: mudar@@
 
-🔗 *Acesse o sistema:* https://cobrafacil.online/auth
+Recomendamos alterar sua senha após o primeiro acesso.
 
-📧 *Seu email:* ${customerEmail}
-🔑 *Sua senha:* mudar@@
-
-⚠️ Recomendamos que você altere sua senha após o primeiro acesso.
-
-Qualquer dúvida, estamos à disposição! 💚`;
+Qualquer dúvida, estamos à disposição.`;
 
       console.log('Sending welcome message via SuporteApp instance...');
       const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'SuporteApp');
