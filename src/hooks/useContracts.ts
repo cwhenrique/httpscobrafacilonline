@@ -254,6 +254,26 @@ export function useContracts() {
     },
   });
 
+  const updatePaymentDueDate = useMutation({
+    mutationFn: async ({ paymentId, newDueDate }: { paymentId: string; newDueDate: string }) => {
+      const { error } = await supabase
+        .from('contract_payments')
+        .update({ due_date: newDueDate })
+        .eq('id', paymentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['contract_payments'] });
+      queryClient.invalidateQueries({ queryKey: ['all_contract_payments'] });
+      toast.success('Data de vencimento atualizada!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar data: ' + error.message);
+    },
+  });
+
   return {
     contracts,
     allContractPayments,
@@ -264,5 +284,6 @@ export function useContracts() {
     deleteContract,
     getContractPayments,
     markPaymentAsPaid,
+    updatePaymentDueDate,
   };
 }

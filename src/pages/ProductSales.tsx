@@ -38,7 +38,7 @@ import { Client } from '@/types/database';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -49,6 +49,8 @@ import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import ProductSaleCard from '@/components/ProductSaleCard';
 import ProductInstallmentsDialog from '@/components/ProductInstallmentsDialog';
 import SaleCreatedReceiptPrompt from '@/components/SaleCreatedReceiptPrompt';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -166,7 +168,7 @@ export default function ProductSales() {
   
   
   // Contracts hooks
-  const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid } = useContracts();
+  const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
   
   const { profile } = useProfile();
 
@@ -214,6 +216,9 @@ export default function ProductSales() {
   const [selectedContractPayment, setSelectedContractPayment] = useState<{ payment: ContractPayment; contract: Contract } | null>(null);
   const [contractPaymentDate, setContractPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
+  // Contract payment due date edit states
+  const [editingPaymentDueDateId, setEditingPaymentDueDateId] = useState<string | null>(null);
+  const [newPaymentDueDate, setNewPaymentDueDate] = useState<Date | undefined>(undefined);
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -1445,9 +1450,72 @@ export default function ProductSales() {
                               payment.status === 'paid' ? 'bg-primary/10 text-primary' :
                               isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
                             )}>
-                              <div>
+                              <div className="flex items-center">
                                 <span className="font-medium">{payment.installment_number}ª</span>
-                                <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                {payment.status !== 'paid' ? (
+                                  <Popover 
+                                    open={editingPaymentDueDateId === payment.id} 
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        setEditingPaymentDueDateId(payment.id);
+                                        setNewPaymentDueDate(parseISO(payment.due_date));
+                                      } else {
+                                        setEditingPaymentDueDateId(null);
+                                        setNewPaymentDueDate(undefined);
+                                      }
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <span className="ml-2 cursor-pointer hover:underline hover:text-primary group inline-flex items-center gap-1">
+                                        {format(parseISO(payment.due_date), "dd/MM/yy")}
+                                        <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </span>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <div className="p-3">
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                          Alterar vencimento da {payment.installment_number}ª parcela
+                                        </p>
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={newPaymentDueDate}
+                                          onSelect={(date) => date && setNewPaymentDueDate(date)}
+                                          initialFocus
+                                          locale={ptBR}
+                                        />
+                                        <div className="flex gap-2 mt-3">
+                                          <Button
+                                            size="sm"
+                                            className="flex-1"
+                                            onClick={async () => {
+                                              if (newPaymentDueDate) {
+                                                await updatePaymentDueDate.mutateAsync({
+                                                  paymentId: payment.id,
+                                                  newDueDate: format(newPaymentDueDate, 'yyyy-MM-dd')
+                                                });
+                                                setEditingPaymentDueDateId(null);
+                                                // Reload contract payments
+                                                const updatedPayments = await getContractPayments(contract.id);
+                                                setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
+                                              }
+                                            }}
+                                          >
+                                            Salvar
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setEditingPaymentDueDateId(null)}
+                                          >
+                                            Cancelar
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ) : (
+                                  <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold">{formatCurrency(payment.amount)}</span>
