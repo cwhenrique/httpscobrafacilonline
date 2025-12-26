@@ -540,8 +540,8 @@ Seu acesso ao *CobraFácil* está liberado! 🚀
 
 Qualquer dúvida, estamos à disposição! 💚`;
 
-      console.log('Sending welcome message via VendaApp instance...');
-      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'VendaApp');
+      console.log('Sending welcome message via SuporteApp instance...');
+      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'SuporteApp');
       
       if (messageSent) {
         console.log('=== WELCOME MESSAGE SENT SUCCESSFULLY ===');
