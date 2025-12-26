@@ -3307,6 +3307,19 @@ export default function Loans() {
     
     // Build notes with renegotiation tags if this is a renegotiation
     let finalNotes = cleanNotes;
+    
+    // Remove any existing custom installment value tag
+    finalNotes = finalNotes.replace(/\[CUSTOM_INSTALLMENT_VALUE:[0-9.]+\]\n?/g, '').trim();
+    
+    // If user manually edited the installment value, save it as a tag
+    if (isEditManuallyEditingInstallment && editInstallmentValue && 
+        (editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly')) {
+      const customValue = parseFloat(editInstallmentValue);
+      if (!isNaN(customValue) && customValue > 0) {
+        finalNotes = `[CUSTOM_INSTALLMENT_VALUE:${customValue.toFixed(2)}]\n${finalNotes}`.trim();
+      }
+    }
+    
     if (editIsRenegotiation && editHistoricalData) {
       const renegotiationTags = `[RENEGOTIATED]
 [ORIGINAL_PRINCIPAL:${editHistoricalData.originalPrincipal.toFixed(2)}]
