@@ -139,10 +139,17 @@ export default function Tutorials() {
                     </div>
                   )}
 
-                  {/* Play Button Overlay */}
+                  {/* Capa com título do vídeo */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-4">
+                    <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg line-clamp-2">
+                      {video.title}
+                    </h3>
+                  </div>
+
+                  {/* Play Button Overlay (no hover) */}
                   {hasVideo && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg">
                         <Play className="w-6 h-6 text-primary-foreground ml-1" fill="currentColor" />
                       </div>
                     </div>
@@ -151,16 +158,16 @@ export default function Tutorials() {
                   {/* Order number badge */}
                   <Badge 
                     variant="secondary" 
-                    className="absolute top-2 left-2 font-mono bg-black/70 text-white border-0"
+                    className="absolute top-2 left-2 font-mono bg-primary text-primary-foreground border-0 text-sm px-2.5 py-1"
                   >
-                    {String(video.order_number).padStart(2, '0')}
+                    Aula {String(video.order_number).padStart(2, '0')}
                   </Badge>
 
                   {/* Duration Badge */}
                   {video.duration && (
                     <Badge 
                       variant="secondary" 
-                      className="absolute bottom-2 right-2 bg-black/80 text-white border-0"
+                      className="absolute top-2 right-2 bg-black/80 text-white border-0"
                     >
                       <Clock className="w-3 h-3 mr-1" />
                       {video.duration}
@@ -170,7 +177,7 @@ export default function Tutorials() {
                   {/* No video indicator */}
                   {!hasVideo && (
                     <Badge 
-                      className="absolute bottom-2 right-2"
+                      className="absolute bottom-16 right-2"
                       variant="destructive"
                     >
                       Em breve
