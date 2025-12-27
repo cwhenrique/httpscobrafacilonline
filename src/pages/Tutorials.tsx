@@ -19,7 +19,7 @@ import {
 export default function Tutorials() {
   const { tutorials, isLoading } = useTutorials();
   const { isAdmin } = useIsAdmin();
-  const [viewMode, setViewMode] = useState<"carousel" | "panorama">("carousel");
+  const [viewMode, setViewMode] = useState<"carousel" | "panorama">("panorama");
   const [selectedVideo, setSelectedVideo] = useState<{ id: string; title: string; videoId: string } | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
