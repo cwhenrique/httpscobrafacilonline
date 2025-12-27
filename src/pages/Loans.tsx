@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -384,6 +385,7 @@ export default function Loans() {
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'regular' | 'daily'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -4731,190 +4733,216 @@ export default function Loans() {
               </Button>
             </div>
 
-          <TooltipProvider delayDuration={300}>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 tutorial-filters">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'all' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('all')}
-                    className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
-                  >
-                    Todos
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Exibe todos os empréstimos cadastrados</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('pending')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
-                  >
-                    Em Dia
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos pendentes com pagamentos em dia</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'due_today' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('due_today')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'due_today' ? 'bg-amber-500' : 'border-amber-500 text-amber-600 hover:bg-amber-500/10'}`}
-                  >
-                    <Bell className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Vence Hoje</span><span className="xs:hidden">Hoje</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com parcela vencendo hoje</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'paid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('paid')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
-                  >
-                    Pagos
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos totalmente quitados</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'overdue' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('overdue')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
-                  >
-                    Atraso
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com parcelas vencidas</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('renegotiated')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}`}
-                  >
-                    <span className="hidden xs:inline">Reneg.</span><span className="xs:hidden">Ren.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos que foram renegociados com cliente</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'interest_only' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('interest_only')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'interest_only' ? 'bg-purple-500' : 'border-purple-500 text-purple-600 hover:bg-purple-500/10'}`}
-                  >
-                    <span className="hidden xs:inline">Só Juros</span><span className="xs:hidden">Juros</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos onde cliente pagou apenas os juros</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'weekly' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('weekly')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'weekly' ? 'bg-orange-500' : 'border-orange-500 text-orange-600 hover:bg-orange-500/10'}`}
-                  >
-                    <CalendarIcon className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Semanal</span><span className="xs:hidden">Sem.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com cobrança semanal</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'biweekly' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('biweekly')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'biweekly' ? 'bg-teal-500' : 'border-teal-500 text-teal-600 hover:bg-teal-500/10'}`}
-                  >
-                    <CalendarIcon className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Quinzenal</span><span className="xs:hidden">Quin.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com cobrança quinzenal (a cada 15 dias)</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'installment' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('installment')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'installment' ? 'bg-emerald-500' : 'border-emerald-500 text-emerald-600 hover:bg-emerald-500/10'}`}
-                  >
-                    <CalendarIcon className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Mensal</span><span className="xs:hidden">Mens.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com cobrança mensal parcelada</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={statusFilter === 'single' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('single')}
-                    className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'single' ? 'bg-gray-500' : 'border-gray-500 text-gray-600 hover:bg-gray-500/10'}`}
-                  >
-                    <DollarSign className="w-3 h-3 mr-1" />
-                    <span className="hidden xs:inline">Única</span><span className="xs:hidden">Ún.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Empréstimos com pagamento em parcela única</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
+          <Collapsible open={isFiltersExpanded} onOpenChange={setIsFiltersExpanded} className="tutorial-filters">
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 text-xs sm:text-sm px-3 gap-2 ${statusFilter !== 'all' ? 'border-primary text-primary' : ''}`}
+              >
+                <Search className="w-3 h-3" />
+                {statusFilter === 'all' ? 'Filtros' : 
+                  statusFilter === 'pending' ? 'Em Dia' :
+                  statusFilter === 'due_today' ? 'Vence Hoje' :
+                  statusFilter === 'paid' ? 'Pagos' :
+                  statusFilter === 'overdue' ? 'Atraso' :
+                  statusFilter === 'renegotiated' ? 'Reneg.' :
+                  statusFilter === 'interest_only' ? 'Só Juros' :
+                  statusFilter === 'weekly' ? 'Semanal' :
+                  statusFilter === 'biweekly' ? 'Quinzenal' :
+                  statusFilter === 'installment' ? 'Mensal' :
+                  statusFilter === 'single' ? 'Única' : 'Filtros'
+                }
+                {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <TooltipProvider delayDuration={300}>
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 p-3 bg-muted/50 rounded-lg border">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'all' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('all'); setIsFiltersExpanded(false); }}
+                        className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
+                      >
+                        Todos
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Exibe todos os empréstimos cadastrados</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('pending'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
+                      >
+                        Em Dia
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos pendentes com pagamentos em dia</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'due_today' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('due_today'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'due_today' ? 'bg-amber-500' : 'border-amber-500 text-amber-600 hover:bg-amber-500/10'}`}
+                      >
+                        <Bell className="w-3 h-3 mr-1" />
+                        Vence Hoje
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com parcela vencendo hoje</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'paid' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('paid'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
+                      >
+                        Pagos
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos totalmente quitados</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('overdue'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
+                      >
+                        Atraso
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com parcelas vencidas</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('renegotiated'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}`}
+                      >
+                        Reneg.
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos que foram renegociados com cliente</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'interest_only' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('interest_only'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'interest_only' ? 'bg-purple-500' : 'border-purple-500 text-purple-600 hover:bg-purple-500/10'}`}
+                      >
+                        Só Juros
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos onde cliente pagou apenas os juros</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'weekly' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('weekly'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'weekly' ? 'bg-orange-500' : 'border-orange-500 text-orange-600 hover:bg-orange-500/10'}`}
+                      >
+                        <CalendarIcon className="w-3 h-3 mr-1" />
+                        Semanal
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com cobrança semanal</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'biweekly' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('biweekly'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'biweekly' ? 'bg-teal-500' : 'border-teal-500 text-teal-600 hover:bg-teal-500/10'}`}
+                      >
+                        <CalendarIcon className="w-3 h-3 mr-1" />
+                        Quinzenal
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com cobrança quinzenal (a cada 15 dias)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'installment' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('installment'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'installment' ? 'bg-emerald-500' : 'border-emerald-500 text-emerald-600 hover:bg-emerald-500/10'}`}
+                      >
+                        <CalendarIcon className="w-3 h-3 mr-1" />
+                        Mensal
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com cobrança mensal parcelada</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={statusFilter === 'single' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('single'); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'single' ? 'bg-gray-500' : 'border-gray-500 text-gray-600 hover:bg-gray-500/10'}`}
+                      >
+                        <DollarSign className="w-3 h-3 mr-1" />
+                        Única
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Empréstimos com pagamento em parcela única</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+            </CollapsibleContent>
+          </Collapsible>
           
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -6650,73 +6678,92 @@ export default function Loans() {
               </Button>
             </div>
 
-            <TooltipProvider delayDuration={300}>
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={statusFilter === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatusFilter('all')}
-                      className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
-                    >
-                      Todos
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Exibe todos os empréstimos diários</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatusFilter('pending')}
-                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
-                    >
-                      Em Dia
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Empréstimos com pagamentos em dia</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={statusFilter === 'paid' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatusFilter('paid')}
-                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
-                    >
-                      Pagos
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Empréstimos quitados</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={statusFilter === 'overdue' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatusFilter('overdue')}
-                      className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
-                    >
-                      Atraso
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Empréstimos com parcelas vencidas</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+            <Collapsible open={isFiltersExpanded} onOpenChange={setIsFiltersExpanded}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-8 text-xs sm:text-sm px-3 gap-2 ${statusFilter !== 'all' ? 'border-primary text-primary' : ''}`}
+                >
+                  <Search className="w-3 h-3" />
+                  {statusFilter === 'all' ? 'Filtros' : 
+                    statusFilter === 'pending' ? 'Em Dia' :
+                    statusFilter === 'paid' ? 'Pagos' :
+                    statusFilter === 'overdue' ? 'Atraso' : 'Filtros'
+                  }
+                  {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2">
+                <TooltipProvider delayDuration={300}>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 p-3 bg-muted/50 rounded-lg border">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={statusFilter === 'all' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setStatusFilter('all'); setIsFiltersExpanded(false); }}
+                          className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
+                        >
+                          Todos
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Exibe todos os empréstimos diários</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setStatusFilter('pending'); setIsFiltersExpanded(false); }}
+                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
+                        >
+                          Em Dia
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Empréstimos com pagamentos em dia</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={statusFilter === 'paid' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setStatusFilter('paid'); setIsFiltersExpanded(false); }}
+                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
+                        >
+                          Pagos
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Empréstimos quitados</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={statusFilter === 'overdue' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setStatusFilter('overdue'); setIsFiltersExpanded(false); }}
+                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
+                        >
+                          Atraso
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Empréstimos com parcelas vencidas</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
+              </CollapsibleContent>
+            </Collapsible>
 
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
