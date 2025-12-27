@@ -25,6 +25,7 @@ import Simulator from "./pages/Simulator";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
+import Tutorials from "./pages/Tutorials";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
+            <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

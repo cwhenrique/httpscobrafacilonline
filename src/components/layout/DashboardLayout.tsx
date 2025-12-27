@@ -31,6 +31,7 @@ import {
   Car,
   TrendingUp,
   FileText,
+  GraduationCap,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -55,6 +56,7 @@ const navigation = [
   // Contas e Ferramentas
   { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText },
+  { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
