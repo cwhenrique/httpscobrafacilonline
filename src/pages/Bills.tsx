@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useBills, Bill, BillCategory, CreateBillData } from '@/hooks/useBills';
+import { useBills, Bill, BillCategory, CreateBillData, BillOwnerType } from '@/hooks/useBills';
+import { Building2, User } from 'lucide-react';
 import { format, parseISO, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval, addMonths, subMonths, differenceInMonths, getDaysInMonth, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Pencil, Trash2, Zap, Droplets, Wifi, Smartphone, CreditCard, Home, Car, Shield, Scissors, Tv, ShoppingCart, Heart, GraduationCap, Package, Calendar, AlertTriangle, CheckCircle2, Clock, DollarSign, Copy, TrendingUp, Wallet, PartyPopper, Users, ChevronLeft, ChevronRight, PieChart as PieChartIcon, Undo2, Tag, Repeat } from 'lucide-react';
@@ -53,6 +54,7 @@ const getCategoryInfo = (category: BillCategory) => {
 
 type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today';
 type PeriodFilter = 'all' | '1' | '2' | '3' | '6' | '12';
+type OwnerFilter = 'all' | 'personal' | 'business';
 
 // Tipo para contas virtuais (recorrentes projetadas)
 interface VirtualBill extends Bill {
@@ -74,6 +76,33 @@ interface BillFormProps {
 // BillForm movido para fora do componente Bills para evitar perda de foco
 const BillForm = ({ formData, setFormData, onSubmit, submitLabel, isLoading, customCategory, setCustomCategory }: BillFormProps) => (
   <div className="space-y-4">
+    {/* Owner Type Toggle - Pessoal/Empresa */}
+    <div className="col-span-2">
+      <Label className="mb-2 block">Tipo de Conta</Label>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant={formData.owner_type !== 'business' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFormData({ ...formData, owner_type: 'personal' })}
+          className="flex-1"
+        >
+          <User className="h-4 w-4 mr-2" />
+          Pessoal
+        </Button>
+        <Button
+          type="button"
+          variant={formData.owner_type === 'business' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFormData({ ...formData, owner_type: 'business' })}
+          className="flex-1"
+        >
+          <Building2 className="h-4 w-4 mr-2" />
+          Empresa
+        </Button>
+      </div>
+    </div>
+    
     <div className="grid grid-cols-2 gap-4">
       <div className="col-span-2">
         <Label>Nome da Conta *</Label>
@@ -240,6 +269,7 @@ export default function Bills() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [categoryFilter, setCategoryFilter] = useState<BillCategory | 'all'>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(new Date()); // null = todos os meses
@@ -256,6 +286,7 @@ export default function Bills() {
     recurrence_months: null,
     pix_key: '',
     notes: '',
+    owner_type: 'personal',
   });
 
   const resetForm = () => {
@@ -269,6 +300,7 @@ export default function Bills() {
       recurrence_months: null,
       pix_key: '',
       notes: '',
+      owner_type: 'personal',
     });
     setCustomCategory('');
   };
@@ -468,6 +500,11 @@ export default function Bills() {
     // Usar bills filtrados por categoria se houver filtro de categoria
     let filtered = categoryFilter !== 'all' ? [...categoryFilteredBills] : [...billsWithRecurring];
 
+    // Filtro por tipo (pessoal/empresa)
+    if (ownerFilter !== 'all') {
+      filtered = filtered.filter(b => (b.owner_type || 'personal') === ownerFilter);
+    }
+
     // Filtro por status
     if (filter === 'pending') {
       filtered = filtered.filter(b => b.status === 'pending' && !isPast(parseISO(b.due_date)));
@@ -492,7 +529,7 @@ export default function Bills() {
     filtered.sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime());
 
     return filtered;
-  }, [billsWithRecurring, categoryFilteredBills, categoryFilter, filter, searchTerm, periodFilter]);
+  }, [billsWithRecurring, categoryFilteredBills, categoryFilter, filter, searchTerm, periodFilter, ownerFilter]);
 
   const handleCreate = async () => {
     // Valor é opcional apenas para cartão de crédito
@@ -580,6 +617,7 @@ export default function Bills() {
         recurrence_months: formData.recurrence_months,
         pix_key: formData.pix_key,
         notes: formData.notes,
+        owner_type: formData.owner_type,
       }
     });
     setEditingBill(null);
@@ -600,6 +638,7 @@ export default function Bills() {
       recurrence_months: bill.recurrence_months ?? null,
       pix_key: bill.pix_key || '',
       notes: bill.notes || '',
+      owner_type: bill.owner_type || 'personal',
     });
     // Se for categoria personalizada, preencher o campo
     setCustomCategory(isCustomCategory ? (bill.category || '') : '');
@@ -990,6 +1029,35 @@ export default function Bills() {
             )}
           </div>
 
+          {/* Owner Type Filter */}
+          <div className="flex gap-2">
+            <Button
+              variant={ownerFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOwnerFilter('all')}
+            >
+              Todas
+            </Button>
+            <Button
+              variant={ownerFilter === 'personal' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOwnerFilter('personal')}
+              className="gap-1"
+            >
+              <User className="h-4 w-4" />
+              Pessoais
+            </Button>
+            <Button
+              variant={ownerFilter === 'business' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setOwnerFilter('business')}
+              className="gap-1"
+            >
+              <Building2 className="h-4 w-4" />
+              Empresa
+            </Button>
+          </div>
+
           {/* Search and Status Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
@@ -1108,17 +1176,35 @@ export default function Bills() {
                           <span>Vence {format(parseISO(bill.due_date), "dd 'de' MMM", { locale: ptBR })}</span>
                         </div>
                       </div>
-                      {(bill as VirtualBill).isVirtual ? (
-                        <Badge variant="outline" className="text-xs bg-blue-500/30 text-white border-blue-400/50">
-                          <Repeat className="h-3 w-3 mr-1" />
-                          Conta Prevista
+                      <div className="flex flex-col gap-1 items-end">
+                        {/* Owner Type Badge */}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            bill.owner_type === 'business' 
+                              ? 'bg-purple-500/30 text-white border-purple-400/50' 
+                              : 'bg-blue-500/30 text-white border-blue-400/50'
+                          }`}
+                        >
+                          {bill.owner_type === 'business' ? (
+                            <><Building2 className="h-3 w-3 mr-1" /> Empresa</>
+                          ) : (
+                            <><User className="h-3 w-3 mr-1" /> Pessoal</>
+                          )}
                         </Badge>
-                      ) : bill.is_recurring ? (
-                        <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/30">
-                          <Repeat className="h-3 w-3 mr-1" />
-                          Recorrente
-                        </Badge>
-                      ) : null}
+                        {/* Recurring Badge */}
+                        {(bill as VirtualBill).isVirtual ? (
+                          <Badge variant="outline" className="text-xs bg-blue-500/30 text-white border-blue-400/50">
+                            <Repeat className="h-3 w-3 mr-1" />
+                            Conta Prevista
+                          </Badge>
+                        ) : bill.is_recurring ? (
+                          <Badge variant="outline" className="text-xs bg-white/10 text-white border-white/30">
+                            <Repeat className="h-3 w-3 mr-1" />
+                            Recorrente
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
 
                     {/* PIX Key Section */}

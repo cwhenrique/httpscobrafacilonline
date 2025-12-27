@@ -25,6 +25,8 @@ export type BillCategory =
   | 'custom'
   | (string & {}); // Permite categorias personalizadas
 
+export type BillOwnerType = 'personal' | 'business';
+
 export interface Bill {
   id: string;
   user_id: string;
@@ -39,6 +41,7 @@ export interface Bill {
   is_recurring: boolean;
   recurrence_months: number | null;
   pix_key: string | null;
+  owner_type: BillOwnerType;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +56,7 @@ export interface CreateBillData {
   recurrence_months?: number | null;
   pix_key?: string;
   notes?: string;
+  owner_type?: BillOwnerType;
 }
 
 export interface UpdateBillData {
@@ -67,6 +71,7 @@ export interface UpdateBillData {
   recurrence_months?: number | null;
   pix_key?: string;
   notes?: string;
+  owner_type?: BillOwnerType;
 }
 
 export function useBills() {
@@ -107,6 +112,7 @@ export function useBills() {
           recurrence_months: data.recurrence_months ?? null,
           pix_key: data.pix_key || null,
           notes: data.notes || null,
+          owner_type: data.owner_type || 'personal',
           status: 'pending',
         })
         .select()

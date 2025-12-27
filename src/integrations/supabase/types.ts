@@ -24,6 +24,7 @@ export type Database = {
           id: string
           is_recurring: boolean | null
           notes: string | null
+          owner_type: string | null
           paid_date: string | null
           payee_name: string
           pix_key: string | null
@@ -41,6 +42,7 @@ export type Database = {
           id?: string
           is_recurring?: boolean | null
           notes?: string | null
+          owner_type?: string | null
           paid_date?: string | null
           payee_name: string
           pix_key?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           id?: string
           is_recurring?: boolean | null
           notes?: string | null
+          owner_type?: string | null
           paid_date?: string | null
           payee_name?: string
           pix_key?: string | null
