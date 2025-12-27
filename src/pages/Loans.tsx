@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, FolderOpen } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,7 +42,7 @@ import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog'
 import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
-import { ClientLoansFolder } from '@/components/ClientLoansFolder';
+
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -406,45 +406,6 @@ export default function Loans() {
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
-  // Estado para dialog de contratos agrupados por cliente (legacy - ainda usado para dialog)
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
-  const [groupDialogClientId, setGroupDialogClientId] = useState<string | null>(null);
-  const [groupDialogCurrentLoanId, setGroupDialogCurrentLoanId] = useState<string | null>(null);
-  
-  // Estado para agrupamento in-place por cliente
-  const [groupedClients, setGroupedClients] = useState<Set<string>>(new Set());
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  
-  // Funções de controle de agrupamento
-  const handleGroupClient = (clientId: string) => {
-    setGroupedClients(prev => new Set(prev).add(clientId));
-    setExpandedGroups(prev => new Set(prev).add(clientId)); // Já expandir automaticamente
-  };
-  
-  const handleUngroupClient = (clientId: string) => {
-    setGroupedClients(prev => {
-      const next = new Set(prev);
-      next.delete(clientId);
-      return next;
-    });
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      next.delete(clientId);
-      return next;
-    });
-  };
-  
-  const toggleGroupExpansion = (clientId: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(clientId)) {
-        next.delete(clientId);
-      } else {
-        next.add(clientId);
-      }
-      return next;
-    });
-  };
   
   const toggleOverdueExpand = (loanId: string) => {
     setExpandedOverdueCards(prev => {
@@ -1903,77 +1864,6 @@ export default function Loans() {
       return nextDueDateA.getTime() - nextDueDateB.getTime();
     });
   }, [filteredLoans]);
-
-  // Contar quantos empréstimos cada cliente tem
-  const loanCountByClient = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const loan of loans) {
-      if (loan.client_id) {
-        counts[loan.client_id] = (counts[loan.client_id] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [loans]);
-
-  // Agrupar empréstimos por cliente (para pastas agrupadas)
-  const loansByClient = useMemo(() => {
-    const groups: Record<string, {
-      client: Client;
-      loans: Loan[];
-      totalPrincipal: number;
-      totalToReceive: number;
-      totalPaid: number;
-      remainingBalance: number;
-      hasOverdue: boolean;
-      hasPending: boolean;
-      allPaid: boolean;
-    }> = {};
-
-    for (const loan of sortedLoans) {
-      if (!loan.client_id || !loan.client) continue;
-      
-      if (!groups[loan.client_id]) {
-        groups[loan.client_id] = {
-          client: loan.client,
-          loans: [],
-          totalPrincipal: 0,
-          totalToReceive: 0,
-          totalPaid: 0,
-          remainingBalance: 0,
-          hasOverdue: false,
-          hasPending: false,
-          allPaid: true,
-        };
-      }
-      
-      const { isPaid, isOverdue } = getLoanStatus(loan);
-      
-      groups[loan.client_id].loans.push(loan);
-      groups[loan.client_id].totalPrincipal += loan.principal_amount;
-      groups[loan.client_id].totalPaid += loan.total_paid || 0;
-      groups[loan.client_id].remainingBalance += loan.remaining_balance;
-      
-      if (isOverdue && !isPaid) groups[loan.client_id].hasOverdue = true;
-      if (!isPaid) {
-        groups[loan.client_id].hasPending = true;
-        groups[loan.client_id].allPaid = false;
-      }
-    }
-
-    return groups;
-  }, [sortedLoans]);
-
-  // Obter empréstimos de um cliente específico para o dialog
-  const getClientLoansForDialog = useMemo(() => {
-    if (!groupDialogClientId) return [];
-    return sortedLoans.filter(loan => loan.client_id === groupDialogClientId);
-  }, [groupDialogClientId, sortedLoans]);
-
-  // Obter cliente do dialog
-  const groupDialogClient = useMemo(() => {
-    if (!groupDialogClientId) return null;
-    return clients.find(c => c.id === groupDialogClientId) || null;
-  }, [groupDialogClientId, clients]);
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
@@ -5392,21 +5282,6 @@ export default function Loans() {
                           <div className="flex items-center justify-between gap-1">
                             <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
                             <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                              {/* Botão de Agrupar - só aparece se cliente tem 2+ contratos e não está agrupado */}
-                              {loan.client_id && loanCountByClient[loan.client_id] > 1 && !groupedClients.has(loan.client_id) && (
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="sm" 
-                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleGroupClient(loan.client_id);
-                                  }}
-                                >
-                                  <FolderOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                  <span className="hidden sm:inline">Agrupar</span>
-                                </Button>
-                              )}
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
@@ -6258,28 +6133,6 @@ export default function Loans() {
                                 </TooltipContent>
                               </Tooltip>
                             )}
-                            {/* Botão de Agrupar - só aparece se cliente tem mais de 1 contrato */}
-                            {loan.client_id && loanCountByClient[loan.client_id] > 1 && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                    size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
-                                    onClick={() => {
-                                      setGroupDialogClientId(loan.client_id);
-                                      setGroupDialogCurrentLoanId(loan.id);
-                                      setGroupDialogOpen(true);
-                                    }}
-                                  >
-                                    <FolderOpen className="w-3 h-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  <p>Ver contratos do cliente ({loanCountByClient[loan.client_id]})</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -7029,21 +6882,6 @@ export default function Loans() {
                             <div className="flex items-center justify-between gap-1">
                               <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
                               <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                                {/* Botão de Agrupar - só aparece se cliente tem 2+ contratos e não está agrupado */}
-                                {loan.client_id && loanCountByClient[loan.client_id] > 1 && !groupedClients.has(loan.client_id) && (
-                                  <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                    size="sm" 
-                                    className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleGroupClient(loan.client_id);
-                                    }}
-                                  >
-                                    <FolderOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                    <span className="hidden sm:inline">Agrupar</span>
-                                  </Button>
-                                )}
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
@@ -7885,28 +7723,6 @@ export default function Loans() {
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
                                     <p>Adicionar parcelas extras</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              {/* Botão de Agrupar - só aparece se cliente tem mais de 1 contrato */}
-                              {loan.client_id && loanCountByClient[loan.client_id] > 1 && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button 
-                                      variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                      size="icon" 
-                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
-                                      onClick={() => {
-                                        setGroupDialogClientId(loan.client_id);
-                                        setGroupDialogCurrentLoanId(loan.id);
-                                        setGroupDialogOpen(true);
-                                      }}
-                                    >
-                                      <FolderOpen className="w-3 h-3" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">
-                                    <p>Ver contratos do cliente ({loanCountByClient[loan.client_id]})</p>
                                   </TooltipContent>
                                 </Tooltip>
                               )}
@@ -10416,218 +10232,7 @@ export default function Loans() {
           </DialogContent>
         </Dialog>
 
-        {/* Dialog de Contratos Agrupados por Cliente */}
-        <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                {groupDialogClient && (
-                  <>
-                    <Avatar className="h-10 w-10 border-2 border-primary/20">
-                      <AvatarImage src={getAvatarUrl(groupDialogClient.avatar_url, groupDialogClient.full_name)} />
-                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {groupDialogClient.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <span className="text-lg">Contratos de {groupDialogClient.full_name}</span>
-                      <Badge className="ml-2 bg-purple-500/20 text-purple-600 border-purple-500/30">
-                        {getClientLoansForDialog.length} contratos
-                      </Badge>
-                    </div>
-                  </>
-                )}
-              </DialogTitle>
-              <DialogDescription>
-                Visualize todos os contratos deste cliente em um só lugar
-              </DialogDescription>
-            </DialogHeader>
-            
-            {/* Lista de contratos do cliente */}
-            <div className="space-y-3 mt-4">
-              {getClientLoansForDialog.map((loan) => {
-                const numInstallments = loan.installments || 1;
-                const isDaily = loan.payment_type === 'daily';
-                
-                // Calcular valores
-                let totalInterest = 0;
-                if (isDaily) {
-                  const dailyAmount = loan.total_interest || 0;
-                  totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
-                } else {
-                  totalInterest = loan.total_interest || 0;
-                }
-                
-                const totalToReceive = loan.principal_amount + totalInterest;
-                const installmentValue = isDaily ? (loan.total_interest || 0) : totalToReceive / numInstallments;
-                const paidCount = getPaidInstallmentsCount(loan);
-                const { isPaid, isOverdue } = getLoanStatus(loan);
-                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
-                const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-                
-                const isCurrentLoan = loan.id === groupDialogCurrentLoanId;
-                
-                return (
-                  <Card 
-                    key={loan.id} 
-                    className={`transition-all ${isCurrentLoan ? 'ring-2 ring-purple-500 bg-purple-500/5' : ''} ${
-                      isPaid ? 'border-primary/50 bg-primary/5' : 
-                      isOverdue ? 'border-destructive/50 bg-destructive/5' : 
-                      'border-border'
-                    }`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={isPaid ? 'default' : isOverdue ? 'destructive' : 'secondary'} className="text-[10px]">
-                            {isPaid ? 'Quitado' : isOverdue ? 'Atrasado' : 'Em Dia'}
-                          </Badge>
-                          {isDaily && (
-                            <Badge variant="outline" className="text-[10px] border-sky-500 text-sky-500">
-                              Diário
-                            </Badge>
-                          )}
-                          {isCurrentLoan && (
-                            <Badge variant="outline" className="text-[10px] border-purple-500 text-purple-500">
-                              Contrato Atual
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(loan.start_date)}
-                        </p>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <span className="text-xs text-muted-foreground">Emprestado</span>
-                          <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">Parcela</span>
-                          <p className="font-semibold">{formatCurrency(installmentValue)}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">A Receber</span>
-                          <p className={`font-semibold ${remainingToReceive > 0 ? 'text-amber-500' : 'text-primary'}`}>
-                            {formatCurrency(remainingToReceive)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">Parcelas</span>
-                          <p className="font-semibold">{paidCount}/{numInstallments}</p>
-                        </div>
-                      </div>
-                      
-                      {/* Botões de ação */}
-                      <div className="flex gap-2 mt-4">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1 h-8 text-xs"
-                          disabled={isPaid}
-                          onClick={() => {
-                            setGroupDialogOpen(false);
-                            setSelectedLoanId(loan.id);
-                            const dates = (loan.installment_dates as string[]) || [];
-                            let defaultNextDueDate = '';
-                            if (dates.length > 0 && paidCount + 1 < dates.length) {
-                              defaultNextDueDate = dates[paidCount + 1];
-                            }
-                            setPaymentData({ 
-                              amount: installmentValue.toFixed(2), 
-                              payment_date: format(new Date(), 'yyyy-MM-dd'),
-                              new_due_date: defaultNextDueDate,
-                              payment_type: 'installment',
-                              selected_installments: [],
-                              partial_installment_index: null,
-                              send_notification: false,
-                              is_advance_payment: false,
-                            });
-                            setIsPaymentDialogOpen(true);
-                          }}
-                        >
-                          <CreditCard className="w-3 h-3 mr-1" />
-                          Pagar
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 px-3"
-                          onClick={() => openPaymentHistory(loan.id)}
-                        >
-                          <History className="w-3 h-3 mr-1" />
-                          Histórico
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 px-3"
-                          onClick={() => {
-                            setGroupDialogOpen(false);
-                            openEditDialog(loan.id);
-                          }}
-                        >
-                          <Pencil className="w-3 h-3 mr-1" />
-                          Editar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-            
-            {/* Resumo total */}
-            {getClientLoansForDialog.length > 0 && (() => {
-              const totals = getClientLoansForDialog.reduce((acc, loan) => {
-                const numInstallments = loan.installments || 1;
-                const isDaily = loan.payment_type === 'daily';
-                let totalInterest = 0;
-                if (isDaily) {
-                  const dailyAmount = loan.total_interest || 0;
-                  totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
-                } else {
-                  totalInterest = loan.total_interest || 0;
-                }
-                const totalToReceive = loan.principal_amount + totalInterest;
-                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
-                const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-                
-                return {
-                  principal: acc.principal + loan.principal_amount,
-                  toReceive: acc.toReceive + totalToReceive,
-                  paid: acc.paid + (loan.total_paid || 0),
-                  remaining: acc.remaining + remainingToReceive,
-                };
-              }, { principal: 0, toReceive: 0, paid: 0, remaining: 0 });
-              
-              return (
-                <div className="border-t pt-4 mt-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                    <div className="p-3 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Total Emprestado</p>
-                      <p className="text-lg font-bold">{formatCurrency(totals.principal)}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Total Contrato</p>
-                      <p className="text-lg font-bold">{formatCurrency(totals.toReceive)}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      <p className="text-xs text-muted-foreground">Já Recebido</p>
-                      <p className="text-lg font-bold text-primary">{formatCurrency(totals.paid)}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-amber-500/10">
-                      <p className="text-xs text-muted-foreground">A Receber</p>
-                      <p className="text-lg font-bold text-amber-500">{formatCurrency(totals.remaining)}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
-        
+
       </div>
     </DashboardLayout>
   );
