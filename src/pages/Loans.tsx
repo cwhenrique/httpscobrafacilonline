@@ -6159,6 +6159,28 @@ export default function Loans() {
                                 </TooltipContent>
                               </Tooltip>
                             )}
+                            {/* Botão de Agrupar - só aparece se cliente tem mais de 1 contrato */}
+                            {loan.client_id && loanCountByClient[loan.client_id] > 1 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
+                                    onClick={() => {
+                                      setGroupDialogClientId(loan.client_id);
+                                      setGroupDialogCurrentLoanId(loan.id);
+                                      setGroupDialogOpen(true);
+                                    }}
+                                  >
+                                    <FolderOpen className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Ver contratos do cliente ({loanCountByClient[loan.client_id]})</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
