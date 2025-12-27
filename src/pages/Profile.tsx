@@ -37,10 +37,12 @@ import {
   Link as LinkIcon,
   QrCode,
   Pencil,
-  Check
+  Check,
+  ImageIcon
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import CompanyLogoUpload from '@/components/CompanyLogoUpload';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -876,6 +878,21 @@ export default function Profile() {
           </CardContent>
         </Card>
 
+        {/* Company Logo Card */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-primary" />
+              Logo da Empresa
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CompanyLogoUpload
+              currentLogoUrl={profile?.company_logo_url || null}
+              onLogoChange={() => refetch()}
+            />
+          </CardContent>
+        </Card>
 
         <Card className="shadow-soft">
           <CardHeader>

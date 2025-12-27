@@ -255,6 +255,7 @@ export default function LoanCreatedReceiptPrompt({
         type: 'loan',
         contractId: loan.id,
         companyName,
+        customLogoUrl: profile?.company_logo_url,
         client: {
           name: loan.clientName,
           phone: loan.clientPhone,

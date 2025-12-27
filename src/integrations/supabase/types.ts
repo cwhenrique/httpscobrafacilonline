@@ -733,6 +733,7 @@ export type Database = {
       profiles: {
         Row: {
           billing_signature_name: string | null
+          company_logo_url: string | null
           company_name: string | null
           created_at: string
           email: string | null
@@ -761,6 +762,7 @@ export type Database = {
         }
         Insert: {
           billing_signature_name?: string | null
+          company_logo_url?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -789,6 +791,7 @@ export type Database = {
         }
         Update: {
           billing_signature_name?: string | null
+          company_logo_url?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null

@@ -238,6 +238,7 @@ export default function SaleCreatedReceiptPrompt({
       await generateClientSaleReceipt({
         contractId: sale.id,
         companyName,
+        customLogoUrl: profile?.company_logo_url,
         client: {
           name: sale.client_name,
           phone: sale.client_phone || undefined,

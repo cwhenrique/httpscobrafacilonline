@@ -162,6 +162,7 @@ export default function PriceTableDialog({
       
       await generatePriceTablePDF({
         companyName: profile?.company_name || profile?.full_name || undefined,
+        customLogoUrl: profile?.company_logo_url,
         clientName: selectedClient?.full_name,
         principal: parseFloat(formData.principal_amount),
         interestRate: parseFloat(formData.interest_rate),
