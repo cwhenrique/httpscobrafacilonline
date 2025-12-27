@@ -16,6 +16,7 @@ import { format, addDays, addMonths, addWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useProfile } from '@/hooks/useProfile';
 
 type PaymentType = 'single' | 'installment' | 'weekly' | 'biweekly' | 'daily';
 type InterestMode = 'per_installment' | 'on_total' | 'compound';
@@ -46,6 +47,7 @@ const getMaxInstallments = (paymentType: PaymentType) => {
 
 
 export function LoanSimulator() {
+  const { profile } = useProfile();
   const [principal, setPrincipal] = useState(1000);
   const [interestRate, setInterestRate] = useState(10);
   const [installments, setInstallments] = useState(6);
@@ -249,6 +251,7 @@ export function LoanSimulator() {
           dueDate: item.dueDate,
           total: item.total,
         })),
+        customLogoUrl: profile?.company_logo_url,
       });
       toast.success('PDF da simulação gerado com sucesso!');
     } catch (error) {

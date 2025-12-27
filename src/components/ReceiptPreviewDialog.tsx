@@ -170,7 +170,10 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
-      await generateContractReceipt(data);
+      await generateContractReceipt({
+        ...data,
+        customLogoUrl: profile?.company_logo_url,
+      });
       toast.success('Comprovante baixado com sucesso!');
       onOpenChange(false);
     } catch (error) {

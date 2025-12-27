@@ -29,6 +29,8 @@ export interface Profile {
   pix_key_type: string | null;
   // Billing signature name
   billing_signature_name: string | null;
+  // Company logo for PDFs
+  company_logo_url: string | null;
 }
 
 export function useProfile() {

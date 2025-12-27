@@ -20,6 +20,7 @@ export interface SimulationPDFData {
     total: number;
   }>;
   companyName?: string;
+  customLogoUrl?: string | null; // Custom company logo for PDF
 }
 
 // Theme colors (HSL converted to RGB)
@@ -61,11 +62,12 @@ const getContractTypeName = (type: 'loan' | 'product' | 'vehicle' | 'contract'):
   }
 };
 
-// Load logo as base64
-const loadLogoAsBase64 = (): Promise<string> => {
+// Load logo as base64 - supports custom logo URL with fallback to default
+const loadLogoAsBase64 = (customLogoUrl?: string | null): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
+    
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
@@ -78,8 +80,19 @@ const loadLogoAsBase64 = (): Promise<string> => {
         reject(new Error('Could not get canvas context'));
       }
     };
-    img.onerror = reject;
-    img.src = cobraFacilLogo;
+    
+    img.onerror = () => {
+      // If custom logo fails, fallback to default
+      if (customLogoUrl && img.src !== cobraFacilLogo) {
+        console.warn('Custom logo failed to load, using default');
+        img.src = cobraFacilLogo;
+      } else {
+        reject(new Error('Could not load logo'));
+      }
+    };
+    
+    // Use custom logo if provided, otherwise use default
+    img.src = customLogoUrl || cobraFacilLogo;
   });
 };
 
@@ -87,6 +100,7 @@ export interface ContractReceiptData {
   type: 'loan' | 'product' | 'vehicle' | 'contract';
   contractId: string;
   companyName: string;
+  customLogoUrl?: string | null; // Custom company logo for PDF
   client: {
     name: string;
     phone?: string;
@@ -133,6 +147,7 @@ export interface PaymentReceiptData {
   type: 'loan' | 'product' | 'vehicle' | 'contract';
   contractId: string;
   companyName: string;
+  customLogoUrl?: string | null; // Custom company logo for PDF
   clientName: string;
   installmentNumber: number;
   totalInstallments: number;
@@ -152,10 +167,10 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   const margin = 15;
   let currentY = 0;
 
-  // Load logo
+  // Load logo (custom or default)
   let logoBase64 = '';
   try {
-    logoBase64 = await loadLogoAsBase64();
+    logoBase64 = await loadLogoAsBase64(data.customLogoUrl);
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
@@ -522,10 +537,10 @@ export const generatePaymentReceipt = async (data: PaymentReceiptData): Promise<
   const margin = 15;
   let currentY = 0;
 
-  // Load logo
+  // Load logo (custom or default)
   let logoBase64 = '';
   try {
-    logoBase64 = await loadLogoAsBase64();
+    logoBase64 = await loadLogoAsBase64(data.customLogoUrl);
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
@@ -1145,6 +1160,7 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
 export interface ClientSaleReceiptData {
   contractId: string;
   companyName: string;
+  customLogoUrl?: string | null; // Custom company logo for PDF
   client: {
     name: string;
     phone?: string;
@@ -1174,10 +1190,10 @@ export const generateClientSaleReceipt = async (data: ClientSaleReceiptData): Pr
   const margin = 15;
   let currentY = 0;
 
-  // Load logo
+  // Load logo (custom or default)
   let logoBase64 = '';
   try {
-    logoBase64 = await loadLogoAsBase64();
+    logoBase64 = await loadLogoAsBase64(data.customLogoUrl);
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
@@ -1424,10 +1440,10 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
   const margin = 15;
   let currentY = 0;
 
-  // Load logo
+  // Load logo (custom or default)
   let logoBase64 = '';
   try {
-    logoBase64 = await loadLogoAsBase64();
+    logoBase64 = await loadLogoAsBase64(data.customLogoUrl);
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
@@ -1693,6 +1709,7 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
 
 export interface PriceTablePDFData {
   companyName?: string;
+  customLogoUrl?: string | null; // Custom company logo for PDF
   clientName?: string;
   principal: number;
   interestRate: number;
@@ -1716,10 +1733,10 @@ export const generatePriceTablePDF = async (data: PriceTablePDFData): Promise<vo
   const margin = 15;
   let currentY = 0;
 
-  // Load logo
+  // Load logo (custom or default)
   let logoBase64 = '';
   try {
-    logoBase64 = await loadLogoAsBase64();
+    logoBase64 = await loadLogoAsBase64(data.customLogoUrl);
   } catch (e) {
     console.warn('Could not load logo:', e);
   }

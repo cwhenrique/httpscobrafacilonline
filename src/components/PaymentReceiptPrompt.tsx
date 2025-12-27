@@ -251,7 +251,10 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
-      await generatePaymentReceipt(data);
+      await generatePaymentReceipt({
+        ...data,
+        customLogoUrl: profile?.company_logo_url,
+      });
       toast.success('Comprovante de pagamento baixado!');
       onOpenChange(false);
     } catch (error) {
