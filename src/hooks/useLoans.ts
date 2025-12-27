@@ -356,6 +356,7 @@ export function useLoans() {
     due_date: string;
     notes?: string;
     remaining_balance?: number;
+    total_interest?: number;
     send_notification?: boolean;
   }) => {
     if (!user) return { error: new Error('Usuário não autenticado') };
@@ -379,6 +380,11 @@ export function useLoans() {
     // Se remaining_balance foi passado, atualizar também
     if (data.remaining_balance !== undefined) {
       updatePayload.remaining_balance = data.remaining_balance;
+    }
+
+    // Se total_interest foi passado, atualizar também (importante para empréstimos diários)
+    if (data.total_interest !== undefined) {
+      updatePayload.total_interest = data.total_interest;
     }
 
     const { error } = await supabase
