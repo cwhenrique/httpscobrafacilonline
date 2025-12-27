@@ -113,15 +113,21 @@ export default function CalendarView() {
       installmentValue = dailyAmount;
       totalInterest = (dailyAmount * dailyDates) - principal;
       interestOnlyValue = dailyAmount - (principal / dailyDates);
-    } else if (interestMode === 'per_installment') {
-      // Per installment: interest applied to each installment
-      totalInterest = principal * (rate / 100) * installments;
-      const total = principal + totalInterest;
-      installmentValue = total / installments;
-      interestOnlyValue = (principal * (rate / 100));
     } else {
-      // On total: interest on total amount
-      totalInterest = principal * (rate / 100);
+      // PRIORIZAR total_interest do banco (arredondamento manual)
+      // Se o usuário arredondou o juros de R$ 157,80 para R$ 160,00, usar R$ 160,00
+      if (loan.total_interest && loan.total_interest > 0) {
+        totalInterest = loan.total_interest;
+      } else {
+        // Fallback: calcular baseado na taxa
+        if (interestMode === 'per_installment') {
+          totalInterest = principal * (rate / 100) * installments;
+        } else {
+          // on_total ou compound
+          totalInterest = principal * (rate / 100);
+        }
+      }
+      
       const total = principal + totalInterest;
       installmentValue = total / installments;
       interestOnlyValue = totalInterest / installments;
