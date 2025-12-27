@@ -4421,6 +4421,53 @@ export default function Loans() {
                     })()}
                   </>
                 )}
+                {/* Prévia para Pagamento Único */}
+                {formData.payment_type === 'single' && formData.principal_amount && formData.interest_rate && (
+                  <div className="p-3 sm:p-4 bg-muted/50 rounded-lg space-y-2 border border-border/50">
+                    <p className="text-xs sm:text-sm font-medium">Resumo do Empréstimo</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">Valor Emprestado</p>
+                        <p className="text-sm sm:text-base font-medium">
+                          {formatCurrency(parseFloat(formData.principal_amount))}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                          Juros ({formData.interest_rate}%)
+                        </p>
+                        <p className="text-sm sm:text-base font-medium text-amber-500">
+                          {(() => {
+                            const principal = parseFloat(formData.principal_amount);
+                            const rate = parseFloat(formData.interest_rate) / 100;
+                            if (formData.interest_mode === 'compound') {
+                              return formatCurrency(principal * Math.pow(1 + rate, 1) - principal);
+                            }
+                            return formatCurrency(principal * rate);
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-border/50">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs sm:text-sm text-muted-foreground">Total a Receber</p>
+                        <p className="text-base sm:text-lg font-bold text-emerald-500">
+                          {(() => {
+                            const principal = parseFloat(formData.principal_amount);
+                            const rate = parseFloat(formData.interest_rate) / 100;
+                            let interest = 0;
+                            if (formData.interest_mode === 'compound') {
+                              interest = principal * Math.pow(1 + rate, 1) - principal;
+                            } else {
+                              interest = principal * rate;
+                            }
+                            return formatCurrency(principal + interest);
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {formData.payment_type === 'daily' && (
                   <>
                     <div className="grid grid-cols-2 gap-4">
