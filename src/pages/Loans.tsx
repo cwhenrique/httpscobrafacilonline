@@ -9659,7 +9659,19 @@ export default function Loans() {
                       <Input 
                         type="date" 
                         value={editFormData.start_date} 
-                        onChange={(e) => setEditFormData({ ...editFormData, start_date: e.target.value })} 
+                        onChange={(e) => {
+                          const newDate = e.target.value;
+                          setEditFormData({ ...editFormData, start_date: newDate });
+                          
+                          // Sincronizar a Parcela 1 na lista de parcelas
+                          if (editInstallmentDates.length > 0) {
+                            setEditInstallmentDates(prev => {
+                              const newDates = [...prev];
+                              newDates[0] = newDate;
+                              return newDates;
+                            });
+                          }
+                        }} 
                         className="h-9 sm:h-10 text-sm"
                       />
                       <p className="text-[10px] text-muted-foreground">Quando começa a pagar</p>
