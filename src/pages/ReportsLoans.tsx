@@ -25,9 +25,12 @@ import {
   PiggyBank,
   Calendar as CalendarDays,
   CalendarRange,
-  CalendarCheck
+  CalendarCheck,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -117,6 +120,7 @@ export default function ReportsLoans() {
     to: new Date(),
   });
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Payment type labels
   const paymentTypeLabels: Record<string, string> = {
@@ -415,189 +419,239 @@ export default function ReportsLoans() {
           </div>
         </div>
 
-        {/* Payment Type Filter Cards */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">Filtrar por Tipo de Pagamento</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-            {/* Card Todos */}
-            {(() => {
-              const isActive = paymentTypeFilter === 'all';
-              const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-              const allTotalOnStreet = allActiveLoans.reduce((sum, loan) => {
-                const principal = Number(loan.principal_amount);
-                const payments = (loan as any).payments || [];
-                const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
-                return sum + (principal - totalPrincipalPaid);
-              }, 0);
-              const allRealizedProfit = stats.allLoans.reduce((sum, loan) => {
-                const payments = (loan as any).payments || [];
-                return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
-              }, 0);
-              
-              return (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Card 
-                    className={cn(
-                      "cursor-pointer transition-all border-2",
-                      isActive 
-                        ? "border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/20" 
-                        : "border-violet-500/30 hover:border-violet-500/60 hover:bg-violet-500/5"
-                    )}
-                    onClick={() => setPaymentTypeFilter('all')}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className={cn(
-                          "p-1.5 rounded-lg",
-                          isActive ? "bg-violet-500/20" : "bg-violet-500/10"
-                        )}>
-                          <Users className={cn(
-                            "w-3.5 h-3.5",
-                            isActive ? "text-violet-500" : "text-violet-400"
-                          )} />
-                        </div>
-                        <span className={cn(
-                          "text-xs font-medium",
-                          isActive ? "text-violet-500" : "text-foreground"
-                        )}>
-                          Todos
-                        </span>
-                        {isActive && (
-                          <Badge className="ml-auto bg-violet-500 text-white text-[10px] px-1.5 py-0">
-                            Ativo
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-muted-foreground">Na Rua</span>
-                          <span className="text-xs font-bold text-blue-500">
-                            {formatCurrency(allTotalOnStreet)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-muted-foreground">Lucro</span>
-                          <span className="text-xs font-bold text-emerald-500">
-                            {formatCurrency(allRealizedProfit)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1 border-t border-border/50">
-                          <span className="text-[10px] text-muted-foreground">Contratos</span>
-                          <span className="text-xs font-medium">
-                            {allActiveLoans.length} ativos
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })()}
-
-            {/* Cards por tipo */}
-            {statsByPaymentType.map((typeStat) => {
-              const isActive = paymentTypeFilter === typeStat.type;
-              const typeConfig: Record<string, { icon: React.ElementType; borderColor: string; bgColor: string; textColor: string }> = {
-                daily: { 
-                  icon: CalendarDays, 
-                  borderColor: 'border-orange-500', 
-                  bgColor: 'bg-orange-500', 
-                  textColor: 'text-orange-500' 
-                },
-                weekly: { 
-                  icon: CalendarRange, 
-                  borderColor: 'border-blue-500', 
-                  bgColor: 'bg-blue-500', 
-                  textColor: 'text-blue-500' 
-                },
-                biweekly: { 
-                  icon: CalendarCheck, 
-                  borderColor: 'border-cyan-500', 
-                  bgColor: 'bg-cyan-500', 
-                  textColor: 'text-cyan-500' 
-                },
-                installment: { 
-                  icon: CalendarIcon, 
-                  borderColor: 'border-emerald-500', 
-                  bgColor: 'bg-emerald-500', 
-                  textColor: 'text-emerald-500' 
-                },
-              };
-              const config = typeConfig[typeStat.type] || typeConfig.installment;
-              const TypeIcon = config.icon;
-              
-              return (
-                <motion.div
-                  key={typeStat.type}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Card 
-                    className={cn(
-                      "cursor-pointer transition-all border-2",
-                      isActive 
-                        ? `${config.borderColor} ${config.bgColor}/10 shadow-lg` 
-                        : `${config.borderColor}/30 hover:${config.borderColor}/60 hover:${config.bgColor}/5`
-                    )}
-                    onClick={() => setPaymentTypeFilter(isActive ? 'all' : typeStat.type)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className={cn(
-                          "p-1.5 rounded-lg",
-                          isActive ? `${config.bgColor}/20` : `${config.bgColor}/10`
-                        )}>
-                          <TypeIcon className={cn(
-                            "w-3.5 h-3.5",
-                            isActive ? config.textColor : `${config.textColor}/70`
-                          )} />
-                        </div>
-                        <span className={cn(
-                          "text-xs font-medium",
-                          isActive ? config.textColor : "text-foreground"
-                        )}>
-                          {typeStat.label}
-                        </span>
-                        {isActive && (
-                          <Badge className={cn("ml-auto text-white text-[10px] px-1.5 py-0", config.bgColor)}>
-                            Ativo
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-muted-foreground">Na Rua</span>
-                          <span className="text-xs font-bold text-blue-500">
-                            {formatCurrency(typeStat.totalOnStreet)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-muted-foreground">Lucro</span>
-                          <span className="text-xs font-bold text-emerald-500">
-                            {formatCurrency(typeStat.realizedProfit)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1 border-t border-border/50">
-                          <span className="text-[10px] text-muted-foreground">Contratos</span>
-                          <span className="text-xs font-medium">
-                            {typeStat.count} ativos
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
+        {/* Payment Type Filter Cards - Collapsible */}
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Tipo de Pagamento:</span>
+              {(() => {
+                const activeFilterConfig: Record<string, { color: string; bgColor: string }> = {
+                  all: { color: 'text-violet-500', bgColor: 'bg-violet-500/10 border-violet-500/30' },
+                  daily: { color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/30' },
+                  weekly: { color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30' },
+                  biweekly: { color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30' },
+                  installment: { color: 'text-emerald-500', bgColor: 'bg-emerald-500/10 border-emerald-500/30' },
+                };
+                const config = activeFilterConfig[paymentTypeFilter] || activeFilterConfig.all;
+                
+                // Calculate value for active filter
+                let activeValue = 0;
+                if (paymentTypeFilter === 'all') {
+                  const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+                  activeValue = allActiveLoans.reduce((sum, loan) => {
+                    const principal = Number(loan.principal_amount);
+                    const payments = (loan as any).payments || [];
+                    const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
+                    return sum + (principal - totalPrincipalPaid);
+                  }, 0);
+                } else {
+                  const typeStat = statsByPaymentType.find(t => t.type === paymentTypeFilter);
+                  activeValue = typeStat?.totalOnStreet || 0;
+                }
+                
+                return (
+                  <>
+                    <Badge variant="outline" className={cn("border", config.bgColor, config.color)}>
+                      {paymentTypeLabels[paymentTypeFilter]}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      Na Rua: <span className="font-semibold text-blue-500">{formatCurrency(activeValue)}</span>
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <span className="hidden sm:inline">{filtersOpen ? 'Ocultar' : 'Ver Filtros'}</span>
+                <ChevronDown className={cn("w-4 h-4 transition-transform", filtersOpen && "rotate-180")} />
+              </Button>
+            </CollapsibleTrigger>
           </div>
-        </div>
+          
+          <CollapsibleContent className="pt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+              {/* Card Todos */}
+              {(() => {
+                const isActive = paymentTypeFilter === 'all';
+                const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+                const allTotalOnStreet = allActiveLoans.reduce((sum, loan) => {
+                  const principal = Number(loan.principal_amount);
+                  const payments = (loan as any).payments || [];
+                  const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
+                  return sum + (principal - totalPrincipalPaid);
+                }, 0);
+                const allRealizedProfit = stats.allLoans.reduce((sum, loan) => {
+                  const payments = (loan as any).payments || [];
+                  return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
+                }, 0);
+                
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Card 
+                      className={cn(
+                        "cursor-pointer transition-all border-2",
+                        isActive 
+                          ? "border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/20" 
+                          : "border-violet-500/30 hover:border-violet-500/60 hover:bg-violet-500/5"
+                      )}
+                      onClick={() => setPaymentTypeFilter('all')}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={cn(
+                            "p-1.5 rounded-lg",
+                            isActive ? "bg-violet-500/20" : "bg-violet-500/10"
+                          )}>
+                            <Users className={cn(
+                              "w-3.5 h-3.5",
+                              isActive ? "text-violet-500" : "text-violet-400"
+                            )} />
+                          </div>
+                          <span className={cn(
+                            "text-xs font-medium",
+                            isActive ? "text-violet-500" : "text-foreground"
+                          )}>
+                            Todos
+                          </span>
+                          {isActive && (
+                            <Badge className="ml-auto bg-violet-500 text-white text-[10px] px-1.5 py-0">
+                              Ativo
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-muted-foreground">Na Rua</span>
+                            <span className="text-xs font-bold text-blue-500">
+                              {formatCurrency(allTotalOnStreet)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-muted-foreground">Lucro</span>
+                            <span className="text-xs font-bold text-emerald-500">
+                              {formatCurrency(allRealizedProfit)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                            <span className="text-[10px] text-muted-foreground">Contratos</span>
+                            <span className="text-xs font-medium">
+                              {allActiveLoans.length} ativos
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })()}
+
+              {/* Cards por tipo */}
+              {statsByPaymentType.map((typeStat) => {
+                const isActive = paymentTypeFilter === typeStat.type;
+                const typeConfig: Record<string, { icon: React.ElementType; borderColor: string; bgColor: string; textColor: string }> = {
+                  daily: { 
+                    icon: CalendarDays, 
+                    borderColor: 'border-orange-500', 
+                    bgColor: 'bg-orange-500', 
+                    textColor: 'text-orange-500' 
+                  },
+                  weekly: { 
+                    icon: CalendarRange, 
+                    borderColor: 'border-blue-500', 
+                    bgColor: 'bg-blue-500', 
+                    textColor: 'text-blue-500' 
+                  },
+                  biweekly: { 
+                    icon: CalendarCheck, 
+                    borderColor: 'border-cyan-500', 
+                    bgColor: 'bg-cyan-500', 
+                    textColor: 'text-cyan-500' 
+                  },
+                  installment: { 
+                    icon: CalendarIcon, 
+                    borderColor: 'border-emerald-500', 
+                    bgColor: 'bg-emerald-500', 
+                    textColor: 'text-emerald-500' 
+                  },
+                };
+                const config = typeConfig[typeStat.type] || typeConfig.installment;
+                const TypeIcon = config.icon;
+                
+                return (
+                  <motion.div
+                    key={typeStat.type}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Card 
+                      className={cn(
+                        "cursor-pointer transition-all border-2",
+                        isActive 
+                          ? `${config.borderColor} ${config.bgColor}/10 shadow-lg` 
+                          : `${config.borderColor}/30 hover:${config.borderColor}/60 hover:${config.bgColor}/5`
+                      )}
+                      onClick={() => setPaymentTypeFilter(isActive ? 'all' : typeStat.type)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={cn(
+                            "p-1.5 rounded-lg",
+                            isActive ? `${config.bgColor}/20` : `${config.bgColor}/10`
+                          )}>
+                            <TypeIcon className={cn(
+                              "w-3.5 h-3.5",
+                              isActive ? config.textColor : `${config.textColor}/70`
+                            )} />
+                          </div>
+                          <span className={cn(
+                            "text-xs font-medium",
+                            isActive ? config.textColor : "text-foreground"
+                          )}>
+                            {typeStat.label}
+                          </span>
+                          {isActive && (
+                            <Badge className={cn("ml-auto text-white text-[10px] px-1.5 py-0", config.bgColor)}>
+                              Ativo
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-muted-foreground">Na Rua</span>
+                            <span className="text-xs font-bold text-blue-500">
+                              {formatCurrency(typeStat.totalOnStreet)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-muted-foreground">Lucro</span>
+                            <span className="text-xs font-bold text-emerald-500">
+                              {formatCurrency(typeStat.realizedProfit)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                            <span className="text-[10px] text-muted-foreground">Contratos</span>
+                            <span className="text-xs font-medium">
+                              {typeStat.count} ativos
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Period Stats - Filtered - Compact */}
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
