@@ -3480,6 +3480,19 @@ export default function Loans() {
     }
     
     if (editIsRenegotiation && editHistoricalData) {
+      // Limpar tags de tracking antigas que não fazem sentido após renegociação
+      // pois os valores mudaram e o tracking antigo está desatualizado
+      cleanNotes = cleanNotes
+        // Remover tracking de pagamentos parciais antigos
+        .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]\n?/g, '')
+        // Remover sub-parcelas de adiantamento antigas
+        .replace(/\[ADVANCE_SUBPARCELA:\d+:[0-9.]+:[^\]]+\]\n?/g, '')
+        // Remover pagamentos de juros antigos
+        .replace(/\[INTEREST_ONLY_PAID:\d+:[0-9.]+:[^\]]+\]\n?/g, '')
+        // Remover tags de parcelas pagas
+        .replace(/\[INSTALLMENT_PAID:\d+:[0-9.]+:[^\]]+\]\n?/g, '')
+        .trim();
+      
       const renegotiationTags = `[RENEGOTIATED]
 [ORIGINAL_PRINCIPAL:${editHistoricalData.originalPrincipal.toFixed(2)}]
 [ORIGINAL_RATE:${editHistoricalData.originalRate}]
