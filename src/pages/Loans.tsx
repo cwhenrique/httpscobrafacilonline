@@ -765,6 +765,8 @@ export default function Loans() {
   const [editInstallmentDates, setEditInstallmentDates] = useState<string[]>([]);
   const [editInstallmentValue, setEditInstallmentValue] = useState('');
   const [isEditManuallyEditingInstallment, setIsEditManuallyEditingInstallment] = useState(false);
+  const [editEditableTotalInterest, setEditEditableTotalInterest] = useState('');
+  const [isEditManuallyEditingInterest, setIsEditManuallyEditingInterest] = useState(false);
   
   // Skip states for edit form
   const [editSkipSaturday, setEditSkipSaturday] = useState(false);
@@ -1102,7 +1104,7 @@ export default function Loans() {
   
   // Auto-recalculate edit installment value when form values change (unless manually editing)
   useEffect(() => {
-    if (isEditManuallyEditingInstallment) return;
+    if (isEditManuallyEditingInstallment || isEditManuallyEditingInterest) return;
     if (!isEditDialogOpen) return;
     if (editFormData.payment_type !== 'installment' && editFormData.payment_type !== 'weekly' && editFormData.payment_type !== 'biweekly') return;
     
@@ -1115,8 +1117,8 @@ export default function Loans() {
       if (editFormData.interest_mode === 'on_total') {
         totalInterest = principal * (rate / 100);
       } else if (editFormData.interest_mode === 'compound') {
-        // Juros compostos: M = P(1+i)^n - P
-        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        // Juros compostos usando PMT
+        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
       } else {
         // per_installment
         totalInterest = principal * (rate / 100) * numInstallments;
@@ -1124,7 +1126,15 @@ export default function Loans() {
       const total = principal + totalInterest;
       setEditInstallmentValue((total / numInstallments).toFixed(2));
     }
-  }, [editFormData.principal_amount, editFormData.installments, editFormData.interest_rate, editFormData.interest_mode, editFormData.payment_type, isEditDialogOpen, isEditManuallyEditingInstallment]);
+  }, [editFormData.principal_amount, editFormData.installments, editFormData.interest_rate, editFormData.interest_mode, editFormData.payment_type, isEditDialogOpen, isEditManuallyEditingInstallment, isEditManuallyEditingInterest]);
+  
+  // Reset manual editing flags when base values change in edit form
+  useEffect(() => {
+    if (!isEditDialogOpen) return;
+    setIsEditManuallyEditingInstallment(false);
+    setIsEditManuallyEditingInterest(false);
+    setEditEditableTotalInterest('');
+  }, [editFormData.principal_amount, editFormData.installments, editFormData.interest_mode, editFormData.payment_type]);
   
   // Payment history state
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
@@ -1520,6 +1530,8 @@ export default function Loans() {
   
   const [installmentValue, setInstallmentValue] = useState('');
   const [isManuallyEditingInstallment, setIsManuallyEditingInstallment] = useState(false);
+  const [editableTotalInterest, setEditableTotalInterest] = useState('');
+  const [isManuallyEditingInterest, setIsManuallyEditingInterest] = useState(false);
   
   // Recalcular valor da parcela quando principal, parcelas, taxa ou modo mudam (apenas se não estiver editando manualmente)
   useEffect(() => {
@@ -1549,6 +1561,8 @@ export default function Loans() {
   // Reset manual editing flag quando dados principais mudam (mas não quando só a taxa muda)
   useEffect(() => {
     setIsManuallyEditingInstallment(false);
+    setIsManuallyEditingInterest(false);
+    setEditableTotalInterest('');
   }, [formData.principal_amount, formData.installments, formData.interest_mode, formData.payment_type]);
   
   // Calcula o "Juros Total" exibido no formulário, priorizando o valor da parcela arredondada
@@ -1580,6 +1594,65 @@ export default function Loans() {
     return formatCurrency(totalInterest);
   };
   
+  // Função para obter valor numérico do juros total (usado no campo editável)
+  const getTotalInterestRawValue = () => {
+    if (!formData.principal_amount) return '';
+    const principal = parseFloat(formData.principal_amount);
+    const numInstallments = parseInt(formData.installments || '1');
+    let totalInterest = 0;
+
+    // Se o usuário editou o valor da parcela, usamos ele como base
+    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
+      const perInstallment = parseFloat(installmentValue);
+      if (!perInstallment) return '';
+      totalInterest = perInstallment * numInstallments - principal;
+    } else if (formData.interest_rate) {
+      const rate = parseFloat(formData.interest_rate);
+      if (formData.interest_mode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * numInstallments;
+      } else if (formData.interest_mode === 'compound') {
+        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
+      } else {
+        totalInterest = principal * (rate / 100);
+      }
+    }
+
+    return totalInterest > 0 ? totalInterest.toFixed(2) : '';
+  };
+  
+  // Handler para quando o usuário edita o juros total manualmente
+  const handleTotalInterestChange = (value: string) => {
+    setIsManuallyEditingInterest(true);
+    setIsManuallyEditingInstallment(true);
+    setEditableTotalInterest(value);
+    
+    const newTotalInterest = parseFloat(value);
+    if (!newTotalInterest || !formData.principal_amount || !formData.installments) return;
+    
+    const principal = parseFloat(formData.principal_amount);
+    const numInstallments = parseInt(formData.installments) || 1;
+    
+    // Calcular novo valor da parcela
+    const totalToReceive = principal + newTotalInterest;
+    const newInstallmentValue = totalToReceive / numInstallments;
+    setInstallmentValue(newInstallmentValue.toFixed(2));
+    
+    // Recalcular taxa de juros baseada no modo
+    let newRate: number;
+    if (formData.interest_mode === 'per_installment') {
+      newRate = (newTotalInterest / principal / numInstallments) * 100;
+    } else if (formData.interest_mode === 'compound') {
+      newRate = calculateRateFromPMT(newInstallmentValue, principal, numInstallments);
+    } else {
+      // on_total
+      newRate = (newTotalInterest / principal) * 100;
+    }
+    
+    if (newRate >= 0 && isFinite(newRate)) {
+      setFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
+    }
+  };
+  
   // Handler para quando o usuário edita o valor da parcela
   const handleInstallmentValueChange = (value: string) => {
     setIsManuallyEditingInstallment(true);
@@ -1608,6 +1681,9 @@ export default function Loans() {
     if (newRate >= 0 && isFinite(newRate)) {
       setFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
     }
+    // Ao editar a parcela, também marca que o juros foi ajustado manualmente
+    setIsManuallyEditingInterest(true);
+    setEditableTotalInterest(totalInterest.toFixed(2));
   };
 
   const [paymentData, setPaymentData] = useState({
@@ -3545,6 +3621,8 @@ export default function Loans() {
     const totalToReceiveEdit = principalForInstallment + totalInterestEdit;
     setEditInstallmentValue((totalToReceiveEdit / numInstEdit).toFixed(2));
     setIsEditManuallyEditingInstallment(false);
+    setIsEditManuallyEditingInterest(false);
+    setEditEditableTotalInterest('');
     
     setIsEditDialogOpen(true);
   };
@@ -4473,12 +4551,14 @@ export default function Loans() {
                         <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                       </div>
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Juros Total</Label>
+                        <Label className="text-xs sm:text-sm">Juros Total (R$)</Label>
                         <Input 
-                          type="text" 
-                          readOnly 
-                          value={getTotalInterestDisplay()} 
-                          className="bg-muted h-9 sm:h-10 text-sm"
+                          type="number" 
+                          step="0.01"
+                          placeholder="Ex: 160.00"
+                          value={isManuallyEditingInterest ? editableTotalInterest : getTotalInterestRawValue()} 
+                          onChange={(e) => handleTotalInterestChange(e.target.value)}
+                          className="h-9 sm:h-10 text-sm"
                         />
                       </div>
                     </div>
@@ -10001,11 +10081,12 @@ export default function Loans() {
                     <>
                       <div className="grid grid-cols-2 gap-2 sm:gap-4">
                         <div className="space-y-1 sm:space-y-2">
-                          <Label className="text-xs sm:text-sm">Juros Total</Label>
+                          <Label className="text-xs sm:text-sm">Juros Total (R$)</Label>
                           <Input 
-                            type="text" 
-                            readOnly 
-                            value={(() => {
+                            type="number" 
+                            step="0.01"
+                            placeholder="Ex: 160.00"
+                            value={isEditManuallyEditingInterest ? editEditableTotalInterest : (() => {
                               const principal = parseFloat(editFormData.principal_amount) || 0;
                               const rate = parseFloat(editFormData.interest_rate) || 0;
                               const numInst = parseInt(editFormData.installments) || 1;
@@ -10013,13 +10094,43 @@ export default function Loans() {
                               if (editFormData.interest_mode === 'on_total') {
                                 totalInterest = principal * (rate / 100);
                               } else if (editFormData.interest_mode === 'compound') {
-                                totalInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+                                totalInterest = calculateCompoundInterestPMT(principal, rate, numInst);
                               } else {
                                 totalInterest = principal * (rate / 100) * numInst;
                               }
-                              return formatCurrency(totalInterest);
+                              return totalInterest > 0 ? totalInterest.toFixed(2) : '';
                             })()}
-                            className="bg-muted h-9 sm:h-10 text-sm"
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setIsEditManuallyEditingInterest(true);
+                              setIsEditManuallyEditingInstallment(true);
+                              setEditEditableTotalInterest(value);
+                              
+                              const newTotalInterest = parseFloat(value);
+                              const principal = parseFloat(editFormData.principal_amount);
+                              const numInstallments = parseInt(editFormData.installments) || 1;
+                              
+                              if (newTotalInterest && principal && numInstallments) {
+                                // Calcular novo valor da parcela
+                                const totalToReceive = principal + newTotalInterest;
+                                const newInstallmentValue = totalToReceive / numInstallments;
+                                setEditInstallmentValue(newInstallmentValue.toFixed(2));
+                                
+                                // Recalcular taxa de juros
+                                let newRate: number;
+                                if (editFormData.interest_mode === 'on_total') {
+                                  newRate = (newTotalInterest / principal) * 100;
+                                } else if (editFormData.interest_mode === 'compound') {
+                                  newRate = calculateRateFromPMT(newInstallmentValue, principal, numInstallments);
+                                } else {
+                                  newRate = (newTotalInterest / principal / numInstallments) * 100;
+                                }
+                                if (newRate >= 0 && isFinite(newRate)) {
+                                  setEditFormData(prev => ({ ...prev, interest_rate: newRate.toFixed(2) }));
+                                }
+                              }
+                            }}
+                            className="h-9 sm:h-10 text-sm"
                           />
                         </div>
                         <div className="space-y-1 sm:space-y-2">
