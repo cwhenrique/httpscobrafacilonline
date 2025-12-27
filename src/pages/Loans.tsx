@@ -1813,6 +1813,55 @@ export default function Loans() {
     }
   });
 
+  // Helper para obter a próxima data de vencimento de um empréstimo
+  const getNextDueDate = (loan: typeof loans[0]): Date | null => {
+    const paidCount = getPaidInstallmentsCount(loan);
+    const dates = (loan.installment_dates as string[]) || [];
+    
+    // Para empréstimos com múltiplas parcelas
+    if (dates.length > 0) {
+      const unpaidDates = dates.slice(paidCount);
+      if (unpaidDates.length > 0) {
+        return new Date(unpaidDates[0] + 'T12:00:00');
+      }
+      return null; // Todas as parcelas pagas
+    }
+    
+    // Para empréstimo à vista ou parcela única
+    if (loan.due_date) {
+      return new Date(loan.due_date + 'T12:00:00');
+    }
+    
+    return null;
+  };
+
+  // Ordenar empréstimos por próximo vencimento
+  const sortedLoans = useMemo(() => {
+    return [...filteredLoans].sort((a, b) => {
+      const { isPaid: isPaidA } = getLoanStatus(a);
+      const { isPaid: isPaidB } = getLoanStatus(b);
+      
+      // Empréstimos pagos vão para o final
+      if (isPaidA && !isPaidB) return 1;
+      if (!isPaidA && isPaidB) return -1;
+      if (isPaidA && isPaidB) {
+        // Ambos pagos: ordenar por data de criação (mais recente primeiro)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      
+      // Empréstimos não pagos: ordenar por próximo vencimento
+      const nextDueDateA = getNextDueDate(a);
+      const nextDueDateB = getNextDueDate(b);
+      
+      if (!nextDueDateA && !nextDueDateB) return 0;
+      if (!nextDueDateA) return 1;
+      if (!nextDueDateB) return -1;
+      
+      // Vencimentos mais próximos primeiro (incluindo vencidos/atrasados no topo)
+      return nextDueDateA.getTime() - nextDueDateB.getTime();
+    });
+  }, [filteredLoans]);
+
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
   const handleDailySubmit = async (e: React.FormEvent) => {
@@ -4862,7 +4911,7 @@ export default function Loans() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {filteredLoans.map((loan, loanIndex) => {
+              {sortedLoans.map((loan, loanIndex) => {
                 const isDaily = loan.payment_type === 'daily';
                 const isWeekly = loan.payment_type === 'weekly';
                 const isBiweekly = loan.payment_type === 'biweekly';
@@ -6664,7 +6713,7 @@ export default function Loans() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {filteredLoans.map((loan, loanIndex) => {
+                {sortedLoans.map((loan, loanIndex) => {
                   const isDaily = loan.payment_type === 'daily';
                   const numInstallments = loan.installments || 1;
                   const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
