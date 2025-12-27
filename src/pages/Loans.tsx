@@ -22,14 +22,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { generateContractReceipt, generatePaymentReceipt, generateOperationsReport, ContractReceiptData, PaymentReceiptData, LoanOperationData, OperationsReportData, InstallmentDetail } from '@/lib/pdfGenerator';
+import { generateContractReceipt, generatePaymentReceipt, generateOperationsReport, generatePriceTablePDF, ContractReceiptData, PaymentReceiptData, LoanOperationData, OperationsReportData, InstallmentDetail } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
@@ -386,7 +386,7 @@ export default function Loans() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'regular' | 'daily'>('regular');
+  const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = useState(false);
@@ -408,6 +408,130 @@ export default function Loans() {
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
+  // Estados para a aba Tabela Price inline
+  const [priceFormData, setPriceFormData] = useState({
+    client_id: '',
+    principal_amount: '',
+    interest_rate: '',
+    installments: '6',
+    contract_date: format(new Date(), 'yyyy-MM-dd'),
+    start_date: format(new Date(), 'yyyy-MM-dd'),
+    notes: '',
+    send_notification: false,
+  });
+  const [isGeneratingPricePDF, setIsGeneratingPricePDF] = useState(false);
+  const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
+  
+  // Cálculo da Tabela Price
+  const priceTablePreview = useMemo(() => {
+    const principal = parseFloat(priceFormData.principal_amount);
+    const rate = parseFloat(priceFormData.interest_rate);
+    const installments = parseInt(priceFormData.installments) || 1;
+
+    if (!principal || principal <= 0 || !rate || rate <= 0 || installments <= 0) {
+      return null;
+    }
+
+    return generatePriceTable(principal, rate, installments);
+  }, [priceFormData.principal_amount, priceFormData.interest_rate, priceFormData.installments]);
+  
+  // Datas das parcelas Price
+  const priceInstallmentDates = useMemo(() => {
+    if (!priceFormData.start_date) return [];
+    
+    const numInstallments = parseInt(priceFormData.installments) || 1;
+    const startDate = new Date(priceFormData.start_date + 'T12:00:00');
+    const dates: string[] = [];
+    
+    for (let i = 0; i < numInstallments; i++) {
+      const date = addMonths(startDate, i);
+      dates.push(format(date, 'yyyy-MM-dd'));
+    }
+    
+    return dates;
+  }, [priceFormData.start_date, priceFormData.installments]);
+  
+  // Função para criar empréstimo Price
+  const handlePriceTableSubmit = async () => {
+    if (!priceFormData.client_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+
+    if (!priceTablePreview) {
+      toast.error('Preencha os valores corretamente');
+      return;
+    }
+
+    const principal = parseFloat(priceFormData.principal_amount);
+    const rate = parseFloat(priceFormData.interest_rate);
+    const installments = parseInt(priceFormData.installments);
+
+    let notes = priceFormData.notes || '';
+    notes = `[PRICE_TABLE]\n${notes}`;
+
+    const result = await createLoan({
+      client_id: priceFormData.client_id,
+      principal_amount: principal,
+      interest_rate: rate,
+      interest_type: 'compound',
+      interest_mode: 'compound',
+      payment_type: 'installment',
+      installments: installments,
+      contract_date: priceFormData.contract_date,
+      start_date: priceFormData.start_date,
+      due_date: priceInstallmentDates[priceInstallmentDates.length - 1] || priceFormData.start_date,
+      notes: notes.trim(),
+      installment_dates: priceInstallmentDates,
+      total_interest: priceTablePreview.totalInterest,
+      send_creation_notification: priceFormData.send_notification,
+    });
+
+    if (result.data) {
+      toast.success('Empréstimo Tabela Price criado com sucesso!');
+      setPriceFormData({
+        client_id: '',
+        principal_amount: '',
+        interest_rate: '',
+        installments: '6',
+        contract_date: format(new Date(), 'yyyy-MM-dd'),
+        start_date: format(new Date(), 'yyyy-MM-dd'),
+        notes: '',
+        send_notification: false,
+      });
+    }
+  };
+  
+  // Função para exportar PDF da Tabela Price
+  const handlePriceExportPDF = async () => {
+    if (!priceTablePreview) return;
+    
+    setIsGeneratingPricePDF(true);
+    try {
+      const selectedClient = clients.find(c => c.id === priceFormData.client_id);
+      
+      await generatePriceTablePDF({
+        companyName: profile?.company_name || profile?.full_name || undefined,
+        customLogoUrl: profile?.company_logo_url,
+        clientName: selectedClient?.full_name,
+        principal: parseFloat(priceFormData.principal_amount),
+        interestRate: parseFloat(priceFormData.interest_rate),
+        installments: parseInt(priceFormData.installments),
+        pmt: priceTablePreview.pmt,
+        rows: priceTablePreview.rows,
+        totalPayment: priceTablePreview.totalPayment,
+        totalInterest: priceTablePreview.totalInterest,
+        installmentDates: priceInstallmentDates,
+      });
+      
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setIsGeneratingPricePDF(false);
+    }
+  };
   
   const toggleOverdueExpand = (loanId: string) => {
     setExpandedOverdueCards(prev => {
@@ -4746,15 +4870,23 @@ export default function Loans() {
           </TooltipProvider>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily'); setStatusFilter('all'); }} className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-2 max-w-md">
-            <TabsTrigger value="regular" className="gap-2">
-              <DollarSign className="w-4 h-4" />
-              Empréstimos ({regularLoansCount})
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('all'); }} className="w-full">
+          <TabsList className="mb-4 grid w-full grid-cols-3 max-w-lg">
+            <TabsTrigger value="regular" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Empréstimos</span>
+              <span className="sm:hidden">Emprést.</span>
+              ({regularLoansCount})
             </TabsTrigger>
-            <TabsTrigger value="daily" className="gap-2 data-[state=active]:bg-sky-500 data-[state=active]:text-white">
-              <Clock className="w-4 h-4" />
-              Diário ({dailyLoansCount})
+            <TabsTrigger value="daily" className="gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Diário</span>
+              ({dailyLoansCount})
+            </TabsTrigger>
+            <TabsTrigger value="price" className="gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+              <Table2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Tabela Price</span>
+              <span className="sm:hidden">Price</span>
             </TabsTrigger>
           </TabsList>
 
@@ -4770,13 +4902,6 @@ export default function Loans() {
                 onClick={() => handleDialogOpen(true)}
               >
                 <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Novo Empréstimo</span><span className="sm:hidden">Novo</span>
-              </Button>
-              <Button 
-                size="sm" 
-                className="gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => setIsPriceTableDialogOpen(true)}
-              >
-                <Table2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Tabela Price</span><span className="sm:hidden">Price</span>
               </Button>
             </div>
 
@@ -8089,6 +8214,252 @@ export default function Loans() {
                 })}
               </div>
             )}
+          </TabsContent>
+
+          {/* Tab: Tabela Price */}
+          <TabsContent value="price" className="space-y-4">
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Table2 className="w-5 h-5 text-blue-500" />
+                  <h3 className="font-semibold text-base sm:text-lg">Sistema de Amortização Francês (Price)</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Parcelas fixas com juros compostos embutidos - ideal para empréstimos de longo prazo
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Seleção de Cliente */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <User className="w-4 h-4" /> Cliente
+                  </Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={priceFormData.client_id}
+                      onValueChange={(value) => setPriceFormData(prev => ({ ...prev, client_id: value }))}
+                    >
+                      <SelectTrigger className="flex-1 h-10">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.filter(c => c.client_type === 'loan' || c.client_type === 'both').map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="icon"
+                      onClick={() => setIsNewClientDialogOpen(true)}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Valores Principais */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <DollarSign className="w-4 h-4" /> Valor do Capital
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="2500.00"
+                      value={priceFormData.principal_amount}
+                      onChange={(e) => setPriceFormData(prev => ({ ...prev, principal_amount: e.target.value }))}
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <Percent className="w-4 h-4" /> Taxa Mensal (%)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="20"
+                      value={priceFormData.interest_rate}
+                      onChange={(e) => setPriceFormData(prev => ({ ...prev, interest_rate: e.target.value }))}
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4" /> Parcelas
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={priceFormData.installments}
+                      onChange={(e) => setPriceFormData(prev => ({ ...prev, installments: e.target.value }))}
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+
+                {/* Datas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <CalendarIcon className="w-4 h-4" /> Data do Contrato
+                    </Label>
+                    <Input
+                      type="date"
+                      value={priceFormData.contract_date}
+                      onChange={(e) => setPriceFormData(prev => ({ ...prev, contract_date: e.target.value }))}
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <CalendarIcon className="w-4 h-4" /> 1ª Parcela
+                    </Label>
+                    <Input
+                      type="date"
+                      value={priceFormData.start_date}
+                      onChange={(e) => setPriceFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+
+                {/* Prévia da Tabela Price */}
+                {priceTablePreview && (
+                  <Card className="border-border bg-muted/30">
+                    <CardContent className="p-4 space-y-4">
+                      {/* Cabeçalho com resumo */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-border">
+                        <div className="flex items-center gap-2">
+                          <Table2 className="w-5 h-5 text-primary" />
+                          <span className="font-semibold text-foreground">Tabela de Amortização</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="w-4 h-4 text-emerald-500" />
+                            <span className="font-medium text-foreground">Parcela: {formatCurrency(priceTablePreview.pmt)}</span>
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handlePriceExportPDF}
+                            disabled={isGeneratingPricePDF}
+                            className="h-8"
+                          >
+                            <Download className="w-4 h-4 mr-1.5" />
+                            {isGeneratingPricePDF ? 'Gerando...' : 'PDF'}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Tabela de Amortização */}
+                      <ScrollArea className="h-[200px] sm:h-[280px]">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                            <tr>
+                              <th className="px-2 py-2 text-left font-medium text-muted-foreground">#</th>
+                              <th className="px-2 py-2 text-right font-medium text-muted-foreground">Parcela</th>
+                              <th className="px-2 py-2 text-right font-medium text-muted-foreground">
+                                <span className="hidden sm:inline">Amortização</span>
+                                <span className="sm:hidden">Amort.</span>
+                              </th>
+                              <th className="px-2 py-2 text-right font-medium text-muted-foreground">Juros</th>
+                              <th className="px-2 py-2 text-right font-medium text-muted-foreground">Saldo</th>
+                              <th className="px-2 py-2 text-right font-medium text-muted-foreground hidden sm:table-cell">Vencimento</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {priceTablePreview.rows.map((row, index) => (
+                              <tr key={row.installmentNumber} className="hover:bg-muted/30">
+                                <td className="px-2 py-1.5 text-primary font-medium">{row.installmentNumber}</td>
+                                <td className="px-2 py-1.5 text-right font-medium text-foreground">{formatCurrency(row.payment)}</td>
+                                <td className="px-2 py-1.5 text-right text-emerald-500">{formatCurrency(row.amortization)}</td>
+                                <td className="px-2 py-1.5 text-right text-orange-500">{formatCurrency(row.interest)}</td>
+                                <td className="px-2 py-1.5 text-right text-foreground">{formatCurrency(row.balance)}</td>
+                                <td className="px-2 py-1.5 text-right text-muted-foreground hidden sm:table-cell">
+                                  {priceInstallmentDates[index] ? formatDate(priceInstallmentDates[index]) : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </ScrollArea>
+
+                      {/* Totais */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-3 border-t border-border">
+                        <div className="flex items-center gap-1 text-sm">
+                          <DollarSign className="w-4 h-4 text-emerald-500" />
+                          <span className="text-muted-foreground">Total a Receber:</span>
+                          <span className="font-bold text-emerald-500">
+                            {formatCurrency(priceTablePreview.totalPayment)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Percent className="w-4 h-4 text-primary" />
+                          <span className="text-muted-foreground">Juros Total:</span>
+                          <span className="font-bold text-primary">
+                            {formatCurrency(priceTablePreview.totalInterest)}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Observações */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <FileText className="w-4 h-4" /> Observações
+                  </Label>
+                  <Textarea
+                    placeholder="Notas sobre o empréstimo..."
+                    value={priceFormData.notes}
+                    onChange={(e) => setPriceFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    className="min-h-[60px]"
+                  />
+                </div>
+
+                {/* Notificação WhatsApp */}
+                <div className="flex items-start gap-2 p-3 rounded-lg border border-border/50 bg-muted/30">
+                  <Checkbox
+                    id="price_send_notification"
+                    checked={priceFormData.send_notification}
+                    onCheckedChange={(checked) => setPriceFormData(prev => ({ ...prev, send_notification: !!checked }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="price_send_notification" className="text-sm font-medium cursor-pointer">
+                      Enviar notificação WhatsApp ao criar
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Alertas de atraso e relatórios serão enviados normalmente
+                    </p>
+                  </div>
+                </div>
+
+                {/* Botão Criar */}
+                <div className="flex justify-end pt-2">
+                  <Button 
+                    onClick={handlePriceTableSubmit}
+                    className="h-10 bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={!priceTablePreview}
+                  >
+                    <Table2 className="w-4 h-4 mr-1.5" />
+                    Criar Empréstimo Price
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
