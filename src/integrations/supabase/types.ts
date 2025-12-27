@@ -820,6 +820,66 @@ export type Database = {
         }
         Relationships: []
       }
+      tutorial_videos: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          duration: string | null
+          id: string
+          is_active: boolean | null
+          order_number: number
+          title: string
+          updated_at: string | null
+          youtube_video_id: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_number: number
+          title: string
+          updated_at?: string | null
+          youtube_video_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_number?: number
+          title?: string
+          updated_at?: string | null
+          youtube_video_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       vehicle_payments: {
         Row: {
           amount: number
@@ -1008,8 +1068,16 @@ export type Database = {
         Args: { p_late: number; p_on_time: number; p_total_loans: number }
         Returns: number
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "user"
       client_type: "loan" | "monthly" | "both"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
@@ -1147,6 +1215,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       client_type: ["loan", "monthly", "both"],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],
