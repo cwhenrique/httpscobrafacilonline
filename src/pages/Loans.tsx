@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, FolderOpen, LayoutGrid } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, FolderOpen } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,7 +41,6 @@ import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
 import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
-import { ClientLoansFolder, ClientGroup } from '@/components/ClientLoansFolder';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -406,21 +405,10 @@ export default function Loans() {
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
-  // Estado para visualização agrupada por cliente
-  const [viewMode, setViewMode] = useState<'cards' | 'grouped'>('cards');
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
-  
-  const toggleClientExpand = (clientId: string) => {
-    setExpandedClients(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(clientId)) {
-        newSet.delete(clientId);
-      } else {
-        newSet.add(clientId);
-      }
-      return newSet;
-    });
-  };
+  // Estado para dialog de contratos agrupados por cliente
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupDialogClientId, setGroupDialogClientId] = useState<string | null>(null);
+  const [groupDialogCurrentLoanId, setGroupDialogCurrentLoanId] = useState<string | null>(null);
   
   const toggleOverdueExpand = (loanId: string) => {
     setExpandedOverdueCards(prev => {
@@ -1880,71 +1868,28 @@ export default function Loans() {
     });
   }, [filteredLoans]);
 
-  // Agrupar empréstimos por cliente
-  const groupedLoans = useMemo((): ClientGroup[] => {
-    const groups: Record<string, ClientGroup> = {};
-
-    for (const loan of sortedLoans) {
-      if (!loan.client_id || !loan.client) continue;
-      
-      if (!groups[loan.client_id]) {
-        groups[loan.client_id] = {
-          client: loan.client as Client,
-          loans: [],
-          totalPrincipal: 0,
-          totalToReceive: 0,
-          totalPaid: 0,
-          remainingBalance: 0,
-          hasOverdue: false,
-          hasPending: false,
-          allPaid: true,
-        };
-      }
-      
-      groups[loan.client_id].loans.push(loan as Loan);
-      groups[loan.client_id].totalPrincipal += loan.principal_amount;
-      groups[loan.client_id].totalPaid += loan.total_paid || 0;
-      groups[loan.client_id].remainingBalance += loan.remaining_balance || 0;
-      
-      // Calcular total a receber
-      const numInstallments = loan.installments || 1;
-      const isDaily = loan.payment_type === 'daily';
-      if (isDaily) {
-        const dailyAmount = loan.total_interest || 0;
-        groups[loan.client_id].totalToReceive += dailyAmount * numInstallments;
-      } else {
-        const totalInterest = loan.total_interest || 0;
-        groups[loan.client_id].totalToReceive += loan.principal_amount + totalInterest;
-      }
-      
-      // Verificar status
-      const { isPaid, isOverdue } = getLoanStatus(loan);
-      if (isOverdue && !isPaid) groups[loan.client_id].hasOverdue = true;
-      if (!isPaid) {
-        groups[loan.client_id].hasPending = true;
-        groups[loan.client_id].allPaid = false;
+  // Contar quantos empréstimos cada cliente tem
+  const loanCountByClient = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const loan of loans) {
+      if (loan.client_id) {
+        counts[loan.client_id] = (counts[loan.client_id] || 0) + 1;
       }
     }
+    return counts;
+  }, [loans]);
 
-    // Converter para array e ordenar (clientes com contratos atrasados primeiro, depois por quantidade)
-    return Object.values(groups)
-      .filter(g => g.loans.length > 0)
-      .sort((a, b) => {
-        // Atrasados primeiro
-        if (a.hasOverdue && !b.hasOverdue) return -1;
-        if (!a.hasOverdue && b.hasOverdue) return 1;
-        // Quitados por último
-        if (a.allPaid && !b.allPaid) return 1;
-        if (!a.allPaid && b.allPaid) return -1;
-        // Mais contratos primeiro
-        return b.loans.length - a.loans.length;
-      });
-  }, [sortedLoans]);
+  // Obter empréstimos de um cliente específico para o dialog
+  const getClientLoansForDialog = useMemo(() => {
+    if (!groupDialogClientId) return [];
+    return sortedLoans.filter(loan => loan.client_id === groupDialogClientId);
+  }, [groupDialogClientId, sortedLoans]);
 
-  // Contar clientes com múltiplos contratos
-  const clientsWithMultipleLoans = useMemo(() => {
-    return groupedLoans.filter(g => g.loans.length > 1).length;
-  }, [groupedLoans]);
+  // Obter cliente do dialog
+  const groupDialogClient = useMemo(() => {
+    if (!groupDialogClientId) return null;
+    return clients.find(c => c.id === groupDialogClientId) || null;
+  }, [groupDialogClientId, clients]);
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
@@ -4810,31 +4755,6 @@ export default function Loans() {
               >
                 <Table2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Tabela Price</span><span className="sm:hidden">Price</span>
               </Button>
-              <Button 
-                size="sm" 
-                variant={viewMode === 'grouped' ? 'default' : 'outline'}
-                className={`gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 ${viewMode === 'grouped' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'border-purple-500 text-purple-600 hover:bg-purple-500/10'}`}
-                onClick={() => setViewMode(v => v === 'cards' ? 'grouped' : 'cards')}
-              >
-                {viewMode === 'grouped' ? (
-                  <>
-                    <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline">Ver Cards</span>
-                    <span className="sm:hidden">Cards</span>
-                  </>
-                ) : (
-                  <>
-                    <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline">Agrupar</span>
-                    <span className="sm:hidden">Agrupar</span>
-                    {clientsWithMultipleLoans > 0 && (
-                      <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
-                        {clientsWithMultipleLoans}
-                      </Badge>
-                    )}
-                  </>
-                )}
-              </Button>
             </div>
 
           <TooltipProvider delayDuration={300}>
@@ -5030,160 +4950,6 @@ export default function Loans() {
             <div className="text-center py-8 sm:py-12">
               <DollarSign className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
               <p className="text-sm sm:text-base text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
-            </div>
-          ) : viewMode === 'grouped' ? (
-            /* Visualização Agrupada por Cliente */
-            <div className="space-y-3">
-              {groupedLoans.map(group => (
-                <ClientLoansFolder
-                  key={group.client.id}
-                  group={group}
-                  isExpanded={expandedClients.has(group.client.id)}
-                  onToggle={() => toggleClientExpand(group.client.id)}
-                  renderLoanCard={(loan, loanIndex) => {
-                    // Reutilizar a mesma lógica de renderização de card
-                    const isDaily = loan.payment_type === 'daily';
-                    const isWeekly = loan.payment_type === 'weekly';
-                    const isBiweekly = loan.payment_type === 'biweekly';
-                    const numInstallments = loan.installments || 1;
-                    
-                    const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
-                    const dailyTotalToReceive = isDaily ? dailyInstallmentAmount * numInstallments : 0;
-                    const dailyProfit = isDaily ? (dailyTotalToReceive - loan.principal_amount) : 0;
-                    
-                    const principalPerInstallment = loan.principal_amount / numInstallments;
-                    const storedTotalInterest = loan.total_interest || 0;
-                    
-                    let calculatedTotalInterest = 0;
-                    if (!isDaily) {
-                      if (loan.interest_mode === 'on_total') {
-                        calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
-                      } else if (loan.interest_mode === 'compound') {
-                        calculatedTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
-                      } else {
-                        calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-                      }
-                    }
-                    
-                    const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
-                    const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
-                    const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
-                    
-                    const { isPaid, isOverdue } = getLoanStatus(loan);
-                    const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
-                    const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-                    
-                    const getCardBorderColor = () => {
-                      if (isPaid) return 'border-primary bg-primary/10';
-                      if (isOverdue) return 'border-destructive bg-destructive/10';
-                      return 'border-border';
-                    };
-                    
-                    return (
-                      <Card key={loan.id} className={`transition-all hover:shadow-md ${getCardBorderColor()}`}>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <Badge variant={isPaid ? 'default' : isOverdue ? 'destructive' : 'secondary'} className="text-[10px]">
-                                {isPaid ? 'Quitado' : isOverdue ? 'Atrasado' : 'Em Dia'}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDate(loan.start_date)}
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Emprestado:</span>
-                              <p className="font-medium">{formatCurrency(loan.principal_amount)}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Parcela:</span>
-                              <p className="font-medium">{formatCurrency(totalPerInstallment)}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">A Receber:</span>
-                              <p className={`font-medium ${remainingToReceive > 0 ? 'text-amber-500' : 'text-primary'}`}>
-                                {formatCurrency(remainingToReceive)}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Parcelas:</span>
-                              <p className="font-medium">{getPaidInstallmentsCount(loan)}/{numInstallments}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-1 mt-3">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="flex-1 h-7 text-xs"
-                              onClick={() => {
-                                setSelectedLoanId(loan.id);
-                                const dates = (loan.installment_dates as string[]) || [];
-                                const paidCount = getPaidInstallmentsCount(loan);
-                                let defaultNextDueDate = '';
-                                if (dates.length > 0 && paidCount + 1 < dates.length) {
-                                  defaultNextDueDate = dates[paidCount + 1];
-                                }
-                                setPaymentData({ 
-                                  amount: '', 
-                                  payment_date: format(new Date(), 'yyyy-MM-dd'),
-                                  new_due_date: defaultNextDueDate,
-                                  payment_type: 'partial', 
-                                  selected_installments: [], 
-                                  partial_installment_index: null, 
-                                  send_notification: false,
-                                  is_advance_payment: false 
-                                });
-                                setIsPaymentDialogOpen(true);
-                              }}
-                            >
-                              <DollarSign className="w-3 h-3 mr-1" />
-                              Pagar
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              className="h-7 px-2"
-                              onClick={() => {
-                                setEditingLoanId(loan.id);
-                                
-                                // Calcular dados para edição
-                                const numInstallments = loan.installments || 1;
-                                const loanDates = (loan.installment_dates as string[]) || [];
-                                
-                                setEditFormData({
-                                  client_id: loan.client_id,
-                                  principal_amount: loan.principal_amount.toString(),
-                                  interest_rate: loan.interest_rate.toString(),
-                                  interest_type: loan.interest_type as InterestType,
-                                  interest_mode: (loan.interest_mode || 'per_installment') as 'per_installment' | 'on_total' | 'compound',
-                                  payment_type: loan.payment_type as LoanPaymentType,
-                                  installments: numInstallments.toString(),
-                                  contract_date: loan.contract_date || '',
-                                  start_date: loan.start_date,
-                                  due_date: loan.due_date,
-                                  notes: loan.notes || '',
-                                  daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
-                                  overdue_daily_rate: '',
-                                  overdue_fixed_amount: '',
-                                  overdue_penalty_type: 'percentage',
-                                  apply_overdue_penalty: false,
-                                  send_notification: false,
-                                });
-                                setEditInstallmentDates(loanDates);
-                                setIsEditDialogOpen(true);
-                              }}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  }}
-                />
-              ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -7986,6 +7752,28 @@ export default function Loans() {
                                   </TooltipContent>
                                 </Tooltip>
                               )}
+                              {/* Botão de Agrupar - só aparece se cliente tem mais de 1 contrato */}
+                              {loan.client_id && loanCountByClient[loan.client_id] > 1 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                      size="icon" 
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
+                                      onClick={() => {
+                                        setGroupDialogClientId(loan.client_id);
+                                        setGroupDialogCurrentLoanId(loan.id);
+                                        setGroupDialogOpen(true);
+                                      }}
+                                    >
+                                      <FolderOpen className="w-3 h-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p>Ver contratos do cliente ({loanCountByClient[loan.client_id]})</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
@@ -10489,6 +10277,218 @@ export default function Loans() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Contratos Agrupados por Cliente */}
+        <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                {groupDialogClient && (
+                  <>
+                    <Avatar className="h-10 w-10 border-2 border-primary/20">
+                      <AvatarImage src={getAvatarUrl(groupDialogClient.avatar_url, groupDialogClient.full_name)} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                        {groupDialogClient.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span className="text-lg">Contratos de {groupDialogClient.full_name}</span>
+                      <Badge className="ml-2 bg-purple-500/20 text-purple-600 border-purple-500/30">
+                        {getClientLoansForDialog.length} contratos
+                      </Badge>
+                    </div>
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Visualize todos os contratos deste cliente em um só lugar
+              </DialogDescription>
+            </DialogHeader>
+            
+            {/* Lista de contratos do cliente */}
+            <div className="space-y-3 mt-4">
+              {getClientLoansForDialog.map((loan) => {
+                const numInstallments = loan.installments || 1;
+                const isDaily = loan.payment_type === 'daily';
+                
+                // Calcular valores
+                let totalInterest = 0;
+                if (isDaily) {
+                  const dailyAmount = loan.total_interest || 0;
+                  totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+                } else {
+                  totalInterest = loan.total_interest || 0;
+                }
+                
+                const totalToReceive = loan.principal_amount + totalInterest;
+                const installmentValue = isDaily ? (loan.total_interest || 0) : totalToReceive / numInstallments;
+                const paidCount = getPaidInstallmentsCount(loan);
+                const { isPaid, isOverdue } = getLoanStatus(loan);
+                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
+                const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenalties);
+                
+                const isCurrentLoan = loan.id === groupDialogCurrentLoanId;
+                
+                return (
+                  <Card 
+                    key={loan.id} 
+                    className={`transition-all ${isCurrentLoan ? 'ring-2 ring-purple-500 bg-purple-500/5' : ''} ${
+                      isPaid ? 'border-primary/50 bg-primary/5' : 
+                      isOverdue ? 'border-destructive/50 bg-destructive/5' : 
+                      'border-border'
+                    }`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={isPaid ? 'default' : isOverdue ? 'destructive' : 'secondary'} className="text-[10px]">
+                            {isPaid ? 'Quitado' : isOverdue ? 'Atrasado' : 'Em Dia'}
+                          </Badge>
+                          {isDaily && (
+                            <Badge variant="outline" className="text-[10px] border-sky-500 text-sky-500">
+                              Diário
+                            </Badge>
+                          )}
+                          {isCurrentLoan && (
+                            <Badge variant="outline" className="text-[10px] border-purple-500 text-purple-500">
+                              Contrato Atual
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(loan.start_date)}
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <span className="text-xs text-muted-foreground">Emprestado</span>
+                          <p className="font-semibold">{formatCurrency(loan.principal_amount)}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Parcela</span>
+                          <p className="font-semibold">{formatCurrency(installmentValue)}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">A Receber</span>
+                          <p className={`font-semibold ${remainingToReceive > 0 ? 'text-amber-500' : 'text-primary'}`}>
+                            {formatCurrency(remainingToReceive)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Parcelas</span>
+                          <p className="font-semibold">{paidCount}/{numInstallments}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Botões de ação */}
+                      <div className="flex gap-2 mt-4">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1 h-8 text-xs"
+                          disabled={isPaid}
+                          onClick={() => {
+                            setGroupDialogOpen(false);
+                            setSelectedLoanId(loan.id);
+                            const dates = (loan.installment_dates as string[]) || [];
+                            let defaultNextDueDate = '';
+                            if (dates.length > 0 && paidCount + 1 < dates.length) {
+                              defaultNextDueDate = dates[paidCount + 1];
+                            }
+                            setPaymentData({ 
+                              amount: installmentValue.toFixed(2), 
+                              payment_date: format(new Date(), 'yyyy-MM-dd'),
+                              new_due_date: defaultNextDueDate,
+                              payment_type: 'installment',
+                              selected_installments: [],
+                              partial_installment_index: null,
+                              send_notification: false,
+                              is_advance_payment: false,
+                            });
+                            setIsPaymentDialogOpen(true);
+                          }}
+                        >
+                          <CreditCard className="w-3 h-3 mr-1" />
+                          Pagar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 px-3"
+                          onClick={() => openPaymentHistory(loan.id)}
+                        >
+                          <History className="w-3 h-3 mr-1" />
+                          Histórico
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 px-3"
+                          onClick={() => {
+                            setGroupDialogOpen(false);
+                            openEditDialog(loan.id);
+                          }}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Editar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            
+            {/* Resumo total */}
+            {getClientLoansForDialog.length > 0 && (() => {
+              const totals = getClientLoansForDialog.reduce((acc, loan) => {
+                const numInstallments = loan.installments || 1;
+                const isDaily = loan.payment_type === 'daily';
+                let totalInterest = 0;
+                if (isDaily) {
+                  const dailyAmount = loan.total_interest || 0;
+                  totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+                } else {
+                  totalInterest = loan.total_interest || 0;
+                }
+                const totalToReceive = loan.principal_amount + totalInterest;
+                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
+                const remainingToReceive = loan.status === 'paid' ? 0 : Math.max(0, loan.remaining_balance + totalAppliedPenalties);
+                
+                return {
+                  principal: acc.principal + loan.principal_amount,
+                  toReceive: acc.toReceive + totalToReceive,
+                  paid: acc.paid + (loan.total_paid || 0),
+                  remaining: acc.remaining + remainingToReceive,
+                };
+              }, { principal: 0, toReceive: 0, paid: 0, remaining: 0 });
+              
+              return (
+                <div className="border-t pt-4 mt-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Total Emprestado</p>
+                      <p className="text-lg font-bold">{formatCurrency(totals.principal)}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Total Contrato</p>
+                      <p className="text-lg font-bold">{formatCurrency(totals.toReceive)}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-primary/10">
+                      <p className="text-xs text-muted-foreground">Já Recebido</p>
+                      <p className="text-lg font-bold text-primary">{formatCurrency(totals.paid)}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-500/10">
+                      <p className="text-xs text-muted-foreground">A Receber</p>
+                      <p className="text-lg font-bold text-amber-500">{formatCurrency(totals.remaining)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
         
