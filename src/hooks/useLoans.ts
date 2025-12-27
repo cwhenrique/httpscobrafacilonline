@@ -368,12 +368,19 @@ export function useLoans() {
       .eq('id', id)
       .single();
 
+    // Limpar tags de multa ao renegociar (reset do contrato)
+    const cleanedNotes = (data.notes || '')
+      .replace(/\[DAILY_PENALTY:\d+:[0-9.]+\]\n?/g, '')  // Remove multas diárias
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')      // Remove config de multa
+      .replace(/\n{2,}/g, '\n')  // Limpa linhas vazias extras
+      .trim();
+
     const updatePayload: Record<string, any> = {
       interest_rate: data.interest_rate,
       installments: data.installments,
       installment_dates: data.installment_dates,
       due_date: data.due_date,
-      notes: data.notes,
+      notes: cleanedNotes || null,
       status: 'pending',
     };
 
@@ -638,7 +645,79 @@ export function useLoans() {
       return { error: deleteError };
     }
 
-    // 4. Update client score
+    // 4. Limpar tags relacionadas das notas do empréstimo
+    const paymentNotes = paymentData.notes || '';
+    let updatedLoanNotes = loanData.notes || '';
+    let notesChanged = false;
+    
+    // Se era pagamento de sub-parcela de adiantamento, reverter a tag PAID para tag normal
+    const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
+    if (subparcelaPaidMatch) {
+      const originalIndex = parseInt(subparcelaPaidMatch[1]) - 1;
+      // Buscar a tag PAID correspondente e reverter para PENDENTE
+      const paidTagRegex = new RegExp(
+        `\\[ADVANCE_SUBPARCELA_PAID:${originalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
+        'g'
+      );
+      const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
+        return `[ADVANCE_SUBPARCELA:${originalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
+      });
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    // Se era pagamento parcial/adiantamento que criou sub-parcela
+    const advanceMatch = paymentNotes.match(/Adiantamento - Parcela (\d+)/);
+    if (advanceMatch) {
+      const installmentIndex = parseInt(advanceMatch[1]) - 1;
+      // Remover a tag PARTIAL_PAID desta parcela
+      let newNotes = updatedLoanNotes.replace(
+        new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), 
+        ''
+      );
+      // Remover as sub-parcelas criadas (tanto pendentes quanto pagas)
+      newNotes = newNotes.replace(
+        new RegExp(`\\[ADVANCE_SUBPARCELA:${installmentIndex}:[^\\]]+\\]`, 'g'), 
+        ''
+      );
+      newNotes = newNotes.replace(
+        new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), 
+        ''
+      );
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    // Se era pagamento de parcela específica (sem ser adiantamento)
+    const parcelaMatch = paymentNotes.match(/Parcela (\d+) de \d+/);
+    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch) {
+      const installmentIndex = parseInt(parcelaMatch[1]) - 1;
+      // Remover a tag PARTIAL_PAID desta parcela
+      const newNotes = updatedLoanNotes.replace(
+        new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), 
+        ''
+      );
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    // Salvar notas atualizadas se mudaram
+    if (notesChanged) {
+      // Limpar linhas vazias extras
+      updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      await supabase
+        .from('loans')
+        .update({ notes: updatedLoanNotes || null })
+        .eq('id', loanId);
+    }
+
+    // 5. Update client score
     await updateClientScore(loanData.client_id);
 
     toast.success('Pagamento excluído e saldo restaurado!');
