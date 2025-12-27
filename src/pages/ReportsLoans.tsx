@@ -205,24 +205,75 @@ export default function ReportsLoans() {
     });
   }, [stats.allLoans]);
 
+  // Filter loans by payment type only (for current state metrics)
+  const loansFilteredByType = useMemo(() => {
+    if (paymentTypeFilter === 'all') return stats.allLoans;
+    
+    if (paymentTypeFilter === 'installment') {
+      return stats.allLoans.filter(loan => 
+        loan.payment_type === 'installment' || loan.payment_type === 'single'
+      );
+    }
+    return stats.allLoans.filter(loan => loan.payment_type === paymentTypeFilter);
+  }, [stats.allLoans, paymentTypeFilter]);
+
+  // Payments received within the selected date range
+  const paymentsInPeriod = useMemo(() => {
+    const payments: Array<{
+      loanId: string;
+      amount: number;
+      interestPaid: number;
+      principalPaid: number;
+      paymentDate: Date;
+    }> = [];
+    
+    loansFilteredByType.forEach(loan => {
+      const loanPayments = (loan as any).payments || [];
+      loanPayments.forEach((payment: any) => {
+        const paymentDate = payment.payment_date ? new Date(payment.payment_date) : null;
+        if (!paymentDate) return;
+        
+        if (dateRange?.from && dateRange?.to) {
+          if (isWithinInterval(paymentDate, { start: dateRange.from, end: dateRange.to })) {
+            payments.push({
+              loanId: loan.id,
+              amount: Number(payment.amount || 0),
+              interestPaid: Number(payment.interest_paid || 0),
+              principalPaid: Number(payment.principal_paid || 0),
+              paymentDate,
+            });
+          }
+        } else {
+          payments.push({
+            loanId: loan.id,
+            amount: Number(payment.amount || 0),
+            interestPaid: Number(payment.interest_paid || 0),
+            principalPaid: Number(payment.principal_paid || 0),
+            paymentDate,
+          });
+        }
+      });
+    });
+    
+    return payments;
+  }, [loansFilteredByType, dateRange]);
+
   // Calculate comprehensive filtered stats
   const filteredStats = useMemo(() => {
-    const activeLoans = filteredLoans.filter(loan => loan.status !== 'paid');
+    // For current state metrics (Capital na Rua, Em Atraso) - use ALL data filtered by type only
+    const allActiveLoans = loansFilteredByType.filter(loan => loan.status !== 'paid');
+    const allOverdueLoans = allActiveLoans.filter(loan => isLoanOverdue(loan));
     
-    // Usar função centralizada para verificar atraso
-    // Considera installment_dates para empréstimos diários/semanais/quinzenais
-    const overdueLoans = filteredLoans.filter(loan => isLoanOverdue(loan));
-    
-    // Capital na Rua (principal - principal já pago dos empréstimos ativos)
-    const totalOnStreet = activeLoans.reduce((sum, loan) => {
+    // Capital na Rua - CURRENT STATE (not filtered by period)
+    const totalOnStreet = allActiveLoans.reduce((sum, loan) => {
       const principal = Number(loan.principal_amount);
       const payments = (loan as any).payments || [];
       const totalPrincipalPaid = payments.reduce((s: number, p: any) => s + Number(p.principal_paid || 0), 0);
       return sum + (principal - totalPrincipalPaid);
     }, 0);
     
-    // Juros a Receber (pendentes) - com tratamento especial para diários
-    const pendingInterest = activeLoans.reduce((sum, loan) => {
+    // Juros a Receber - CURRENT STATE (not filtered by period)
+    const pendingInterest = allActiveLoans.reduce((sum, loan) => {
       const principal = Number(loan.principal_amount);
       const remainingBalance = Number(loan.remaining_balance || 0);
       const totalPaid = Number(loan.total_paid || 0);
@@ -231,15 +282,12 @@ export default function ReportsLoans() {
       const interestMode = loan.interest_mode || 'per_installment';
       const isDaily = loan.payment_type === 'daily';
       
-      // Calcular juros já recebidos dos pagamentos
       const payments = (loan as any).payments || [];
       const interestPaid = payments.reduce((s: number, p: any) => 
         s + Number(p.interest_paid || 0), 0);
       
-      // Calcular total de juros do contrato
       let totalInterest = 0;
       if (isDaily) {
-        // Para diários, juros está embutido no remaining_balance inicial
         totalInterest = remainingBalance + totalPaid - principal;
       } else {
         totalInterest = interestMode === 'per_installment' 
@@ -250,40 +298,49 @@ export default function ReportsLoans() {
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
-    // Total Recebido (histórico)
-    const totalReceivedAllTime = filteredLoans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
+    // Falta Receber - CURRENT STATE
+    const pendingAmount = allActiveLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
     
-    // Falta Receber
-    const pendingAmount = activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    // Em Atraso - CURRENT STATE
+    const overdueAmount = allOverdueLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
     
-    // Em Atraso
-    const overdueAmount = overdueLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    // Total Recebido - PAYMENTS IN PERIOD
+    const totalReceivedInPeriod = paymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
     
-    // Lucro Realizado (juros já recebidos)
-    const realizedProfit = filteredLoans.reduce((sum, loan) => {
-      const payments = (loan as any).payments || [];
-      return sum + payments.reduce((s: number, p: any) => s + Number(p.interest_paid || 0), 0);
-    }, 0);
+    // Lucro Realizado - PAYMENTS IN PERIOD (interest received)
+    const realizedProfitInPeriod = paymentsInPeriod.reduce((sum, p) => sum + p.interestPaid, 0);
 
+    // Loans created in period (for table display)
+    const loansInPeriod = dateRange?.from && dateRange?.to
+      ? loansFilteredByType.filter(loan => {
+          const loanDate = new Date(loan.start_date);
+          return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
+        })
+      : loansFilteredByType;
+    
     // Total emprestado no período
-    const totalLent = filteredLoans.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    const totalLent = loansInPeriod.reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    
+    // Active and overdue from loans in period (for tables)
+    const activeLoansInPeriod = loansInPeriod.filter(loan => loan.status !== 'paid');
+    const overdueLoansInPeriod = activeLoansInPeriod.filter(loan => isLoanOverdue(loan));
     
     return {
       totalOnStreet,
       pendingInterest,
-      totalReceivedAllTime,
+      totalReceivedAllTime: totalReceivedInPeriod,
       pendingAmount,
       overdueAmount,
-      realizedProfit,
-      activeLoansCount: activeLoans.length,
-      overdueCount: overdueLoans.length,
-      activeLoans,
-      overdueLoans,
+      realizedProfit: realizedProfitInPeriod,
+      activeLoansCount: allActiveLoans.length,
+      overdueCount: allOverdueLoans.length,
+      activeLoans: activeLoansInPeriod,
+      overdueLoans: overdueLoansInPeriod,
       totalLent,
-      totalProfit: realizedProfit,
-      totalReceived: totalReceivedAllTime,
+      totalProfit: realizedProfitInPeriod,
+      totalReceived: totalReceivedInPeriod,
     };
-  }, [filteredLoans]);
+  }, [loansFilteredByType, paymentsInPeriod, dateRange]);
 
   // Monthly evolution data - filtered by payment type
   const monthlyEvolution = useMemo(() => {

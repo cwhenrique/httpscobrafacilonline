@@ -84,7 +84,7 @@ export function useOperationalStats() {
       .select(`
         *,
         client:clients(full_name, phone),
-        payments:loan_payments(amount, interest_paid, principal_paid)
+        payments:loan_payments(amount, interest_paid, principal_paid, payment_date)
       `)
       .order('created_at', { ascending: false });
 
