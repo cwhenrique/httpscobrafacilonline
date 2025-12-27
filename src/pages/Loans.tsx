@@ -42,6 +42,7 @@ import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog'
 import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
+import { ClientLoansFolder } from '@/components/ClientLoansFolder';
 
 // Helper para extrair pagamentos parciais do notes do loan
 const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
@@ -405,10 +406,45 @@ export default function Loans() {
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
-  // Estado para dialog de contratos agrupados por cliente
+  // Estado para dialog de contratos agrupados por cliente (legacy - ainda usado para dialog)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [groupDialogClientId, setGroupDialogClientId] = useState<string | null>(null);
   const [groupDialogCurrentLoanId, setGroupDialogCurrentLoanId] = useState<string | null>(null);
+  
+  // Estado para agrupamento in-place por cliente
+  const [groupedClients, setGroupedClients] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  
+  // Funções de controle de agrupamento
+  const handleGroupClient = (clientId: string) => {
+    setGroupedClients(prev => new Set(prev).add(clientId));
+    setExpandedGroups(prev => new Set(prev).add(clientId)); // Já expandir automaticamente
+  };
+  
+  const handleUngroupClient = (clientId: string) => {
+    setGroupedClients(prev => {
+      const next = new Set(prev);
+      next.delete(clientId);
+      return next;
+    });
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      next.delete(clientId);
+      return next;
+    });
+  };
+  
+  const toggleGroupExpansion = (clientId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
+      return next;
+    });
+  };
   
   const toggleOverdueExpand = (loanId: string) => {
     setExpandedOverdueCards(prev => {
@@ -1878,6 +1914,54 @@ export default function Loans() {
     }
     return counts;
   }, [loans]);
+
+  // Agrupar empréstimos por cliente (para pastas agrupadas)
+  const loansByClient = useMemo(() => {
+    const groups: Record<string, {
+      client: Client;
+      loans: Loan[];
+      totalPrincipal: number;
+      totalToReceive: number;
+      totalPaid: number;
+      remainingBalance: number;
+      hasOverdue: boolean;
+      hasPending: boolean;
+      allPaid: boolean;
+    }> = {};
+
+    for (const loan of sortedLoans) {
+      if (!loan.client_id || !loan.client) continue;
+      
+      if (!groups[loan.client_id]) {
+        groups[loan.client_id] = {
+          client: loan.client,
+          loans: [],
+          totalPrincipal: 0,
+          totalToReceive: 0,
+          totalPaid: 0,
+          remainingBalance: 0,
+          hasOverdue: false,
+          hasPending: false,
+          allPaid: true,
+        };
+      }
+      
+      const { isPaid, isOverdue } = getLoanStatus(loan);
+      
+      groups[loan.client_id].loans.push(loan);
+      groups[loan.client_id].totalPrincipal += loan.principal_amount;
+      groups[loan.client_id].totalPaid += loan.total_paid || 0;
+      groups[loan.client_id].remainingBalance += loan.remaining_balance;
+      
+      if (isOverdue && !isPaid) groups[loan.client_id].hasOverdue = true;
+      if (!isPaid) {
+        groups[loan.client_id].hasPending = true;
+        groups[loan.client_id].allPaid = false;
+      }
+    }
+
+    return groups;
+  }, [sortedLoans]);
 
   // Obter empréstimos de um cliente específico para o dialog
   const getClientLoansForDialog = useMemo(() => {
@@ -5308,6 +5392,21 @@ export default function Loans() {
                           <div className="flex items-center justify-between gap-1">
                             <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
                             <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+                              {/* Botão de Agrupar - só aparece se cliente tem 2+ contratos e não está agrupado */}
+                              {loan.client_id && loanCountByClient[loan.client_id] > 1 && !groupedClients.has(loan.client_id) && (
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="sm" 
+                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleGroupClient(loan.client_id);
+                                  }}
+                                >
+                                  <FolderOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                  <span className="hidden sm:inline">Agrupar</span>
+                                </Button>
+                              )}
                               <Button 
                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                 size="sm" 
@@ -6930,6 +7029,21 @@ export default function Loans() {
                             <div className="flex items-center justify-between gap-1">
                               <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
                               <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+                                {/* Botão de Agrupar - só aparece se cliente tem 2+ contratos e não está agrupado */}
+                                {loan.client_id && loanCountByClient[loan.client_id] > 1 && !groupedClients.has(loan.client_id) && (
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="sm" 
+                                    className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-purple-500 text-purple-500 hover:bg-purple-500/10'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleGroupClient(loan.client_id);
+                                    }}
+                                  >
+                                    <FolderOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                    <span className="hidden sm:inline">Agrupar</span>
+                                  </Button>
+                                )}
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
