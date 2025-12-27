@@ -298,8 +298,44 @@ export default function ReportsLoans() {
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
-    // Falta Receber - CURRENT STATE
-    const pendingAmount = allActiveLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    // Falta Receber - INSTALLMENTS DUE IN PERIOD
+    const pendingAmount = allActiveLoans.reduce((sum, loan) => {
+      const installmentDates = (loan as any).installment_dates || [];
+      const payments = (loan as any).payments || [];
+      const paidCount = payments.length;
+      
+      if (installmentDates.length > 0) {
+        // Empréstimos parcelados (diário, semanal, etc)
+        const totalAmount = Number(loan.principal_amount) + Number(loan.total_interest || 0);
+        const installmentValue = totalAmount / installmentDates.length;
+        
+        let pendingInPeriod = 0;
+        installmentDates.forEach((dateStr: string, index: number) => {
+          const isPaid = index < paidCount;
+          if (!isPaid) {
+            const dueDate = new Date(dateStr);
+            if (dateRange?.from && dateRange?.to) {
+              if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
+                pendingInPeriod += installmentValue;
+              }
+            } else {
+              pendingInPeriod += installmentValue;
+            }
+          }
+        });
+        return sum + pendingInPeriod;
+      } else {
+        // Empréstimo com parcela única
+        const dueDate = new Date(loan.due_date);
+        if (dateRange?.from && dateRange?.to) {
+          if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
+            return sum + Number(loan.remaining_balance || 0);
+          }
+          return sum;
+        }
+        return sum + Number(loan.remaining_balance || 0);
+      }
+    }, 0);
     
     // Em Atraso - CURRENT STATE
     const overdueAmount = allOverdueLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
