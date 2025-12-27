@@ -684,7 +684,7 @@ export default function Bills() {
                 Nova Conta
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adicionar Nova Conta</DialogTitle>
               </DialogHeader>
@@ -1355,7 +1355,7 @@ export default function Bills() {
 
         {/* Edit Dialog */}
         <Dialog open={!!editingBill} onOpenChange={(open) => { if (!open) { setEditingBill(null); resetForm(); } }}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Conta</DialogTitle>
             </DialogHeader>
