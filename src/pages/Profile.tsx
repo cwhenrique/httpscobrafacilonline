@@ -712,6 +712,7 @@ export default function Profile() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="cpf">CPF</SelectItem>
+                      <SelectItem value="cnpj">CNPJ</SelectItem>
                       <SelectItem value="telefone">Telefone</SelectItem>
                       <SelectItem value="email">Email</SelectItem>
                       <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
@@ -726,6 +727,7 @@ export default function Profile() {
                     onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
                     placeholder={
                       formData.pix_key_type === 'cpf' ? '000.000.000-00' :
+                      formData.pix_key_type === 'cnpj' ? '00.000.000/0001-00' :
                       formData.pix_key_type === 'telefone' ? '11999998888' :
                       formData.pix_key_type === 'email' ? 'seu@email.com' :
                       'sua-chave-aleatoria'

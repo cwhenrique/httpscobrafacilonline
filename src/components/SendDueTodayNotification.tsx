@@ -103,6 +103,7 @@ export default function SendDueTodayNotification({
   const getPixKeyTypeLabel = (type: string | null): string => {
     switch (type) {
       case 'cpf': return 'CPF';
+      case 'cnpj': return 'CNPJ';
       case 'telefone': return 'Telefone';
       case 'email': return 'Email';
       case 'aleatoria': return 'Chave Aleatória';
