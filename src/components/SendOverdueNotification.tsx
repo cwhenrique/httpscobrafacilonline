@@ -215,7 +215,12 @@ export default function SendOverdueNotification({
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
 
-    const totalAmount = hasPenalty ? data.amount + data.penaltyAmount! : data.amount;
+    // Determinar multa efetiva: dinâmica ou manual
+    const effectivePenalty = hasPenalty 
+      ? data.penaltyAmount! 
+      : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
+
+    const totalAmount = data.amount + effectivePenalty;
 
     let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
     message += `Identificamos que você possui uma parcela em atraso:\n\n`;
@@ -225,16 +230,24 @@ export default function SendOverdueNotification({
     message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
     message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n`;
     
-    // Seção de multa
-    if (hasPenalty) {
+    // Seção de multa (dinâmica OU manual)
+    if (effectivePenalty > 0) {
       message += `\n━━━━━━━━━━━━━━━━\n`;
       message += `⚠️ *MULTA POR ATRASO*\n`;
-      if (data.penaltyType === 'percentage' && data.penaltyValue) {
-        message += `📊 *Cálculo:* ${data.penaltyValue}% × ${data.daysOverdue} dias\n`;
-      } else if (data.penaltyValue) {
-        message += `📊 *Cálculo:* R$ ${data.penaltyValue.toFixed(2)}/dia × ${data.daysOverdue} dias\n`;
+      
+      if (hasPenalty) {
+        // Multa dinâmica - mostrar cálculo
+        if (data.penaltyType === 'percentage' && data.penaltyValue) {
+          message += `📊 *Cálculo:* ${data.penaltyValue}% × ${data.daysOverdue} dias\n`;
+        } else if (data.penaltyValue) {
+          message += `📊 *Cálculo:* R$ ${data.penaltyValue.toFixed(2)}/dia × ${data.daysOverdue} dias\n`;
+        }
+      } else {
+        // Multa manual - não mostrar cálculo
+        message += `📋 *Multa aplicada*\n`;
       }
-      message += `💸 *Valor da Multa:* +${formatCurrency(data.penaltyAmount!)}\n`;
+      
+      message += `💸 *Valor da Multa:* +${formatCurrency(effectivePenalty)}\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
       message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
     } else {
@@ -244,15 +257,15 @@ export default function SendOverdueNotification({
     // Seção de opção de pagamento só de juros (+ multa se houver)
     // NÃO mostra para contratos diários - cliente tem que pagar o valor completo todo dia
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
-      const interestPlusPenalty = data.interestAmount + (data.penaltyAmount || 0);
-      const hasMulta = data.penaltyAmount && data.penaltyAmount > 0;
+      const interestPlusPenalty = data.interestAmount + effectivePenalty;
+      const hasMulta = effectivePenalty > 0;
       
       message += `━━━━━━━━━━━━━━━━\n`;
       message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS ${hasMulta ? 'JUROS + MULTA' : 'JUROS'}*\n`;
       message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
       
       if (hasMulta) {
-        message += `⚠️ *Multa por atraso:* ${formatCurrency(data.penaltyAmount)}\n`;
+        message += `⚠️ *Multa por atraso:* ${formatCurrency(effectivePenalty)}\n`;
         message += `💰 *Total (Juros + Multa):* ${formatCurrency(interestPlusPenalty)}\n`;
       }
       

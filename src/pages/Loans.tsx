@@ -6111,7 +6111,7 @@ export default function Loans() {
                           </p>
                           {/* Manual overdue notification button */}
                           {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
-                            <SendOverdueNotification
+                          <SendOverdueNotification
                               data={{
                                 clientName: loan.client?.full_name || 'Cliente',
                                 clientPhone: loan.client.phone,
@@ -6126,12 +6126,16 @@ export default function Loans() {
                                 dueDate: overdueDate,
                                 daysOverdue: daysOverdue,
                                 loanId: loan.id,
-                                penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                                // Multa dinâmica (só passa se não há multa manual aplicada)
+                                penaltyAmount: dynamicPenaltyAmount > 0 && totalAppliedPenalties === 0 ? dynamicPenaltyAmount : undefined,
                                 penaltyType: overdueConfigType || undefined,
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                 interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                 principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                                 isDaily: loan.payment_type === 'daily',
+                                // Multa manual (usada quando há multa aplicada manualmente)
+                                manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
+                                hasDynamicPenalty: overdueConfigValue > 0,
                               }}
                               className="w-full mt-2"
                             />
