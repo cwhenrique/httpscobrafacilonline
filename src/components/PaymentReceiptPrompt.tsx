@@ -72,6 +72,9 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
   message += `Confirmamos o recebimento:\n\n`;
   
   message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  if (data.penaltyAmount && data.penaltyAmount > 0) {
+    message += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
+  }
   if (data.discountAmount && data.discountAmount > 0) {
     message += `🏷️ *Desconto Concedido:* ${formatCurrency(data.discountAmount)}\n`;
   }
@@ -124,6 +127,9 @@ const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string
   
   message += `💰 *PAGAMENTO*\n`;
   message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  if (data.penaltyAmount && data.penaltyAmount > 0) {
+    message += `• Multa Paga: ${formatCurrency(data.penaltyAmount)}\n`;
+  }
   if (data.discountAmount && data.discountAmount > 0) {
     message += `• Desconto Concedido: ${formatCurrency(data.discountAmount)}\n`;
   }
@@ -304,6 +310,12 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                 <span className="text-muted-foreground">Valor Pago:</span>
                 <span className="font-semibold text-primary">{formatCurrency(data.amountPaid)}</span>
               </div>
+              {data.penaltyAmount && data.penaltyAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Multa Inclusa:</span>
+                  <span className="font-medium text-red-500">+{formatCurrency(data.penaltyAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Data:</span>
                 <span className="font-medium">{formatDate(data.paymentDate)}</span>

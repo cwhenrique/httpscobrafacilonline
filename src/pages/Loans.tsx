@@ -2619,12 +2619,18 @@ export default function Loans() {
     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
     
-    // Função para obter o valor de uma parcela específica (considera taxa extra)
+    // Obter multas aplicadas às parcelas do loan
+    const loanPenalties = getDailyPenaltiesFromNotes(selectedLoan.notes);
+    
+    // Função para obter o valor de uma parcela específica (considera taxa extra + multa)
     const getInstallmentValue = (index: number) => {
+      let value = baseInstallmentValue;
       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
-        return renewalFeeValue;
+        value = renewalFeeValue;
       }
-      return baseInstallmentValue;
+      // Adicionar multa se existir para esta parcela
+      const penalty = loanPenalties[index] || 0;
+      return value + penalty;
     };
     
     let amount: number;
@@ -3019,6 +3025,21 @@ export default function Loans() {
       nextDueDateForReceipt = loanDates[installmentNumber];
     }
     
+    // Calculate total penalty paid in this payment
+    let totalPenaltyPaid = 0;
+    if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      // Somar multas das parcelas selecionadas
+      for (const idx of paymentData.selected_installments) {
+        totalPenaltyPaid += loanPenalties[idx] || 0;
+      }
+    } else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null && paymentData.partial_installment_index >= 0) {
+      // Multa da parcela específica sendo paga parcialmente
+      totalPenaltyPaid = loanPenalties[paymentData.partial_installment_index] || 0;
+    } else if (paymentData.payment_type === 'total') {
+      // Pagamento total - somar todas as multas
+      totalPenaltyPaid = getTotalDailyPenalties(selectedLoan.notes);
+    }
+    
     // Show payment receipt prompt
     setPaymentReceiptData({
       type: 'loan',
@@ -3034,6 +3055,7 @@ export default function Loans() {
       totalPaid: (selectedLoan.total_paid || 0) + amount,
       totalContract: totalContractValue,
       nextDueDate: nextDueDateForReceipt,
+      penaltyAmount: totalPenaltyPaid > 0 ? totalPenaltyPaid : undefined,
     });
     setIsPaymentReceiptOpen(true);
     

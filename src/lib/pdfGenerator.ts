@@ -159,6 +159,7 @@ export interface PaymentReceiptData {
   billingSignatureName?: string;
   nextDueDate?: string;
   discountAmount?: number;
+  penaltyAmount?: number; // Valor da multa paga
 }
 
 export const generateContractReceipt = async (data: ContractReceiptData): Promise<void> => {
@@ -637,6 +638,17 @@ export const generatePaymentReceipt = async (data: PaymentReceiptData): Promise<
   doc.text(formatCurrency(data.amountPaid), col1X + 32, payY);
 
   payY += 14;
+
+  // Multa inclusa (se houver)
+  if (data.penaltyAmount && data.penaltyAmount > 0) {
+    doc.setTextColor(200, 50, 50); // Vermelho para multa
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Multa Inclusa:', col1X, payY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatCurrency(data.penaltyAmount), col1X + 38, payY);
+    payY += 10;
+  }
 
   // Total do contrato (principal + juros)
   if (data.totalContract) {
