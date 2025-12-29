@@ -1466,9 +1466,9 @@ export default function ProductSales() {
                                     }}
                                   >
                                     <PopoverTrigger asChild>
-                                      <span className="ml-2 cursor-pointer hover:underline hover:text-primary group inline-flex items-center gap-1">
+                                      <span className="ml-2 cursor-pointer hover:underline hover:text-primary group inline-flex items-center gap-1 p-1 -m-1 rounded touch-manipulation">
                                         {format(parseISO(payment.due_date), "dd/MM/yy")}
-                                        <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <Pencil className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
                                       </span>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">

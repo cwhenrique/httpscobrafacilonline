@@ -6086,7 +6086,7 @@ export default function Loans() {
                                   return formatDate(nextDate);
                                 })()}
                               </span>
-                              <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <Pencil className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50 group-hover:opacity-100 transition-opacity touch-manipulation" />
                             </div>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -7655,7 +7655,7 @@ export default function Loans() {
                                     return formatDate(nextDate);
                                   })()}
                                 </span>
-                                <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <Pencil className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-50 group-hover:opacity-100 transition-opacity touch-manipulation" />
                               </div>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">

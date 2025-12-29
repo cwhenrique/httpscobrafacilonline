@@ -88,7 +88,7 @@ function InstallmentsList({
                   type="date"
                   value={inst.due_date}
                   onChange={(e) => updateInstallmentDate(index, 'due_date', e.target.value)}
-                  className="flex-1 h-8 text-sm"
+                  className="flex-1 h-10 text-sm touch-manipulation"
                 />
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">R$</span>
