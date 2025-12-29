@@ -24,7 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2 } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,6 +43,7 @@ import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog'
 import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
+import { LoansTableView } from '@/components/LoansTableView';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -386,6 +387,10 @@ export default function Loans() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    const saved = localStorage.getItem('loans-view-mode');
+    return saved === 'table' ? 'table' : 'cards';
+  });
   const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -613,6 +618,11 @@ export default function Loans() {
     }
     return dates;
   };
+  
+  // Persist view mode preference
+  useEffect(() => {
+    localStorage.setItem('loans-view-mode', viewMode);
+  }, [viewMode]);
   
   // Auto-generate dates when auto mode is active
   useEffect(() => {
@@ -5103,29 +5113,30 @@ export default function Loans() {
               </Button>
             </div>
 
-          <Collapsible open={isFiltersExpanded} onOpenChange={setIsFiltersExpanded} className="tutorial-filters">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`h-8 text-xs sm:text-sm px-3 gap-2 ${statusFilter !== 'all' ? 'border-primary text-primary' : ''}`}
-              >
-                <Search className="w-3 h-3" />
-                {statusFilter === 'all' ? 'Filtros' : 
-                  statusFilter === 'pending' ? 'Em Dia' :
-                  statusFilter === 'due_today' ? 'Vence Hoje' :
-                  statusFilter === 'paid' ? 'Pagos' :
-                  statusFilter === 'overdue' ? 'Atraso' :
-                  statusFilter === 'renegotiated' ? 'Reneg.' :
-                  statusFilter === 'interest_only' ? 'Só Juros' :
-                  statusFilter === 'weekly' ? 'Semanal' :
-                  statusFilter === 'biweekly' ? 'Quinzenal' :
-                  statusFilter === 'installment' ? 'Mensal' :
-                  statusFilter === 'single' ? 'Única' : 'Filtros'
-                }
-                {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </Button>
-            </CollapsibleTrigger>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <Collapsible open={isFiltersExpanded} onOpenChange={setIsFiltersExpanded} className="tutorial-filters">
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-8 text-xs sm:text-sm px-3 gap-2 ${statusFilter !== 'all' ? 'border-primary text-primary' : ''}`}
+                >
+                  <Search className="w-3 h-3" />
+                  {statusFilter === 'all' ? 'Filtros' : 
+                    statusFilter === 'pending' ? 'Em Dia' :
+                    statusFilter === 'due_today' ? 'Vence Hoje' :
+                    statusFilter === 'paid' ? 'Pagos' :
+                    statusFilter === 'overdue' ? 'Atraso' :
+                    statusFilter === 'renegotiated' ? 'Reneg.' :
+                    statusFilter === 'interest_only' ? 'Só Juros' :
+                    statusFilter === 'weekly' ? 'Semanal' :
+                    statusFilter === 'biweekly' ? 'Quinzenal' :
+                    statusFilter === 'installment' ? 'Mensal' :
+                    statusFilter === 'single' ? 'Única' : 'Filtros'
+                  }
+                  {isFiltersExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </Button>
+              </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <TooltipProvider delayDuration={300}>
                 <div className="flex flex-wrap gap-1.5 sm:gap-2 p-3 bg-muted/50 rounded-lg border">
@@ -5314,6 +5325,43 @@ export default function Loans() {
             </CollapsibleContent>
           </Collapsible>
           
+          {/* Toggle de Visualização */}
+          <TooltipProvider delayDuration={200}>
+            <div className="flex border rounded-md bg-muted/30">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('cards')}
+                    className="h-8 px-2.5 rounded-r-none"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Visualização em Cards</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === 'table' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('table')}
+                    className="h-8 px-2.5 rounded-l-none border-l"
+                  >
+                    <List className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Visualização em Lista</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+        </div>
+          
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-40 sm:h-48 w-full rounded-xl" />))}
@@ -5323,6 +5371,20 @@ export default function Loans() {
               <DollarSign className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
               <p className="text-sm sm:text-base text-muted-foreground">{search ? 'Nenhum empréstimo encontrado' : 'Nenhum empréstimo cadastrado'}</p>
             </div>
+          ) : viewMode === 'table' ? (
+            <LoansTableView 
+              loans={sortedLoans}
+              onPayment={(loanId) => {
+                setSelectedLoanId(loanId);
+                setIsPaymentDialogOpen(true);
+              }}
+              onPayInterest={openRenegotiateDialog}
+              onEdit={openSimpleEditDialog}
+              onRenegotiate={openEditDialog}
+              onDelete={setDeleteId}
+              onViewHistory={openPaymentHistory}
+              getPaidInstallmentsCount={getPaidInstallmentsCount}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {sortedLoans.map((loan, loanIndex) => {
