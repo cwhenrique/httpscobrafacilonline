@@ -233,9 +233,18 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
-  const principalPerInstallment = loan.principal_amount / numInstallments;
-  const interestPerInstallment = totalInterest / numInstallments;
-  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  let principalPerInstallment = loan.principal_amount / numInstallments;
+  let interestPerInstallment = totalInterest / numInstallments;
+  let baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  
+  // 🆕 Se houve amortização, usar remaining_balance para calcular valor da parcela
+  const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
+  if (totalAmortizations > 0 && !isDaily && 'remaining_balance' in loan) {
+    const loanWithBalance = loan as typeof loan & { remaining_balance: number };
+    const paidSoFar = getPaidInstallmentsCount({ ...loan, notes: '' }); // Evitar recursão
+    const remainingInstallments = Math.max(1, numInstallments - paidSoFar);
+    baseInstallmentValue = loanWithBalance.remaining_balance / remainingInstallments;
+  }
   
   // Verificar taxa de renovação (suporta formato novo e antigo)
   // Novo: [RENEWAL_FEE_INSTALLMENT:index:newValue:feeAmount]
@@ -353,9 +362,17 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
-  const principalPerInstallment = loan.principal_amount / numInstallments;
-  const interestPerInstallment = totalInterest / numInstallments;
-  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  let principalPerInstallment = loan.principal_amount / numInstallments;
+  let interestPerInstallment = totalInterest / numInstallments;
+  let baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  
+  // 🆕 Se houve amortização, usar remaining_balance para calcular valor da parcela
+  const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
+  if (totalAmortizations > 0 && !isDaily && 'remaining_balance' in loan) {
+    const loanWithBalance = loan as typeof loan & { remaining_balance: number };
+    const remainingInstallments = Math.max(1, numInstallments);
+    baseInstallmentValue = loanWithBalance.remaining_balance / remainingInstallments;
+  }
   
   // Verificar taxa de renovação
   const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
@@ -2907,6 +2924,10 @@ export default function Loans() {
         if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
           updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
         }
+      } else if (paymentData.recalculate_interest) {
+        // 🆕 AMORTIZAÇÃO: Não adicionar [PARTIAL_PAID:...] - será tratado no bloco de amortização abaixo
+        // Amortização reduz o principal e recalcula juros, NÃO é um pagamento de parcela
+        installmentNote = 'Amortização processada';
       } else {
         // Comportamento padrão: pagamento parcial normal
         // Permite registrar valores maiores que a parcela (sem limitar)
@@ -8855,9 +8876,18 @@ export default function Loans() {
             // que já considera renegociações, taxa de renovação, etc.
             const remainingToReceive = selectedLoan.remaining_balance;
             
-            // Para contratos de 1 parcela (caso típico de renovação), a próxima parcela
-            // deve ser exatamente o remaining_balance (ex: 300 após taxa de renovação)
-            if (numInstallments === 1 && !isDaily) {
+            // 🆕 Verificar se houve amortização - se sim, usar remaining_balance como base
+            const totalAmortizations = getTotalAmortizationsFromNotes(selectedLoan.notes);
+            const paidInstallmentsCountForCalc = getPaidInstallmentsCount(selectedLoan);
+            const remainingInstallmentsCountForCalc = Math.max(1, numInstallments - paidInstallmentsCountForCalc);
+            
+            if (totalAmortizations > 0 && !isDaily) {
+              // Após amortização: o remaining_balance já contém o novo saldo (principal + juros recalculados)
+              // Dividir pelo número de parcelas restantes
+              totalPerInstallment = remainingToReceive / remainingInstallmentsCountForCalc;
+            } else if (numInstallments === 1 && !isDaily) {
+              // Para contratos de 1 parcela (caso típico de renovação), a próxima parcela
+              // deve ser exatamente o remaining_balance (ex: 300 após taxa de renovação)
               totalPerInstallment = remainingToReceive;
             }
               
