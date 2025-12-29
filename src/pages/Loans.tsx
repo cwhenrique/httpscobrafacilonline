@@ -56,6 +56,18 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
+// Helper para extrair total de amortizações das notas do empréstimo
+// Formato: [AMORTIZATION:valor_amortizado:novo_principal:novos_juros:data]
+const getTotalAmortizationsFromNotes = (notes: string | null): number => {
+  if (!notes) return 0;
+  const amortizationMatches = notes.matchAll(/\[AMORTIZATION:([0-9.]+):/g);
+  let total = 0;
+  for (const match of amortizationMatches) {
+    total += parseFloat(match[1]) || 0;
+  }
+  return total;
+};
+
 // Helper para extrair sub-parcelas de adiantamento do notes
 // Formato: [ADVANCE_SUBPARCELA:índice:valor:data:id_único]
 const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
@@ -2934,38 +2946,64 @@ export default function Loans() {
       await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
     }
     
-    // 🆕 RECÁLCULO DE JUROS: Se o usuário marcou a opção de recalcular juros sobre saldo devedor
+    // 🆕 RECÁLCULO DE JUROS (AMORTIZAÇÃO): Se o usuário marcou a opção de recalcular juros
+    // A amortização reduz o PRINCIPAL ORIGINAL, e os novos juros são calculados sobre esse novo principal
     if (paymentData.recalculate_interest && paymentData.payment_type === 'partial') {
-      const currentPrincipal = selectedLoan.principal_amount;
-      const totalPaidSoFar = selectedLoan.total_paid || 0;
+      const originalPrincipal = selectedLoan.principal_amount;
       const interestRate = selectedLoan.interest_rate;
+      const numInstallments = selectedLoan.installments || 1;
       
-      // Novo principal restante após este pagamento (considerando apenas amortização de principal)
-      const newPrincipalRemaining = Math.max(0, currentPrincipal - totalPaidSoFar - amount);
+      // Calcular quanto do principal já foi amortizado anteriormente
+      const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan.notes);
       
-      // Recalcular juros sobre o novo saldo devedor
-      const newTotalInterest = newPrincipalRemaining * (interestRate / 100);
+      // Novo principal = Original - amortizações anteriores - esta amortização
+      const newPrincipal = Math.max(0, originalPrincipal - previousAmortizations - amount);
       
-      // Atualizar o total_interest e remaining_balance
-      const newRemainingBalance = newPrincipalRemaining + newTotalInterest;
+      // Recalcular juros sobre o novo principal
+      const newTotalInterest = newPrincipal * (interestRate / 100);
       
-      // Adicionar tag de recálculo nas notas para histórico
-      const recalcTag = `[INTEREST_RECALC:${newPrincipalRemaining.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
-      const notesWithRecalc = (updatedNotes + '\n' + recalcTag).trim();
+      // Novo saldo total a pagar
+      const newRemainingBalance = newPrincipal + newTotalInterest;
       
+      // Calcular novo valor por parcela
+      const paidInstallmentsCount = getPaidInstallmentsCount(selectedLoan);
+      const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
+      const newInstallmentValue = newRemainingBalance / remainingInstallmentsCount;
+      
+      // Tag de amortização para histórico
+      const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newPrincipal.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
+      const notesWithAmort = (updatedNotes + '\n' + amortTag).trim();
+      
+      // Atualizar banco - NÃO altera principal_amount para manter histórico
       await supabase.from('loans').update({ 
         total_interest: newTotalInterest,
         remaining_balance: newRemainingBalance,
-        notes: notesWithRecalc
+        total_paid: (selectedLoan.total_paid || 0) + amount,
+        notes: notesWithAmort
       }).eq('id', selectedLoanId);
       
       // Atualizar updatedNotes para refletir a mudança
-      updatedNotes = notesWithRecalc;
+      updatedNotes = notesWithAmort;
+      
+      // Economia de juros
+      const originalInterest = originalPrincipal * (interestRate / 100);
+      const interestSavings = originalInterest - newTotalInterest;
       
       // Adicionar nota sobre o recálculo no pagamento
-      installmentNote += ` | Juros recalculados sobre ${formatCurrency(newPrincipalRemaining)} → Novos juros: ${formatCurrency(newTotalInterest)}`;
+      installmentNote += ` | Amortização: Novo principal ${formatCurrency(newPrincipal)}, Novos juros: ${formatCurrency(newTotalInterest)}`;
       
-      toast.success(`Juros recalculados! Economia de ${formatCurrency((currentPrincipal * (interestRate / 100)) - newTotalInterest)}`);
+      toast.success(
+        `Amortização registrada! Economia de ${formatCurrency(interestSavings)} em juros. ` +
+        `Novas ${remainingInstallmentsCount} parcelas de ${formatCurrency(newInstallmentValue)}`
+      );
+      
+      // Pular o registerPayment padrão pois já atualizamos o total_paid
+      // O registerPayment iria somar o amount novamente
+      await fetchLoans();
+      setIsPaymentDialogOpen(false);
+      setSelectedLoanId(null);
+      setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false, recalculate_interest: false });
+      return;
     }
     
     // CORREÇÃO: Se o usuário informou uma nova data de vencimento, atualizar ANTES do registerPayment
@@ -9397,27 +9435,38 @@ export default function Loans() {
                           if (!isPartialAmount || paymentData.is_advance_payment) return null;
                           
                           // Calcular novo saldo e novos juros
-                          const currentPrincipalBalance = selectedLoan?.principal_amount || 0;
+                          const originalPrincipal = selectedLoan?.principal_amount || 0;
                           const currentInterestRate = selectedLoan?.interest_rate || 0;
-                          const currentRemainingBalance = selectedLoan?.remaining_balance || 0;
-                          
-                          // Estimar quanto do principal ainda resta (simplificado)
-                          const totalPaid = selectedLoan?.total_paid || 0;
-                          const totalInterest = selectedLoan?.total_interest || 0;
                           const numInstallments = selectedLoan?.installments || 1;
                           
-                          // Calcular o principal restante após este pagamento
-                          const estimatedPrincipalRemaining = Math.max(0, currentPrincipalBalance - totalPaid - paidAmount);
+                          // Calcular amortizações anteriores
+                          const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan?.notes || null);
                           
-                          // Calcular juros atuais (sobre valor original)
-                          const currentTotalInterest = currentPrincipalBalance * (currentInterestRate / 100);
+                          // Principal atual (após amortizações anteriores)
+                          const currentPrincipal = Math.max(0, originalPrincipal - previousAmortizations);
                           
-                          // Calcular novos juros (sobre saldo devedor após pagamento)
-                          const newPrincipalAfterPayment = Math.max(0, currentPrincipalBalance - (totalPaid + paidAmount));
-                          const newTotalInterest = newPrincipalAfterPayment * (currentInterestRate / 100);
+                          // Novo principal após esta amortização
+                          const newPrincipal = Math.max(0, currentPrincipal - paidAmount);
                           
-                          // Economia
-                          const interestSavings = Math.max(0, currentTotalInterest - newTotalInterest);
+                          // Juros originais (sobre principal original)
+                          const originalInterest = originalPrincipal * (currentInterestRate / 100);
+                          
+                          // Novos juros (sobre novo principal)
+                          const newTotalInterest = newPrincipal * (currentInterestRate / 100);
+                          
+                          // Economia total de juros
+                          const interestSavings = Math.max(0, originalInterest - newTotalInterest);
+                          
+                          // Calcular novas parcelas
+                          const paidInstallmentsCount = selectedLoan ? getPaidInstallmentsCount(selectedLoan) : 0;
+                          const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
+                          
+                          // Valor atual por parcela
+                          const currentInstallmentValue = (selectedLoan?.remaining_balance || 0) / remainingInstallmentsCount;
+                          
+                          // Novo valor por parcela
+                          const newRemainingBalance = newPrincipal + newTotalInterest;
+                          const newInstallmentValue = newRemainingBalance / remainingInstallmentsCount;
                           
                           // Só mostra se houver economia real
                           if (interestSavings < 0.01) return null;
@@ -9431,28 +9480,50 @@ export default function Loans() {
                               />
                               <div className="flex-1">
                                 <label htmlFor="recalculate_interest" className="text-sm font-medium cursor-pointer text-blue-700 dark:text-blue-300">
-                                  Recalcular juros sobre o saldo devedor?
+                                  Amortizar e recalcular juros?
                                 </label>
                                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
                                   <div className="flex justify-between">
-                                    <span>Saldo atual:</span>
-                                    <span>{formatCurrency(currentPrincipalBalance)}</span>
+                                    <span>Principal original:</span>
+                                    <span>{formatCurrency(originalPrincipal)}</span>
                                   </div>
+                                  {previousAmortizations > 0 && (
+                                    <div className="flex justify-between text-muted-foreground">
+                                      <span>Amortizações anteriores:</span>
+                                      <span>-{formatCurrency(previousAmortizations)}</span>
+                                    </div>
+                                  )}
                                   <div className="flex justify-between">
-                                    <span>Após pagamento:</span>
-                                    <span>{formatCurrency(newPrincipalAfterPayment)}</span>
+                                    <span>Amortização agora:</span>
+                                    <span className="text-amber-600">-{formatCurrency(paidAmount)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-medium border-t border-blue-500/20 pt-1">
+                                    <span>Novo principal:</span>
+                                    <span>{formatCurrency(newPrincipal)}</span>
                                   </div>
                                   <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
-                                    <span>Juros atuais ({currentInterestRate}% de {formatCurrency(currentPrincipalBalance)}):</span>
-                                    <span>{formatCurrency(currentTotalInterest)}</span>
+                                    <span>Juros originais ({currentInterestRate}%):</span>
+                                    <span>{formatCurrency(originalInterest)}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span>Novos juros ({currentInterestRate}% de {formatCurrency(newPrincipalAfterPayment)}):</span>
+                                    <span>Novos juros ({currentInterestRate}% de {formatCurrency(newPrincipal)}):</span>
                                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(newTotalInterest)}</span>
                                   </div>
                                   <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400 border-t border-blue-500/20 pt-1">
                                     <span>💰 Economia de juros:</span>
                                     <span>{formatCurrency(interestSavings)}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
+                                    <span>Parcelas restantes:</span>
+                                    <span>{remainingInstallmentsCount}x</span>
+                                  </div>
+                                  <div className="flex justify-between text-muted-foreground">
+                                    <span>Valor atual:</span>
+                                    <span>{formatCurrency(currentInstallmentValue)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span>NOVO valor:</span>
+                                    <span>{formatCurrency(newInstallmentValue)}</span>
                                   </div>
                                 </div>
                               </div>
