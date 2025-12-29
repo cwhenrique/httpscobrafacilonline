@@ -3990,9 +3990,21 @@ export default function Loans() {
       const dailyAmount = parseFloat(editFormData.daily_amount) || 0;
       const totalToReceive = dailyAmount * numInstallments;
       const profit = totalToReceive - principalAmount;
-      updateData.remaining_balance = totalToReceive;
+      
+      // Para renegociação, resetar total_paid
+      if (editIsRenegotiation) {
+        updateData.remaining_balance = totalToReceive;
+        updateData.total_paid = 0;
+      } else {
+        // Para edição simples, manter o total_paid e ajustar remaining_balance
+        const totalPaid = loan.total_paid || 0;
+        updateData.remaining_balance = totalToReceive - totalPaid;
+      }
+      
       updateData.total_interest = dailyAmount;
-      updateData.interest_rate = profit;
+      // Calcular taxa percentual para o banco (máximo 999.99%)
+      const calculatedRate = principalAmount > 0 ? (profit / principalAmount) * 100 : 0;
+      updateData.interest_rate = Math.min(calculatedRate, 999.99);
     } else {
       let totalInterest: number;
       if (editFormData.interest_mode === 'per_installment') {
