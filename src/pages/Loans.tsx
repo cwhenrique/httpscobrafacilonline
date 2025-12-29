@@ -1433,6 +1433,9 @@ export default function Loans() {
 
   // Expanded card state
   const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
+  
+  // Estado para edição completa de empréstimos diários
+  const [editingDailyLoanId, setEditingDailyLoanId] = useState<string | null>(null);
 
 
   const handleAvatarUpload = async (clientId: string, file: File) => {
@@ -2137,6 +2140,70 @@ export default function Loans() {
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
+  // Função para abrir o diálogo de edição completa de empréstimos diários
+  const openDailyEditDialog = (loanId: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+    
+    // Limpar notas de tags internas para exibição
+    const cleanNotes = (loan.notes || '')
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[SKIP_SATURDAY\]\n?/g, '')
+      .replace(/\[SKIP_SUNDAY\]\n?/g, '')
+      .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
+      .replace(/\[DAILY_PENALTY:\d+:[0-9.]+\]\n?/g, '')
+      .replace(/\[HISTORICAL_CONTRACT\]\n?/g, '')
+      .replace(/\[HISTORICAL_INTEREST_CONTRACT\]\n?/g, '')
+      .replace(/\[HISTORICAL_INTEREST_RECEIVED:[0-9.]+\]\n?/g, '')
+      .replace(/\[INTEREST_NOTES:[^\]]+\]\n?/g, '')
+      .replace(/\[PARTIAL_PAID:\d+:[0-9.]+\]\s?/g, '')
+      .replace(/Valor emprestado:.*\n?/g, '')
+      .replace(/Parcela diária:.*\n?/g, '')
+      .replace(/Total a receber:.*\n?/g, '')
+      .replace(/Lucro:.*\n?/g, '')
+      .trim();
+    
+    // Carregar configuração de pular dias
+    const loanNotes = loan.notes || '';
+    setSkipSaturday(loanNotes.includes('[SKIP_SATURDAY]'));
+    setSkipSunday(loanNotes.includes('[SKIP_SUNDAY]'));
+    setSkipHolidays(loanNotes.includes('[SKIP_HOLIDAYS]'));
+    
+    // Calcular taxa de juros a partir dos valores do empréstimo
+    const numInstallments = loan.installments || 1;
+    const dailyAmount = loan.total_interest || 0;
+    const totalToReceive = dailyAmount * numInstallments;
+    const profit = totalToReceive - loan.principal_amount;
+    const interestRate = loan.principal_amount > 0 
+      ? (profit / loan.principal_amount) * 100 
+      : 0;
+    
+    // Preencher formulário com dados do empréstimo
+    setFormData({
+      ...formData,
+      client_id: loan.client_id,
+      principal_amount: loan.principal_amount.toString(),
+      daily_amount: dailyAmount.toString(),
+      daily_interest_rate: interestRate.toFixed(2),
+      contract_date: loan.contract_date || format(new Date(), 'yyyy-MM-dd'),
+      start_date: (loan.installment_dates as string[])?.[0] || loan.start_date,
+      daily_period: numInstallments.toString(),
+      installments: numInstallments.toString(),
+      due_date: loan.due_date,
+      notes: cleanNotes,
+      payment_type: 'daily',
+      is_historical_contract: false,
+      send_creation_notification: false,
+    });
+    
+    // Carregar datas das parcelas existentes
+    setInstallmentDates((loan.installment_dates as string[]) || []);
+    
+    // Marcar que estamos editando
+    setEditingDailyLoanId(loanId);
+    setIsDailyDialogOpen(true);
+  };
+
   const handleDailySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -2177,6 +2244,57 @@ export default function Loans() {
     // Calculate actual interest percentage for daily loans
     const interestPercentage = principalAmount > 0 ? (profit / principalAmount) * 100 : 0;
     
+    // Construir notas com configurações de pular dias
+    let finalNotes = formData.notes || '';
+    const skipTags = [];
+    if (skipSaturday) skipTags.push('[SKIP_SATURDAY]');
+    if (skipSunday) skipTags.push('[SKIP_SUNDAY]');
+    if (skipHolidays) skipTags.push('[SKIP_HOLIDAYS]');
+    const skipTagsStr = skipTags.length > 0 ? skipTags.join(' ') + '\n' : '';
+    const details = `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`;
+    
+    // MODO EDIÇÃO: Atualizar empréstimo existente
+    if (editingDailyLoanId) {
+      const loan = loans.find(l => l.id === editingDailyLoanId);
+      if (!loan) {
+        toast.error('Empréstimo não encontrado');
+        return;
+      }
+      
+      // Preservar tags existentes que não queremos sobrescrever
+      const existingNotes = loan.notes || '';
+      const partialPaidTags = (existingNotes.match(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g) || []).join(' ');
+      const historicalTags = existingNotes.includes('[HISTORICAL_CONTRACT]') ? '[HISTORICAL_CONTRACT]\n' : '';
+      const historicalInterestMatch = existingNotes.match(/\[HISTORICAL_INTEREST_RECEIVED:[0-9.]+\]/);
+      const historicalInterestTag = historicalInterestMatch ? historicalInterestMatch[0] + ' ' : '';
+      
+      const updatedNotes = `${historicalTags}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}${partialPaidTags ? '\n' + partialPaidTags : ''}${historicalInterestTag}`.trim();
+      
+      const updateData = {
+        client_id: formData.client_id,
+        principal_amount: principalAmount,
+        interest_rate: Math.min(interestPercentage, 999.99), // Cap para evitar overflow
+        interest_type: 'simple' as const,
+        payment_type: 'daily' as const,
+        total_interest: dailyAmount, // Para diários, guarda valor da parcela
+        installments: numDays,
+        installment_dates: installmentDates,
+        start_date: installmentDates[0],
+        due_date: installmentDates[installmentDates.length - 1],
+        contract_date: formData.contract_date,
+        notes: updatedNotes,
+        remaining_balance: totalToReceive - (loan.total_paid || 0),
+      };
+      
+      await updateLoan(editingDailyLoanId, updateData);
+      toast.success('Empréstimo diário atualizado!');
+      setEditingDailyLoanId(null);
+      setIsDailyDialogOpen(false);
+      resetForm();
+      return;
+    }
+    
+    // MODO CRIAÇÃO: Lógica existente
     const loanData = {
       client_id: formData.client_id,
       principal_amount: principalAmount,
@@ -2191,17 +2309,10 @@ export default function Loans() {
       remaining_balance: totalToReceive,
       total_interest: dailyAmount,
       notes: (() => {
-        let baseNotes = formData.notes || '';
-        const skipTags = [];
-        if (skipSaturday) skipTags.push('[SKIP_SATURDAY]');
-        if (skipSunday) skipTags.push('[SKIP_SUNDAY]');
-        const skipTagsStr = skipTags.length > 0 ? skipTags.join(' ') + '\n' : '';
-        const details = `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`;
-        
         if (formData.is_historical_contract) {
-          return `[HISTORICAL_CONTRACT]\n${skipTagsStr}${baseNotes ? baseNotes + '\n' : ''}${details}`;
+          return `[HISTORICAL_CONTRACT]\n${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
         }
-        return `${skipTagsStr}${baseNotes ? baseNotes + '\n' : ''}${details}`;
+        return `${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
       })(),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
@@ -4295,9 +4406,12 @@ export default function Loans() {
                   <p>Baixe um PDF completo com todos seus empréstimos</p>
                 </TooltipContent>
               </Tooltip>
-              <Dialog open={isDailyDialogOpen} onOpenChange={setIsDailyDialogOpen}>
+              <Dialog open={isDailyDialogOpen} onOpenChange={(open) => {
+                setIsDailyDialogOpen(open);
+                if (!open) setEditingDailyLoanId(null);
+              }}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto p-4 sm:p-6">
-                <DialogHeader><DialogTitle className="text-base sm:text-xl">Novo Empréstimo Diário</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle className="text-base sm:text-xl">{editingDailyLoanId ? 'Editar Empréstimo Diário' : 'Novo Empréstimo Diário'}</DialogTitle></DialogHeader>
                 <form onSubmit={handleDailySubmit} className="space-y-3 sm:space-y-4">
                   <div className="space-y-1 sm:space-y-2">
                     <Label className="text-xs sm:text-sm">Cliente *</Label>
@@ -4681,8 +4795,8 @@ export default function Loans() {
                   </div>
                   
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); resetForm(); }} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
-                    <Button type="submit" className="bg-sky-500 hover:bg-sky-600 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Criar Diário</Button>
+                    <Button type="button" variant="outline" onClick={() => { setIsDailyDialogOpen(false); setEditingDailyLoanId(null); resetForm(); }} className="h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">Cancelar</Button>
+                    <Button type="submit" className="bg-sky-500 hover:bg-sky-600 h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4">{editingDailyLoanId ? 'Salvar Alterações' : 'Criar Diário'}</Button>
                   </div>
                 </form>
               </DialogContent>
@@ -8335,20 +8449,20 @@ export default function Loans() {
                                   <p>Ver histórico de pagamentos</p>
                                 </TooltipContent>
                               </Tooltip>
-                              {/* Botão de Edição Simples - Azul */}
+                              {/* Botão de Edição Completa - Azul */}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
                                     className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
-                                    onClick={() => openSimpleEditDialog(loan.id)}
+                                    onClick={() => openDailyEditDialog(loan.id)}
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">
-                                  <p>Editar datas e valores do contrato</p>
+                                  <p>Editar empréstimo diário</p>
                                 </TooltipContent>
                               </Tooltip>
                               {/* Botão de Renegociação - Âmbar */}
