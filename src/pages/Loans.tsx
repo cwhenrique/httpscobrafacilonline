@@ -2974,11 +2974,12 @@ export default function Loans() {
       const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newPrincipal.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
       const notesWithAmort = (updatedNotes + '\n' + amortTag).trim();
       
-      // Atualizar banco - NÃO altera principal_amount para manter histórico
+      // Atualizar banco - NÃO altera principal_amount nem total_paid
+      // Amortização NÃO é um pagamento, apenas recálculo do saldo devedor
       await supabase.from('loans').update({ 
         total_interest: newTotalInterest,
         remaining_balance: newRemainingBalance,
-        total_paid: (selectedLoan.total_paid || 0) + amount,
+        // NÃO atualiza total_paid - amortização reduz o saldo mas não é pagamento
         notes: notesWithAmort
       }).eq('id', selectedLoanId);
       
