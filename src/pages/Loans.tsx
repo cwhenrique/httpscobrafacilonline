@@ -3487,6 +3487,102 @@ export default function Loans() {
     setSelectedLoanId(null);
   };
 
+  // Simple Edit Dialog - for editing dates and values without renegotiation
+  const openSimpleEditDialog = async (loanId: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) return;
+    
+    // Parse existing overdue config from notes
+    const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const hasExistingOverdueConfig = !!overdueConfigMatch;
+    const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+    const existingOverdueValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+    
+    // Clean notes for display (remove internal tags)
+    let cleanNotes = (loan.notes || '')
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[RENEGOTIATED\]\n?/g, '')
+      .replace(/\[ORIGINAL_PRINCIPAL:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_RATE:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_INSTALLMENTS:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_INTEREST_MODE:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_TOTAL:[^\]]+\]\n?/g, '')
+      .replace(/\[ORIGINAL_TOTAL_INTEREST:[^\]]+\]\n?/g, '')
+      .replace(/\[HISTORICAL_PAID:[^\]]+\]\n?/g, '')
+      .replace(/\[HISTORICAL_INTEREST_PAID:[^\]]+\]\n?/g, '')
+      .replace(/\[RENEGOTIATION_DATE:[^\]]+\]\n?/g, '')
+      .replace(/\[SKIP_SATURDAY\]\n?/g, '')
+      .replace(/\[SKIP_SUNDAY\]\n?/g, '')
+      .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
+      .trim();
+    
+    // Load skip settings from notes
+    const loanNotes = loan.notes || '';
+    setEditSkipSaturday(loanNotes.includes('[SKIP_SATURDAY]'));
+    setEditSkipSunday(loanNotes.includes('[SKIP_SUNDAY]'));
+    setEditSkipHolidays(loanNotes.includes('[SKIP_HOLIDAYS]'));
+    
+    setEditingLoanId(loanId);
+    setEditLoanIsOverdue(false);
+    setEditOverdueDays(0);
+    setEditIsRenegotiation(false); // IMPORTANT: This is NOT a renegotiation
+    setEditHistoricalData(null); // No historical data for simple edit
+    
+    // Load CURRENT loan data (not calculate new contract)
+    setEditFormData({
+      client_id: loan.client_id,
+      principal_amount: loan.principal_amount.toString(),
+      interest_rate: loan.interest_rate.toString(),
+      interest_type: loan.interest_type,
+      interest_mode: loan.interest_mode || 'per_installment',
+      payment_type: loan.payment_type,
+      installments: (loan.installments || 1).toString(),
+      contract_date: loan.contract_date || format(new Date(), 'yyyy-MM-dd'),
+      start_date: loan.start_date,
+      due_date: loan.due_date,
+      notes: cleanNotes,
+      daily_amount: loan.payment_type === 'daily' ? (loan.total_interest || 0).toString() : '',
+      overdue_daily_rate: hasExistingOverdueConfig && existingOverdueType === 'percentage' 
+        ? existingOverdueValue.toString() 
+        : (loan.interest_rate / 30).toFixed(2),
+      overdue_fixed_amount: hasExistingOverdueConfig && existingOverdueType === 'fixed' 
+        ? existingOverdueValue.toString() 
+        : '',
+      overdue_penalty_type: hasExistingOverdueConfig ? existingOverdueType! : 'percentage',
+      apply_overdue_penalty: hasExistingOverdueConfig,
+      send_notification: false,
+    });
+    
+    // Load CURRENT installment dates
+    setEditInstallmentDates((loan.installment_dates as string[]) || []);
+    
+    // Calculate and set current installment value
+    const numInstEdit = loan.installments || 1;
+    let totalInterestEdit = 0;
+    if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+      if (loan.payment_type === 'daily') {
+        // For daily loans, total_interest stores the daily amount
+        totalInterestEdit = (loan.total_interest * numInstEdit) - loan.principal_amount;
+      } else {
+        totalInterestEdit = loan.total_interest;
+      }
+    } else if (loan.interest_mode === 'on_total') {
+      totalInterestEdit = loan.principal_amount * (loan.interest_rate / 100);
+    } else if (loan.interest_mode === 'compound') {
+      totalInterestEdit = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstEdit) - loan.principal_amount;
+    } else {
+      totalInterestEdit = loan.principal_amount * (loan.interest_rate / 100) * numInstEdit;
+    }
+    const totalToReceiveEdit = loan.principal_amount + totalInterestEdit;
+    setEditInstallmentValue((totalToReceiveEdit / numInstEdit).toFixed(2));
+    setIsEditManuallyEditingInstallment(false);
+    setIsEditManuallyEditingInterest(false);
+    setEditEditableTotalInterest('');
+    
+    setIsEditDialogOpen(true);
+  };
+
+  // Renegotiation Dialog - for creating new contract based on outstanding balance
   const openEditDialog = async (loanId: string) => {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
@@ -3513,14 +3609,13 @@ export default function Loans() {
       daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
     }
     
-    // Check if this is a renegotiation - always allow renegotiation for any contract
+    // This is always a renegotiation
     const totalPaid = loan.total_paid || 0;
-    const isRenegotiation = true; // Allow renegotiation for contracts with or without payments
+    const isRenegotiation = true;
     
     // Calculate historical data for renegotiation
     let historicalData: typeof editHistoricalData = null;
     if (isRenegotiation) {
-      // CORREÇÃO: Usar total_interest do banco como fonte de verdade
       const numInstallments = loan.installments || 1;
       let totalInterest = 0;
       if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
@@ -3534,7 +3629,7 @@ export default function Loans() {
       }
       const totalContract = loan.principal_amount + totalInterest;
       
-      // Fetch actual payments to calculate realized profit correctly (sum of interest_paid)
+      // Fetch actual payments to calculate realized profit correctly
       const paymentsResult = await getLoanPayments(loanId);
       const payments = paymentsResult.data || [];
       const realizedProfit = payments.reduce((sum, p) => sum + Number(p.interest_paid || 0), 0);
@@ -3561,7 +3656,7 @@ export default function Loans() {
     const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
     const existingOverdueValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
     
-    // Clean notes for display (remove the config tag and renegotiation tags)
+    // Clean notes for display
     let cleanNotes = (loan.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
       .replace(/\[RENEGOTIATED\]\n?/g, '')
@@ -3620,7 +3715,6 @@ export default function Loans() {
       const startDate = new Date();
       const newDates: string[] = [];
       for (let i = 0; i < numInst; i++) {
-        // Usar addMonths do date-fns para evitar bugs na virada de ano
         const date = addMonths(startDate, i);
         newDates.push(format(date, 'yyyy-MM-dd'));
       }
@@ -3788,6 +3882,8 @@ export default function Loans() {
     
     if (editIsRenegotiation) {
       toast.success('Contrato renegociado com sucesso!');
+    } else {
+      toast.success('Empréstimo atualizado! As próximas cobranças usarão os novos dados.');
     }
     
     setIsEditDialogOpen(false);
@@ -6403,19 +6499,20 @@ export default function Loans() {
                                 <p>Ver histórico de pagamentos (pode excluir pagamentos errados)</p>
                               </TooltipContent>
                             </Tooltip>
+                            {/* Botão de Edição Simples (Lápis) - Edita datas e valores do contrato atual */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                  onClick={() => openEditDialog(loan.id)}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                  onClick={() => openSimpleEditDialog(loan.id)}
                                 >
                                   <Pencil className="w-3 h-3" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent side="top">
-                                <p>Alterar dados do empréstimo, datas e valores</p>
+                                <p>Editar datas e valores do contrato</p>
                               </TooltipContent>
                             </Tooltip>
                             {/* Botão de adicionar parcelas extras - apenas para empréstimos diários ativos */}
@@ -6439,6 +6536,24 @@ export default function Loans() {
                                 </TooltipContent>
                               </Tooltip>
                             )}
+                            {/* Espaçador para separar edição de ações destrutivas */}
+                            <div className="w-2" />
+                            {/* Botão de Renegociação - Cria novo contrato baseado no saldo devedor */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                  size="icon" 
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                  onClick={() => openEditDialog(loan.id)}
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Renegociar contrato (criar novo baseado no saldo)</p>
+                              </TooltipContent>
+                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
