@@ -8323,19 +8323,36 @@ export default function Loans() {
                                   <p>Ver histórico de pagamentos</p>
                                 </TooltipContent>
                               </Tooltip>
+                              {/* Botão de Edição Simples - Azul */}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                    onClick={() => openEditDialog(loan.id)}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                    onClick={() => openSimpleEditDialog(loan.id)}
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">
-                                  <p>Editar empréstimo</p>
+                                  <p>Editar datas e valores do contrato</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              {/* Botão de Renegociação - Âmbar */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                    onClick={() => openEditDialog(loan.id)}
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Renegociar contrato (criar novo baseado no saldo)</p>
                                 </TooltipContent>
                               </Tooltip>
                               {/* Botão de adicionar parcelas extras */}
