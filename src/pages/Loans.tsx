@@ -9435,13 +9435,13 @@ export default function Loans() {
                           let newDueDate = '';
                           if (nextUnpaidIndex >= 0 && dates[nextUnpaidIndex]) {
                             const currentDate = new Date(dates[nextUnpaidIndex] + 'T12:00:00');
-                            rollDateForward(currentDate, selectedLoan.payment_type);
-                            newDueDate = format(currentDate, 'yyyy-MM-dd');
+                            const rolledDate = rollDateForward(currentDate, selectedLoan.payment_type);
+                            newDueDate = format(rolledDate, 'yyyy-MM-dd');
                           } else if (selectedLoan.due_date) {
                             // Se não tem parcelas, usar due_date + período
                             const currentDate = new Date(selectedLoan.due_date + 'T12:00:00');
-                            rollDateForward(currentDate, selectedLoan.payment_type);
-                            newDueDate = format(currentDate, 'yyyy-MM-dd');
+                            const rolledDate = rollDateForward(currentDate, selectedLoan.payment_type);
+                            newDueDate = format(rolledDate, 'yyyy-MM-dd');
                           }
                           
                           setRenegotiateData({ 
