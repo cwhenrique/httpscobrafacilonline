@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { Loan } from '@/types/database';
+import { toast } from '@/hooks/use-toast';
 
 interface LoansTableViewProps {
   loans: Loan[];
@@ -108,8 +109,97 @@ export function LoansTableView({
     return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
   };
 
+  const getPaymentTypeLabel = (type: string | null): string => {
+    const types: Record<string, string> = {
+      single: 'Único',
+      installment: 'Parcelado',
+      daily: 'Diário',
+      weekly: 'Semanal',
+      biweekly: 'Quinzenal',
+    };
+    return types[type || ''] || type || 'N/A';
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      'Cliente',
+      'Telefone',
+      'Status',
+      'Valor Emprestado',
+      'Total a Receber',
+      'Valor Restante',
+      'Parcelas Pagas',
+      'Total Parcelas',
+      'Próximo Vencimento',
+      'Taxa de Juros (%)',
+      'Tipo de Pagamento',
+      'Data de Início',
+      'Notas'
+    ];
+
+    const rows = sortedLoans.map(loan => {
+      const status = getLoanStatus(loan);
+      const paidCount = getPaidInstallmentsCount(loan);
+      const nextDue = getNextDueDate(loan);
+      const totalAmount = loan.principal_amount * (1 + loan.interest_rate / 100);
+      
+      return [
+        loan.client?.full_name || 'N/A',
+        loan.client?.phone || 'N/A',
+        status.label,
+        loan.principal_amount.toFixed(2).replace('.', ','),
+        totalAmount.toFixed(2).replace('.', ','),
+        loan.remaining_balance.toFixed(2).replace('.', ','),
+        paidCount.toString(),
+        (loan.installments || 1).toString(),
+        nextDue ? formatDate(nextDue) : 'N/A',
+        loan.interest_rate.toString().replace('.', ','),
+        getPaymentTypeLabel(loan.payment_type),
+        loan.start_date ? formatDate(loan.start_date) : 'N/A',
+        (loan.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')
+      ];
+    });
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+    ].join('\n');
+
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `emprestimos_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Exportação concluída",
+      description: `${loans.length} empréstimo(s) exportado(s) para CSV.`,
+    });
+  };
+
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+        <span className="text-sm text-muted-foreground">
+          {loans.length} empréstimo{loans.length !== 1 ? 's' : ''}
+        </span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleExportCSV}
+          className="gap-2"
+          disabled={loans.length === 0}
+        >
+          <Download className="w-4 h-4" />
+          Exportar CSV
+        </Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
