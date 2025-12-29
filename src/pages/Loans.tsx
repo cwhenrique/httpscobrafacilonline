@@ -2977,6 +2977,10 @@ export default function Loans() {
       // Calcular quanto do principal já foi amortizado anteriormente
       const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan.notes);
       
+      // Guardar valores anteriores para reversão
+      const previousTotalInterest = selectedLoan.total_interest || 0;
+      const previousRemainingBalance = selectedLoan.remaining_balance;
+      
       // Novo principal = Original - amortizações anteriores - esta amortização
       const newPrincipal = Math.max(0, originalPrincipal - previousAmortizations - amount);
       
@@ -3000,28 +3004,34 @@ export default function Loans() {
       await supabase.from('loans').update({ 
         total_interest: newTotalInterest,
         remaining_balance: newRemainingBalance,
-        // NÃO atualiza total_paid - amortização reduz o saldo mas não é pagamento
         notes: notesWithAmort
       }).eq('id', selectedLoanId);
-      
-      // Atualizar updatedNotes para refletir a mudança
-      updatedNotes = notesWithAmort;
       
       // Economia de juros
       const originalInterest = originalPrincipal * (interestRate / 100);
       const interestSavings = originalInterest - newTotalInterest;
       
-      // Adicionar nota sobre o recálculo no pagamento
-      installmentNote += ` | Amortização: Novo principal ${formatCurrency(newPrincipal)}, Novos juros: ${formatCurrency(newTotalInterest)}`;
+      // Criar nota com dados para reversão (valores ANTERIORES à amortização)
+      const amortizationPaymentNote = `[AMORTIZATION] Amortização de ${formatCurrency(amount)} | ` +
+        `Novo principal: ${formatCurrency(newPrincipal)}, Novos juros: ${formatCurrency(newTotalInterest)}, ` +
+        `Economia: ${formatCurrency(interestSavings)} | ` +
+        `[AMORT_REVERSAL:${previousAmortizations.toFixed(2)}:${previousTotalInterest.toFixed(2)}:${previousRemainingBalance.toFixed(2)}]`;
+      
+      // Registrar na tabela loan_payments para aparecer no histórico
+      await registerPayment({
+        loan_id: selectedLoanId,
+        amount: amount,
+        payment_date: paymentData.payment_date,
+        notes: amortizationPaymentNote,
+        principal_paid: amount, // Amortização reduz o principal
+        interest_paid: 0
+      });
       
       toast.success(
         `Amortização registrada! Economia de ${formatCurrency(interestSavings)} em juros. ` +
         `Novas ${remainingInstallmentsCount} parcelas de ${formatCurrency(newInstallmentValue)}`
       );
       
-      // Pular o registerPayment padrão pois já atualizamos o total_paid
-      // O registerPayment iria somar o amount novamente
-      await fetchLoans();
       setIsPaymentDialogOpen(false);
       setSelectedLoanId(null);
       setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false, recalculate_interest: false });
