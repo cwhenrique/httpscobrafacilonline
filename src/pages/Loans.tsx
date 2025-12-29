@@ -3221,18 +3221,13 @@ export default function Loans() {
     // Interest per installment for auto-fill
     const interestPerInstallment = totalInterest / numInstallments;
     
-    // Total original do contrato
-    const totalToReceive = loan.principal_amount + totalInterest;
-    
-    // Total já pago (inclui parcelas + juros anteriores)
-    const totalPaid = loan.total_paid || 0;
-    
-    // Valor que realmente falta considerando pagamentos já feitos
-    const actualRemaining = totalToReceive - totalPaid;
+    // CORREÇÃO: Usar remaining_balance como fonte de verdade (já inclui amortizações)
+    // O remaining_balance é atualizado automaticamente quando há amortização
+    const actualRemaining = loan.remaining_balance > 0 ? loan.remaining_balance : (loan.principal_amount + totalInterest - (loan.total_paid || 0));
     
     // Para "só juros": se já houve pagamento anterior de "só juros", usar o valor salvo
-    // Caso contrário, usar o remaining atual (que já considera parcelas pagas)
-    let remainingForInterestOnly = actualRemaining > 0 ? actualRemaining : 0;
+    // Caso contrário, usar o remaining atual (que já considera amortizações)
+    let remainingForInterestOnly = actualRemaining;
     
     if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
       const match = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
@@ -3244,8 +3239,8 @@ export default function Loans() {
       }
     }
     
-    // Para renegociação normal
-    const remainingForRenegotiation = actualRemaining > 0 ? actualRemaining : 0;
+    // Para renegociação normal - usar remaining_balance real
+    const remainingForRenegotiation = actualRemaining;
     
     setSelectedLoanId(loanId);
     const today = new Date();
@@ -9757,14 +9752,10 @@ export default function Loans() {
               const totalInterest = selectedLoan.total_interest || 0;
               const interestPerInstallmentCalc = totalInterest / numInstallments;
               const installmentValue = principalPerInstallment + interestPerInstallmentCalc;
-              // Calcular o valor que realmente falta
-              const isInterestOnly = selectedLoan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
-              const totalToReceive = selectedLoan.principal_amount + totalInterest;
-              // Para empréstimos "Só Juros", usar o remaining_balance do banco (que é o saldo real que falta)
-              // Para outros, calcular normalmente
-              const actualRemaining = isInterestOnly 
-                ? selectedLoan.remaining_balance 
-                : totalToReceive - (selectedLoan.total_paid || 0);
+              
+              // CORREÇÃO: Sempre usar remaining_balance como fonte de verdade
+              // remaining_balance já considera amortizações e pagamentos reais
+              const actualRemaining = selectedLoan.remaining_balance;
               
               // Função helper para extrair pagamentos parciais do notes
               const getPartialPayments = (notes: string | null): Record<number, number> => {
