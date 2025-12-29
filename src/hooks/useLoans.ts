@@ -632,7 +632,55 @@ export function useLoans() {
       return { error: loanError || new Error('Empréstimo não encontrado') };
     }
 
-    // 3. Delete the payment record
+    const paymentNotes = paymentData.notes || '';
+    let updatedLoanNotes = loanData.notes || '';
+    let notesChanged = false;
+
+    // 🆕 Verificar se era amortização - tratar reversão manualmente
+    const amortReversalMatch = paymentNotes.match(/\[AMORT_REVERSAL:([0-9.]+):([0-9.]+):([0-9.]+)\]/);
+    if (amortReversalMatch) {
+      const previousTotalAmortizations = parseFloat(amortReversalMatch[1]);
+      const previousTotalInterest = parseFloat(amortReversalMatch[2]);
+      const previousRemainingBalance = parseFloat(amortReversalMatch[3]);
+      
+      // Remover a última tag [AMORTIZATION:...] das notas do empréstimo
+      // A tag mais recente é a última no texto
+      const amortTagRegex = /\[AMORTIZATION:[^\]]+\]/g;
+      const allAmortTags = updatedLoanNotes.match(amortTagRegex) || [];
+      if (allAmortTags.length > 0) {
+        const lastTag = allAmortTags[allAmortTags.length - 1];
+        updatedLoanNotes = updatedLoanNotes.replace(lastTag, '').trim();
+        notesChanged = true;
+      }
+      
+      // Limpar linhas vazias extras
+      updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      // Restaurar valores anteriores do empréstimo
+      await supabase.from('loans').update({
+        total_interest: previousTotalInterest,
+        remaining_balance: previousRemainingBalance,
+        notes: updatedLoanNotes || null
+      }).eq('id', loanId);
+      
+      // Deletar o registro de pagamento (trigger não vai alterar nada pois tem [AMORTIZATION])
+      const { error: deleteError } = await supabase
+        .from('loan_payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (deleteError) {
+        toast.error('Erro ao excluir amortização');
+        return { error: deleteError };
+      }
+
+      await updateClientScore(loanData.client_id);
+      toast.success('Amortização revertida! Contrato restaurado ao estado anterior.');
+      invalidateLoans();
+      return { success: true };
+    }
+
+    // 3. Delete the payment record (para pagamentos normais)
     // O TRIGGER do banco de dados (revert_loan_on_payment_delete) já cuida de reverter 
     // os valores automaticamente! Não precisamos fazer update manual aqui.
     const { error: deleteError } = await supabase
@@ -646,9 +694,6 @@ export function useLoans() {
     }
 
     // 4. Limpar tags relacionadas das notas do empréstimo
-    const paymentNotes = paymentData.notes || '';
-    let updatedLoanNotes = loanData.notes || '';
-    let notesChanged = false;
     
     // Se era pagamento de sub-parcela de adiantamento, reverter a tag PAID para tag normal
     const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
