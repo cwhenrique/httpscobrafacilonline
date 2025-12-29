@@ -68,6 +68,34 @@ const getTotalAmortizationsFromNotes = (notes: string | null): number => {
   return total;
 };
 
+// Helper para calcular o valor efetivo da parcela considerando amortizações
+// Se houve amortização, usa remaining_balance / parcelas_restantes
+// Caso contrário, usa o cálculo normal (principal/parcelas + juros/parcelas)
+const getEffectiveInstallmentValue = (
+  loan: { 
+    notes: string | null; 
+    payment_type: string; 
+    remaining_balance: number; 
+    installments: number | null;
+    principal_amount: number;
+    total_interest: number | null;
+  },
+  normalInstallmentValue: number,
+  paidInstallmentsCount: number
+): number => {
+  const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
+  const isDaily = loan.payment_type === 'daily';
+  
+  // Se houve amortização e não é empréstimo diário, usar remaining_balance
+  if (totalAmortizations > 0 && !isDaily) {
+    const numInstallments = loan.installments || 1;
+    const remainingInstallments = Math.max(1, numInstallments - paidInstallmentsCount);
+    return loan.remaining_balance / remainingInstallments;
+  }
+  
+  return normalInstallmentValue;
+};
+
 // Helper para extrair sub-parcelas de adiantamento do notes
 // Formato: [ADVANCE_SUBPARCELA:índice:valor:data:id_único]
 const getAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ originalIndex: number; amount: number; dueDate: string; uniqueId: string }> => {
@@ -6403,7 +6431,7 @@ export default function Loans() {
                                   return paidCount + 1;
                                 })(),
                                 totalInstallments: loan.installments || 1,
-                                amount: totalPerInstallment,
+                                amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                 dueDate: overdueDate,
                                 daysOverdue: daysOverdue,
                                 loanId: loan.id,
@@ -6435,7 +6463,7 @@ export default function Loans() {
                                   contractType: 'loan',
                                   installmentNumber: todayInfo.installmentNumber,
                                   totalInstallments: todayInfo.totalInstallments,
-                                  amount: totalPerInstallment,
+                                  amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: todayInfo.dueDate,
                                   loanId: loan.id,
                                   interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
@@ -6476,7 +6504,7 @@ export default function Loans() {
                                   contractType: 'loan',
                                   installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                   totalInstallments: loan.installments || 1,
-                                  amount: totalPerInstallment,
+                                  amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: dueTodayDate,
                                   loanId: loan.id,
                                   interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
@@ -6504,14 +6532,14 @@ export default function Loans() {
                           
                           return (
                             <div className="mt-2 sm:mt-3">
-                              <SendEarlyNotification
+                            <SendEarlyNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
                                   clientPhone: loan.client.phone,
                                   contractType: 'loan',
                                   installmentNumber: paidCount + 1,
                                   totalInstallments: loan.installments || 1,
-                                  amount: totalPerInstallment,
+                                  amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
                                   dueDate: nextDueDate,
                                   daysUntilDue: daysUntilDue,
                                   loanId: loan.id,
@@ -8088,7 +8116,7 @@ export default function Loans() {
                                   contractType: 'loan',
                                   installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                   totalInstallments: numInstallments,
-                                  amount: totalPerInstallmentDisplay,
+                                  amount: getEffectiveInstallmentValue(loan, totalPerInstallmentDisplay, getPaidInstallmentsCount(loan)),
                                   dueDate: overdueDate,
                                   daysOverdue: daysOverdue,
                                   loanId: loan.id,
@@ -8134,7 +8162,7 @@ export default function Loans() {
                                     contractType: 'loan',
                                     installmentNumber: todayInfo.installmentNumber,
                                     totalInstallments: todayInfo.totalInstallments,
-                                    amount: totalPerInstallmentDisplay,
+                                    amount: getEffectiveInstallmentValue(loan, totalPerInstallmentDisplay, getPaidInstallmentsCount(loan)),
                                     dueDate: todayInfo.dueDate,
                                     loanId: loan.id,
                                     interestAmount: (() => {
@@ -8179,7 +8207,7 @@ export default function Loans() {
                                     contractType: 'loan',
                                     installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                     totalInstallments: numInstallments,
-                                    amount: totalPerInstallmentDisplay,
+                                    amount: getEffectiveInstallmentValue(loan, totalPerInstallmentDisplay, getPaidInstallmentsCount(loan)),
                                     dueDate: dueTodayDate,
                                     loanId: loan.id,
                                     interestAmount: (() => {
@@ -8218,7 +8246,7 @@ export default function Loans() {
                                     contractType: 'loan',
                                     installmentNumber: paidCount + 1,
                                     totalInstallments: numInstallments,
-                                    amount: totalPerInstallmentDisplay,
+                                    amount: getEffectiveInstallmentValue(loan, totalPerInstallmentDisplay, paidCount),
                                     dueDate: nextDueDate,
                                     daysUntilDue: daysUntilDue,
                                     loanId: loan.id,
