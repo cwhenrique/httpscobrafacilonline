@@ -1705,6 +1705,7 @@ export default function Loans() {
     partial_installment_index: null as number | null, // Índice da parcela para pagamento parcial
     send_notification: false, // Enviar notificação WhatsApp (desativado por padrão)
     is_advance_payment: false, // Flag para adiantamento de pagamento
+    recalculate_interest: false, // Flag para recalcular juros sobre saldo devedor
   });
 
   // Generate monthly installment dates
@@ -2933,6 +2934,40 @@ export default function Loans() {
       await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
     }
     
+    // 🆕 RECÁLCULO DE JUROS: Se o usuário marcou a opção de recalcular juros sobre saldo devedor
+    if (paymentData.recalculate_interest && paymentData.payment_type === 'partial') {
+      const currentPrincipal = selectedLoan.principal_amount;
+      const totalPaidSoFar = selectedLoan.total_paid || 0;
+      const interestRate = selectedLoan.interest_rate;
+      
+      // Novo principal restante após este pagamento (considerando apenas amortização de principal)
+      const newPrincipalRemaining = Math.max(0, currentPrincipal - totalPaidSoFar - amount);
+      
+      // Recalcular juros sobre o novo saldo devedor
+      const newTotalInterest = newPrincipalRemaining * (interestRate / 100);
+      
+      // Atualizar o total_interest e remaining_balance
+      const newRemainingBalance = newPrincipalRemaining + newTotalInterest;
+      
+      // Adicionar tag de recálculo nas notas para histórico
+      const recalcTag = `[INTEREST_RECALC:${newPrincipalRemaining.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
+      const notesWithRecalc = (updatedNotes + '\n' + recalcTag).trim();
+      
+      await supabase.from('loans').update({ 
+        total_interest: newTotalInterest,
+        remaining_balance: newRemainingBalance,
+        notes: notesWithRecalc
+      }).eq('id', selectedLoanId);
+      
+      // Atualizar updatedNotes para refletir a mudança
+      updatedNotes = notesWithRecalc;
+      
+      // Adicionar nota sobre o recálculo no pagamento
+      installmentNote += ` | Juros recalculados sobre ${formatCurrency(newPrincipalRemaining)} → Novos juros: ${formatCurrency(newTotalInterest)}`;
+      
+      toast.success(`Juros recalculados! Economia de ${formatCurrency((currentPrincipal * (interestRate / 100)) - newTotalInterest)}`);
+    }
+    
     // CORREÇÃO: Se o usuário informou uma nova data de vencimento, atualizar ANTES do registerPayment
     // para que o fetchLoans() interno do registerPayment pegue a data correta
     if (paymentData.new_due_date) {
@@ -3071,7 +3106,7 @@ export default function Loans() {
     
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
-    setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false });
+    setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false, recalculate_interest: false });
   };
 
   const resetForm = () => {
@@ -6516,7 +6551,8 @@ export default function Loans() {
                                       selected_installments: [], 
                                       partial_installment_index: null, 
                                       send_notification: false,
-                                      is_advance_payment: false 
+                                      is_advance_payment: false,
+                                      recalculate_interest: false 
                                     });
                                     
                                     setIsPaymentDialogOpen(true); 
@@ -8164,6 +8200,7 @@ export default function Loans() {
                                         partial_installment_index: null,
                                         send_notification: false,
                                         is_advance_payment: false,
+                                        recalculate_interest: false,
                                       });
                                       setIsPaymentDialogOpen(true);
                                     }}
@@ -9342,7 +9379,7 @@ export default function Loans() {
                             type="number" 
                             step="0.01" 
                             value={paymentData.amount} 
-                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value, is_advance_payment: false })} 
+                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value, is_advance_payment: false, recalculate_interest: false })} 
                             placeholder={`Máx: ${formatCurrency(selectedStatus.remaining)}`}
                             required 
                           />
@@ -9350,6 +9387,78 @@ export default function Loans() {
                             Digite qualquer valor até {formatCurrency(selectedStatus.remaining)}
                           </p>
                         </div>
+                        
+                        {/* Checkbox de Recálculo de Juros - aparece para pagamentos parciais que não sejam adiantamento */}
+                        {!selectedSubparcela && (() => {
+                          const paidAmount = parseFloat(paymentData.amount) || 0;
+                          const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
+                          
+                          // Só mostra para pagamentos parciais (amortização) que reduzem o saldo devedor
+                          if (!isPartialAmount || paymentData.is_advance_payment) return null;
+                          
+                          // Calcular novo saldo e novos juros
+                          const currentPrincipalBalance = selectedLoan?.principal_amount || 0;
+                          const currentInterestRate = selectedLoan?.interest_rate || 0;
+                          const currentRemainingBalance = selectedLoan?.remaining_balance || 0;
+                          
+                          // Estimar quanto do principal ainda resta (simplificado)
+                          const totalPaid = selectedLoan?.total_paid || 0;
+                          const totalInterest = selectedLoan?.total_interest || 0;
+                          const numInstallments = selectedLoan?.installments || 1;
+                          
+                          // Calcular o principal restante após este pagamento
+                          const estimatedPrincipalRemaining = Math.max(0, currentPrincipalBalance - totalPaid - paidAmount);
+                          
+                          // Calcular juros atuais (sobre valor original)
+                          const currentTotalInterest = currentPrincipalBalance * (currentInterestRate / 100);
+                          
+                          // Calcular novos juros (sobre saldo devedor após pagamento)
+                          const newPrincipalAfterPayment = Math.max(0, currentPrincipalBalance - (totalPaid + paidAmount));
+                          const newTotalInterest = newPrincipalAfterPayment * (currentInterestRate / 100);
+                          
+                          // Economia
+                          const interestSavings = Math.max(0, currentTotalInterest - newTotalInterest);
+                          
+                          // Só mostra se houver economia real
+                          if (interestSavings < 0.01) return null;
+                          
+                          return (
+                            <div className="flex items-start gap-2 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10">
+                              <Checkbox
+                                id="recalculate_interest"
+                                checked={paymentData.recalculate_interest}
+                                onCheckedChange={(checked) => setPaymentData({ ...paymentData, recalculate_interest: !!checked })}
+                              />
+                              <div className="flex-1">
+                                <label htmlFor="recalculate_interest" className="text-sm font-medium cursor-pointer text-blue-700 dark:text-blue-300">
+                                  Recalcular juros sobre o saldo devedor?
+                                </label>
+                                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
+                                  <div className="flex justify-between">
+                                    <span>Saldo atual:</span>
+                                    <span>{formatCurrency(currentPrincipalBalance)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Após pagamento:</span>
+                                    <span>{formatCurrency(newPrincipalAfterPayment)}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
+                                    <span>Juros atuais ({currentInterestRate}% de {formatCurrency(currentPrincipalBalance)}):</span>
+                                    <span>{formatCurrency(currentTotalInterest)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Novos juros ({currentInterestRate}% de {formatCurrency(newPrincipalAfterPayment)}):</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(newTotalInterest)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400 border-t border-blue-500/20 pt-1">
+                                    <span>💰 Economia de juros:</span>
+                                    <span>{formatCurrency(interestSavings)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         
                         {/* Checkbox de Adiantamento - NÃO aparece para sub-parcelas (já são sub-parcelas) */}
                         {!selectedSubparcela && (() => {
