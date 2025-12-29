@@ -2963,7 +2963,8 @@ export default function Loans() {
     
     // Atualizar notes do loan com tracking de parcelas ANTES do registerPayment
     // para que as notas já estejam salvas quando o fetchLoans for chamado
-    if (updatedNotes !== selectedLoan.notes) {
+    // 🆕 NÃO salvar se for amortização - a amortização salva suas próprias notas abaixo
+    if (updatedNotes !== selectedLoan.notes && !paymentData.recalculate_interest) {
       await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
     }
     
@@ -2995,9 +2996,9 @@ export default function Loans() {
       const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
       const newInstallmentValue = newRemainingBalance / remainingInstallmentsCount;
       
-      // Tag de amortização para histórico
+      // Tag de amortização para histórico - usar notas ORIGINAIS, não updatedNotes
       const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newPrincipal.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
-      const notesWithAmort = (updatedNotes + '\n' + amortTag).trim();
+      const notesWithAmort = ((selectedLoan.notes || '') + '\n' + amortTag).trim();
       
       // Atualizar banco - NÃO altera principal_amount nem total_paid
       // Amortização NÃO é um pagamento, apenas recálculo do saldo devedor
