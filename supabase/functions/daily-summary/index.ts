@@ -90,13 +90,13 @@ const handler = async (req: Request): Promise<Response> => {
     let isReminder = false;
     let testPhone: string | null = null;
     let batch = 0;
-    let batchSize = 10;
+    let batchSize = 3; // Reduzido para evitar timeout do pg_net (5s)
     try {
       const body = await req.json();
       isReminder = body.isReminder === true;
       testPhone = body.testPhone || null;
       batch = typeof body.batch === 'number' ? body.batch : 0;
-      batchSize = typeof body.batchSize === 'number' ? body.batchSize : 10;
+      batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
     } catch {
       // No body or invalid JSON, default to report mode
     }
@@ -153,42 +153,45 @@ const handler = async (req: Request): Promise<Response> => {
     for (const profile of profiles || []) {
       if (!profile.phone) continue;
 
-      // ============= EMPRÉSTIMOS =============
-      const { data: loans } = await supabase
-        .from('loans')
-        .select(`*, clients!inner(full_name, phone)`)
-        .eq('user_id', profile.id)
-        .in('status', ['pending', 'overdue']);
+      // ============= QUERIES PARALELAS PARA PERFORMANCE =============
+      const [loansResult, loanPaymentsResult, vehiclePaymentsResult, productPaymentsResult] = await Promise.all([
+        // EMPRÉSTIMOS
+        supabase
+          .from('loans')
+          .select(`*, clients!inner(full_name, phone)`)
+          .eq('user_id', profile.id)
+          .in('status', ['pending', 'overdue']),
+        // PAGAMENTOS DE EMPRÉSTIMOS (para contagem)
+        supabase
+          .from('loan_payments')
+          .select('loan_id')
+          .eq('user_id', profile.id),
+        // VEÍCULOS
+        supabase
+          .from('vehicle_payments')
+          .select(`*, vehicles!inner(brand, model, year, plate, buyer_name, seller_name, user_id, purchase_value, total_paid, installments)`)
+          .eq('user_id', profile.id)
+          .eq('status', 'pending')
+          .gte('due_date', todayStr),
+        // PRODUTOS
+        supabase
+          .from('product_sale_payments')
+          .select(`*, productSale:product_sales!inner(product_name, client_name, user_id, total_amount, total_paid, installments)`)
+          .eq('user_id', profile.id)
+          .eq('status', 'pending')
+          .gte('due_date', todayStr),
+      ]);
 
-      // Buscar contagem REAL de pagamentos por loan_id
-      const { data: loanPaymentsData } = await supabase
-        .from('loan_payments')
-        .select('loan_id')
-        .eq('user_id', profile.id);
+      const loans = loansResult.data;
+      const loanPaymentsData = loanPaymentsResult.data;
+      const userVehiclePayments = vehiclePaymentsResult.data || [];
+      const userProductPayments = productPaymentsResult.data || [];
 
       // Criar mapa de contagem de pagamentos por empréstimo
       const loanPaymentCounts: Record<string, number> = {};
       for (const payment of loanPaymentsData || []) {
         loanPaymentCounts[payment.loan_id] = (loanPaymentCounts[payment.loan_id] || 0) + 1;
       }
-
-      // ============= VEÍCULOS =============
-      const { data: vehiclePayments } = await supabase
-        .from('vehicle_payments')
-        .select(`*, vehicles!inner(brand, model, year, plate, buyer_name, seller_name, user_id, purchase_value, total_paid, installments)`)
-        .eq('status', 'pending')
-        .gte('due_date', todayStr);
-
-      // ============= PRODUTOS =============
-      const { data: productPayments } = await supabase
-        .from('product_sale_payments')
-        .select(`*, productSale:product_sales!inner(product_name, client_name, user_id, total_amount, total_paid, installments)`)
-        .eq('status', 'pending')
-        .gte('due_date', todayStr);
-
-      // Filter payments for this user
-      const userVehiclePayments = (vehiclePayments || []).filter(p => (p.vehicles as any).user_id === profile.id);
-      const userProductPayments = (productPayments || []).filter(p => (p.productSale as any).user_id === profile.id);
 
       // Categorize loans
       interface LoanInfo {
