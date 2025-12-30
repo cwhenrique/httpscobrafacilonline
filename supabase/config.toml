@@ -95,3 +95,9 @@ verify_jwt = false
 
 [functions.whatsapp-connection-webhook]
 verify_jwt = false
+
+[functions.check-subscription-expiring]
+verify_jwt = false
+
+[functions.update-user-plan]
+verify_jwt = false
