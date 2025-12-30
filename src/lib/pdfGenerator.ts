@@ -220,9 +220,19 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   currentY += 25;
 
   // === CLIENT DATA SECTION ===
+  // Calculate box height based on whether address exists and its length
+  const hasAddress = data.client.address && data.client.address.length > 0;
+  const addressMaxWidth = pageWidth - 2 * margin - 35;
+  let addressLineCount = 0;
+  if (hasAddress) {
+    const tempLines = doc.splitTextToSize(data.client.address!, addressMaxWidth);
+    addressLineCount = Math.min(tempLines.length, 3); // Max 3 lines
+  }
+  const clientBoxHeight = hasAddress ? 45 + (addressLineCount * 5) : 45;
+
   doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setLineWidth(0.5);
-  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 45, 2, 2, 'S');
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, clientBoxHeight, 2, 2, 'S');
 
   doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setFontSize(11);
@@ -276,16 +286,22 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
 
   clientY += 8;
 
-  if (data.client.address) {
+  if (hasAddress) {
     doc.setFont('helvetica', 'bold');
     doc.text('Endereço:', col1X, clientY);
     doc.setFont('helvetica', 'normal');
-    const maxWidth = pageWidth - 2 * margin - 35;
-    const addressLines = doc.splitTextToSize(data.client.address, maxWidth);
-    doc.text(addressLines[0] || '-', col1X + 28, clientY);
+    const addressLines = doc.splitTextToSize(data.client.address!, addressMaxWidth);
+    // Show up to 3 lines of address
+    addressLines.slice(0, 3).forEach((line: string, index: number) => {
+      if (index === 0) {
+        doc.text(line, col1X + 28, clientY);
+      } else {
+        doc.text(line, col1X + 28, clientY + (index * 5));
+      }
+    });
   }
 
-  currentY += 52;
+  currentY += clientBoxHeight + 7;
 
   // === VEHICLE INFO (if applicable) ===
   if (data.type === 'vehicle' && data.vehicleInfo) {

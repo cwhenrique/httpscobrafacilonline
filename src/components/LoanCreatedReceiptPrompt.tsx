@@ -23,6 +23,7 @@ interface LoanData {
   id: string;
   clientName: string;
   clientPhone?: string;
+  clientAddress?: string;
   principalAmount: number;
   interestRate: number;
   totalInterest: number;
@@ -271,6 +272,7 @@ export default function LoanCreatedReceiptPrompt({
         client: {
           name: loan.clientName,
           phone: loan.clientPhone,
+          address: loan.clientAddress,
         },
         negotiation: {
           principal: loan.principalAmount,
