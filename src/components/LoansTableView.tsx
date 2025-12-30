@@ -202,7 +202,7 @@ export function LoansTableView({
       {/* Summary Section */}
       {loans.length > 0 && (
         <div className="p-4 border-b bg-muted/20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10">
                 <DollarSign className="w-4 h-4 text-blue-600" />
@@ -217,26 +217,8 @@ export function LoansTableView({
                 <Wallet className="w-4 h-4 text-amber-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Restante</p>
+                <p className="text-xs text-muted-foreground">Total a Receber</p>
                 <p className="text-sm font-semibold">{formatCurrency(totals.totalRemaining)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <PiggyBank className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Recebido</p>
-                <p className="text-sm font-semibold text-emerald-600">{formatCurrency(totals.totalPaid)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <TrendingUp className="w-4 h-4 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Lucro Esperado</p>
-                <p className="text-sm font-semibold text-purple-600">{formatCurrency(totals.totalProfit)}</p>
               </div>
             </div>
           </div>
