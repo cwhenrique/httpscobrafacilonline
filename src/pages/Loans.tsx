@@ -445,6 +445,7 @@ export default function Loans() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
+  const [customOverdueDays, setCustomOverdueDays] = useState<string>('');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
     const saved = localStorage.getItem('loans-view-mode');
@@ -2073,6 +2074,12 @@ export default function Loans() {
             case 30: return daysOverdue >= 16 && daysOverdue <= 30;
             case 60: return daysOverdue >= 31 && daysOverdue <= 60;
             case 999: return daysOverdue > 60;
+            case -1: // Personalizado
+              const customDays = parseInt(customOverdueDays);
+              if (!isNaN(customDays) && customDays > 0) {
+                return daysOverdue === customDays;
+              }
+              return true;
             default: return true;
           }
         }
@@ -5551,6 +5558,7 @@ export default function Loans() {
                             : overdueDaysFilter === 30 ? 'Atraso 16-30d'
                             : overdueDaysFilter === 60 ? 'Atraso 31-60d'
                             : overdueDaysFilter === 999 ? 'Atraso +60d'
+                            : overdueDaysFilter === -1 ? `Atraso ${customOverdueDays}d`
                             : 'Atraso'
                           : 'Atraso'}
                         <ChevronDown className="w-3 h-3 ml-1" />
@@ -5579,6 +5587,36 @@ export default function Loans() {
                       <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(999); setIsFiltersExpanded(false); }}>
                         +60 dias
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <div className="p-2">
+                        <Label className="text-xs text-muted-foreground">Dias personalizados</Label>
+                        <div className="flex gap-2 mt-1">
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Ex: 45"
+                            value={customOverdueDays}
+                            onChange={(e) => setCustomOverdueDays(e.target.value)}
+                            className="h-8 w-20"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          <Button
+                            size="sm"
+                            className="h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (customOverdueDays && parseInt(customOverdueDays) > 0) {
+                                setStatusFilter('overdue');
+                                setOverdueDaysFilter(-1);
+                                setIsFiltersExpanded(false);
+                              }
+                            }}
+                          >
+                            Aplicar
+                          </Button>
+                        </div>
+                      </div>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   
