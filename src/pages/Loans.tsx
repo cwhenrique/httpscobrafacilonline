@@ -1590,6 +1590,13 @@ export default function Loans() {
       });
     }
     
+    // Fallback for biweekly when installmentDates not yet generated
+    // Check start_date directly to show historical contract option
+    if (formData.payment_type === 'biweekly' && formData.start_date && installmentDates.length === 0) {
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      return startDate < today;
+    }
+    
     if (formData.due_date) {
       const dueDate = new Date(formData.due_date + 'T12:00:00');
       return dueDate < today;
@@ -2515,6 +2522,57 @@ export default function Loans() {
       };
     }
     
+    // Fallback for biweekly when installmentDates not yet generated
+    // Generate dates on-the-fly based on start_date
+    if (formData.payment_type === 'biweekly' && formData.start_date && installmentDates.length === 0) {
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      const generatedDates: string[] = [];
+      for (let i = 0; i < numInstallments; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + (i * 14)); // 14 days = biweekly
+        generatedDates.push(format(date, 'yyyy-MM-dd'));
+      }
+      
+      const pastDates = generatedDates.filter(d => {
+        const date = new Date(d + 'T12:00:00');
+        return date < today;
+      });
+      
+      if (pastDates.length > 0) {
+        let valuePerInstallment: number;
+        let principalPerInstallment: number;
+        let interestPerInstallment: number;
+        
+        if (installmentValue && parseFloat(installmentValue) > 0) {
+          valuePerInstallment = parseFloat(installmentValue);
+          principalPerInstallment = principal / numInstallments;
+          interestPerInstallment = valuePerInstallment - principalPerInstallment;
+        } else {
+          const rate = parseFloat(formData.interest_rate) || 0;
+          interestPerInstallment = formData.interest_mode === 'per_installment'
+            ? principal * (rate / 100)
+            : (principal * (rate / 100)) / numInstallments;
+          principalPerInstallment = principal / numInstallments;
+          valuePerInstallment = principalPerInstallment + interestPerInstallment;
+        }
+        
+        const pastInstallmentsList = pastDates.map((date, idx) => {
+          const originalIndex = generatedDates.indexOf(date);
+          return { date, value: valuePerInstallment, index: originalIndex >= 0 ? originalIndex : idx };
+        });
+        
+        return {
+          count: pastDates.length,
+          totalValue: valuePerInstallment * pastDates.length,
+          dates: pastDates,
+          valuePerInstallment,
+          principalPerInstallment,
+          interestPerInstallment,
+          pastInstallmentsList,
+        };
+      }
+    }
+    
     // For single payment with past due date, count as 1
     if (formData.due_date) {
       const dueDate = new Date(formData.due_date + 'T12:00:00');
@@ -2534,7 +2592,7 @@ export default function Loans() {
     }
     
     return { count: 0, totalValue: 0, pastInstallmentsList: [] as { date: string; value: number; index: number }[] };
-  }, [formData.is_historical_contract, hasPastDates, formData.principal_amount, formData.installments, formData.payment_type, formData.daily_amount, formData.interest_rate, formData.interest_mode, formData.due_date, installmentDates, installmentValue, isDailyDialogOpen]);
+  }, [formData.is_historical_contract, hasPastDates, formData.principal_amount, formData.installments, formData.payment_type, formData.daily_amount, formData.interest_rate, formData.interest_mode, formData.due_date, formData.start_date, installmentDates, installmentValue, isDailyDialogOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
