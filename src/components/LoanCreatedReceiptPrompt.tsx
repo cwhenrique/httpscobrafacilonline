@@ -267,6 +267,7 @@ export default function LoanCreatedReceiptPrompt({
           installmentValue: loan.installmentValue,
           totalToReceive: loan.totalToReceive,
           startDate: loan.startDate,
+          contractDate: loan.contractDate,
         },
         dueDates: installmentDates || [],
       };
