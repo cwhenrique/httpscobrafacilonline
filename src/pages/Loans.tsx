@@ -953,10 +953,24 @@ export default function Loans() {
         }
       }
       
-      // Update in database
+      // Calculate total penalties being added
+      const newPenalties = getDailyPenaltiesFromNotes(cleanNotes);
+      const oldPenalties = getDailyPenaltiesFromNotes(currentNotes || '');
+      const newTotalPenalty = Object.values(newPenalties).reduce((sum, val) => sum + val, 0);
+      const oldTotalPenalty = Object.values(oldPenalties).reduce((sum, val) => sum + val, 0);
+      const penaltyDifference = newTotalPenalty - oldTotalPenalty;
+      
+      // Get current remaining_balance
+      const loan = loans.find(l => l.id === loanId);
+      const currentBalance = loan?.remaining_balance || 0;
+      
+      // Update in database - also adjust remaining_balance
       const { error } = await supabase
         .from('loans')
-        .update({ notes: cleanNotes })
+        .update({ 
+          notes: cleanNotes,
+          remaining_balance: currentBalance + penaltyDifference 
+        })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -985,12 +999,23 @@ export default function Loans() {
   // Function to remove penalty from specific daily installment
   const handleRemoveDailyPenalty = async (loanId: string, installmentIndex: number, currentNotes: string | null) => {
     try {
+      // Get the penalty value being removed
+      const oldPenalties = getDailyPenaltiesFromNotes(currentNotes);
+      const penaltyBeingRemoved = oldPenalties[installmentIndex] || 0;
+      
       const regex = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g');
       const cleanNotes = (currentNotes || '').replace(regex, '').trim();
       
+      // Get current remaining_balance
+      const loan = loans.find(l => l.id === loanId);
+      const currentBalance = loan?.remaining_balance || 0;
+      
       const { error } = await supabase
         .from('loans')
-        .update({ notes: cleanNotes })
+        .update({ 
+          notes: cleanNotes,
+          remaining_balance: currentBalance - penaltyBeingRemoved
+        })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -1011,6 +1036,11 @@ export default function Loans() {
     currentNotes: string | null
   ) => {
     try {
+      // Get the old penalty value for this installment
+      const oldPenalties = getDailyPenaltiesFromNotes(currentNotes);
+      const oldPenaltyValue = oldPenalties[installmentIndex] || 0;
+      const penaltyDifference = newPenaltyValue - oldPenaltyValue;
+      
       // Remove old penalty for this installment
       const regex = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g');
       let cleanNotes = (currentNotes || '').replace(regex, '').trim();
@@ -1021,9 +1051,16 @@ export default function Loans() {
         cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
       }
       
+      // Get current remaining_balance
+      const loan = loans.find(l => l.id === loanId);
+      const currentBalance = loan?.remaining_balance || 0;
+      
       const { error } = await supabase
         .from('loans')
-        .update({ notes: cleanNotes })
+        .update({ 
+          notes: cleanNotes,
+          remaining_balance: currentBalance + penaltyDifference
+        })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -1041,6 +1078,10 @@ export default function Loans() {
     if (!manualPenaltyDialog) return;
     
     try {
+      // Get old penalties before modifying
+      const oldPenalties = getDailyPenaltiesFromNotes(manualPenaltyDialog.currentNotes);
+      const oldTotalPenalty = Object.values(oldPenalties).reduce((sum, val) => sum + val, 0);
+      
       let cleanNotes = (manualPenaltyDialog.currentNotes || '')
         .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
         .trim();
@@ -1082,10 +1123,22 @@ export default function Loans() {
         }
       }
       
-      // Save to database
+      // Calculate new total penalties and difference
+      const newPenalties = getDailyPenaltiesFromNotes(cleanNotes);
+      const newTotalPenalty = Object.values(newPenalties).reduce((sum, val) => sum + val, 0);
+      const penaltyDifference = newTotalPenalty - oldTotalPenalty;
+      
+      // Get current remaining_balance
+      const loan = loans.find(l => l.id === manualPenaltyDialog.loanId);
+      const currentBalance = loan?.remaining_balance || 0;
+      
+      // Save to database with updated remaining_balance
       const { error } = await supabase
         .from('loans')
-        .update({ notes: cleanNotes })
+        .update({ 
+          notes: cleanNotes,
+          remaining_balance: currentBalance + penaltyDifference
+        })
         .eq('id', manualPenaltyDialog.loanId);
       
       if (error) throw error;
