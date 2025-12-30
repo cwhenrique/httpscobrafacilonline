@@ -17,6 +17,7 @@ import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 
 interface LoanData {
   id: string;
@@ -55,6 +56,8 @@ export default function LoanCreatedReceiptPrompt({
   const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
+  const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -164,8 +167,17 @@ export default function LoanCreatedReceiptPrompt({
     return message;
   };
 
-  // Send to collector (with full details)
-  const handleSendWhatsApp = async () => {
+  // Open preview for self
+  const handleSendToSelfClick = () => {
+    if (!userPhone) {
+      toast.error('Telefone não configurado no perfil');
+      return;
+    }
+    setShowPreviewForSelf(true);
+  };
+
+  // Send to collector (with full details) - called after preview confirmation
+  const handleConfirmSendToSelf = async (editedMessage: string) => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
       return;
@@ -173,13 +185,12 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const message = generateCollectorMessage();
-      
       await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: userPhone, message },
+        body: { phone: userPhone, message: editedMessage },
       });
       
       toast.success('Comprovante enviado via WhatsApp!');
+      setShowPreviewForSelf(false);
       onOpenChange(false);
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
@@ -189,8 +200,19 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  // Send to client
-  const handleSendToClient = async () => {
+  // Open spam warning first for client
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  // After spam warning, show preview for client
+  const handleConfirmSpamWarning = () => {
+    setShowSpamWarning(false);
+    setShowPreviewForClient(true);
+  };
+
+  // Send to client - called after preview confirmation
+  const handleConfirmSendToClient = async (editedMessage: string) => {
     if (!loan.clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -213,13 +235,11 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: loan.clientPhone,
-          message 
+          message: editedMessage 
         },
       });
       
@@ -227,6 +247,7 @@ export default function LoanCreatedReceiptPrompt({
       
       if (result?.success) {
         toast.success('Comprovante enviado para o cliente!');
+        setShowPreviewForClient(false);
         onOpenChange(false);
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
@@ -237,15 +258,6 @@ export default function LoanCreatedReceiptPrompt({
     } finally {
       setIsSendingToClient(false);
     }
-  };
-
-  const handleClientButtonClick = () => {
-    setShowSpamWarning(true);
-  };
-
-  const handleConfirmSendToClient = () => {
-    setShowSpamWarning(false);
-    handleSendToClient();
   };
 
   const handleDownloadPdf = async () => {
@@ -345,7 +357,7 @@ export default function LoanCreatedReceiptPrompt({
 
           <div className="flex flex-col gap-3 mt-4">
             <Button 
-              onClick={handleSendWhatsApp} 
+              onClick={handleSendToSelfClick} 
               disabled={isSending || !userPhone}
               className="w-full"
             >
@@ -398,7 +410,29 @@ export default function LoanCreatedReceiptPrompt({
       <SpamWarningDialog
         open={showSpamWarning}
         onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSpamWarning}
+      />
+
+      {/* Preview for self */}
+      <MessagePreviewDialog
+        open={showPreviewForSelf}
+        onOpenChange={setShowPreviewForSelf}
+        initialMessage={generateCollectorMessage()}
+        recipientName="Você"
+        recipientType="self"
+        onConfirm={handleConfirmSendToSelf}
+        isSending={isSending}
+      />
+
+      {/* Preview for client */}
+      <MessagePreviewDialog
+        open={showPreviewForClient}
+        onOpenChange={setShowPreviewForClient}
+        initialMessage={generateClientMessage()}
+        recipientName={loan.clientName}
+        recipientType="client"
         onConfirm={handleConfirmSendToClient}
+        isSending={isSendingToClient}
       />
     </>
   );

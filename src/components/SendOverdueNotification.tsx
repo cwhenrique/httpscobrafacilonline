@@ -6,6 +6,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 
@@ -106,6 +107,7 @@ export default function SendOverdueNotification({
 }: SendOverdueNotificationProps) {
   const [isSending, setIsSending] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [cooldown, setCooldownState] = useState(isOnCooldown(data.loanId));
   const [remainingMinutes, setRemainingMinutes] = useState(getRemainingCooldownMinutes(data.loanId));
   const { profile } = useProfile();
@@ -315,7 +317,7 @@ export default function SendOverdueNotification({
     return message;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (editedMessage: string) => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
@@ -339,13 +341,11 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
-      const message = generateOverdueMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message 
+          message: editedMessage 
         },
       });
       
@@ -366,6 +366,7 @@ export default function SendOverdueNotification({
         });
         
         toast.success('Cobrança enviada para o cliente!');
+        setShowPreview(false);
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
       }
@@ -400,9 +401,9 @@ export default function SendOverdueNotification({
     setShowSpamWarning(true);
   };
 
-  const handleConfirmSend = () => {
+  const handleConfirmSpamWarning = () => {
     setShowSpamWarning(false);
-    handleSend();
+    setShowPreview(true);
   };
 
   if (!canSend) return null;
@@ -442,7 +443,17 @@ export default function SendOverdueNotification({
       <SpamWarningDialog
         open={showSpamWarning}
         onOpenChange={setShowSpamWarning}
-        onConfirm={handleConfirmSend}
+        onConfirm={handleConfirmSpamWarning}
+      />
+
+      <MessagePreviewDialog
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        initialMessage={generateOverdueMessage()}
+        recipientName={data.clientName}
+        recipientType="client"
+        onConfirm={handleSend}
+        isSending={isSending}
       />
     </>
   );
