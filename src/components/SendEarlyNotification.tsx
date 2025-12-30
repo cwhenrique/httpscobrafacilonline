@@ -1,21 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { MessageCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import SpamWarningDialog from './SpamWarningDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 
 export interface EarlyNotificationData {
   clientName: string;
@@ -77,7 +69,8 @@ const getPixKeyTypeLabel = (type: string | null): string => {
 
 export function SendEarlyNotification({ data, className }: SendEarlyNotificationProps) {
   const [isSending, setIsSending] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
@@ -157,7 +150,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     return message;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (editedMessage: string) => {
     if (!user) {
       toast.error('Você precisa estar logado para enviar mensagens');
       return;
@@ -170,13 +163,11 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
     setIsSending(true);
     try {
-      const message = generateEarlyMessage();
-
       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: {
           userId: user.id,
           clientPhone: data.clientPhone,
-          message: message,
+          message: editedMessage,
         },
       });
 
@@ -191,7 +182,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       });
 
       toast.success('Lembrete enviado com sucesso!');
-      setShowConfirmDialog(false);
+      setShowPreview(false);
     } catch (error: any) {
       console.error('Error sending early notification:', error);
       toast.error(error.message || 'Erro ao enviar lembrete');
@@ -201,7 +192,12 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
   };
 
   const handleButtonClick = () => {
-    setShowConfirmDialog(true);
+    setShowSpamWarning(true);
+  };
+
+  const handleConfirmSpamWarning = () => {
+    setShowSpamWarning(false);
+    setShowPreview(true);
   };
 
   if (!canSend) return null;
@@ -230,47 +226,21 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
         )}
       </div>
 
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Cobrança Antecipada
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                Este contrato ainda <strong>não está vencido</strong>.
-              </p>
-              <p className="text-muted-foreground">
-                Vencimento: <strong>{formatDate(data.dueDate)}</strong>
-                {data.daysUntilDue > 0 && (
-                  <span> (em {data.daysUntilDue} dia{data.daysUntilDue > 1 ? 's' : ''})</span>
-                )}
-              </p>
-              <p className="pt-2">
-                Deseja enviar um lembrete de pagamento mesmo assim?
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleSend}
-              disabled={isSending}
-              className="bg-amber-500 hover:bg-amber-600"
-            >
-              {isSending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                'Enviar Mesmo Assim'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SpamWarningDialog
+        open={showSpamWarning}
+        onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSpamWarning}
+      />
+
+      <MessagePreviewDialog
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        initialMessage={generateEarlyMessage()}
+        recipientName={data.clientName}
+        recipientType="client"
+        onConfirm={handleSend}
+        isSending={isSending}
+      />
     </>
   );
 }

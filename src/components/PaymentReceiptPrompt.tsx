@@ -8,6 +8,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
@@ -161,13 +162,24 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
+  const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
   if (!data) return null;
 
-  // Send to collector (existing behavior)
-  const handleSendWhatsApp = async () => {
+  // Open preview for self
+  const handleSendToSelfClick = () => {
+    if (!profile?.phone) {
+      toast.error('Configure seu telefone no perfil para receber comprovantes');
+      return;
+    }
+    setShowPreviewForSelf(true);
+  };
+
+  // Send to collector (after preview confirmation)
+  const handleConfirmSendToSelf = async (editedMessage: string) => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
       return;
@@ -175,16 +187,15 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
-      const message = generateCollectorMessage(data, clientPhone);
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, message },
+        body: { phone: profile.phone, message: editedMessage },
       });
       
       if (error) throw error;
       
       if (result?.success) {
         toast.success('Comprovante enviado para seu WhatsApp!');
+        setShowPreviewForSelf(false);
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
       }
@@ -196,8 +207,19 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     }
   };
 
-  // Send to client (new feature)
-  const handleSendToClient = async () => {
+  // Open spam warning for client
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  // After spam warning, show preview for client
+  const handleConfirmSpamWarning = () => {
+    setShowSpamWarning(false);
+    setShowPreviewForClient(true);
+  };
+
+  // Send to client (after preview confirmation)
+  const handleConfirmSendToClient = async (editedMessage: string) => {
     if (!clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -220,13 +242,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage(data);
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: clientPhone,
-          message 
+          message: editedMessage 
         },
       });
       
@@ -234,6 +254,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       
       if (result?.success) {
         toast.success('Comprovante enviado para o cliente!');
+        setShowPreviewForClient(false);
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
       }
@@ -243,15 +264,6 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     } finally {
       setIsSendingToClient(false);
     }
-  };
-
-  const handleClientButtonClick = () => {
-    setShowSpamWarning(true);
-  };
-
-  const handleConfirmSendToClient = () => {
-    setShowSpamWarning(false);
-    handleSendToClient();
   };
 
   const handleDownload = async () => {
@@ -340,7 +352,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
             </Button>
             <Button 
               variant="outline" 
-              onClick={handleSendWhatsApp} 
+              onClick={handleSendToSelfClick} 
               disabled={isSendingWhatsApp}
               className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
             >
@@ -377,7 +389,29 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <SpamWarningDialog
         open={showSpamWarning}
         onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSpamWarning}
+      />
+
+      {/* Preview for self */}
+      <MessagePreviewDialog
+        open={showPreviewForSelf}
+        onOpenChange={setShowPreviewForSelf}
+        initialMessage={generateCollectorMessage(data, clientPhone)}
+        recipientName="Você"
+        recipientType="self"
+        onConfirm={handleConfirmSendToSelf}
+        isSending={isSendingWhatsApp}
+      />
+
+      {/* Preview for client */}
+      <MessagePreviewDialog
+        open={showPreviewForClient}
+        onOpenChange={setShowPreviewForClient}
+        initialMessage={generateClientMessage(data)}
+        recipientName={data.clientName}
+        recipientType="client"
         onConfirm={handleConfirmSendToClient}
+        isSending={isSendingToClient}
       />
     </>
   );
