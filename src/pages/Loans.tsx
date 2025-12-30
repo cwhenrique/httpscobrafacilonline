@@ -762,6 +762,7 @@ export default function Loans() {
     id: string;
     clientName: string;
     clientPhone?: string;
+    clientAddress?: string;
     principalAmount: number;
     interestRate: number;
     totalInterest: number;
@@ -2441,6 +2442,7 @@ export default function Loans() {
         id: result.data.id,
         clientName: client?.full_name || 'Cliente',
         clientPhone: client?.phone || undefined,
+        clientAddress: client ? [client.street, client.number, client.complement, client.neighborhood, client.city, client.state].filter(Boolean).join(', ') || client.address : undefined,
         principalAmount: principalAmount,
         interestRate: interestPercentage,
         totalInterest: profit,
@@ -2786,6 +2788,7 @@ export default function Loans() {
         id: result.data.id,
         clientName: client?.full_name || 'Cliente',
         clientPhone: client?.phone || undefined,
+        clientAddress: client ? [client.street, client.number, client.complement, client.neighborhood, client.city, client.state].filter(Boolean).join(', ') || client.address : undefined,
         principalAmount: principal,
         interestRate: rate,
         totalInterest: totalInterest,
