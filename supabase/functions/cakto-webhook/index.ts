@@ -531,7 +531,7 @@ Seu acesso ao CobraFácil está liberado.
 
 Acesse: https://cobrafacil.online/auth
 Email: ${customerEmail}
-Senha: mudar@@
+Senha: 123456
 
 Recomendamos alterar sua senha após o primeiro acesso.
 
