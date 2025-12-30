@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Default password for new users
-const DEFAULT_PASSWORD = 'mudar@@';
+const DEFAULT_PASSWORD = '123456';
 
 // Clean API URL - remove trailing slashes and any path segments
 function cleanApiUrl(url: string): string {
