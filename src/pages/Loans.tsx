@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -443,6 +444,7 @@ export default function Loans() {
   const { profile } = useProfile();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
+  const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
     const saved = localStorage.getItem('loans-view-mode');
@@ -2060,7 +2062,21 @@ export default function Loans() {
       case 'paid':
         return isPaid;
       case 'overdue':
-        return isOverdue && !isPaid;
+        if (!isOverdue || isPaid) return false;
+        // Aplicar subfiltro de dias se selecionado
+        if (overdueDaysFilter !== null) {
+          const { daysOverdue } = getLoanStatus(loan);
+          switch (overdueDaysFilter) {
+            case 5: return daysOverdue >= 1 && daysOverdue <= 5;
+            case 10: return daysOverdue >= 6 && daysOverdue <= 10;
+            case 15: return daysOverdue >= 11 && daysOverdue <= 15;
+            case 30: return daysOverdue >= 16 && daysOverdue <= 30;
+            case 60: return daysOverdue >= 31 && daysOverdue <= 60;
+            case 999: return daysOverdue > 60;
+            default: return true;
+          }
+        }
+        return true;
       case 'renegotiated':
         return isRenegotiated && !isPaid && !isOverdue && !isInterestOnlyPayment;
       case 'pending':
@@ -5394,7 +5410,7 @@ export default function Loans() {
           </TooltipProvider>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('all'); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('all'); setOverdueDaysFilter(null); }} className="w-full">
           <TabsList className="mb-4 grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="regular" className="gap-1 sm:gap-2 text-xs sm:text-sm">
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -5461,7 +5477,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'all' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('all'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('all'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
                       >
                         Todos
@@ -5477,7 +5493,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'pending' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('pending'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('pending'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
                       >
                         Em Dia
@@ -5493,7 +5509,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'due_today' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('due_today'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('due_today'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'due_today' ? 'bg-amber-500' : 'border-amber-500 text-amber-600 hover:bg-amber-500/10'}`}
                       >
                         <Bell className="w-3 h-3 mr-1" />
@@ -5510,7 +5526,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'paid' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('paid'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('paid'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
                       >
                         Pagos
@@ -5521,28 +5537,57 @@ export default function Loans() {
                     </TooltipContent>
                   </Tooltip>
                   
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
                         variant={statusFilter === 'overdue' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('overdue'); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
                       >
-                        Atraso
+                        {statusFilter === 'overdue' && overdueDaysFilter !== null
+                          ? overdueDaysFilter === 5 ? 'Atraso 1-5d'
+                            : overdueDaysFilter === 10 ? 'Atraso 6-10d'
+                            : overdueDaysFilter === 15 ? 'Atraso 11-15d'
+                            : overdueDaysFilter === 30 ? 'Atraso 16-30d'
+                            : overdueDaysFilter === 60 ? 'Atraso 31-60d'
+                            : overdueDaysFilter === 999 ? 'Atraso +60d'
+                            : 'Atraso'
+                          : 'Atraso'}
+                        <ChevronDown className="w-3 h-3 ml-1" />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      <p>Empréstimos com parcelas vencidas</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="bg-background">
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}>
+                        Todos em atraso
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(5); setIsFiltersExpanded(false); }}>
+                        1-5 dias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(10); setIsFiltersExpanded(false); }}>
+                        6-10 dias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(15); setIsFiltersExpanded(false); }}>
+                        11-15 dias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(30); setIsFiltersExpanded(false); }}>
+                        16-30 dias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(60); setIsFiltersExpanded(false); }}>
+                        31-60 dias
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(999); setIsFiltersExpanded(false); }}>
+                        +60 dias
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant={statusFilter === 'renegotiated' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('renegotiated'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('renegotiated'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'renegotiated' ? 'bg-yellow-500' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-500/10'}`}
                       >
                         Reneg.
@@ -5558,7 +5603,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'interest_only' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('interest_only'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('interest_only'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'interest_only' ? 'bg-purple-500' : 'border-purple-500 text-purple-600 hover:bg-purple-500/10'}`}
                       >
                         Só Juros
@@ -5574,7 +5619,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'weekly' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('weekly'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('weekly'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'weekly' ? 'bg-orange-500' : 'border-orange-500 text-orange-600 hover:bg-orange-500/10'}`}
                       >
                         <CalendarIcon className="w-3 h-3 mr-1" />
@@ -5591,7 +5636,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'biweekly' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('biweekly'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('biweekly'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'biweekly' ? 'bg-teal-500' : 'border-teal-500 text-teal-600 hover:bg-teal-500/10'}`}
                       >
                         <CalendarIcon className="w-3 h-3 mr-1" />
@@ -5608,7 +5653,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'installment' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('installment'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('installment'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'installment' ? 'bg-emerald-500' : 'border-emerald-500 text-emerald-600 hover:bg-emerald-500/10'}`}
                       >
                         <CalendarIcon className="w-3 h-3 mr-1" />
@@ -5625,7 +5670,7 @@ export default function Loans() {
                       <Button
                         variant={statusFilter === 'single' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => { setStatusFilter('single'); setIsFiltersExpanded(false); }}
+                        onClick={() => { setStatusFilter('single'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                         className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'single' ? 'bg-gray-500' : 'border-gray-500 text-gray-600 hover:bg-gray-500/10'}`}
                       >
                         <DollarSign className="w-3 h-3 mr-1" />
@@ -7474,7 +7519,7 @@ export default function Loans() {
                         <Button
                           variant={statusFilter === 'all' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => { setStatusFilter('all'); setIsFiltersExpanded(false); }}
+                          onClick={() => { setStatusFilter('all'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                           className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
                         >
                           Todos
@@ -7490,7 +7535,7 @@ export default function Loans() {
                         <Button
                           variant={statusFilter === 'pending' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => { setStatusFilter('pending'); setIsFiltersExpanded(false); }}
+                          onClick={() => { setStatusFilter('pending'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                           className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter !== 'pending' ? 'border-blue-500 text-blue-500 hover:bg-blue-500/10' : ''}`}
                         >
                           Em Dia
@@ -7506,7 +7551,7 @@ export default function Loans() {
                         <Button
                           variant={statusFilter === 'paid' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => { setStatusFilter('paid'); setIsFiltersExpanded(false); }}
+                          onClick={() => { setStatusFilter('paid'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
                           className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'paid' ? 'bg-primary' : 'border-primary text-primary hover:bg-primary/10'}`}
                         >
                           Pagos
@@ -7517,21 +7562,50 @@ export default function Loans() {
                       </TooltipContent>
                     </Tooltip>
                     
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
                           variant={statusFilter === 'overdue' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => { setStatusFilter('overdue'); setIsFiltersExpanded(false); }}
                           className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'overdue' ? 'bg-destructive' : 'border-destructive text-destructive hover:bg-destructive/10'}`}
                         >
-                          Atraso
+                          {statusFilter === 'overdue' && overdueDaysFilter !== null
+                            ? overdueDaysFilter === 5 ? 'Atraso 1-5d'
+                              : overdueDaysFilter === 10 ? 'Atraso 6-10d'
+                              : overdueDaysFilter === 15 ? 'Atraso 11-15d'
+                              : overdueDaysFilter === 30 ? 'Atraso 16-30d'
+                              : overdueDaysFilter === 60 ? 'Atraso 31-60d'
+                              : overdueDaysFilter === 999 ? 'Atraso +60d'
+                              : 'Atraso'
+                            : 'Atraso'}
+                          <ChevronDown className="w-3 h-3 ml-1" />
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>Empréstimos com parcelas vencidas</p>
-                      </TooltipContent>
-                    </Tooltip>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="bg-background">
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}>
+                          Todos em atraso
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(5); setIsFiltersExpanded(false); }}>
+                          1-5 dias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(10); setIsFiltersExpanded(false); }}>
+                          6-10 dias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(15); setIsFiltersExpanded(false); }}>
+                          11-15 dias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(30); setIsFiltersExpanded(false); }}>
+                          16-30 dias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(60); setIsFiltersExpanded(false); }}>
+                          31-60 dias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setStatusFilter('overdue'); setOverdueDaysFilter(999); setIsFiltersExpanded(false); }}>
+                          +60 dias
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </TooltipProvider>
               </CollapsibleContent>
