@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, TrendingUp, Wallet, PiggyBank } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
@@ -183,8 +183,66 @@ export function LoansTableView({
     });
   };
 
+  // Calculate totals for the filtered loans
+  const totals = useMemo(() => {
+    return loans.reduce((acc, loan) => {
+      const totalInterest = loan.total_interest || 0;
+      const totalToReceive = loan.principal_amount + totalInterest;
+      return {
+        totalPrincipal: acc.totalPrincipal + loan.principal_amount,
+        totalRemaining: acc.totalRemaining + loan.remaining_balance,
+        totalPaid: acc.totalPaid + (loan.total_paid || 0),
+        totalProfit: acc.totalProfit + totalInterest,
+      };
+    }, { totalPrincipal: 0, totalRemaining: 0, totalPaid: 0, totalProfit: 0 });
+  }, [loans]);
+
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
+      {/* Summary Section */}
+      {loans.length > 0 && (
+        <div className="p-4 border-b bg-muted/20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <DollarSign className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Emprestado</p>
+                <p className="text-sm font-semibold">{formatCurrency(totals.totalPrincipal)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10">
+                <Wallet className="w-4 h-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Restante</p>
+                <p className="text-sm font-semibold">{formatCurrency(totals.totalRemaining)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10">
+                <PiggyBank className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Recebido</p>
+                <p className="text-sm font-semibold text-emerald-600">{formatCurrency(totals.totalPaid)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <TrendingUp className="w-4 h-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Lucro Esperado</p>
+                <p className="text-sm font-semibold text-purple-600">{formatCurrency(totals.totalProfit)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between p-3 border-b bg-muted/30">
         <span className="text-sm text-muted-foreground">
           {loans.length} empréstimo{loans.length !== 1 ? 's' : ''}
