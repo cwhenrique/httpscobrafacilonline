@@ -125,13 +125,21 @@ export default function SendDueTodayNotification({
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
     
-    // Opção de pagamento só de juros (apenas se tiver juros e não for diário)
-    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
+    // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
       message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS JUROS*\n`;
-      message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
-      message += `📌 *Principal fica para próximo mês*\n\n`;
-      message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
+      message += `💰 *OPÇÕES DE PAGAMENTO*\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+      
+      // Opção 1: Valor Total
+      message += `✅ *VALOR TOTAL (quita a parcela):*\n`;
+      message += `💵 ${formatCurrency(data.amount)}\n\n`;
+      
+      // Opção 2: Só Juros
+      message += `⚠️ *SÓ JUROS (pagamento parcial):*\n`;
+      message += `💵 ${formatCurrency(data.interestAmount)}\n`;
+      message += `📌 Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês\n`;
+      message += `⚠️ _Este pagamento NÃO quita a parcela_\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     
@@ -141,8 +149,14 @@ export default function SendDueTodayNotification({
       message += `💳 *PIX para pagamento:*\n`;
       message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
       message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor a pagar:* ${formatCurrency(data.amount)}\n\n`;
-      message += `_Copie a chave e faça o PIX no valor exato!_\n`;
+      message += `💰 *Valor total:* ${formatCurrency(data.amount)}\n`;
+      
+      // Mostrar valor de só juros se aplicável
+      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
+        message += `💡 *Só juros:* ${formatCurrency(data.interestAmount)}\n`;
+      }
+      
+      message += `\n_Copie a chave e faça o PIX!_\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     

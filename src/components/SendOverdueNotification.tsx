@@ -255,23 +255,31 @@ export default function SendOverdueNotification({
       message += `\n`;
     }
     
-    // Seção de opção de pagamento só de juros (+ multa se houver)
+    // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
     // NÃO mostra para contratos diários - cliente tem que pagar o valor completo todo dia
-    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily) {
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
       const interestPlusPenalty = data.interestAmount + effectivePenalty;
-      const hasMulta = effectivePenalty > 0;
       
       message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💡 *OPÇÃO: PAGAMENTO SÓ DOS ${hasMulta ? 'JUROS + MULTA' : 'JUROS'}*\n`;
-      message += `📊 *Juros da parcela:* ${formatCurrency(data.interestAmount)}\n`;
+      message += `💰 *OPÇÕES DE PAGAMENTO*\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
       
-      if (hasMulta) {
-        message += `⚠️ *Multa por atraso:* ${formatCurrency(effectivePenalty)}\n`;
-        message += `💰 *Total (Juros + Multa):* ${formatCurrency(interestPlusPenalty)}\n`;
+      // Opção 1: Valor Total
+      message += `✅ *VALOR TOTAL (quita a parcela):*\n`;
+      message += `💵 ${formatCurrency(totalAmount)}\n`;
+      if (effectivePenalty > 0) {
+        message += `   _(parcela ${formatCurrency(data.amount)} + multa ${formatCurrency(effectivePenalty)})_\n`;
       }
+      message += `\n`;
       
-      message += `📌 *Principal fica para próximo mês*\n\n`;
-      message += `⚠️ _Para esta opção, entre em contato comigo antes de efetuar o pagamento._\n`;
+      // Opção 2: Só Juros
+      message += `⚠️ *SÓ JUROS (pagamento parcial):*\n`;
+      message += `💵 ${formatCurrency(interestPlusPenalty)}\n`;
+      if (effectivePenalty > 0) {
+        message += `   _(juros ${formatCurrency(data.interestAmount)} + multa ${formatCurrency(effectivePenalty)})_\n`;
+      }
+      message += `📌 Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês\n`;
+      message += `⚠️ _Este pagamento NÃO quita a parcela_\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     
@@ -281,8 +289,15 @@ export default function SendOverdueNotification({
       message += `💳 *PIX para pagamento:*\n`;
       message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
       message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor a pagar:* ${formatCurrency(totalAmount)}\n\n`;
-      message += `_Copie a chave e faça o PIX no valor exato!_\n`;
+      message += `💰 *Valor total:* ${formatCurrency(totalAmount)}\n`;
+      
+      // Mostrar valor de só juros se aplicável
+      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
+        const interestPlusPenalty = data.interestAmount + effectivePenalty;
+        message += `💡 *Só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
+      }
+      
+      message += `\n_Copie a chave e faça o PIX!_\n`;
       message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     
