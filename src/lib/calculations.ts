@@ -67,6 +67,35 @@ export function calculateCompoundInterestPMT(
 }
 
 /**
+ * Calcula juros compostos puros (não amortizado)
+ * Fórmula: M = P × (1 + i)^n
+ * Juros = M - P = P × (1 + i)^n - P
+ * 
+ * @param principal - Valor emprestado (P)
+ * @param monthlyRate - Taxa de juros mensal em percentual (ex: 10 para 10%)
+ * @param months - Número de meses/períodos (n)
+ * @returns Total de juros
+ */
+export function calculatePureCompoundInterest(
+  principal: number,
+  monthlyRate: number,
+  months: number
+): number {
+  const i = monthlyRate / 100; // Converter para decimal
+  
+  // Caso especial: taxa zero
+  if (i === 0 || !isFinite(i)) {
+    return 0;
+  }
+  
+  // M = P × (1 + i)^n
+  const montante = principal * Math.pow(1 + i, months);
+  
+  // Juros = M - P
+  return montante - principal;
+}
+
+/**
  * Calcula a taxa de juros a partir do PMT usando Newton-Raphson
  * Dado PMT, PV e n, encontra a taxa i
  * 
@@ -308,7 +337,8 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
   } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
-    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+    // Juros compostos puros: M = P × (1 + i)^n - P
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
