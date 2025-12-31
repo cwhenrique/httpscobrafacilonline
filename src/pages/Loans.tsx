@@ -23,7 +23,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculateCompoundInterestPMT, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -256,8 +256,8 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
-    // Usar fórmula PMT de amortização (Sistema Price)
-    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+    // Juros compostos puros: M = P × (1 + i)^n
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
@@ -386,7 +386,7 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
   } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
-    totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
@@ -1241,8 +1241,8 @@ export default function Loans() {
       if (editFormData.interest_mode === 'on_total') {
         totalInterest = principal * (rate / 100);
       } else if (editFormData.interest_mode === 'compound') {
-        // Juros compostos usando PMT
-        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
+        // Juros compostos puros: M = P × (1 + i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
       } else {
         // per_installment
         totalInterest = principal * (rate / 100) * numInstallments;
@@ -1679,10 +1679,10 @@ export default function Loans() {
       if (formData.interest_mode === 'per_installment') {
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
-        // Usar fórmula PMT de amortização (Sistema Price)
-        const pmt = calculatePMT(principal, rate, numInstallments);
-        setInstallmentValue(pmt.toFixed(2));
-        return; // Já calculado diretamente
+        // Juros compostos puros: M = P × (1 + i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        const total = principal + totalInterest;
+        setInstallmentValue((total / numInstallments).toFixed(2));
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -1716,8 +1716,8 @@ export default function Loans() {
       if (formData.interest_mode === 'per_installment') {
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
-        // Usar fórmula PMT de amortização (Sistema Price)
-        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
+        // Juros compostos puros: M = P × (1 + i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -1745,7 +1745,7 @@ export default function Loans() {
       if (formData.interest_mode === 'per_installment') {
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
-        totalInterest = calculateCompoundInterestPMT(principal, rate, numInstallments);
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
       } else {
         totalInterest = principal * (rate / 100);
       }
@@ -1776,7 +1776,9 @@ export default function Loans() {
     if (formData.interest_mode === 'per_installment') {
       newRate = (newTotalInterest / principal / numInstallments) * 100;
     } else if (formData.interest_mode === 'compound') {
-      newRate = calculateRateFromPMT(newInstallmentValue, principal, numInstallments);
+      // Juros compostos puros: inverter M = P × (1+r)^n => r = (M/P)^(1/n) - 1
+      // onde M = P + totalInterest
+      newRate = (Math.pow((newTotalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
     } else {
       // on_total
       newRate = (newTotalInterest / principal) * 100;
@@ -1804,8 +1806,9 @@ export default function Loans() {
     if (formData.interest_mode === 'per_installment') {
       newRate = (totalInterest / principal / numInstallments) * 100;
     } else if (formData.interest_mode === 'compound') {
-      // Usar Newton-Raphson para encontrar a taxa a partir do PMT
-      newRate = calculateRateFromPMT(newInstallmentValue, principal, numInstallments);
+      // Juros compostos puros: inverter M = P × (1+r)^n => r = (M/P)^(1/n) - 1
+      // onde M = P + totalInterest = totalToReceive
+      newRate = (Math.pow(totalToReceive / principal, 1 / numInstallments) - 1) * 100;
     } else {
       // on_total
       newRate = (totalInterest / principal) * 100;
@@ -1949,8 +1952,8 @@ export default function Loans() {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100);
       totalToReceive = loan.principal_amount + totalInterest;
     } else if (loan.interest_mode === 'compound') {
-      // Usar fórmula PMT de amortização (Sistema Price)
-      totalInterest = calculateCompoundInterestPMT(loan.principal_amount, loan.interest_rate, numInstallments);
+      // Juros compostos puros: M = P × (1 + i)^n - P
+      totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
       totalToReceive = loan.principal_amount + totalInterest;
     } else {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
@@ -5045,7 +5048,7 @@ export default function Loans() {
                         <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
                           <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
-                          <SelectItem value="compound" className="text-xs sm:text-sm">Juros Compostos</SelectItem>
+                          <SelectItem value="compound" className="text-xs sm:text-sm">Juros Compostos Puros</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -10907,7 +10910,8 @@ export default function Loans() {
                               if (editFormData.interest_mode === 'on_total') {
                                 totalInterest = principal * (rate / 100);
                               } else if (editFormData.interest_mode === 'compound') {
-                                totalInterest = calculateCompoundInterestPMT(principal, rate, numInst);
+                                // Juros compostos puros: M = P × (1 + i)^n - P
+                                totalInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
                               } else {
                                 totalInterest = principal * (rate / 100) * numInst;
                               }
