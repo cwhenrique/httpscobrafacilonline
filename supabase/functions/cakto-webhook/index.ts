@@ -330,40 +330,53 @@ serve(async (req) => {
     const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
     
     if (existingUser) {
-      // USER EXISTS - Check if this is a duplicate webhook (user created recently)
-      const createdAt = new Date(existingUser.created_at);
-      const now = new Date();
-      const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      console.log('=== EXISTING USER FOUND ===');
+      console.log('User ID:', existingUser.id);
+      console.log('Email:', customerEmail);
       
-      console.log('User already exists, checking if duplicate webhook:', { 
-        email: customerEmail, 
-        createdAt: createdAt.toISOString(),
-        minutesSinceCreation: minutesSinceCreation.toFixed(2)
+      // Fetch current profile to check if it's a trial user
+      const { data: currentProfile, error: profileFetchError } = await supabase
+        .from('profiles')
+        .select('subscription_plan, subscription_expires_at, trial_expires_at, is_active, updated_at')
+        .eq('id', existingUser.id)
+        .single();
+      
+      if (profileFetchError) {
+        console.error('Error fetching current profile:', profileFetchError);
+      }
+      
+      console.log('Current profile state:', {
+        subscription_plan: currentProfile?.subscription_plan,
+        subscription_expires_at: currentProfile?.subscription_expires_at,
+        trial_expires_at: currentProfile?.trial_expires_at,
+        is_active: currentProfile?.is_active,
+        updated_at: currentProfile?.updated_at
       });
       
-      // If user was created less than 5 minutes ago, this is likely a duplicate webhook
-      // from Cakto sending both subscription_created and purchase_approved events
-      if (minutesSinceCreation < 5) {
-        console.log('User was created recently (< 5 min), skipping renewal message (likely duplicate webhook)');
-        
-        // Still update the subscription to ensure it's correct, but DON'T send renewal message
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            is_active: true,
-            subscription_plan: plan,
-            subscription_expires_at: expiresAt,
-          })
-          .eq('id', existingUser.id);
-
-        if (updateError) {
-          console.error('Error updating subscription:', updateError);
-        }
+      // Check if this is a TRIAL user converting to paid
+      const isTrialUser = currentProfile?.subscription_plan === 'trial' || 
+                          currentProfile?.trial_expires_at !== null;
+      
+      // Check if profile was recently updated (within 2 minutes) to avoid duplicate processing
+      const profileUpdatedAt = currentProfile?.updated_at ? new Date(currentProfile.updated_at) : null;
+      const now = new Date();
+      const minutesSinceProfileUpdate = profileUpdatedAt 
+        ? (now.getTime() - profileUpdatedAt.getTime()) / (1000 * 60) 
+        : Infinity;
+      
+      // Check if subscription_expires_at was already updated to this exact value
+      const alreadyProcessed = currentProfile?.subscription_expires_at === expiresAt && 
+                               currentProfile?.subscription_plan === plan &&
+                               minutesSinceProfileUpdate < 2;
+      
+      if (alreadyProcessed) {
+        console.log('=== DUPLICATE WEBHOOK DETECTED ===');
+        console.log('Profile already has this exact plan and expiration, updated', minutesSinceProfileUpdate.toFixed(2), 'minutes ago');
         
         return new Response(
           JSON.stringify({ 
             success: true,
-            message: 'Subscription updated, renewal message skipped (recent user)',
+            message: 'Webhook already processed (duplicate)',
             email: customerEmail,
             plan,
             expiresAt
@@ -372,52 +385,89 @@ serve(async (req) => {
         );
       }
       
-      // This is a real RENEWAL (user existed for more than 5 minutes)
-      console.log('User exists and is not recent, processing as renewal');
+      if (isTrialUser) {
+        console.log('=== TRIAL TO PAID CONVERSION ===');
+        console.log('Converting trial user to paid plan');
+        console.log('Previous plan: trial');
+        console.log('New plan:', plan);
+        console.log('New expires_at:', expiresAt);
+      } else {
+        console.log('=== SUBSCRIPTION RENEWAL ===');
+        console.log('Previous plan:', currentProfile?.subscription_plan);
+        console.log('New plan:', plan);
+        console.log('New expires_at:', expiresAt);
+      }
       
+      // Update subscription - ALWAYS clear trial_expires_at when converting to paid
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
           is_active: true,
           subscription_plan: plan,
           subscription_expires_at: expiresAt,
+          trial_expires_at: null, // IMPORTANT: Clear trial when converting to paid
         })
         .eq('id', existingUser.id);
 
       if (updateError) {
         console.error('Error updating subscription:', updateError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to update subscription',
+            details: updateError.message
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
-        console.log('Subscription renewed successfully');
+        console.log('=== SUBSCRIPTION UPDATED SUCCESSFULLY ===');
+        console.log('is_active: true');
+        console.log('subscription_plan:', plan);
+        console.log('subscription_expires_at:', expiresAt);
+        console.log('trial_expires_at: null (cleared)');
       }
 
-      // Send renewal confirmation via WhatsApp
+      // Send renewal/conversion confirmation via WhatsApp
       if (customerPhone) {
         const planNames: Record<string, string> = {
           'lifetime': 'Vitalício',
           'annual': 'Anual',
           'monthly': 'Mensal',
         };
-        const renewalMessage = `🎉 *Assinatura Renovada!*
+        
+        // Different message for trial conversion vs renewal
+        const messageTitle = isTrialUser 
+          ? '🎉 *Assinatura Ativada!*' 
+          : '🎉 *Assinatura Renovada!*';
+        
+        const messageBody = isTrialUser
+          ? `Olá ${customerName || 'Cliente'}!
 
-Olá ${customerName || 'Cliente'}!
+Seu período de teste acabou e sua assinatura do *CobraFácil* foi ativada com sucesso!`
+          : `Olá ${customerName || 'Cliente'}!
 
-Sua assinatura do *CobraFácil* foi renovada com sucesso!
+Sua assinatura do *CobraFácil* foi renovada com sucesso!`;
+        
+        const renewalMessage = `${messageTitle}
+
+${messageBody}
 
 📦 *Plano:* ${planNames[plan] || plan}
 ${expiresAt ? `📅 *Válido até:* ${new Date(expiresAt).toLocaleDateString('pt-BR')}` : '♾️ *Acesso vitalício*'}
 
 Obrigado por continuar com a gente! 💚`;
 
-        await sendWhatsAppMessage(customerPhone, renewalMessage);
+        const messageSent = await sendWhatsAppMessage(customerPhone, renewalMessage);
+        console.log('WhatsApp message sent:', messageSent);
       }
 
       return new Response(
         JSON.stringify({ 
           success: true,
-          message: 'Subscription renewed',
+          message: isTrialUser ? 'Trial converted to paid' : 'Subscription renewed',
           email: customerEmail,
           plan,
-          expiresAt
+          expiresAt,
+          wasTrialUser: isTrialUser
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
