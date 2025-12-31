@@ -149,7 +149,7 @@ export interface PaymentReceiptData {
   companyName: string;
   customLogoUrl?: string | null; // Custom company logo for PDF
   clientName: string;
-  installmentNumber: number;
+  installmentNumber: number | number[]; // Suporta uma ou múltiplas parcelas
   totalInstallments: number;
   amountPaid: number;
   paymentDate: string;

@@ -50,20 +50,24 @@ const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): s
 // Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
 const generateClientMessage = (data: PaymentReceiptData): string => {
   const isFullyPaid = data.remainingBalance <= 0;
-  const paidCount = data.installmentNumber;
+  const installments = data.installmentNumber;
   const totalCount = data.totalInstallments;
   
   // Calcular progresso corretamente:
   // 1. Se quitado, sempre 100%
   // 2. Se temos os valores, usar valor pago vs total
-  // 3. Fallback: usar contagem de parcelas
+  // 3. Fallback: usar maior parcela paga
+  const maxPaidInstallment = Array.isArray(installments) 
+    ? Math.max(...installments) 
+    : installments;
+  
   let progressPercent: number;
   if (isFullyPaid) {
     progressPercent = 100;
   } else if (data.totalContract && data.totalPaid) {
     progressPercent = Math.min(100, Math.round((data.totalPaid / data.totalContract) * 100));
   } else {
-    progressPercent = Math.round((paidCount / totalCount) * 100);
+    progressPercent = Math.round((maxPaidInstallment / totalCount) * 100);
   }
   
   let message = `✅ *PAGAMENTO RECEBIDO*\n`;
@@ -79,7 +83,13 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
   if (data.discountAmount && data.discountAmount > 0) {
     message += `🏷️ *Desconto Concedido:* ${formatCurrency(data.discountAmount)}\n`;
   }
-  message += `📊 *Parcela:* ${paidCount}/${totalCount}\n`;
+  
+  // Mostrar parcela(s) paga(s)
+  if (Array.isArray(installments)) {
+    message += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
+  } else {
+    message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
+  }
   message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
   
   // Progress bar visual
@@ -134,7 +144,12 @@ const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string
   if (data.discountAmount && data.discountAmount > 0) {
     message += `• Desconto Concedido: ${formatCurrency(data.discountAmount)}\n`;
   }
-  message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
+  // Mostrar parcela(s) paga(s)
+  if (Array.isArray(data.installmentNumber)) {
+    message += `• Parcelas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
+  } else {
+    message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
+  }
   message += `• Data: ${formatDate(data.paymentDate)}\n\n`;
   
   message += `📊 *SITUAÇÃO*\n`;
@@ -315,8 +330,13 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                 <span className="font-medium">{data.clientName}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Parcela:</span>
-                <span className="font-medium">{data.installmentNumber}/{data.totalInstallments}</span>
+                <span className="text-muted-foreground">{Array.isArray(data.installmentNumber) ? 'Parcelas:' : 'Parcela:'}</span>
+                <span className="font-medium">
+                  {Array.isArray(data.installmentNumber) 
+                    ? `${data.installmentNumber.join(', ')} de ${data.totalInstallments}`
+                    : `${data.installmentNumber}/${data.totalInstallments}`
+                  }
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Valor Pago:</span>
