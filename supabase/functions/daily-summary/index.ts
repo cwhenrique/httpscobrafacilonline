@@ -78,6 +78,16 @@ const getContractId = (id: string, prefix: string): string => {
   return `${prefix}-${id.substring(0, 4).toUpperCase()}`;
 };
 
+// Helper para extrair pagamentos parciais do notes do loan
+const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
+  const payments: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    payments[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return payments;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("daily-summary function called at", new Date().toISOString());
   
@@ -238,21 +248,26 @@ const handler = async (req: Request): Promise<Response> => {
         const totalToReceive = remainingBalance + (loan.total_paid || 0);
         const totalPerInstallment = totalToReceive / numInstallments;
         
-        // Calcular parcelas pagas baseado em total_paid (mais confiável que contagem de registros)
+        // Ler tags PARTIAL_PAID das notas para saber quais parcelas específicas foram pagas
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        
         // Para diários, total_interest armazena o valor da parcela diária
         const installmentValue = loan.payment_type === 'daily' 
           ? (loan.total_interest || totalPerInstallment)
           : totalPerInstallment;
-        const paidInstallments = installmentValue > 0 
-          ? Math.floor((loan.total_paid || 0) / installmentValue)
-          : 0;
 
-        // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
+        // SPECIAL HANDLING FOR DAILY LOANS: Check ALL installments individually
         if (loan.payment_type === 'daily' && installmentDates.length > 0) {
           const dailyAmount = loan.total_interest || totalPerInstallment; // For daily, total_interest = daily amount
           
-          // Iterate through all unpaid installments
-          for (let i = paidInstallments; i < installmentDates.length; i++) {
+          // Iterate through ALL installments and check if each is paid
+          for (let i = 0; i < installmentDates.length; i++) {
+            // Verificar se esta parcela específica foi paga via tag PARTIAL_PAID
+            const paidAmount = partialPayments[i] || 0;
+            const isPaid = paidAmount >= dailyAmount * 0.99;
+            
+            if (isPaid) continue; // Parcela já paga, pular
+            
             const installmentDate = installmentDates[i];
             const dueDate = new Date(installmentDate);
             dueDate.setHours(0, 0, 0, 0);
@@ -278,13 +293,24 @@ const handler = async (req: Request): Promise<Response> => {
             // Future installments are ignored
           }
         } else {
-          // Standard logic for non-daily loans
+          // Standard logic for non-daily loans: find first unpaid installment
           let nextDueDate: string | null = null;
           let installmentAmount = totalPerInstallment;
 
-          if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
-            nextDueDate = installmentDates[paidInstallments];
-          } else {
+          // Encontrar a primeira parcela não paga
+          let firstUnpaidIndex = -1;
+          for (let i = 0; i < installmentDates.length; i++) {
+            const paidAmount = partialPayments[i] || 0;
+            const isPaid = paidAmount >= installmentValue * 0.99;
+            if (!isPaid) {
+              firstUnpaidIndex = i;
+              break;
+            }
+          }
+
+          if (firstUnpaidIndex >= 0 && firstUnpaidIndex < installmentDates.length) {
+            nextDueDate = installmentDates[firstUnpaidIndex];
+          } else if (loan.remaining_balance > 0) {
             nextDueDate = loan.due_date;
             if (loan.payment_type === 'single') {
               installmentAmount = remainingBalance;
