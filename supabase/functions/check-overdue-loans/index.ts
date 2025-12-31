@@ -78,6 +78,16 @@ const getContractId = (id: string): string => {
   return `EMP-${id.substring(0, 4).toUpperCase()}`;
 };
 
+// Helper para extrair pagamentos parciais do notes do loan
+const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
+  const payments: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    payments[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return payments;
+};
+
 // Progressive alert days - only send on these specific days
 const ALERT_DAYS = [1, 7, 15, 30];
 
@@ -173,20 +183,47 @@ const handler = async (req: Request): Promise<Response> => {
       
       const totalPerInstallment = totalToReceive / numInstallments;
       
+      // Ler tags PARTIAL_PAID das notas para saber quais parcelas específicas foram pagas
+      const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+      
       // Para diários, total_interest armazena o valor da parcela diária
       const installmentValue = loan.payment_type === 'daily' 
         ? (loan.total_interest || totalPerInstallment)
         : totalPerInstallment;
-      const paidInstallments = installmentValue > 0 
-        ? Math.floor((loan.total_paid || 0) / installmentValue)
-        : 0;
 
+      // Encontrar a primeira parcela NÃO PAGA que está atrasada
       let nextDueDate: string | null = null;
+      let foundUnpaidOverdue = false;
 
-      if (installmentDates.length > 0 && paidInstallments < installmentDates.length) {
-        nextDueDate = installmentDates[paidInstallments];
-      } else {
-        nextDueDate = loan.due_date;
+      if (installmentDates.length > 0) {
+        for (let i = 0; i < installmentDates.length; i++) {
+          const paidAmount = partialPayments[i] || 0;
+          const isPaid = paidAmount >= installmentValue * 0.99;
+          
+          if (!isPaid) {
+            // Encontrou parcela não paga, verificar se está atrasada
+            const installmentDate = new Date(installmentDates[i]);
+            installmentDate.setHours(0, 0, 0, 0);
+            
+            if (installmentDate < today) {
+              nextDueDate = installmentDates[i];
+              foundUnpaidOverdue = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // Se não encontrou parcela atrasada no array, verificar due_date geral
+      if (!foundUnpaidOverdue) {
+        // Verificar se remaining_balance > 0 e due_date passou
+        if (loan.remaining_balance > 0) {
+          const mainDueDate = new Date(loan.due_date);
+          mainDueDate.setHours(0, 0, 0, 0);
+          if (mainDueDate < today) {
+            nextDueDate = loan.due_date;
+          }
+        }
       }
 
       if (!nextDueDate) continue;
@@ -209,11 +246,17 @@ const handler = async (req: Request): Promise<Response> => {
         // Send alerts on first overdue detection OR on specific days (1, 7, 15, 30)
         if (!isFirstOverdueDetection && !ALERT_DAYS.includes(daysOverdue)) continue;
 
+        // Calcular quantas parcelas foram pagas baseado nas tags PARTIAL_PAID
+        const paidInstallmentsCount = Object.keys(partialPayments).filter(k => {
+          const idx = parseInt(k);
+          return partialPayments[idx] >= installmentValue * 0.99;
+        }).length;
+
         const loanInfo = {
           ...loan,
           clientName: client.full_name,
           clientPhone: client.phone,
-          paidInstallments,
+          paidInstallments: paidInstallmentsCount,
           totalInstallments: numInstallments,
           totalPaid: loan.total_paid || 0,
           remainingBalance,
