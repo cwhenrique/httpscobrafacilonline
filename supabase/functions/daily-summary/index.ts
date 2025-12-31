@@ -238,8 +238,14 @@ const handler = async (req: Request): Promise<Response> => {
         const totalToReceive = remainingBalance + (loan.total_paid || 0);
         const totalPerInstallment = totalToReceive / numInstallments;
         
-        // Usar contagem REAL de pagamentos em vez de dividir total_paid
-        const paidInstallments = loanPaymentCounts[loan.id] || 0;
+        // Calcular parcelas pagas baseado em total_paid (mais confiável que contagem de registros)
+        // Para diários, total_interest armazena o valor da parcela diária
+        const installmentValue = loan.payment_type === 'daily' 
+          ? (loan.total_interest || totalPerInstallment)
+          : totalPerInstallment;
+        const paidInstallments = installmentValue > 0 
+          ? Math.floor((loan.total_paid || 0) / installmentValue)
+          : 0;
 
         // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
         if (loan.payment_type === 'daily' && installmentDates.length > 0) {

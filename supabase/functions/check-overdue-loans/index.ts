@@ -172,7 +172,14 @@ const handler = async (req: Request): Promise<Response> => {
       const totalToReceive = remainingBalance + (loan.total_paid || 0);
       
       const totalPerInstallment = totalToReceive / numInstallments;
-      const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
+      
+      // Para diários, total_interest armazena o valor da parcela diária
+      const installmentValue = loan.payment_type === 'daily' 
+        ? (loan.total_interest || totalPerInstallment)
+        : totalPerInstallment;
+      const paidInstallments = installmentValue > 0 
+        ? Math.floor((loan.total_paid || 0) / installmentValue)
+        : 0;
 
       let nextDueDate: string | null = null;
 
