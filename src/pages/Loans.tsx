@@ -3236,8 +3236,11 @@ export default function Loans() {
       }
     }
     
+    // Suporte a múltiplas parcelas selecionadas
     const installmentNumber = paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0
-      ? paymentData.selected_installments[0] + 1
+      ? paymentData.selected_installments.length === 1
+        ? paymentData.selected_installments[0] + 1  // Uma parcela: número único
+        : paymentData.selected_installments.map(i => i + 1)  // Múltiplas: array de números
       : targetInstallmentIndex + 1;
     
     // Atualizar notes do loan com tracking de parcelas ANTES do registerPayment
@@ -3416,8 +3419,12 @@ export default function Loans() {
     // Calculate next due date for receipt
     const loanDates = (selectedLoan.installment_dates as string[]) || [];
     let nextDueDateForReceipt: string | undefined;
-    if (loanDates.length > installmentNumber && newRemainingBalance > 0) {
-      nextDueDateForReceipt = loanDates[installmentNumber];
+    // Obter o maior índice de parcela paga para calcular próximo vencimento
+    const maxPaidIndex = Array.isArray(installmentNumber) 
+      ? Math.max(...installmentNumber) - 1 
+      : installmentNumber - 1;
+    if (loanDates.length > maxPaidIndex + 1 && newRemainingBalance > 0) {
+      nextDueDateForReceipt = loanDates[maxPaidIndex + 1];
     }
     
     // Calculate total penalty paid in this payment
