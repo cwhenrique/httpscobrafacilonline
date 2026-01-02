@@ -162,8 +162,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-sidebar-background/40 backdrop-blur-md border-r border-sidebar-border">
-          <SidebarContent />
+        <div className="flex flex-col flex-grow bg-sidebar-background/40 backdrop-blur-md border-r border-sidebar-border overflow-hidden">
+          <ScrollArea className="flex-1">
+            <SidebarContent />
+          </ScrollArea>
         </div>
       </aside>
 
