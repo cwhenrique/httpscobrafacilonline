@@ -2694,8 +2694,12 @@ export default function Loans() {
       toast.error('Informe o valor do empréstimo');
       return;
     }
-    if (!formData.interest_rate || parseFloat(formData.interest_rate) < 0) {
-      toast.error('Informe a taxa de juros');
+    // Permitir taxa de juros 0% (zero é um valor válido)
+    const interestRateValue = formData.interest_rate !== '' && formData.interest_rate !== undefined && formData.interest_rate !== null
+      ? parseFloat(String(formData.interest_rate))
+      : NaN;
+    if (isNaN(interestRateValue) || interestRateValue < 0) {
+      toast.error('Informe a taxa de juros (pode ser 0%)');
       return;
     }
     // For single payment, due_date comes from start_date (first payment date)
@@ -2719,8 +2723,8 @@ export default function Loans() {
     }
     
     // Calculate total_interest based on interest_mode e valor da parcela (quando informado)
-    const principal = parseFloat(formData.principal_amount);
-    let rate = parseFloat(formData.interest_rate);
+    const principal = parseFloat(formData.principal_amount) || 0;
+    let rate = parseFloat(String(formData.interest_rate)) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     let totalInterest: number;
 
