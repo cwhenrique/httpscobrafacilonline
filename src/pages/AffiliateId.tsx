@@ -144,7 +144,7 @@ const AffiliateId = () => {
     {
       number: "1",
       title: "Cadastre-se com Pagamento Único",
-      description: "Crie sua conta em menos de 1 minuto e tenha acesso vitalício",
+      description: "Crie sua conta em menos de 1 minuto e tenha acesso anual",
       emoji: "🎯",
     },
     {
@@ -326,7 +326,7 @@ const AffiliateId = () => {
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-              <span className="font-medium text-foreground text-[10px] sm:text-sm">Vitalício</span>
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Anual</span>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
