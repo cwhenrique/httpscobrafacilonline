@@ -35,9 +35,9 @@ interface PricingSectionProps {
 }
 
 const defaultLinks: AffiliateLinks = {
-  monthly: "https://pay.cakto.com.br/di6pnvu?affiliate=dFRXD6nE",
-  quarterly: "https://pay.cakto.com.br/3823rxj?affiliate=dFRXD6nE",
-  annual: "https://pay.cakto.com.br/j35f794?affiliate=dFRXD6nE",
+  monthly: "https://pay.cakto.com.br/di6pnvu",
+  quarterly: "https://pay.cakto.com.br/3823rxj",
+  annual: "https://pay.cakto.com.br/j35f794",
 };
 
 const PricingSection = ({
