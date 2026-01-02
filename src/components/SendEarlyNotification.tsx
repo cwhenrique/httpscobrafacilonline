@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 export interface EarlyNotificationData {
   clientName: string;
@@ -22,6 +23,9 @@ export interface EarlyNotificationData {
   interestAmount?: number;
   principalAmount?: number;
   isDaily?: boolean;
+  // NOVO: Campos para status das parcelas com emojis
+  installmentDates?: string[];
+  paidCount?: number;
 }
 
 interface SendEarlyNotificationProps {
@@ -99,7 +103,17 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     if (data.daysUntilDue > 0) {
       message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
     }
-    message += `\n\n`;
+    message += `\n`;
+
+    // Adicionar lista de status das parcelas com emojis
+    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
+      message += generateInstallmentsStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        totalInstallments: data.totalInstallments
+      });
+    }
+    message += `\n`;
 
     // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {

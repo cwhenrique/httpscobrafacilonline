@@ -9,6 +9,7 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
+import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface DueTodayData {
   clientName: string;
@@ -22,6 +23,9 @@ interface DueTodayData {
   interestAmount?: number;
   principalAmount?: number;
   isDaily?: boolean;
+  // NOVO: Campos para status das parcelas com emojis
+  installmentDates?: string[];
+  paidCount?: number;
 }
 
 interface SendDueTodayNotificationProps {
@@ -125,7 +129,17 @@ export default function SendDueTodayNotification({
     message += `📋 *Tipo:* ${typeLabel}\n`;
     message += `📊 *${installmentInfo}*\n`;
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
+    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    
+    // Adicionar lista de status das parcelas com emojis
+    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
+      message += generateInstallmentsStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        totalInstallments: data.totalInstallments
+      });
+    }
+    message += `\n`;
     
     // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
