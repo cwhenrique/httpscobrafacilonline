@@ -377,17 +377,20 @@ export default function SendOverdueNotification({
       let errorMessage = 'Tente novamente';
       const errorStr = error.message || '';
       
-      if (errorStr.includes('telefone') || errorStr.includes('phone')) {
-        errorMessage = `Telefone inválido: "${data.clientPhone}". Atualize o cadastro do cliente.`;
-      } else if (errorStr.includes('WhatsApp') || errorStr.includes('instância')) {
-        errorMessage = 'Configure seu WhatsApp nas configurações primeiro.';
+      // Detect "number not on WhatsApp" error
+      if (errorStr.includes('não possui WhatsApp') || errorStr.includes('NUMBER_NOT_ON_WHATSAPP')) {
+        errorMessage = `O número "${data.clientPhone}" não possui WhatsApp. Verifique o cadastro do cliente.`;
+      } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code')) {
+        errorMessage = 'WhatsApp desconectado. Reconecte nas configurações.';
+      } else if (errorStr.includes('telefone') || errorStr.includes('phone') || errorStr.includes('inválido')) {
+        errorMessage = `Número inválido: "${data.clientPhone}". Atualize o cadastro.`;
       } else if (errorStr.includes('desativado')) {
         errorMessage = 'Envio de WhatsApp para clientes está desativado.';
       } else if (errorStr) {
         errorMessage = errorStr;
       }
       
-      toast.error('Erro ao enviar cobrança: ' + errorMessage);
+      toast.error('Erro: ' + errorMessage);
     } finally {
       setIsSending(false);
     }

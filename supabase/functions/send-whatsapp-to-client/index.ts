@@ -237,9 +237,19 @@ serve(async (req) => {
       
       // Try to parse error for better message
       let errorDetail = 'Erro ao enviar mensagem pelo WhatsApp';
+      let errorCode = 'UNKNOWN_ERROR';
+      
       try {
         const errorData = JSON.parse(responseText);
-        if (errorData?.message) {
+        
+        // Detect "number does not exist on WhatsApp" error
+        const messageInfo = errorData?.response?.message;
+        if (Array.isArray(messageInfo) && messageInfo[0]?.exists === false) {
+          const invalidNumber = messageInfo[0]?.number || phoneWithCountryCode;
+          errorDetail = `O número ${invalidNumber} não possui WhatsApp ou está inválido. Verifique o cadastro do cliente.`;
+          errorCode = 'NUMBER_NOT_ON_WHATSAPP';
+          console.error('Number not on WhatsApp:', invalidNumber);
+        } else if (errorData?.message) {
           errorDetail = errorData.message;
         }
       } catch {
@@ -248,6 +258,7 @@ serve(async (req) => {
       
       return new Response(JSON.stringify({ 
         error: errorDetail,
+        errorCode: errorCode,
         details: responseText 
       }), {
         status: response.status,
