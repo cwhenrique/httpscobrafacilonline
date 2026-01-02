@@ -767,6 +767,8 @@ export default function Loans() {
   const [isPaymentReceiptOpen, setIsPaymentReceiptOpen] = useState(false);
   const [paymentReceiptData, setPaymentReceiptData] = useState<PaymentReceiptData | null>(null);
   const [paymentClientPhone, setPaymentClientPhone] = useState<string | null>(null);
+  const [paymentInstallmentDates, setPaymentInstallmentDates] = useState<string[]>([]);
+  const [paymentPaidCount, setPaymentPaidCount] = useState<number>(0);
 
   // Loan created receipt prompt state
   const [isLoanCreatedOpen, setIsLoanCreatedOpen] = useState(false);
@@ -3007,6 +3009,8 @@ export default function Loans() {
       
       // Preparar dados do comprovante
       setPaymentClientPhone(selectedLoan.client?.phone || null);
+      setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
+      setPaymentPaidCount(selectedLoan.installments || 1); // Quitado = todas pagas
       setPaymentReceiptData({
         type: 'loan',
         contractId: selectedLoanId,
@@ -3456,6 +3460,9 @@ export default function Loans() {
     }
     
     // Show payment receipt prompt
+    setPaymentClientPhone(selectedLoan.client?.phone || null);
+    setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
+    setPaymentPaidCount(newRemainingBalance <= 0 ? numInstallments : getPaidInstallmentsCount(selectedLoan) + (paymentData.selected_installments.length || 1));
     setPaymentReceiptData({
       type: 'loan',
       contractId: selectedLoan.id,
@@ -3784,6 +3791,8 @@ export default function Loans() {
       
       // Abrir comprovante após pagamento de juros com opção de enviar ao cliente
       setPaymentClientPhone(loan.client?.phone || null);
+      setPaymentInstallmentDates((loan.installment_dates as string[]) || []);
+      setPaymentPaidCount(getPaidInstallmentsCount(loan));
       setPaymentReceiptData({
         type: 'loan',
         contractId: loan.id,
@@ -6766,7 +6775,7 @@ export default function Loans() {
                           </p>
                           {/* Manual overdue notification button */}
                           {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
-                          <SendOverdueNotification
+<SendOverdueNotification
                               data={{
                                 clientName: loan.client?.full_name || 'Cliente',
                                 clientPhone: loan.client.phone,
@@ -6791,6 +6800,9 @@ export default function Loans() {
                                 // Multa manual (usada quando há multa aplicada manualmente)
                                 manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                                 hasDynamicPenalty: overdueConfigValue > 0,
+                                // Status das parcelas com emojis
+                                installmentDates: (loan.installment_dates as string[]) || [],
+                                paidCount: getPaidInstallmentsCount(loan),
                               }}
                               className="w-full mt-2"
                             />
@@ -6815,6 +6827,9 @@ export default function Loans() {
                                   interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                   principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                                   isDaily: loan.payment_type === 'daily',
+                                  // Status das parcelas com emojis
+                                  installmentDates: (loan.installment_dates as string[]) || [],
+                                  paidCount: getPaidInstallmentsCount(loan),
                                 }}
                                 className="w-full mt-2"
                               />
@@ -6892,6 +6907,9 @@ export default function Loans() {
                                   interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                   principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                                   isDaily: loan.payment_type === 'daily',
+                                  // Status das parcelas com emojis
+                                  installmentDates: (loan.installment_dates as string[]) || [],
+                                  paidCount: paidCount,
                                 }}
                                 className="w-full"
                               />
@@ -8570,6 +8588,9 @@ export default function Loans() {
                                   })(),
                                   // Indica se há multa dinâmica configurada
                                   hasDynamicPenalty: overdueConfigValue > 0,
+                                  // Status das parcelas com emojis
+                                  installmentDates: (loan.installment_dates as string[]) || [],
+                                  paidCount: getPaidInstallmentsCount(loan),
                                 }}
                                 className="w-full mt-2"
                               />
@@ -8598,6 +8619,9 @@ export default function Loans() {
                                     })(),
                                     principalAmount: loan.principal_amount / numInstallments,
                                     isDaily: true,
+                                    // Status das parcelas com emojis
+                                    installmentDates: (loan.installment_dates as string[]) || [],
+                                    paidCount: getPaidInstallmentsCount(loan),
                                   }}
                                   className="w-full mt-2"
                                 />
@@ -8683,6 +8707,9 @@ export default function Loans() {
                                     })(),
                                     principalAmount: loan.principal_amount / numInstallments,
                                     isDaily: true,
+                                    // Status das parcelas com emojis
+                                    installmentDates: (loan.installment_dates as string[]) || [],
+                                    paidCount: paidCount,
                                   }}
                                   className="w-full"
                                 />
@@ -11276,6 +11303,8 @@ export default function Loans() {
           onOpenChange={setIsPaymentReceiptOpen} 
           data={paymentReceiptData}
           clientPhone={paymentClientPhone || undefined}
+          installmentDates={paymentInstallmentDates}
+          paidCount={paymentPaidCount}
         />
 
         {/* Loan Created Receipt Prompt */}

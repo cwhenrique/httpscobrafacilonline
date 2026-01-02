@@ -9,6 +9,7 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
+import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface OverdueData {
   clientName: string;
@@ -46,6 +47,9 @@ interface OverdueData {
   manualPenaltiesBreakdown?: Record<number, number>;
   // Indica se há multa dinâmica configurada (valor fixo/dia ou %)
   hasDynamicPenalty?: boolean;
+  // NOVO: Campos para status das parcelas com emojis
+  installmentDates?: string[];
+  paidCount?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -305,6 +309,16 @@ export default function SendOverdueNotification({
     
     if (profile?.payment_link) {
       message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
+    }
+    
+    // Adicionar lista de status das parcelas com emojis (para contratos não diários ou quando não há múltiplas parcelas em atraso)
+    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
+      message += generateInstallmentsStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        totalInstallments: data.totalInstallments
+      });
+      message += `\n`;
     }
     
     message += `Por favor, entre em contato para regularizar sua situação.`;

@@ -9,12 +9,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface PaymentReceiptPromptProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: PaymentReceiptData | null;
   clientPhone?: string; // Telefone do cliente para envio direto
+  installmentDates?: string[]; // Datas de vencimento de cada parcela
+  paidCount?: number; // Número de parcelas pagas
 }
 
 const formatCurrency = (value: number): string => {
@@ -48,7 +51,7 @@ const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): s
 };
 
 // Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
-const generateClientMessage = (data: PaymentReceiptData): string => {
+const generateClientMessage = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
   const totalCount = data.totalInstallments;
@@ -90,7 +93,17 @@ const generateClientMessage = (data: PaymentReceiptData): string => {
   } else {
     message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
   }
-  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
+  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n`;
+  
+  // Adicionar lista de status das parcelas com emojis
+  if (installmentDates && installmentDates.length > 0 && paidCount !== undefined) {
+    message += generateInstallmentsStatusList({
+      installmentDates,
+      paidCount,
+      totalInstallments: totalCount
+    });
+  }
+  message += `\n`;
   
   // Progress bar visual
   const filledBlocks = Math.round(progressPercent / 10);
@@ -172,7 +185,7 @@ const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string
   return message;
 };
 
-export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone }: PaymentReceiptPromptProps) {
+export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone, installmentDates, paidCount }: PaymentReceiptPromptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
@@ -427,7 +440,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage(data)}
+        initialMessage={generateClientMessage(data, installmentDates, paidCount)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
