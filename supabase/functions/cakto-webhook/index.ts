@@ -123,26 +123,20 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 
   // FALLBACK: Use price to detect plan
   if (price > 0) {
-    // Monthly: around R$47.90
-    if (price <= 100) {
+    // Monthly: up to R$300
+    if (price <= 300) {
       console.log('Matched: MONTHLY by price (R$', price, ')');
       const expiresAt = new Date(now);
       expiresAt.setMonth(expiresAt.getMonth() + 1);
       return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
     
-    // Annual: R$299 range (R$250-R$400)
-    if (price >= 250 && price <= 400) {
+    // Annual: above R$300 (e.g., R$479)
+    if (price > 300) {
       console.log('Matched: ANNUAL by price (R$', price, ')');
       const expiresAt = new Date(now);
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
       return { plan: 'annual', expiresAt: expiresAt.toISOString() };
-    }
-    
-    // Lifetime: R$499 range (R$400+)
-    if (price > 400) {
-      console.log('Matched: LIFETIME by price (R$', price, ')');
-      return { plan: 'lifetime', expiresAt: null };
     }
   }
 
