@@ -46,7 +46,9 @@ export const generateInstallmentsStatusList = (info: InstallmentStatusInfo): str
       status = 'Paga';
     } else if (dueDate < today) {
       emoji = '🔴';
-      status = 'Em Atraso';
+      const timeDiff = today.getTime() - dueDate.getTime();
+      const daysOverdue = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      status = `Em Atraso (${daysOverdue} dia${daysOverdue > 1 ? 's' : ''})`;
     } else {
       emoji = '⏳';
       status = 'Em Aberto';
@@ -99,7 +101,9 @@ export const generateCompactInstallmentsStatusList = (
       status = 'Paga';
     } else if (dueDate < today) {
       emoji = '🔴';
-      status = 'Em Atraso';
+      const timeDiff = today.getTime() - dueDate.getTime();
+      const daysOverdue = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      status = `Em Atraso (${daysOverdue} dia${daysOverdue > 1 ? 's' : ''})`;
     } else {
       emoji = '⏳';
       status = 'Em Aberto';
