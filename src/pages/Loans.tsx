@@ -41,6 +41,7 @@ import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import AddExtraInstallmentsDialog from '@/components/AddExtraInstallmentsDialog';
+import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { LoansTableView } from '@/components/LoansTableView';
@@ -453,6 +454,7 @@ export default function Loans() {
   const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -11420,7 +11422,33 @@ export default function Loans() {
             onConfirm={addExtraInstallments}
           />
         )}
-
+        
+        {/* Dialog para criar empréstimo com Tabela Price */}
+        <PriceTableDialog
+          open={isPriceTableDialogOpen}
+          onOpenChange={setIsPriceTableDialogOpen}
+          clients={loanClients}
+          onCreateLoan={async (loanData) => {
+            const result = await createLoan({
+              client_id: loanData.client_id,
+              principal_amount: loanData.principal_amount,
+              interest_rate: loanData.interest_rate,
+              interest_type: loanData.interest_type,
+              interest_mode: loanData.interest_mode,
+              payment_type: loanData.payment_type,
+              installments: loanData.installments,
+              contract_date: loanData.contract_date,
+              start_date: loanData.start_date,
+              due_date: loanData.due_date,
+              notes: loanData.notes,
+              installment_dates: loanData.installment_dates,
+              total_interest: loanData.total_interest,
+              send_creation_notification: loanData.send_notification,
+            });
+            return result;
+          }}
+          onNewClientClick={handleNewClientClick}
+        />
         {/* Dialog para editar multa de parcela */}
         <Dialog open={!!editPenaltyDialog} onOpenChange={() => setEditPenaltyDialog(null)}>
           <DialogContent className="max-w-sm">
