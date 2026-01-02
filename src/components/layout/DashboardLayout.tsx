@@ -25,7 +25,6 @@ import {
   User,
   ChevronRight,
   Calendar,
-  Calculator,
   Award,
   ShoppingBag,
   Car,
@@ -54,7 +53,6 @@ const navigation = [
   { name: 'Veículos Registrados', href: '/vehicles', icon: Car },
   { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
   // Contas e Ferramentas
-  { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText },
   { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap },
   { name: 'Configurações', href: '/settings', icon: Settings },

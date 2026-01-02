@@ -21,7 +21,6 @@ import CalendarView from "./pages/CalendarView";
 import ReportsLoans from "./pages/ReportsLoans";
 import ReportsSales from "./pages/ReportsSales";
 import Vehicles from "./pages/Vehicles";
-import Simulator from "./pages/Simulator";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
@@ -54,7 +53,6 @@ const App = () => (
             <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><ReportsLoans /></ProtectedRoute>} />
             <Route path="/reports-sales" element={<ProtectedRoute><ReportsSales /></ProtectedRoute>} />
-            <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
