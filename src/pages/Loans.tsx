@@ -451,6 +451,10 @@ export default function Loans() {
     const saved = localStorage.getItem('loans-view-mode');
     return saved === 'table' ? 'table' : 'cards';
   });
+  const [dailyViewMode, setDailyViewMode] = useState<'cards' | 'table'>(() => {
+    const saved = localStorage.getItem('daily-loans-view-mode');
+    return saved === 'table' ? 'table' : 'cards';
+  });
   const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -683,6 +687,11 @@ export default function Loans() {
   useEffect(() => {
     localStorage.setItem('loans-view-mode', viewMode);
   }, [viewMode]);
+  
+  // Persist daily view mode preference
+  useEffect(() => {
+    localStorage.setItem('daily-loans-view-mode', dailyViewMode);
+  }, [dailyViewMode]);
   
   // Auto-generate dates when auto mode is active
   useEffect(() => {
@@ -7590,6 +7599,43 @@ export default function Loans() {
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                 <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
               </div>
+              
+              {/* Toggle de Visualização para Diários */}
+              <TooltipProvider delayDuration={200}>
+                <div className="flex border rounded-md bg-muted/30">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={dailyViewMode === 'cards' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyViewMode('cards')}
+                        className="h-9 sm:h-10 px-2.5 rounded-r-none"
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Visualização em Cards</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={dailyViewMode === 'table' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyViewMode('table')}
+                        className="h-9 sm:h-10 px-2.5 rounded-l-none border-l"
+                      >
+                        <List className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Visualização em Lista</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+              
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -7725,6 +7771,20 @@ export default function Loans() {
                 <Clock className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
                 <p className="text-sm sm:text-base text-muted-foreground">{search ? 'Nenhum empréstimo diário encontrado' : 'Nenhum empréstimo diário cadastrado'}</p>
               </div>
+            ) : dailyViewMode === 'table' ? (
+              <LoansTableView 
+                loans={sortedLoans}
+                onPayment={(loanId) => {
+                  setSelectedLoanId(loanId);
+                  setIsPaymentDialogOpen(true);
+                }}
+                onPayInterest={openRenegotiateDialog}
+                onEdit={openSimpleEditDialog}
+                onRenegotiate={openEditDialog}
+                onDelete={setDeleteId}
+                onViewHistory={openPaymentHistory}
+                getPaidInstallmentsCount={getPaidInstallmentsCount}
+              />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {sortedLoans.map((loan, loanIndex) => {
