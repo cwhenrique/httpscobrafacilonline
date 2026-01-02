@@ -250,8 +250,8 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
     // Para empréstimo diário, total_interest é o valor da parcela
     const dailyAmount = loan.total_interest || 0;
     totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
-  } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
-    // Usar valor do banco quando disponível (inclui arredondamentos do usuário)
+  } else if (loan.total_interest !== undefined && loan.total_interest !== null && (loan.total_interest > 0 || loan.interest_rate === 0)) {
+    // Usar valor do banco quando disponível (inclui arredondamentos do usuário e juros 0%)
     totalInterest = loan.total_interest;
   } else if (loan.interest_mode === 'on_total') {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
@@ -1944,8 +1944,8 @@ export default function Loans() {
       const dailyAmount = loan.total_interest || 0;
       totalToReceive = dailyAmount * numInstallments;
       totalInterest = totalToReceive - loan.principal_amount;
-    } else if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
-      // Usar valor do banco quando disponível (inclui arredondamentos do usuário)
+    } else if (loan.total_interest !== undefined && loan.total_interest !== null && (loan.total_interest > 0 || loan.interest_rate === 0)) {
+      // Usar valor do banco quando disponível (inclui arredondamentos do usuário e juros 0%)
       totalInterest = loan.total_interest;
       totalToReceive = loan.principal_amount + totalInterest;
     } else if (loan.interest_mode === 'on_total') {
