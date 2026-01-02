@@ -137,7 +137,7 @@ const Landing = () => {
     {
       number: "1",
       title: "Cadastre-se com Pagamento Único",
-      description: "Crie sua conta em menos de 1 minuto e tenha acesso vitalício",
+      description: "Crie sua conta em menos de 1 minuto e tenha acesso anual",
       emoji: "🎯",
     },
     {
@@ -343,7 +343,7 @@ const Landing = () => {
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-              <span className="font-medium text-foreground text-[10px] sm:text-sm">Vitalício</span>
+              <span className="font-medium text-foreground text-[10px] sm:text-sm">Anual</span>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 stat-card px-2 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-full text-center">
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
@@ -607,7 +607,7 @@ const Landing = () => {
                   <div className="mt-8 pt-6 border-t border-primary/20">
                     <div className="text-sm text-muted-foreground">Investimento</div>
                     <div className="text-4xl font-bold gradient-text">1x e Pronto!</div>
-                    <div className="text-sm text-muted-foreground">acesso vitalício garantido</div>
+                    <div className="text-sm text-muted-foreground">acesso anual garantido</div>
                   </div>
                 </CardContent>
               </Card>
@@ -1271,7 +1271,7 @@ const Landing = () => {
             className="inline-flex justify-center w-full sm:w-auto"
           >
             <Button size="lg" variant="secondary" className="w-full sm:w-auto text-base sm:text-lg px-6 sm:px-10 h-14 sm:h-16 shadow-lg">
-              Adquirir o Acesso Vitalício
+              Adquirir o Acesso Anual
               <ArrowRight className="w-5 h-5 ml-2 flex-shrink-0" />
             </Button>
           </a>
