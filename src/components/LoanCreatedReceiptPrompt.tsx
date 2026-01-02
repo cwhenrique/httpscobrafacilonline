@@ -18,6 +18,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface LoanData {
   id: string;
@@ -102,19 +103,17 @@ export default function LoanCreatedReceiptPrompt({
       message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    message += `\n📅 *VENCIMENTOS*\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    
+    // Adicionar lista de status das parcelas com emojis
     if (installmentDates && installmentDates.length > 0) {
-      const maxDatesToShow = 6;
-      installmentDates.slice(0, maxDatesToShow).forEach((date, index) => {
-        message += `${index + 1}ª: ${formatDate(date)}\n`;
+      const statusList = generateInstallmentsStatusList({
+        installmentDates,
+        paidCount: 0, // Empréstimo novo, nenhuma parcela paga
+        totalInstallments: loan.installments
       });
-      
-      if (installmentDates.length > maxDatesToShow) {
-        message += `... e mais ${installmentDates.length - maxDatesToShow} parcela(s)\n`;
-      }
+      message += statusList;
     } else {
+      message += `\n📅 *VENCIMENTOS*\n`;
+      message += `━━━━━━━━━━━━━━━━\n`;
       message += `1ª: ${formatDate(loan.startDate)}\n`;
     }
     
@@ -153,12 +152,16 @@ export default function LoanCreatedReceiptPrompt({
     }
     message += `\n`;
     
-    message += `📅 *VENCIMENTOS*\n`;
+    // Adicionar lista de status das parcelas com emojis
     if (installmentDates && installmentDates.length > 0) {
-      installmentDates.forEach((date, index) => {
-        message += `${index + 1}ª: ${formatDate(date)}\n`;
+      const statusList = generateInstallmentsStatusList({
+        installmentDates,
+        paidCount: 0, // Empréstimo novo, nenhuma parcela paga
+        totalInstallments: loan.installments
       });
+      message += statusList;
     } else {
+      message += `📅 *VENCIMENTOS*\n`;
       message += `1ª: ${formatDate(loan.startDate)}\n`;
     }
     
