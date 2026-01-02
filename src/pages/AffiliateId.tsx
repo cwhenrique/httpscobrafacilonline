@@ -85,9 +85,9 @@ const scaleIn = {
 
 // Affiliate links for this page
 const AFFILIATE_LINKS = {
-  monthly: "https://pay.cakto.com.br/9c8mk4m?affiliate=dFRXD6nE",
-  annual: "https://pay.cakto.com.br/nt3n9n6?affiliate=dFRXD6nE",
-  lifetime: "https://pay.cakto.com.br/h6rm24y?affiliate=dFRXD6nE",
+  monthly: "https://pay.cakto.com.br/di6pnvu?affiliate=dFRXD6nE",
+  quarterly: "https://pay.cakto.com.br/3823rxj?affiliate=dFRXD6nE",
+  annual: "https://pay.cakto.com.br/j35f794?affiliate=dFRXD6nE",
 };
 
 const AffiliateId = () => {
