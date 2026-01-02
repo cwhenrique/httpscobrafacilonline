@@ -311,30 +311,6 @@ const AffiliateId = () => {
             </Button>
           </motion.div>
 
-          {/* Premium Badge */}
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={fadeInUp}
-            transition={{ duration: 0.6, delay: 0.35 }}
-            className="mt-6 px-2"
-          >
-            <a 
-              href="https://wa.me/5511932935877?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20AF2"
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
-            >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-500/30 flex-shrink-0">
-                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-primary text-sm sm:text-lg">VENHA FAZER PARTE DO NOSSO SISTEMA</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Solicite pelo WhatsApp agora mesmo</div>
-              </div>
-            </a>
-          </motion.div>
-
 
           {/* Trust Badges */}
           <motion.div 
