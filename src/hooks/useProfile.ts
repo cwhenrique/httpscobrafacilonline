@@ -10,6 +10,7 @@ export interface Profile {
   company_name: string | null;
   subscription_plan: string | null;
   subscription_expires_at: string | null;
+  trial_expires_at: string | null;
   is_active: boolean;
   // WhatsApp client notification configuration
   evolution_api_url: string | null;

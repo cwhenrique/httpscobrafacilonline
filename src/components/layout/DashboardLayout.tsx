@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { cn } from '@/lib/utils';
 import { ProfileSetupModal } from '@/components/ProfileSetupModal';
+import { SubscriptionExpiringBanner } from '@/components/SubscriptionExpiringBanner';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -246,6 +247,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </header>
 
           <div className="p-4 lg:p-8">
+            <SubscriptionExpiringBanner />
             {children}
           </div>
         </div>
