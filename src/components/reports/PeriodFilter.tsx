@@ -51,7 +51,8 @@ export function PeriodFilter({
   const handleOpenChange = (open: boolean) => {
     setCalendarOpen(open);
     if (open) {
-      setTempRange({ from: startDate, to: endDate });
+      // Reset para começar seleção do zero: primeiro clique = início, segundo = fim
+      setTempRange(undefined);
     }
   };
 
