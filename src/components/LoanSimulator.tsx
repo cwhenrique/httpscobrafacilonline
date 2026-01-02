@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useProfile } from '@/hooks/useProfile';
 
 type PaymentType = 'single' | 'installment' | 'weekly' | 'biweekly' | 'daily';
-type InterestMode = 'per_installment' | 'on_total' | 'compound';
+type InterestMode = 'per_installment' | 'on_total' | 'compound_pure' | 'compound_price';
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   single: 'Pagamento Único',
@@ -32,7 +32,8 @@ const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
 const INTEREST_MODE_LABELS: Record<InterestMode, string> = {
   per_installment: 'Por Parcela',
   on_total: 'Sobre o Total',
-  compound: 'Juros Compostos',
+  compound_pure: 'Juros Compostos Puro',
+  compound_price: 'Tabela Price',
 };
 
 const getMaxInstallments = (paymentType: PaymentType) => {
@@ -69,8 +70,14 @@ export function LoanSimulator() {
         return p * (rate / 100) * n;
       case 'on_total':
         return p * (rate / 100);
-      case 'compound': {
-        // Usar fórmula PMT de amortização (Sistema Price)
+      case 'compound_pure': {
+        // Juros Compostos Puro: M = P × (1 + i)^n - P
+        const i = rate / 100;
+        if (i === 0 || !isFinite(i)) return 0;
+        return p * Math.pow(1 + i, n) - p;
+      }
+      case 'compound_price': {
+        // Tabela Price (PMT): Parcelas fixas amortizadas
         const i = rate / 100;
         if (i === 0 || !isFinite(i)) return 0;
         const factor = Math.pow(1 + i, n);
@@ -189,9 +196,13 @@ export function LoanSimulator() {
         interest: calculateInterest('on_total', principal, interestRate, effectiveInstallments),
         total: principal + calculateInterest('on_total', principal, interestRate, effectiveInstallments),
       },
-      compound: {
-        interest: calculateInterest('compound', principal, interestRate, effectiveInstallments),
-        total: principal + calculateInterest('compound', principal, interestRate, effectiveInstallments),
+      compound_pure: {
+        interest: calculateInterest('compound_pure', principal, interestRate, effectiveInstallments),
+        total: principal + calculateInterest('compound_pure', principal, interestRate, effectiveInstallments),
+      },
+      compound_price: {
+        interest: calculateInterest('compound_price', principal, interestRate, effectiveInstallments),
+        total: principal + calculateInterest('compound_price', principal, interestRate, effectiveInstallments),
       },
     };
   }, [principal, interestRate, installments, paymentType]);
@@ -221,13 +232,15 @@ export function LoanSimulator() {
   };
 
   const getCardStyle = () => {
-    if (interestMode === 'compound') return 'bg-cyan-500/10 border-cyan-400/30';
+    if (interestMode === 'compound_pure') return 'bg-purple-500/10 border-purple-400/30';
+    if (interestMode === 'compound_price') return 'bg-cyan-500/10 border-cyan-400/30';
     if (interestMode === 'on_total') return 'bg-yellow-500/10 border-yellow-400/30';
     return 'bg-primary/5 border-primary/20';
   };
 
   const getTextColor = () => {
-    if (interestMode === 'compound') return 'text-cyan-400';
+    if (interestMode === 'compound_pure') return 'text-purple-400';
+    if (interestMode === 'compound_price') return 'text-cyan-400';
     if (interestMode === 'on_total') return 'text-yellow-400';
     return 'text-primary';
   };
@@ -267,8 +280,11 @@ export function LoanSimulator() {
           <CardTitle className="flex items-center gap-2">
             <Calculator className="w-5 h-5 text-primary" />
             Simulador de Empréstimo
-            {interestMode === 'compound' && (
-              <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-400/30">Juros Compostos</Badge>
+            {interestMode === 'compound_pure' && (
+              <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/30">Juros Compostos Puro</Badge>
+            )}
+            {interestMode === 'compound_price' && (
+              <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-400/30">Tabela Price</Badge>
             )}
             {paymentType === 'daily' && (
               <Badge className="bg-blue-500/20 text-blue-300 border-blue-400/30">Diário</Badge>
@@ -561,18 +577,31 @@ export function LoanSimulator() {
                         <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.on_total.total)}</td>
                         <td className="p-3 text-right font-medium">{formatCurrency(comparison.on_total.total / installments)}</td>
                       </tr>
-                      <tr className={cn("border-t", interestMode === 'compound' && "bg-cyan-500/10")}>
+                      <tr className={cn("border-t", interestMode === 'compound_pure' && "bg-purple-500/10")}>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-400/30">
+                              Juros Compostos Puro
+                            </Badge>
+                            {interestMode === 'compound_pure' && <span className="text-xs text-purple-400">✓ Selecionado</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right text-warning font-medium">{formatCurrency(comparison.compound_pure.interest)}</td>
+                        <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.compound_pure.total)}</td>
+                        <td className="p-3 text-right font-medium">{formatCurrency(comparison.compound_pure.total / installments)}</td>
+                      </tr>
+                      <tr className={cn("border-t", interestMode === 'compound_price' && "bg-cyan-500/10")}>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="bg-cyan-500/10 text-cyan-400 border-cyan-400/30">
-                              Juros Compostos
+                              Tabela Price
                             </Badge>
-                            {interestMode === 'compound' && <span className="text-xs text-cyan-400">✓ Selecionado</span>}
+                            {interestMode === 'compound_price' && <span className="text-xs text-cyan-400">✓ Selecionado</span>}
                           </div>
                         </td>
-                        <td className="p-3 text-right text-warning font-medium">{formatCurrency(comparison.compound.interest)}</td>
-                        <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.compound.total)}</td>
-                        <td className="p-3 text-right font-medium">{formatCurrency(comparison.compound.total / installments)}</td>
+                        <td className="p-3 text-right text-warning font-medium">{formatCurrency(comparison.compound_price.interest)}</td>
+                        <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.compound_price.total)}</td>
+                        <td className="p-3 text-right font-medium">{formatCurrency(comparison.compound_price.total / installments)}</td>
                       </tr>
                     </tbody>
                   </table>
