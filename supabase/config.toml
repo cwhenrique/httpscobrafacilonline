@@ -111,6 +111,9 @@ verify_jwt = true
 [functions.update-employee]
 verify_jwt = true
 
+[functions.delete-employee]
+verify_jwt = true
+
 [functions.whatsapp-get-pairing-code]
 verify_jwt = true
 
