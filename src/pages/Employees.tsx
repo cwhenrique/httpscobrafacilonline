@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
 // URL de pagamento no Cakto para liberar 1 funcionário
-const CAKTO_EMPLOYEE_PAYMENT_URL = 'https://pay.cakto.com.br/denvooc';
+const CAKTO_EMPLOYEE_PAYMENT_URL = 'https://pay.cakto.com.br/pkvkjyp_708910';
 
 export default function Employees() {
   const { user } = useAuth();
