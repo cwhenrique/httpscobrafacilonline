@@ -100,8 +100,8 @@ export default function EmployeeFeatureCard({
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
               <Lock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-sm">Empréstimos Isolados</p>
-                <p className="text-xs text-muted-foreground">Funcionário só vê os empréstimos que ELE criou</p>
+              <p className="font-medium text-sm">Visibilidade Controlada</p>
+              <p className="text-xs text-muted-foreground">Você define se ele vê só os dele ou todos</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
@@ -133,10 +133,10 @@ export default function EmployeeFeatureCard({
               <Lock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div className="text-left">
                 <p className="text-sm font-medium text-foreground">
-                  Por padrão, cada funcionário só visualiza os empréstimos que ele mesmo cadastrou.
+                  Você controla o que cada funcionário pode ver!
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Seus outros negócios permanecem completamente privados! Você pode liberar a permissão "Ver Todos os Empréstimos" individualmente se precisar.
+                  Por padrão, ele só vê os empréstimos que ele mesmo criou. Mas você pode liberar a permissão "Ver Todos os Empréstimos" individualmente se precisar.
                 </p>
               </div>
             </div>
