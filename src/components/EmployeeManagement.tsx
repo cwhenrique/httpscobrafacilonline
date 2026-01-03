@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, UserCheck, UserX, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, Unlock, UserCheck, UserX, AlertTriangle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
 
@@ -392,16 +392,25 @@ export default function EmployeeManagement() {
                       <p className="text-sm font-medium text-muted-foreground">{group}</p>
                       <div className="grid gap-2">
                         {perms.map(perm => (
-                          <div key={perm.key} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`add-${perm.key}`}
-                              checked={formPermissions.includes(perm.key)}
-                              onCheckedChange={() => togglePermission(perm.key)}
-                            />
-                            <Label htmlFor={`add-${perm.key}`} className="text-sm font-normal">
-                              {perm.label}
-                            </Label>
-                          </div>
+                          <Button
+                            key={perm.key}
+                            type="button"
+                            variant={formPermissions.includes(perm.key) ? 'default' : 'outline'}
+                            size="sm"
+                            className={`justify-start gap-2 w-full ${
+                              formPermissions.includes(perm.key) 
+                                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                            onClick={() => togglePermission(perm.key)}
+                          >
+                            {formPermissions.includes(perm.key) ? (
+                              <Unlock className="w-4 h-4" />
+                            ) : (
+                              <Lock className="w-4 h-4" />
+                            )}
+                            {perm.label}
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -505,16 +514,25 @@ export default function EmployeeManagement() {
                 <p className="text-sm font-medium text-muted-foreground">{group}</p>
                 <div className="grid gap-2">
                   {perms.map(perm => (
-                    <div key={perm.key} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`edit-${perm.key}`}
-                        checked={formPermissions.includes(perm.key)}
-                        onCheckedChange={() => togglePermission(perm.key)}
-                      />
-                      <Label htmlFor={`edit-${perm.key}`} className="text-sm font-normal">
-                        {perm.label}
-                      </Label>
-                    </div>
+                    <Button
+                      key={perm.key}
+                      type="button"
+                      variant={formPermissions.includes(perm.key) ? 'default' : 'outline'}
+                      size="sm"
+                      className={`justify-start gap-2 w-full ${
+                        formPermissions.includes(perm.key) 
+                          ? 'bg-green-600 hover:bg-green-700 text-white' 
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => togglePermission(perm.key)}
+                    >
+                      {formPermissions.includes(perm.key) ? (
+                        <Unlock className="w-4 h-4" />
+                      ) : (
+                        <Lock className="w-4 h-4" />
+                      )}
+                      {perm.label}
+                    </Button>
                   ))}
                 </div>
               </div>
