@@ -444,6 +444,7 @@ export type Database = {
           client_id: string
           contract_date: string | null
           created_at: string
+          created_by: string
           due_date: string
           id: string
           installment_dates: Json | null
@@ -466,6 +467,7 @@ export type Database = {
           client_id: string
           contract_date?: string | null
           created_at?: string
+          created_by: string
           due_date: string
           id?: string
           installment_dates?: Json | null
@@ -488,6 +490,7 @@ export type Database = {
           client_id?: string
           contract_date?: string | null
           created_at?: string
+          created_by?: string
           due_date?: string
           id?: string
           installment_dates?: Json | null
@@ -1136,6 +1139,14 @@ export type Database = {
         Args: { p_late: number; p_on_time: number; p_total_loans: number }
         Returns: number
       }
+      can_view_loan: {
+        Args: {
+          _loan_created_by: string
+          _loan_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       get_employee_context: {
         Args: { _user_id: string }
         Returns: {
@@ -1179,6 +1190,7 @@ export type Database = {
         | "manage_vehicles"
         | "manage_products"
         | "view_settings"
+        | "view_all_loans"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
@@ -1332,6 +1344,7 @@ export const Constants = {
         "manage_vehicles",
         "manage_products",
         "view_settings",
+        "view_all_loans",
       ],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],

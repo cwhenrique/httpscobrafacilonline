@@ -53,6 +53,7 @@ export type InterestMode = 'per_installment' | 'on_total' | 'compound';
 export interface Loan {
   id: string;
   user_id: string;
+  created_by: string;
   client_id: string;
   principal_amount: number;
   interest_rate: number;
