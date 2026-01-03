@@ -47,6 +47,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     async function checkEmployeeStatus() {
       // Se não há usuário, resetar tudo
       if (!user) {
+        console.log('[EmployeeContext] Sem usuário, resetando estado');
         setLoading(false);
         setIsEmployee(false);
         setIsOwner(false);
@@ -59,8 +60,11 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
 
       // Se já verificamos este usuário, não verificar novamente
       if (lastCheckedUserRef.current === user.id) {
+        console.log('[EmployeeContext] Usuário já verificado:', user.id);
         return;
       }
+
+      console.log('[EmployeeContext] Iniciando verificação para:', user.email, user.id);
 
       // Marcar que estamos verificando este usuário
       lastCheckedUserRef.current = user.id;
@@ -75,14 +79,17 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
 
       try {
         // Verificar se o usuário é um funcionário
+        console.log('[EmployeeContext] Buscando registro de funcionário...');
         const { data: employeeData, error } = await supabase
           .from('employees')
           .select('id, owner_id, name, is_active')
           .eq('employee_user_id', user.id)
           .maybeSingle();
 
+        console.log('[EmployeeContext] Resultado da busca:', { employeeData, error });
+
         if (error) {
-          console.error('Erro ao verificar status de funcionário:', error);
+          console.error('[EmployeeContext] Erro ao verificar status de funcionário:', error);
           // IMPORTANTE: Em caso de erro, NÃO assumir nada
           // Deixar como estado "indeterminado" (isEmployee=false, isOwner=false)
           // Isso vai bloquear acesso até conseguir verificar corretamente
@@ -92,6 +99,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
 
         if (employeeData) {
           // Usuário é um funcionário
+          console.log('[EmployeeContext] FUNCIONÁRIO DETECTADO:', employeeData.name);
           setIsEmployee(true);
           setIsOwner(false);
           setOwnerId(employeeData.owner_id);
@@ -99,25 +107,31 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
           
           if (!employeeData.is_active) {
             // Funcionário inativo - sem permissões
-            console.warn('Funcionário inativo');
+            console.warn('[EmployeeContext] Funcionário inativo - sem permissões');
             setPermissions([]);
           } else {
             // Funcionário ativo - buscar permissões
+            console.log('[EmployeeContext] Buscando permissões para employee_id:', employeeData.id);
             const { data: permissionsData, error: permError } = await supabase
               .from('employee_permissions')
               .select('permission')
               .eq('employee_id', employeeData.id);
 
+            console.log('[EmployeeContext] Permissões encontradas:', { permissionsData, permError });
+
             if (permError) {
-              console.error('Erro ao buscar permissões:', permError);
+              console.error('[EmployeeContext] Erro ao buscar permissões:', permError);
               // Erro ao buscar permissões = sem permissões (seguro)
               setPermissions([]);
             } else {
-              setPermissions((permissionsData || []).map(p => p.permission as EmployeePermission));
+              const permList = (permissionsData || []).map(p => p.permission as EmployeePermission);
+              console.log('[EmployeeContext] Lista de permissões:', permList);
+              setPermissions(permList);
             }
           }
         } else {
           // Não é funcionário - é dono
+          console.log('[EmployeeContext] NÃO é funcionário - tratando como DONO');
           setIsEmployee(false);
           setIsOwner(true);
           setOwnerId(null);
@@ -125,12 +139,13 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
           setPermissions([]);
         }
       } catch (err) {
-        console.error('Erro crítico ao verificar funcionário:', err);
+        console.error('[EmployeeContext] Erro crítico ao verificar funcionário:', err);
         // IMPORTANTE: Em erro crítico, NÃO assumir que é dono
         // Deixar bloqueado por segurança
         setIsEmployee(false);
         setIsOwner(false);
       } finally {
+        console.log('[EmployeeContext] Verificação concluída');
         setLoading(false);
       }
     }

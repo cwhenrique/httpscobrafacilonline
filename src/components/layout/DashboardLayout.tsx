@@ -75,18 +75,23 @@ const navigation: NavigationItem[] = [
   { name: 'Configurações', href: '/settings', icon: Settings, permission: 'view_settings' },
 ];
 
-function SidebarContent({ onNavigate, isEmployee, hasPermission }: { 
+function SidebarContent({ onNavigate, isEmployee, hasPermission, permissions }: { 
   onNavigate?: () => void;
   isEmployee: boolean;
   hasPermission: (permission: EmployeePermission) => boolean;
+  permissions: EmployeePermission[];
 }) {
   const location = useLocation();
 
+  console.log('[SidebarContent] Props recebidas:', { isEmployee, permissionsCount: permissions.length, permissions });
+
   // Marcar itens como bloqueados ou liberados
   const navigationWithLocks = useMemo(() => {
+    console.log('[SidebarContent] Calculando locks. isEmployee:', isEmployee);
     return navigation.map(item => {
       // Itens exclusivos do dono são bloqueados para funcionários
       if (item.ownerOnly && isEmployee) {
+        console.log(`[SidebarContent] ${item.name}: BLOQUEADO (ownerOnly)`);
         return { ...item, isLocked: true };
       }
       // Sem permissão definida = liberado para todos
@@ -94,9 +99,13 @@ function SidebarContent({ onNavigate, isEmployee, hasPermission }: {
         return { ...item, isLocked: false };
       }
       // Verificar se tem a permissão necessária
-      return { ...item, isLocked: !hasPermission(item.permission) };
+      const hasPerm = hasPermission(item.permission);
+      if (!hasPerm && isEmployee) {
+        console.log(`[SidebarContent] ${item.name}: BLOQUEADO (sem ${item.permission})`);
+      }
+      return { ...item, isLocked: !hasPerm };
     });
-  }, [isEmployee, hasPermission]);
+  }, [isEmployee, hasPermission, permissions]);
 
   const handleLockedClick = (itemName: string) => {
     toast.error(`Você não tem permissão para acessar "${itemName}"`);
@@ -220,9 +229,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
         <div className="flex flex-col flex-grow bg-sidebar-background/40 backdrop-blur-md border-r border-sidebar-border overflow-hidden">
-          <ScrollArea className="flex-1">
-            <SidebarContent isEmployee={isEmployee} hasPermission={hasPermission} />
-          </ScrollArea>
+      <ScrollArea className="flex-1">
+        <SidebarContent isEmployee={isEmployee} hasPermission={hasPermission} permissions={permissions} />
+      </ScrollArea>
         </div>
       </aside>
 
@@ -235,9 +244,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-72 bg-sidebar-background/40 backdrop-blur-md border-sidebar-border">
-              <SidebarContent onNavigate={() => setMobileOpen(false)} isEmployee={isEmployee} hasPermission={hasPermission} />
-            </SheetContent>
+          <SheetContent side="left" className="p-0 w-72 bg-sidebar-background/40 backdrop-blur-md border-sidebar-border">
+            <SidebarContent onNavigate={() => setMobileOpen(false)} isEmployee={isEmployee} hasPermission={hasPermission} permissions={permissions} />
+          </SheetContent>
           </Sheet>
 
           <div className="flex items-center gap-2">
