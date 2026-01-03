@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -17,20 +17,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const validatingRef = useRef(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
+    const validateCurrentSession = async (currentSession: Session | null) => {
+      if (!currentSession?.access_token) return;
+      if (validatingRef.current) return;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      validatingRef.current = true;
+      try {
+        const { error } = await supabase.auth.getUser(currentSession.access_token);
+        if (error) {
+          // Sessão local existe, mas foi invalidada no backend (ex: refresh token revogado)
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+        }
+      } finally {
+        validatingRef.current = false;
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
       setLoading(false);
+
+      // Nunca chamar supabase diretamente aqui: deferimos.
+      if (newSession) {
+        setTimeout(() => {
+          validateCurrentSession(newSession);
+        }, 0);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      setLoading(false);
+
+      if (initialSession) {
+        setTimeout(() => {
+          validateCurrentSession(initialSession);
+        }, 0);
+      }
     });
 
     return () => subscription.unsubscribe();
