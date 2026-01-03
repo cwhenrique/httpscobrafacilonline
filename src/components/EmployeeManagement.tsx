@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, UserCheck, UserX } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, UserCheck, UserX, AlertTriangle } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
 
 interface Employee {
@@ -19,6 +20,7 @@ interface Employee {
   email: string;
   is_active: boolean;
   created_at: string;
+  employee_user_id: string;
   permissions: EmployeePermission[];
 }
 
@@ -51,8 +53,12 @@ export default function EmployeeManagement() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [disableLoginOnDelete, setDisableLoginOnDelete] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [maxEmployees, setMaxEmployees] = useState(3);
 
   // Form state
@@ -87,7 +93,7 @@ export default function EmployeeManagement() {
     try {
       const { data: employeesData, error } = await supabase
         .from('employees')
-        .select('id, name, email, is_active, created_at')
+        .select('id, name, email, is_active, created_at, employee_user_id')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -227,22 +233,41 @@ export default function EmployeeManagement() {
     }
   }
 
-  async function handleDeleteEmployee(employee: Employee) {
-    if (!confirm(`Excluir funcionário ${employee.name}?`)) return;
+  function openDeleteDialog(employee: Employee) {
+    setEmployeeToDelete(employee);
+    setDisableLoginOnDelete(true);
+    setShowDeleteDialog(true);
+  }
 
+  async function handleDeleteEmployee() {
+    if (!employeeToDelete) return;
+
+    setDeleting(true);
     try {
-      const { error } = await supabase
-        .from('employees')
-        .delete()
-        .eq('id', employee.id);
+      const { data, error } = await supabase.functions.invoke('delete-employee', {
+        body: {
+          employeeId: employeeToDelete.id,
+          disableLogin: disableLoginOnDelete,
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      toast.success('Funcionário removido');
+      toast.success(
+        disableLoginOnDelete 
+          ? 'Funcionário removido e acesso desativado' 
+          : 'Funcionário removido'
+      );
+      
+      setShowDeleteDialog(false);
+      setEmployeeToDelete(null);
       fetchEmployees();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao excluir:', err);
-      toast.error('Erro ao excluir funcionário');
+      toast.error(err.message || 'Erro ao excluir funcionário');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -451,7 +476,7 @@ export default function EmployeeManagement() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDeleteEmployee(employee)}
+                    onClick={() => openDeleteDialog(employee)}
                   >
                     <Trash2 className="w-4 h-4 text-destructive" />
                   </Button>
@@ -505,6 +530,51 @@ export default function EmployeeManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Excluir Funcionário
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Tem certeza que deseja excluir <strong>{employeeToDelete?.name}</strong>?
+              </p>
+              <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+                <Checkbox
+                  id="disable-login"
+                  checked={disableLoginOnDelete}
+                  onCheckedChange={(checked) => setDisableLoginOnDelete(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="disable-login" className="text-sm font-medium cursor-pointer">
+                    Desativar acesso ao sistema
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {disableLoginOnDelete 
+                      ? 'O funcionário não poderá mais fazer login no sistema.'
+                      : 'O funcionário ainda poderá acessar o sistema com conta própria (sem vínculo).'}
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteEmployee}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

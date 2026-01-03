@@ -279,9 +279,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 bg-red-100 dark:bg-red-900/30 px-3 py-1.5 rounded-full border border-red-200 dark:border-red-800">
-                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
-                    Acesso bloqueado
+                <div className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800">
+                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                    Conta pessoal
                   </span>
                 </div>
               )}
