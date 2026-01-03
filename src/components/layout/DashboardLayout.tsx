@@ -36,7 +36,9 @@ import {
   FileText,
   GraduationCap,
   UserCheck,
+  Lock,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
@@ -80,17 +82,25 @@ function SidebarContent({ onNavigate, isEmployee, hasPermission }: {
 }) {
   const location = useLocation();
 
-  // Filtrar navegação baseado nas permissões
-  const filteredNavigation = useMemo(() => {
-    return navigation.filter(item => {
-      // Itens exclusivos do dono não aparecem para funcionários
-      if (item.ownerOnly && isEmployee) return false;
-      // Sem permissão definida = todos podem ver
-      if (!item.permission) return true;
+  // Marcar itens como bloqueados ou liberados
+  const navigationWithLocks = useMemo(() => {
+    return navigation.map(item => {
+      // Itens exclusivos do dono são bloqueados para funcionários
+      if (item.ownerOnly && isEmployee) {
+        return { ...item, isLocked: true };
+      }
+      // Sem permissão definida = liberado para todos
+      if (!item.permission) {
+        return { ...item, isLocked: false };
+      }
       // Verificar se tem a permissão necessária
-      return hasPermission(item.permission);
+      return { ...item, isLocked: !hasPermission(item.permission) };
     });
   }, [isEmployee, hasPermission]);
+
+  const handleLockedClick = (itemName: string) => {
+    toast.error(`Você não tem permissão para acessar "${itemName}"`);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -134,8 +144,26 @@ function SidebarContent({ onNavigate, isEmployee, hasPermission }: {
       <ScrollArea className="flex-1 px-3">
         <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
         <nav className="space-y-1">
-          {filteredNavigation.map((item) => {
+          {navigationWithLocks.map((item) => {
             const isActive = location.pathname === item.href;
+            
+            // Item bloqueado: mostrar com cadeado e estilo desabilitado
+            if (item.isLocked) {
+              return (
+                <div
+                  key={item.name}
+                  onClick={() => handleLockedClick(item.name)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium 
+                             text-sidebar-foreground/40 cursor-not-allowed opacity-60"
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="flex-1">{item.name}</span>
+                  <Lock className="w-4 h-4 text-amber-500" />
+                </div>
+              );
+            }
+            
+            // Item liberado: renderizar normalmente como Link
             return (
               <Link
                 key={item.name}
