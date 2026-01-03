@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Client, ClientType } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 
 export function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
   const fetchClients = async () => {
-    if (!user) return;
+    if (!user || employeeLoading || !effectiveUserId) return;
     
     setLoading(true);
     const { data, error } = await supabase
@@ -47,13 +49,13 @@ export function useClients() {
     instagram?: string;
     facebook?: string;
   }) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     const { data, error } = await supabase
       .from('clients')
       .insert({
         ...client,
-        user_id: user.id,
+        user_id: effectiveUserId,
       })
       .select()
       .single();
@@ -69,7 +71,7 @@ export function useClients() {
   };
 
   const uploadAvatar = async (clientId: string, file: File) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -135,7 +137,7 @@ export function useClients() {
 
   useEffect(() => {
     fetchClients();
-  }, [user]);
+  }, [user, effectiveUserId, employeeLoading]);
 
   return {
     clients,

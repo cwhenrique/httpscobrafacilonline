@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { addMonths, format, parseISO } from 'date-fns';
 
@@ -145,28 +146,28 @@ export interface UpdateVehicleData {
 
 export function useVehicles() {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   const { data: vehicles = [], isLoading, error } = useQuery({
-    queryKey: ['vehicles', user?.id],
+    queryKey: ['vehicles', effectiveUserId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!effectiveUserId) return [];
       
       const { data, error } = await supabase
         .from('vehicles')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Vehicle[];
     },
-    enabled: !!user?.id,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const createVehicle = useMutation({
     mutationFn: async (data: CreateVehicleData) => {
-      if (!user?.id) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       const downPayment = data.down_payment || 0;
       const remainingBalance = data.purchase_value - downPayment;
@@ -175,7 +176,7 @@ export function useVehicles() {
       const { data: newVehicle, error } = await supabase
         .from('vehicles')
         .insert({
-          user_id: user.id,
+          user_id: effectiveUserId,
           brand: data.brand,
           model: data.model,
           year: data.year,
@@ -219,7 +220,7 @@ export function useVehicles() {
           }
           
           payments.push({
-            user_id: user.id,
+            user_id: effectiveUserId,
             vehicle_id: newVehicle.id,
             installment_number: inst.installment_number,
             amount: inst.amount,
@@ -234,8 +235,8 @@ export function useVehicles() {
         for (let i = 0; i < data.installments; i++) {
           const dueDate = addMonths(parseISO(data.first_due_date), i);
           const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-          payments.push({
-            user_id: user.id,
+        payments.push({
+            user_id: effectiveUserId,
             vehicle_id: newVehicle.id,
             installment_number: i + 1,
             amount: data.installment_value,
@@ -332,7 +333,7 @@ export function useVehicles() {
       data: CreateVehicleData;
       payments?: InstallmentDate[];
     }) => {
-      if (!user?.id) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       const downPayment = data.down_payment || 0;
 
@@ -390,7 +391,7 @@ export function useVehicles() {
 
         // Insert new payments
         const newPayments = payments.map(p => ({
-          user_id: user.id,
+          user_id: effectiveUserId,
           vehicle_id: id,
           installment_number: p.installment_number,
           amount: p.amount,
@@ -431,17 +432,17 @@ export function useVehicles() {
 
 export function useVehiclePayments(vehicleId?: string) {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   const { data: payments = [], isLoading, error } = useQuery({
-    queryKey: ['vehicle_payments', vehicleId],
+    queryKey: ['vehicle_payments', effectiveUserId, vehicleId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!effectiveUserId) return [];
       
       let query = supabase
         .from('vehicle_payments')
         .select('*, vehicle:vehicles(*)')
-        .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
       if (vehicleId) {
@@ -453,7 +454,7 @@ export function useVehiclePayments(vehicleId?: string) {
       if (error) throw error;
       return data as VehiclePayment[];
     },
-    enabled: !!user?.id,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const markAsPaid = useMutation({

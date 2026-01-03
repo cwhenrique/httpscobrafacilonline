@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Notification } from '@/types/database';
 
 export function useNotifications() {
@@ -8,9 +9,10 @@ export function useNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
   const fetchNotifications = useCallback(async () => {
-    if (!user) return;
+    if (!user || employeeLoading || !effectiveUserId) return;
 
     const { data, error } = await supabase
       .from('notifications')
@@ -29,7 +31,7 @@ export function useNotifications() {
       setUnreadCount(typedData.filter(n => !n.is_read).length);
     }
     setLoading(false);
-  }, [user]);
+  }, [user, effectiveUserId, employeeLoading]);
 
   const createNotification = async (notification: {
     title: string;
@@ -38,13 +40,13 @@ export function useNotifications() {
     loan_id?: string;
     client_id?: string;
   }) => {
-    if (!user) return;
+    if (!user || !effectiveUserId) return;
 
     const { error } = await supabase
       .from('notifications')
       .insert({
         ...notification,
-        user_id: user.id,
+        user_id: effectiveUserId,
         type: notification.type || 'info',
       });
 
@@ -70,12 +72,12 @@ export function useNotifications() {
   };
 
   const markAllAsRead = async () => {
-    if (!user) return;
+    if (!user || !effectiveUserId) return;
 
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
-      .eq('user_id', user.id)
+      .eq('user_id', effectiveUserId)
       .eq('is_read', false);
 
     if (!error) {
@@ -101,12 +103,12 @@ export function useNotifications() {
   };
 
   const clearAllNotifications = async () => {
-    if (!user) return;
+    if (!user || !effectiveUserId) return;
 
     const { error } = await supabase
       .from('notifications')
       .delete()
-      .eq('user_id', user.id);
+      .eq('user_id', effectiveUserId);
 
     if (!error) {
       setNotifications([]);
