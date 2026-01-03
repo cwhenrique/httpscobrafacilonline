@@ -1,7 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Users, CheckCircle2, Loader2, ShieldCheck, Rocket, CreditCard } from 'lucide-react';
+import { Users, Loader2, ShieldCheck, Rocket, CreditCard, Lock, EyeOff, Shield, Settings } from 'lucide-react';
 
 interface EmployeeFeatureCardProps {
   isUnlocked: boolean;
@@ -37,38 +36,53 @@ export default function EmployeeFeatureCard({
               Expanda seu Negócio com Funcionários
             </h2>
             <p className="text-muted-foreground">
-              Adicione colaboradores para ajudar no seu dia a dia. Cada funcionário pode trabalhar de qualquer lugar!
+              Adicione colaboradores com total controle sobre o que eles podem ver e acessar!
             </p>
           </div>
 
-          {/* Lista de benefícios */}
+          {/* Lista de benefícios focada em segurança */}
           <div className="grid sm:grid-cols-2 gap-4 text-left max-w-lg mx-auto">
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <Lock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-sm">Registrar Pagamentos</p>
-                <p className="text-xs text-muted-foreground">Funcionários podem baixar parcelas dos clientes</p>
+                <p className="font-medium text-sm">Empréstimos Isolados</p>
+                <p className="text-xs text-muted-foreground">Funcionário só vê os empréstimos que ELE criou</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <EyeOff className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-sm">Criar Empréstimos</p>
-                <p className="text-xs text-muted-foreground">Novos negócios direto pelo celular</p>
+                <p className="font-medium text-sm">Dashboard Bloqueado</p>
+                <p className="text-xs text-muted-foreground">Oculte seus lucros e totais financeiros</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <Shield className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-sm">Permissões Granulares</p>
-                <p className="text-xs text-muted-foreground">Você define o que cada um pode fazer</p>
+                <p className="font-medium text-sm">Permissões por Função</p>
+                <p className="text-xs text-muted-foreground">Defina exatamente o que cada um pode acessar</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <Settings className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-sm">Controle Total</p>
-                <p className="text-xs text-muted-foreground">Tudo fica salvo na sua conta principal</p>
+                <p className="font-medium text-sm">Controle Flexível</p>
+                <p className="text-xs text-muted-foreground">Libere "ver todos" apenas quando necessário</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Destaque sobre isolamento de empréstimos */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 max-w-lg mx-auto">
+            <div className="flex items-start gap-3">
+              <Lock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">
+                  Por padrão, cada funcionário só visualiza os empréstimos que ele mesmo cadastrou.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Seus outros negócios permanecem completamente privados! Você pode liberar a permissão "Ver Todos os Empréstimos" individualmente se precisar.
+                </p>
               </div>
             </div>
           </div>
