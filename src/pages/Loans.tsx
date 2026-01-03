@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, addMonths } from 'date-fns';
@@ -25,7 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -443,12 +444,28 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
-  const { hasPermission } = useEmployeeContext();
+  const { hasPermission, isEmployee } = useEmployeeContext();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
+  const [filterByEmployee, setFilterByEmployee] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
   const [customOverdueDays, setCustomOverdueDays] = useState<string>('');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  
+  // Query para buscar funcionários do dono (só para donos)
+  const { data: myEmployees = [] } = useQuery({
+    queryKey: ['my-employees', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('employees')
+        .select('employee_user_id, name')
+        .eq('owner_id', user?.id)
+        .eq('is_active', true);
+      return data || [];
+    },
+    enabled: !!user && !isEmployee,
+  });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
     const saved = localStorage.getItem('loans-view-mode');
     return saved === 'table' ? 'table' : 'cards';
@@ -1290,7 +1307,6 @@ export default function Loans() {
   const [pageTutorialRun, setPageTutorialRun] = useState(false);
   const [pageTutorialStep, setPageTutorialStep] = useState(0);
   const [showTutorialConfirmation, setShowTutorialConfirmation] = useState(false);
-  const { user } = useAuth();
 
   // Check if user has seen tutorial on mount
   useEffect(() => {
@@ -2122,6 +2138,17 @@ export default function Loans() {
   const filteredLoans = loansForCurrentTab.filter(loan => {
     const matchesSearch = loan.client?.full_name.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
+    
+    // Filtro por funcionário criador (só para donos)
+    if (filterByEmployee) {
+      if (filterByEmployee === 'owner') {
+        // Criados pelo dono (created_by === user_id)
+        if (loan.created_by !== loan.user_id) return false;
+      } else {
+        // Criados por um funcionário específico
+        if (loan.created_by !== filterByEmployee) return false;
+      }
+    }
     
     if (statusFilter === 'all') return true;
     
@@ -5808,6 +5835,43 @@ export default function Loans() {
                       <p>Empréstimos com pagamento em parcela única</p>
                     </TooltipContent>
                   </Tooltip>
+                  
+                  {/* Filtro por funcionário (só para donos com funcionários) */}
+                  {!isEmployee && myEmployees.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant={filterByEmployee ? 'default' : 'outline'}
+                          size="sm"
+                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${filterByEmployee ? 'bg-violet-500' : 'border-violet-500 text-violet-600 hover:bg-violet-500/10'}`}
+                        >
+                          <UserCheck className="w-3 h-3 mr-1" />
+                          {!filterByEmployee ? 'Criador' : 
+                            filterByEmployee === 'owner' ? 'Criados por mim' : 
+                            myEmployees.find(e => e.employee_user_id === filterByEmployee)?.name || 'Funcionário'}
+                          <ChevronDown className="w-3 h-3 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="bg-background">
+                        <DropdownMenuItem onClick={() => { setFilterByEmployee(null); setIsFiltersExpanded(false); }}>
+                          Todos
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { setFilterByEmployee('owner'); setIsFiltersExpanded(false); }}>
+                          Criados por mim
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {myEmployees.map(emp => (
+                          <DropdownMenuItem 
+                            key={emp.employee_user_id} 
+                            onClick={() => { setFilterByEmployee(emp.employee_user_id); setIsFiltersExpanded(false); }}
+                          >
+                            {emp.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               </TooltipProvider>
             </CollapsibleContent>
@@ -6289,6 +6353,13 @@ export default function Loans() {
                             {loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]') && (
                               <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-600/30 text-purple-300 border-purple-500/50 font-bold">
                                 📜 JUROS ANTIGOS
+                              </Badge>
+                            )}
+                            {/* Badge de funcionário criador (só para donos verem) */}
+                            {!isEmployee && loan.creator_employee && (
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-300 border-violet-500/50">
+                                <UserCheck className="w-2.5 h-2.5 mr-0.5" />
+                                {loan.creator_employee.name}
                               </Badge>
                             )}
                           </div>

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, TrendingUp, Wallet, PiggyBank } from 'lucide-react';
+import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, TrendingUp, Wallet, PiggyBank, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
@@ -314,14 +314,22 @@ export function LoansTableView({
                 )}
               >
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Avatar className="w-7 h-7">
-                      <AvatarImage src={getAvatarUrl(loan.client?.avatar_url, loan.client?.full_name || 'Cliente')} />
-                      <AvatarFallback className="text-xs bg-primary/10">{initials}</AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium text-sm truncate max-w-[120px] sm:max-w-[160px]">
-                      {loan.client?.full_name || 'Cliente'}
-                    </span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-7 h-7">
+                        <AvatarImage src={getAvatarUrl(loan.client?.avatar_url, loan.client?.full_name || 'Cliente')} />
+                        <AvatarFallback className="text-xs bg-primary/10">{initials}</AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium text-sm truncate max-w-[120px] sm:max-w-[160px]">
+                        {loan.client?.full_name || 'Cliente'}
+                      </span>
+                    </div>
+                    {loan.creator_employee && (
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 w-fit flex items-center gap-0.5">
+                        <UserCheck className="w-2.5 h-2.5" />
+                        {loan.creator_employee.name}
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>
