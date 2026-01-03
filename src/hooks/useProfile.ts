@@ -32,6 +32,9 @@ export interface Profile {
   billing_signature_name: string | null;
   // Company logo for PDFs
   company_logo_url: string | null;
+  // Employee management feature
+  employees_feature_enabled: boolean;
+  max_employees: number;
 }
 
 export function useProfile() {

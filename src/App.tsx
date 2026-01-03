@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import PvWhatsapp from "./pages/PvWhatsapp";
@@ -34,37 +35,39 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/pvwhatsapp" element={<PvWhatsapp />} />
-            <Route path="/aff" element={<Affiliate />} />
-            <Route path="/affid" element={<AffiliateId />} />
-            <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
-            <Route path="/quiz" element={<Quiz />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-            <Route path="/scores" element={<ProtectedRoute><ClientScores /></ProtectedRoute>} />
-            <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
-            <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
-            <Route path="/product-sales" element={<ProtectedRoute><ProductSales /></ProtectedRoute>} />
-            <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
-            <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><ReportsLoans /></ProtectedRoute>} />
-            <Route path="/reports-sales" element={<ProtectedRoute><ReportsSales /></ProtectedRoute>} />
-            <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
-            <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <EmployeeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/pvwhatsapp" element={<PvWhatsapp />} />
+              <Route path="/aff" element={<Affiliate />} />
+              <Route path="/affid" element={<AffiliateId />} />
+              <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
+              <Route path="/quiz" element={<Quiz />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+              <Route path="/scores" element={<ProtectedRoute><ClientScores /></ProtectedRoute>} />
+              <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
+              <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
+              <Route path="/product-sales" element={<ProtectedRoute><ProductSales /></ProtectedRoute>} />
+              <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><ReportsLoans /></ProtectedRoute>} />
+              <Route path="/reports-sales" element={<ProtectedRoute><ReportsSales /></ProtectedRoute>} />
+              <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
+              <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </EmployeeProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

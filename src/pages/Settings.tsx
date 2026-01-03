@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import EmployeeManagement from '@/components/EmployeeManagement';
+import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -34,6 +37,7 @@ const VOICE_PRIVILEGED_EMAILS = [
 export default function Settings() {
   const { user } = useAuth();
   const { profile, isProfileComplete, updateProfile } = useProfile();
+  const { isEmployee } = useEmployeeContext();
 
   // Check if user can access voice assistant (only recurring plans or privileged emails)
   const canAccessVoiceAssistant = (): boolean => {
@@ -952,6 +956,18 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
             )}
           </CardContent>
         </Card>
+        )}
+
+        {/* Employee Management Section */}
+        {!isEmployee && (
+          <EmployeeFeatureCard 
+            isUnlocked={profile?.employees_feature_enabled || false}
+            onUnlock={() => {
+              toast.info('Entre em contato para liberar este recurso');
+            }}
+          >
+            <EmployeeManagement />
+          </EmployeeFeatureCard>
         )}
       </div>
 
