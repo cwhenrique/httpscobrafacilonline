@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, Unlock, UserCheck, UserX, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
 
@@ -405,7 +405,7 @@ export default function EmployeeManagement() {
                             onClick={() => togglePermission(perm.key)}
                           >
                             {formPermissions.includes(perm.key) ? (
-                              <Unlock className="w-4 h-4" />
+                              <Check className="w-4 h-4" />
                             ) : (
                               <Lock className="w-4 h-4" />
                             )}
@@ -527,7 +527,7 @@ export default function EmployeeManagement() {
                       onClick={() => togglePermission(perm.key)}
                     >
                       {formPermissions.includes(perm.key) ? (
-                        <Unlock className="w-4 h-4" />
+                        <Check className="w-4 h-4" />
                       ) : (
                         <Lock className="w-4 h-4" />
                       )}
