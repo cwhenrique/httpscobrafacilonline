@@ -23,6 +23,41 @@ function cleanApiUrl(url: string): string {
   return cleaned;
 }
 
+// Check if this is an employee slot purchase
+function isEmployeeSlotPurchase(payload: any): boolean {
+  const productName = (
+    payload.data?.product?.name ||
+    payload.product?.name ||
+    payload.data?.offer?.name ||
+    payload.offer?.name ||
+    payload.product_name ||
+    payload.data?.item?.name ||
+    payload.item?.name ||
+    ''
+  ).toLowerCase();
+
+  const productId = (
+    payload.data?.product?.id ||
+    payload.product?.id ||
+    payload.data?.offer?.id ||
+    payload.offer_id ||
+    payload.data?.item?.id ||
+    ''
+  ).toLowerCase();
+
+  // Check for employee-related keywords
+  return (
+    productName.includes('funcionário') ||
+    productName.includes('funcionario') ||
+    productName.includes('employee') ||
+    productName.includes('colaborador') ||
+    productName.includes('sub-conta') ||
+    productName.includes('subconta') ||
+    productId.includes('employee') ||
+    productId.includes('funcionario')
+  );
+}
+
 // Determine subscription plan from Cakto payload
 function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | null } {
   // Log full payload for debugging
@@ -335,16 +370,111 @@ serve(async (req) => {
       );
     }
 
-    // Determine subscription plan
-    const { plan, expiresAt } = getSubscriptionPlan(payload);
-    console.log('Subscription plan determined:', { plan, expiresAt });
-
     // Initialize Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
+
+    // Check if this is an employee slot purchase
+    if (isEmployeeSlotPurchase(payload)) {
+      console.log('=== EMPLOYEE SLOT PURCHASE DETECTED ===');
+      
+      // Find user by email
+      const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers();
+      
+      if (searchError) {
+        console.error('Error searching for user:', searchError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to find user' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
+      
+      if (!existingUser) {
+        console.error('User not found for email:', customerEmail);
+        return new Response(
+          JSON.stringify({ error: 'User not found', email: customerEmail }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Found user:', existingUser.id);
+
+      // Get current profile
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('max_employees, employees_feature_enabled')
+        .eq('id', existingUser.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch profile' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const currentMax = currentProfile?.max_employees || 0;
+      const newMax = currentMax + 1;
+
+      console.log('Incrementing max_employees:', currentMax, '->', newMax);
+
+      // Update profile with new employee slot
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          employees_feature_enabled: true,
+          max_employees: newMax 
+        })
+        .eq('id', existingUser.id);
+
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to update employee slots' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('=== EMPLOYEE SLOT ADDED SUCCESSFULLY ===');
+
+      // Send confirmation via WhatsApp
+      if (customerPhone) {
+        const confirmMessage = `✅ *Slot de Funcionário Liberado!*
+
+Olá ${customerName || 'Cliente'}!
+
+Seu pagamento foi confirmado e agora você pode cadastrar mais 1 funcionário no CobraFácil.
+
+📊 *Total de slots:* ${newMax}
+
+Acesse o menu "Funcionários" para cadastrar seu colaborador.
+
+Obrigado pela confiança! 💚`;
+
+        await sendWhatsAppMessage(customerPhone, confirmMessage, 'SuporteApp');
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Employee slot added',
+          email: customerEmail,
+          max_employees: newMax
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Regular subscription purchase flow
+    // Determine subscription plan
+    const { plan, expiresAt } = getSubscriptionPlan(payload);
+    console.log('Subscription plan determined:', { plan, expiresAt });
 
     // Check if user already exists
     const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers();
