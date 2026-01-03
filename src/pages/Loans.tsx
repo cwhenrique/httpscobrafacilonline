@@ -37,6 +37,7 @@ import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
 import LoanCreatedReceiptPrompt from '@/components/LoanCreatedReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
@@ -442,6 +443,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
+  const { hasPermission } = useEmployeeContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
   const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
@@ -5528,13 +5530,15 @@ export default function Loans() {
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                 <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 sm:pl-10 h-9 sm:h-10 text-sm" />
               </div>
-              <Button 
-                size="sm" 
-                className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => handleDialogOpen(true)}
-              >
-                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Novo Empréstimo</span><span className="sm:hidden">Novo</span>
-              </Button>
+              {hasPermission('create_loans') && (
+                <Button 
+                  size="sm" 
+                  className="tutorial-new-loan gap-1.5 sm:gap-2 text-xs sm:text-sm h-9 sm:h-10 bg-green-500 hover:bg-green-600 text-white"
+                  onClick={() => handleDialogOpen(true)}
+                >
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Novo Empréstimo</span><span className="sm:hidden">Novo</span>
+                </Button>
+              )}
             </div>
 
           <div className="flex items-center justify-between gap-2 flex-wrap">

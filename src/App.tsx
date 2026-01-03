@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { PermissionRoute } from "@/components/PermissionRoute";
 import Landing from "./pages/Landing";
 import PvWhatsapp from "./pages/PvWhatsapp";
 import Affiliate from "./pages/Affiliate";
@@ -50,17 +51,17 @@ const App = () => (
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-              <Route path="/scores" element={<ProtectedRoute><ClientScores /></ProtectedRoute>} />
-              <Route path="/loans" element={<ProtectedRoute><Loans /></ProtectedRoute>} />
-              <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
-              <Route path="/product-sales" element={<ProtectedRoute><ProductSales /></ProtectedRoute>} />
-              <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
-              <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute><ReportsLoans /></ProtectedRoute>} />
-              <Route path="/reports-sales" element={<ProtectedRoute><ReportsSales /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute><PermissionRoute permission="view_clients"><Clients /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/scores" element={<ProtectedRoute><PermissionRoute permission="view_clients"><ClientScores /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/loans" element={<ProtectedRoute><PermissionRoute permission="view_loans"><Loans /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/bills" element={<ProtectedRoute><PermissionRoute permission="manage_bills"><Bills /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/product-sales" element={<ProtectedRoute><PermissionRoute permission="manage_products"><ProductSales /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/vehicles" element={<ProtectedRoute><PermissionRoute permission="manage_vehicles"><Vehicles /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><PermissionRoute permission="view_loans"><CalendarView /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsLoans /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/reports-sales" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsSales /></PermissionRoute></ProtectedRoute>} />
               <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><PermissionRoute permission="view_settings"><Settings /></PermissionRoute></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
               <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />

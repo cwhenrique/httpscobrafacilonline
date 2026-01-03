@@ -1,8 +1,8 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
-import { useEmployeeContext } from '@/hooks/useEmployeeContext';
+import { useEmployeeContext, EmployeePermission } from '@/hooks/useEmployeeContext';
 import { cn } from '@/lib/utils';
 import { ProfileSetupModal } from '@/components/ProfileSetupModal';
 import { SubscriptionExpiringBanner } from '@/components/SubscriptionExpiringBanner';
@@ -44,29 +44,53 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-const navigation = [
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission: EmployeePermission | null;
+  ownerOnly?: boolean;
+}
+
+const navigation: NavigationItem[] = [
   // Geral
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Clientes', href: '/clients', icon: Users },
-  { name: 'Score de Clientes', href: '/scores', icon: Award },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: null },
+  { name: 'Clientes', href: '/clients', icon: Users, permission: 'view_clients' },
+  { name: 'Score de Clientes', href: '/scores', icon: Award, permission: 'view_clients' },
   // Empréstimos
-  { name: 'Empréstimos', href: '/loans', icon: DollarSign },
-  { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3 },
-  { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar },
+  { name: 'Empréstimos', href: '/loans', icon: DollarSign, permission: 'view_loans' },
+  { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3, permission: 'view_reports' },
+  { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar, permission: 'view_loans' },
   // Vendas e Veículos
-  { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag },
-  { name: 'Veículos Registrados', href: '/vehicles', icon: Car },
-  { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp },
+  { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag, permission: 'manage_products' },
+  { name: 'Veículos Registrados', href: '/vehicles', icon: Car, permission: 'manage_vehicles' },
+  { name: 'Rel. Vendas', href: '/reports-sales', icon: TrendingUp, permission: 'view_reports' },
   // Contas e Ferramentas
-  { name: 'Simulador', href: '/simulator', icon: Calculator },
-  { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText },
-  { name: 'Funcionários', href: '/employees', icon: UserPlus },
-  { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap },
-  { name: 'Configurações', href: '/settings', icon: Settings },
+  { name: 'Simulador', href: '/simulator', icon: Calculator, permission: null },
+  { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText, permission: 'manage_bills' },
+  { name: 'Funcionários', href: '/employees', icon: UserPlus, permission: null, ownerOnly: true },
+  { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap, permission: null },
+  { name: 'Configurações', href: '/settings', icon: Settings, permission: 'view_settings' },
 ];
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, isEmployee, hasPermission }: { 
+  onNavigate?: () => void;
+  isEmployee: boolean;
+  hasPermission: (permission: EmployeePermission) => boolean;
+}) {
   const location = useLocation();
+
+  // Filtrar navegação baseado nas permissões
+  const filteredNavigation = useMemo(() => {
+    return navigation.filter(item => {
+      // Itens exclusivos do dono não aparecem para funcionários
+      if (item.ownerOnly && isEmployee) return false;
+      // Sem permissão definida = todos podem ver
+      if (!item.permission) return true;
+      // Verificar se tem a permissão necessária
+      return hasPermission(item.permission);
+    });
+  }, [isEmployee, hasPermission]);
 
   return (
     <div className="flex flex-col h-full">
@@ -110,7 +134,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <ScrollArea className="flex-1 px-3">
         <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
         <nav className="space-y-1">
-          {navigation.map((item) => {
+          {filteredNavigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <Link
@@ -151,7 +175,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { isProfileComplete, loading: profileLoading, refetch: refetchProfile } = useProfile();
-  const { isEmployee, employeeName } = useEmployeeContext();
+  const { isEmployee, employeeName, hasPermission } = useEmployeeContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -169,7 +193,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
         <div className="flex flex-col flex-grow bg-sidebar-background/40 backdrop-blur-md border-r border-sidebar-border overflow-hidden">
           <ScrollArea className="flex-1">
-            <SidebarContent />
+            <SidebarContent isEmployee={isEmployee} hasPermission={hasPermission} />
           </ScrollArea>
         </div>
       </aside>
@@ -184,7 +208,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-72 bg-sidebar-background/40 backdrop-blur-md border-sidebar-border">
-              <SidebarContent onNavigate={() => setMobileOpen(false)} />
+              <SidebarContent onNavigate={() => setMobileOpen(false)} isEmployee={isEmployee} hasPermission={hasPermission} />
             </SheetContent>
           </Sheet>
 
