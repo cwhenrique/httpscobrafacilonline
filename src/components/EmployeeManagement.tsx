@@ -58,6 +58,9 @@ export default function EmployeeManagement() {
   // Form state
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formConfirmPassword, setFormConfirmPassword] = useState('');
   const [formPermissions, setFormPermissions] = useState<EmployeePermission[]>([]);
 
   useEffect(() => {
@@ -116,12 +119,33 @@ export default function EmployeeManagement() {
   function resetForm() {
     setFormName('');
     setFormEmail('');
+    setFormPhone('');
+    setFormPassword('');
+    setFormConfirmPassword('');
     setFormPermissions([]);
+  }
+
+  function formatPhone(value: string) {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 11) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
   }
 
   async function handleAddEmployee() {
     if (!formName.trim() || !formEmail.trim()) {
       toast.error('Preencha nome e email');
+      return;
+    }
+
+    if (!formPassword || formPassword.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (formPassword !== formConfirmPassword) {
+      toast.error('As senhas não conferem');
       return;
     }
 
@@ -136,6 +160,8 @@ export default function EmployeeManagement() {
         body: {
           name: formName.trim(),
           email: formEmail.trim().toLowerCase(),
+          phone: formPhone.replace(/\D/g, ''),
+          password: formPassword,
           permissions: formPermissions,
         },
       });
@@ -143,10 +169,8 @@ export default function EmployeeManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success('Funcionário cadastrado!', {
-        description: data.tempPassword 
-          ? `Senha temporária: ${data.tempPassword}` 
-          : 'Funcionário vinculado com sucesso',
+      toast.success('Funcionário cadastrado com sucesso!', {
+        description: 'O funcionário pode acessar usando o email e senha definidos.',
       });
 
       setShowAddDialog(false);
@@ -280,7 +304,7 @@ export default function EmployeeManagement() {
 
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome</Label>
+                  <Label htmlFor="name">Nome *</Label>
                   <Input
                     id="name"
                     value={formName}
@@ -290,7 +314,7 @@ export default function EmployeeManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -298,9 +322,40 @@ export default function EmployeeManagement() {
                     onChange={e => setFormEmail(e.target.value)}
                     placeholder="email@exemplo.com"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Se não existir conta, será criada uma com senha temporária.
-                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formPhone}
+                    onChange={e => setFormPhone(formatPhone(e.target.value))}
+                    placeholder="(11) 99999-9999"
+                    maxLength={15}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha de Acesso *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formPassword}
+                    onChange={e => setFormPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirmar Senha *</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={formConfirmPassword}
+                    onChange={e => setFormConfirmPassword(e.target.value)}
+                    placeholder="Repita a senha"
+                  />
                 </div>
 
                 <div className="space-y-3">
