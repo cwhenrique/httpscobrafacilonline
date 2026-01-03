@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { cn } from '@/lib/utils';
 import { ProfileSetupModal } from '@/components/ProfileSetupModal';
 import { SubscriptionExpiringBanner } from '@/components/SubscriptionExpiringBanner';
@@ -34,6 +35,7 @@ import {
   TrendingUp,
   FileText,
   GraduationCap,
+  UserCheck,
 } from 'lucide-react';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -149,6 +151,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { isProfileComplete, loading: profileLoading, refetch: refetchProfile } = useProfile();
+  const { isEmployee, employeeName } = useEmployeeContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -188,6 +191,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="CobraFácil" className="w-6 h-6 rounded" />
             <span className="font-display font-bold">CobraFácil</span>
+            {isEmployee && (
+              <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                {employeeName}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -218,13 +226,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="min-h-screen pt-16 lg:pt-0 min-w-fit">
           {/* Desktop Header */}
           <header className="hidden lg:flex items-center justify-between px-8 py-4 border-b border-border bg-card">
-            <div>
-              <h2 className="text-lg font-display font-semibold">
-                Bem-vindo de volta!
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Gerencie seus empréstimos
-              </p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h2 className="text-lg font-display font-semibold">
+                  Bem-vindo de volta!
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Gerencie seus empréstimos
+                </p>
+              </div>
+              {isEmployee && (
+                <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800">
+                  <UserCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    Funcionário: {employeeName}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <NotificationCenter />
