@@ -8,6 +8,7 @@ import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
+import { AccessDebugPanel } from "@/components/AccessDebugPanel";
 import Landing from "./pages/Landing";
 import PvWhatsapp from "./pages/PvWhatsapp";
 import Affiliate from "./pages/Affiliate";
@@ -43,6 +44,8 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            {/* Painel de debug ativado via ?debugAccess=1 */}
+            <AccessDebugPanel />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/pvwhatsapp" element={<PvWhatsapp />} />

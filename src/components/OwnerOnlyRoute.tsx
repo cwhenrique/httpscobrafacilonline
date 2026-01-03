@@ -1,6 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loader2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 
 interface OwnerOnlyRouteProps {
   children: React.ReactNode;
@@ -8,6 +10,7 @@ interface OwnerOnlyRouteProps {
 
 export function OwnerOnlyRoute({ children }: OwnerOnlyRouteProps) {
   const { loading, isEmployee, isOwner } = useEmployeeContext();
+  const hasShownToast = useRef(false);
   
   // Aguardar até que o contexto termine de carregar
   if (loading) {
@@ -19,6 +22,15 @@ export function OwnerOnlyRoute({ children }: OwnerOnlyRouteProps) {
   }
   
   // Funcionários não podem acessar rotas de dono
+  useEffect(() => {
+    if (isEmployee && !hasShownToast.current) {
+      hasShownToast.current = true;
+      toast.error('Somente o dono da conta pode acessar esta página', {
+        duration: 4000,
+      });
+    }
+  }, [isEmployee]);
+  
   if (isEmployee) {
     return <Navigate to="/dashboard" replace />;
   }

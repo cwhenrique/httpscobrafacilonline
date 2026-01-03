@@ -1,6 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useEmployeeContext, EmployeePermission } from '@/hooks/useEmployeeContext';
 import { Loader2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 
 interface PermissionRouteProps {
   permission: EmployeePermission;
@@ -8,7 +10,8 @@ interface PermissionRouteProps {
 }
 
 export function PermissionRoute({ permission, children }: PermissionRouteProps) {
-  const { hasPermission, loading, isEmployee, isOwner } = useEmployeeContext();
+  const { hasPermission, loading, isEmployee } = useEmployeeContext();
+  const hasShownToast = useRef(false);
   
   // Aguardar até que o contexto termine de carregar
   if (loading) {
@@ -19,11 +22,19 @@ export function PermissionRoute({ permission, children }: PermissionRouteProps) 
     );
   }
   
-  // hasPermission já cuida de tudo:
-  // - dono confirmado = true
-  // - funcionário = verifica lista de permissões
-  // - estado indeterminado = false
-  if (!hasPermission(permission)) {
+  const hasPerm = hasPermission(permission);
+  
+  // Mostrar toast de bloqueio para funcionários
+  useEffect(() => {
+    if (!hasPerm && isEmployee && !hasShownToast.current) {
+      hasShownToast.current = true;
+      toast.error(`Acesso negado: você não tem permissão "${permission}"`, {
+        duration: 4000,
+      });
+    }
+  }, [hasPerm, isEmployee, permission]);
+  
+  if (!hasPerm) {
     return <Navigate to="/dashboard" replace />;
   }
   
