@@ -1,12 +1,15 @@
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Loader2, ShieldCheck, Rocket, CreditCard, Lock, EyeOff, Shield, Settings } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Users, Loader2, ShieldCheck, Rocket, CreditCard, Lock, EyeOff, Shield, Settings, Plus } from 'lucide-react';
 
 interface EmployeeFeatureCardProps {
   isUnlocked: boolean;
   onUnlock: () => void;
   isAdmin?: boolean;
   isLoading?: boolean;
+  currentEmployees?: number;
+  maxEmployees?: number;
   children?: React.ReactNode;
 }
 
@@ -15,10 +18,62 @@ export default function EmployeeFeatureCard({
   onUnlock, 
   isAdmin = false,
   isLoading = false,
+  currentEmployees = 0,
+  maxEmployees = 0,
   children 
 }: EmployeeFeatureCardProps) {
   if (isUnlocked) {
-    return <>{children}</>;
+    const usagePercent = maxEmployees > 0 ? (currentEmployees / maxEmployees) * 100 : 0;
+    const availableSlots = maxEmployees - currentEmployees;
+
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Slots de Funcionários</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {currentEmployees} de {maxEmployees} {maxEmployees === 1 ? 'slot utilizado' : 'slots utilizados'}
+                  </p>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onUnlock}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Liberar Mais 1
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              <Progress value={usagePercent} className="h-2" />
+              <p className="text-xs text-muted-foreground">
+                {availableSlots > 0 
+                  ? `Você pode adicionar mais ${availableSlots} ${availableSlots === 1 ? 'funcionário' : 'funcionários'}`
+                  : 'Todos os slots estão em uso. Libere mais para adicionar funcionários.'
+                }
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        {children}
+      </div>
+    );
   }
 
   return (

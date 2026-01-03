@@ -19,6 +19,7 @@ export default function Employees() {
   const { isEmployee, loading: employeeLoading } = useEmployeeContext();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [employeeCount, setEmployeeCount] = useState(0);
 
   // Verificar se o usuário é admin
   useEffect(() => {
@@ -48,6 +49,24 @@ export default function Employees() {
 
     checkAdminStatus();
   }, [user]);
+
+  // Buscar contagem de funcionários
+  useEffect(() => {
+    async function fetchEmployeeCount() {
+      if (!user) return;
+
+      const { count, error } = await supabase
+        .from('employees')
+        .select('*', { count: 'exact', head: true })
+        .eq('owner_id', user.id);
+
+      if (!error && count !== null) {
+        setEmployeeCount(count);
+      }
+    }
+
+    fetchEmployeeCount();
+  }, [user, profile]);
 
   // Aguardar carregamento do contexto de funcionário
   if (employeeLoading) {
@@ -116,6 +135,8 @@ export default function Employees() {
           onUnlock={handleUnlockEmployee}
           isAdmin={isAdmin}
           isLoading={checkingAdmin}
+          currentEmployees={employeeCount}
+          maxEmployees={profile?.max_employees || 0}
         >
           <EmployeeManagement />
         </EmployeeFeatureCard>
