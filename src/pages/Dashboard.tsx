@@ -180,27 +180,28 @@ export default function Dashboard() {
 
         {/* Employee Feature Promo - Only for owners */}
         {!isEmployee && isOwner && (
-          <Card className="shadow-soft border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/10">
+          <Card className="shadow-soft border-amber-500/50 bg-gradient-to-r from-amber-900 to-amber-800">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-amber-500/10">
-                    <UserPlus className="w-6 h-6 text-amber-600" />
+                  <div className="p-3 rounded-xl bg-amber-500/20">
+                    <UserPlus className="w-6 h-6 text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="font-display font-semibold text-lg">Expanda seu Negócio!</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Adicione funcionários para ajudar no dia a dia. Você controla o que cada um pode ver.
+                    <h3 className="font-display font-semibold text-lg text-amber-100">Expanda seu Negócio!</h3>
+                    <p className="text-sm text-amber-200/80 mt-1">
+                      Adicione funcionários para ajudar no dia a dia. A partir de R$ 35,90/mês.
                     </p>
-                    <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">✓ Visibilidade controlada</span>
-                      <span className="flex items-center gap-1">✓ Dashboard protegido</span>
-                      <span className="flex items-center gap-1">✓ A partir de R$ 35,90</span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-amber-200/90">
+                      <span className="flex items-center gap-1">✓ Controle total de permissões</span>
+                      <span className="flex items-center gap-1">✓ Acompanhamento de produtividade</span>
+                      <span className="flex items-center gap-1">✓ Notificações via WhatsApp</span>
+                      <span className="flex items-center gap-1">✓ Relatórios por funcionário</span>
                     </div>
                   </div>
                 </div>
                 <Link to="/employees">
-                  <Button className="gap-2 bg-amber-600 hover:bg-amber-700">
+                  <Button className="gap-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold">
                     Ver Funcionários
                     <ArrowUpRight className="w-4 h-4" />
                   </Button>
