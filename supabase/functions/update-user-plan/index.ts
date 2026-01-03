@@ -18,7 +18,7 @@ serve(async (req) => {
       throw new Error('userId e newPlan são obrigatórios');
     }
 
-    const validPlans = ['trial', 'monthly', 'annual', 'lifetime'];
+    const validPlans = ['trial', 'monthly', 'quarterly', 'annual', 'lifetime'];
     if (!validPlans.includes(newPlan)) {
       throw new Error('Plano inválido');
     }
@@ -40,6 +40,9 @@ serve(async (req) => {
       subscriptionExpiresAt = null;
     } else if (newPlan === 'monthly') {
       subscriptionExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      trialExpiresAt = null;
+    } else if (newPlan === 'quarterly') {
+      subscriptionExpiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
       trialExpiresAt = null;
     } else if (newPlan === 'annual') {
       subscriptionExpiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();

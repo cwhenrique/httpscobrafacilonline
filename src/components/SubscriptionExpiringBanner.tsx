@@ -28,7 +28,7 @@ export function SubscriptionExpiringBanner() {
 
     return {
       days: diffDays,
-      plan: plan === 'monthly' ? 'mensal' : 'anual',
+      plan: plan === 'monthly' ? 'mensal' : plan === 'quarterly' ? 'trimestral' : 'anual',
     };
   }, [profile]);
 

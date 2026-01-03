@@ -36,6 +36,10 @@ serve(async (req) => {
         expiresAt.setDate(expiresAt.getDate() + 30);
         planDescription = '30 dias (Mensal)';
         break;
+      case 'quarterly':
+        expiresAt.setDate(expiresAt.getDate() + 90);
+        planDescription = '90 dias (Trimestral)';
+        break;
       case 'annual':
         expiresAt.setDate(expiresAt.getDate() + 365);
         planDescription = '1 ano (Anual)';
@@ -81,7 +85,7 @@ serve(async (req) => {
       profileUpdate.trial_expires_at = null;
       profileUpdate.subscription_expires_at = null;
     } else {
-      // monthly or annual
+      // monthly, quarterly or annual
       profileUpdate.trial_expires_at = null;
       profileUpdate.subscription_expires_at = expiresAt?.toISOString();
     }

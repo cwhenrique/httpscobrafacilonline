@@ -39,16 +39,16 @@ export default function CreateTrialUser() {
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'annual' | 'lifetime'>('all');
+  const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('all');
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'annual' | 'lifetime'>('trial');
+  const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('trial');
   const [updatingPlan, setUpdatingPlan] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
     password: '',
-    subscription_plan: 'trial' as 'trial' | 'monthly' | 'annual' | 'lifetime'
+    subscription_plan: 'trial' as 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'
   });
 
   useEffect(() => {
@@ -103,6 +103,7 @@ export default function CreateTrialUser() {
       all: users.length,
       trial: users.filter(u => u.subscription_plan === 'trial' || !u.subscription_plan).length,
       monthly: users.filter(u => u.subscription_plan === 'monthly').length,
+      quarterly: users.filter(u => u.subscription_plan === 'quarterly').length,
       annual: users.filter(u => u.subscription_plan === 'annual').length,
       lifetime: users.filter(u => u.subscription_plan === 'lifetime').length,
     };
@@ -115,6 +116,8 @@ export default function CreateTrialUser() {
     if (planFilter !== 'all') {
       if (planFilter === 'trial') {
         result = result.filter(user => user.subscription_plan === 'trial' || !user.subscription_plan);
+      } else if (planFilter === 'quarterly') {
+        result = result.filter(user => user.subscription_plan === 'quarterly');
       } else {
         result = result.filter(user => user.subscription_plan === planFilter);
       }
@@ -175,6 +178,7 @@ export default function CreateTrialUser() {
       const planLabels = {
         trial: '24 horas (Trial)',
         monthly: '30 dias (Mensal)',
+        quarterly: '90 dias (Trimestral)',
         annual: '1 ano (Anual)',
         lifetime: 'Vitalício'
       };
@@ -257,7 +261,7 @@ export default function CreateTrialUser() {
 
   const handleEditPlan = (user: User) => {
     setEditingUser(user);
-    setNewPlan((user.subscription_plan as 'trial' | 'monthly' | 'annual' | 'lifetime') || 'trial');
+    setNewPlan((user.subscription_plan as 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime') || 'trial');
   };
 
   const handleUpdatePlan = async () => {
@@ -278,6 +282,7 @@ export default function CreateTrialUser() {
       const planLabels = {
         trial: 'Trial (24h)',
         monthly: 'Mensal',
+        quarterly: 'Trimestral',
         annual: 'Anual',
         lifetime: 'Vitalício',
       };
@@ -346,6 +351,17 @@ export default function CreateTrialUser() {
         };
       }
       return { label: 'Anual Expirado', className: 'bg-destructive/20 text-destructive' };
+    }
+
+    if (user.subscription_plan === 'quarterly') {
+      const expiresAt = user.subscription_expires_at ? new Date(user.subscription_expires_at) : null;
+      if (expiresAt && expiresAt > new Date()) {
+        return { 
+          label: `Trimestral até ${format(expiresAt, "dd/MM/yy", { locale: ptBR })}`, 
+          className: 'bg-cyan-500/20 text-cyan-500' 
+        };
+      }
+      return { label: 'Trimestral Expirado', className: 'bg-destructive/20 text-destructive' };
     }
 
     if (user.subscription_plan === 'monthly') {
@@ -508,7 +524,7 @@ export default function CreateTrialUser() {
                   <Label>Tipo de Plano</Label>
                   <Select
                     value={formData.subscription_plan}
-                    onValueChange={(value: 'trial' | 'monthly' | 'annual' | 'lifetime') => 
+                    onValueChange={(value: 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime') => 
                       setFormData(prev => ({ ...prev, subscription_plan: value }))
                     }
                     disabled={loading}
@@ -519,6 +535,7 @@ export default function CreateTrialUser() {
                     <SelectContent>
                       <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
                       <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
+                      <SelectItem value="quarterly">📆 Trimestral (90 dias)</SelectItem>
                       <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
                       <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
                     </SelectContent>
@@ -536,6 +553,7 @@ export default function CreateTrialUser() {
                       <UserPlus className="w-4 h-4 mr-2" />
                       {formData.subscription_plan === 'trial' && 'Criar Usuário Trial'}
                       {formData.subscription_plan === 'monthly' && 'Criar Usuário Mensal'}
+                      {formData.subscription_plan === 'quarterly' && 'Criar Usuário Trimestral'}
                       {formData.subscription_plan === 'annual' && 'Criar Usuário Anual'}
                       {formData.subscription_plan === 'lifetime' && 'Criar Usuário Vitalício'}
                     </>
@@ -607,6 +625,14 @@ export default function CreateTrialUser() {
                   className={planFilter === 'monthly' ? 'bg-purple-500 hover:bg-purple-600 text-white' : 'border-purple-500/50 text-purple-500 hover:bg-purple-500/10'}
                 >
                   📅 Mensal ({planCounts.monthly})
+                </Button>
+                <Button
+                  variant={planFilter === 'quarterly' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('quarterly')}
+                  className={planFilter === 'quarterly' ? 'bg-cyan-500 hover:bg-cyan-600 text-white' : 'border-cyan-500/50 text-cyan-500 hover:bg-cyan-500/10'}
+                >
+                  📆 Trimestral ({planCounts.quarterly})
                 </Button>
                 <Button
                   variant={planFilter === 'annual' ? 'default' : 'outline'}
@@ -750,7 +776,7 @@ export default function CreateTrialUser() {
               <Label>Novo Plano</Label>
               <Select
                 value={newPlan}
-                onValueChange={(value: 'trial' | 'monthly' | 'annual' | 'lifetime') => setNewPlan(value)}
+                onValueChange={(value: 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime') => setNewPlan(value)}
                 disabled={updatingPlan}
               >
                 <SelectTrigger>
@@ -759,6 +785,7 @@ export default function CreateTrialUser() {
                 <SelectContent>
                   <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
                   <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
+                  <SelectItem value="quarterly">📆 Trimestral (90 dias)</SelectItem>
                   <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
                   <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
                 </SelectContent>
@@ -768,6 +795,7 @@ export default function CreateTrialUser() {
             <p className="text-sm text-muted-foreground">
               {newPlan === 'trial' && 'O usuário terá acesso por mais 24 horas a partir de agora.'}
               {newPlan === 'monthly' && 'O usuário terá acesso por mais 30 dias a partir de agora.'}
+              {newPlan === 'quarterly' && 'O usuário terá acesso por mais 90 dias a partir de agora.'}
               {newPlan === 'annual' && 'O usuário terá acesso por mais 365 dias a partir de agora.'}
               {newPlan === 'lifetime' && 'O usuário terá acesso vitalício, sem data de expiração.'}
             </p>
