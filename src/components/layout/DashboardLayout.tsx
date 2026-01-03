@@ -56,7 +56,7 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   // Geral
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: null },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
   { name: 'Clientes', href: '/clients', icon: Users, permission: 'view_clients' },
   { name: 'Score de Clientes', href: '/scores', icon: Award, permission: 'view_clients' },
   // Empréstimos
