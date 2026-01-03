@@ -26,6 +26,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import Tutorials from "./pages/Tutorials";
+import Quiz from "./pages/Quiz";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/aff" element={<Affiliate />} />
             <Route path="/affid" element={<AffiliateId />} />
             <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
+            <Route path="/quiz" element={<Quiz />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
