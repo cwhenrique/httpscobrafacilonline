@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 
 interface RegisterMessageParams {
   loanId: string;
@@ -12,18 +13,19 @@ interface RegisterMessageParams {
 
 export function useWhatsappMessages(loanId?: string) {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   const { data: messageCount = 0, isLoading } = useQuery({
-    queryKey: ['whatsapp-messages', loanId],
+    queryKey: ['whatsapp-messages', effectiveUserId, loanId],
     queryFn: async () => {
-      if (!loanId || !user) return 0;
+      if (!loanId || !effectiveUserId) return 0;
       
       const { count, error } = await supabase
         .from('whatsapp_messages')
         .select('*', { count: 'exact', head: true })
         .eq('loan_id', loanId)
-        .eq('user_id', user.id);
+        .eq('user_id', effectiveUserId);
       
       if (error) {
         console.error('Error fetching message count:', error);
@@ -32,17 +34,17 @@ export function useWhatsappMessages(loanId?: string) {
       
       return count || 0;
     },
-    enabled: !!loanId && !!user,
+    enabled: !!loanId && !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const registerMutation = useMutation({
     mutationFn: async (params: RegisterMessageParams) => {
-      if (!user) throw new Error('User not authenticated');
+      if (!effectiveUserId) throw new Error('User not authenticated');
       
       const { error } = await supabase
         .from('whatsapp_messages')
         .insert({
-          user_id: user.id,
+          user_id: effectiveUserId,
           loan_id: params.loanId,
           contract_type: params.contractType,
           message_type: params.messageType,

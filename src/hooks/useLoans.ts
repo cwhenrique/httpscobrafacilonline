@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Loan, LoanPayment, InterestType, LoanPaymentType } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { updateClientScore } from '@/lib/updateClientScore';
 
@@ -109,6 +110,7 @@ const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
 
 export function useLoans() {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   // Use React Query for fetching loans with shared cache
@@ -117,9 +119,9 @@ export function useLoans() {
     isLoading: loading,
     refetch: fetchLoans
   } = useQuery({
-    queryKey: ['loans', user?.id],
-    queryFn: () => fetchLoansFromDB(user!.id),
-    enabled: !!user,
+    queryKey: ['loans', effectiveUserId],
+    queryFn: () => fetchLoansFromDB(effectiveUserId!),
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -145,7 +147,7 @@ export function useLoans() {
     total_interest?: number;
     send_creation_notification?: boolean;
   }) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     console.log('createLoan received loan object:', JSON.stringify(loan, null, 2));
     console.log('loan.remaining_balance:', loan.remaining_balance, 'type:', typeof loan.remaining_balance);
@@ -177,8 +179,8 @@ export function useLoans() {
       start_date: loan.start_date,
       due_date: loan.due_date,
       notes: loan.notes || null,
-      user_id: user.id,
-      remaining_balance: (loan.remaining_balance !== undefined && loan.remaining_balance !== null) 
+      user_id: effectiveUserId,
+      remaining_balance: (loan.remaining_balance !== undefined && loan.remaining_balance !== null)
         ? loan.remaining_balance 
         : (loan.principal_amount + (loan.total_interest || 0)),
       total_interest: (loan.total_interest !== undefined && loan.total_interest !== null) 
@@ -225,7 +227,7 @@ export function useLoans() {
     notes?: string;
     send_notification?: boolean;
   }) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     // Extract send_notification before inserting (not a DB column)
     const { send_notification, ...paymentData } = payment;
@@ -234,7 +236,7 @@ export function useLoans() {
       .from('loan_payments')
       .insert({
         ...paymentData,
-        user_id: user.id,
+        user_id: effectiveUserId,
       })
       .select()
       .single();
@@ -270,7 +272,7 @@ export function useLoans() {
       const isInterestOnlyPayment = payment.notes?.includes('[INTEREST_ONLY_PAYMENT]');
       
       // Create notification for payment received
-      await createNotificationRecord(user.id, {
+      await createNotificationRecord(effectiveUserId, {
         title: isInterestOnlyPayment 
           ? '💰 Pagamento de Juros' 
           : (isPaidOff ? '✅ Empréstimo Quitado!' : '💰 Pagamento Recebido'),
@@ -286,7 +288,7 @@ export function useLoans() {
       
       // Send WhatsApp notification for payment received - only if enabled
       if (send_notification) {
-        const phone = await getUserPhone(user.id);
+        const phone = await getUserPhone(effectiveUserId);
         if (phone) {
           let message: string;
           
@@ -359,7 +361,7 @@ export function useLoans() {
     total_interest?: number;
     send_notification?: boolean;
   }) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     // Get loan info before update for notification
     const { data: loanData } = await supabase
@@ -435,7 +437,7 @@ export function useLoans() {
       
       // Send WhatsApp notification for renegotiation - only if enabled
       if (data.send_notification) {
-        const phone = await getUserPhone(user.id);
+        const phone = await getUserPhone(effectiveUserId);
         if (phone) {
           let message = `🔄 *Empréstimo Renegociado*\n\n`;
           message += `👤 Cliente: *${clientName}*\n`;
@@ -480,7 +482,7 @@ export function useLoans() {
     send_notification?: boolean;
     is_renegotiation?: boolean;
   }) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     // Get loan info before update for notification
     const { data: oldLoanData } = await supabase
@@ -552,7 +554,7 @@ export function useLoans() {
       const totalToReceive = data.principal_amount + totalInterest;
       const installmentValue = totalToReceive / numInstallments;
       
-      const phone = await getUserPhone(user.id);
+      const phone = await getUserPhone(effectiveUserId);
       if (phone) {
         let message = '';
         
@@ -606,7 +608,7 @@ export function useLoans() {
   };
 
   const deletePayment = async (paymentId: string, loanId: string) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     // 1. Fetch payment data first
     const { data: paymentData, error: fetchError } = await supabase
@@ -772,7 +774,7 @@ export function useLoans() {
 
   // Update payment date
   const updatePaymentDate = async (paymentId: string, newDate: string) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     const { error } = await supabase
       .from('loan_payments')
@@ -795,7 +797,7 @@ export function useLoans() {
     extraCount: number,
     newDates: string[]
   ) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
     // 1. Fetch current loan data
     const { data: loanData, error: fetchError } = await supabase

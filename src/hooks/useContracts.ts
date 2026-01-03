@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { addDays, addWeeks, addMonths } from 'date-fns';
 
@@ -93,51 +94,50 @@ function calculateNextPaymentDate(baseDate: Date, frequency: string, index: numb
 
 export function useContracts() {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   const { data: contracts = [], isLoading, error } = useQuery({
-    queryKey: ['contracts', user?.id],
+    queryKey: ['contracts', effectiveUserId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!effectiveUserId) return [];
       
       const { data, error } = await supabase
         .from('contracts')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Contract[];
     },
-    enabled: !!user,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   // Query para buscar todos os pagamentos de contratos do usuário
   const { data: allContractPayments = [] } = useQuery({
-    queryKey: ['all_contract_payments', user?.id],
+    queryKey: ['all_contract_payments', effectiveUserId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!effectiveUserId) return [];
       
       const { data, error } = await supabase
         .from('contract_payments')
-        .select('*')
-        .eq('user_id', user.id);
+        .select('*');
 
       if (error) throw error;
       return data as ContractPayment[];
     },
-    enabled: !!user,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const createContract = useMutation({
     mutationFn: async (contractData: CreateContractData) => {
-      if (!user) throw new Error('User not authenticated');
+      if (!effectiveUserId) throw new Error('User not authenticated');
 
       // Create the contract
       const { data: contract, error: contractError } = await supabase
         .from('contracts')
         .insert({
-          user_id: user.id,
+          user_id: effectiveUserId,
           ...contractData,
         })
         .select()
@@ -154,7 +154,7 @@ export function useContracts() {
         const dueDate = calculateNextPaymentDate(firstPaymentDate, contractData.frequency, i);
         payments.push({
           contract_id: contract.id,
-          user_id: user.id,
+          user_id: effectiveUserId,
           installment_number: i + 1,
           amount: installmentAmount,
           due_date: dueDate.toISOString().split('T')[0],

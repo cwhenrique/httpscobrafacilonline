@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { PaymentStatus } from '@/types/database';
 
@@ -76,33 +77,33 @@ export interface UpdateBillData {
 
 export function useBills() {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const queryClient = useQueryClient();
 
   const { data: bills = [], isLoading, error } = useQuery({
-    queryKey: ['bills', user?.id],
+    queryKey: ['bills', effectiveUserId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!effectiveUserId) return [];
       
       const { data, error } = await supabase
         .from('bills')
         .select('*')
-        .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
       if (error) throw error;
       return data as Bill[];
     },
-    enabled: !!user?.id,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const createBill = useMutation({
     mutationFn: async (data: CreateBillData) => {
-      if (!user?.id) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       const { data: newBill, error } = await supabase
         .from('bills')
         .insert({
-          user_id: user.id,
+          user_id: effectiveUserId,
           description: data.description,
           payee_name: data.payee_name,
           amount: data.amount,

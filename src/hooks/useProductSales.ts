@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { useToast } from '@/hooks/use-toast';
 import { addMonths, format, parseISO } from 'date-fns';
 
@@ -93,29 +94,29 @@ export interface UpdateProductSaleData {
 
 export function useProductSales() {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: sales, isLoading, error } = useQuery({
-    queryKey: ['product-sales', user?.id],
+    queryKey: ['product-sales', effectiveUserId],
     queryFn: async () => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       const { data, error } = await supabase
         .from('product_sales')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as ProductSale[];
     },
-    enabled: !!user,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const createSale = useMutation({
     mutationFn: async (saleData: CreateProductSaleData) => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       const downPayment = saleData.down_payment || 0;
       const remainingBalance = saleData.total_amount - downPayment;
@@ -124,7 +125,7 @@ export function useProductSales() {
       const { data: sale, error: saleError } = await supabase
         .from('product_sales')
         .insert({
-          user_id: user.id,
+          user_id: effectiveUserId,
           product_name: saleData.product_name,
           product_description: saleData.product_description,
           client_name: saleData.client_name,
@@ -166,7 +167,7 @@ export function useProductSales() {
         
         payments.push({
           product_sale_id: sale.id,
-          user_id: user.id,
+          user_id: effectiveUserId,
           amount: saleData.installment_value,
           installment_number: i + 1,
           due_date: dueDate,
@@ -227,7 +228,7 @@ Obrigado pela preferência! 🙏`;
 
           await supabase.functions.invoke('send-whatsapp-to-client', {
             body: {
-              userId: user?.id,
+              userId: effectiveUserId,
               clientPhone: saleData.client_phone,
               message: message,
             },
@@ -295,9 +296,9 @@ Obrigado pela preferência! 🙏`;
     }: { 
       id: string; 
       data: UpdateProductSaleData;
-      payments?: InstallmentDate[];
+    payments?: InstallmentDate[];
     }) => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       // 1. Update product sale basic data
       const { error: saleError } = await supabase
@@ -335,7 +336,7 @@ Obrigado pela preferência! 🙏`;
         // Insert new payments
         const newPayments = payments.map(p => ({
           product_sale_id: id,
-          user_id: user.id,
+          user_id: effectiveUserId,
           installment_number: p.number,
           amount: p.amount || data.installment_value || 0,
           due_date: p.date,
@@ -426,18 +427,18 @@ Obrigado pela preferência! 🙏`;
 
 export function useProductSalePayments(saleId?: string) {
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: payments, isLoading, error } = useQuery({
-    queryKey: ['product-sale-payments', user?.id, saleId],
+    queryKey: ['product-sale-payments', effectiveUserId, saleId],
     queryFn: async () => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       let query = supabase
         .from('product_sale_payments')
         .select('*, productSale:product_sales(*)')
-        .eq('user_id', user.id)
         .order('due_date', { ascending: true });
 
       if (saleId) {
@@ -449,12 +450,12 @@ export function useProductSalePayments(saleId?: string) {
       if (error) throw error;
       return data as ProductSalePayment[];
     },
-    enabled: !!user,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
   const markAsPaid = useMutation({
     mutationFn: async ({ paymentId, paidDate }: { paymentId: string; paidDate: string }) => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
       // Get payment details
       const { data: payment, error: fetchError } = await supabase
