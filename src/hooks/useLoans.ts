@@ -105,7 +105,23 @@ const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
     throw error;
   }
   
-  return data as Loan[];
+  // Buscar informações dos funcionários criadores
+  const creatorIds = [...new Set((data || []).map(l => l.created_by).filter(Boolean))];
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('employee_user_id, name, email')
+    .in('employee_user_id', creatorIds);
+  
+  const employeeMap = new Map(employees?.map(e => [e.employee_user_id, { name: e.name, email: e.email }]) || []);
+  
+  // Mapear creator_employee para cada loan
+  return (data || []).map(loan => ({
+    ...loan,
+    // Só adiciona creator_employee se foi criado por alguém diferente do dono
+    creator_employee: loan.created_by !== loan.user_id 
+      ? employeeMap.get(loan.created_by) || null 
+      : null
+  })) as Loan[];
 };
 
 export function useLoans() {
