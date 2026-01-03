@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -27,6 +27,7 @@ interface EmployeeContextType {
   effectiveUserId: string | null;
   loading: boolean;
   employeeName: string | null;
+  refreshContext: () => Promise<void>;
 }
 
 const EmployeeContext = createContext<EmployeeContextType | undefined>(undefined);
@@ -48,137 +49,123 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<EmployeePermission[]>([]);
   const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Track which user we last checked to avoid duplicate calls
-  const lastCheckedUserRef = useRef<string | null>(null);
+  const [contextReady, setContextReady] = useState(false);
 
-  useEffect(() => {
-    async function checkEmployeeStatus() {
-      // Se não há usuário, resetar tudo
-      if (!user) {
-        console.log('[EmployeeContext] Sem usuário, resetando estado');
-        setLoading(false);
+  const fetchEmployeeContext = useCallback(async (userId: string) => {
+    console.log('[EmployeeContext] Buscando contexto para:', userId);
+    setLoading(true);
+    
+    try {
+      const { data, error } = await supabase.rpc('get_employee_context', { _user_id: userId });
+
+      if (error) {
+        console.error('[EmployeeContext] Erro RPC:', error);
+        // Em erro, assume dono por segurança (para não bloquear tudo)
         setIsEmployee(false);
-        setIsOwner(false);
+        setIsOwner(true);
         setOwnerId(null);
         setPermissions([]);
         setEmployeeName(null);
-        lastCheckedUserRef.current = null;
         return;
       }
 
-      // Se já verificamos este usuário, não verificar novamente
-      if (lastCheckedUserRef.current === user.id) {
-        console.log('[EmployeeContext] Usuário já verificado:', user.id);
-        return;
+      const result = Array.isArray(data) ? data[0] : data;
+      
+      if (!result || !result.is_employee) {
+        // Não é funcionário = é DONO
+        console.log('[EmployeeContext] ✓ Usuário é DONO (não é funcionário)');
+        setIsEmployee(false);
+        setIsOwner(true);
+        setOwnerId(null);
+        setPermissions([]);
+        setEmployeeName(null);
+      } else {
+        // É funcionário
+        const ctx = result as EmployeeContextResult;
+        console.log('[EmployeeContext] ✓ FUNCIONÁRIO detectado:', ctx.employee_name);
+        console.log('[EmployeeContext] Permissões:', ctx.permissions);
+        
+        setIsEmployee(true);
+        setIsOwner(false);
+        setOwnerId(ctx.owner_id);
+        setEmployeeName(ctx.employee_name);
+        
+        if (!ctx.is_active) {
+          console.warn('[EmployeeContext] Funcionário INATIVO');
+          setPermissions([]);
+        } else {
+          setPermissions((ctx.permissions || []) as EmployeePermission[]);
+        }
       }
+    } catch (err) {
+      console.error('[EmployeeContext] Erro crítico:', err);
+      // Em erro crítico, assume dono
+      setIsEmployee(false);
+      setIsOwner(true);
+    } finally {
+      setLoading(false);
+      setContextReady(true);
+    }
+  }, []);
 
-      console.log('[EmployeeContext] Iniciando verificação para:', user.email, user.id);
+  // Método público para forçar refresh
+  const refreshContext = useCallback(async () => {
+    if (user?.id) {
+      await fetchEmployeeContext(user.id);
+    }
+  }, [user?.id, fetchEmployeeContext]);
 
-      // Marcar que estamos verificando este usuário
-      lastCheckedUserRef.current = user.id;
-
-      // Resetar para estado de loading
-      setLoading(true);
+  // Carregar contexto quando usuário muda
+  useEffect(() => {
+    if (!user) {
+      console.log('[EmployeeContext] Sem usuário, resetando');
+      setLoading(false);
       setIsEmployee(false);
       setIsOwner(false);
       setOwnerId(null);
       setPermissions([]);
       setEmployeeName(null);
-
-      try {
-        // Usar a função RPC segura para obter contexto do funcionário
-        console.log('[EmployeeContext] Chamando RPC get_employee_context...');
-        const { data, error } = await supabase
-          .rpc('get_employee_context', { _user_id: user.id });
-
-        console.log('[EmployeeContext] Resultado da RPC:', { data, error });
-
-        if (error) {
-          console.error('[EmployeeContext] Erro ao chamar get_employee_context:', error);
-          // Em caso de erro, deixar em estado indeterminado (bloqueado)
-          setLoading(false);
-          return;
-        }
-
-        // A RPC retorna um array, pegamos o primeiro resultado
-        const result = Array.isArray(data) ? data[0] : data;
-        
-        if (!result) {
-          console.log('[EmployeeContext] RPC retornou vazio - tratando como DONO');
-          setIsEmployee(false);
-          setIsOwner(true);
-          setLoading(false);
-          return;
-        }
-
-        const ctx = result as EmployeeContextResult;
-        console.log('[EmployeeContext] Contexto recebido:', ctx);
-
-        if (ctx.is_employee) {
-          // Usuário É um funcionário
-          console.log('[EmployeeContext] ✓ FUNCIONÁRIO DETECTADO:', ctx.employee_name);
-          setIsEmployee(true);
-          setIsOwner(false);
-          setOwnerId(ctx.owner_id);
-          setEmployeeName(ctx.employee_name);
-          
-          if (!ctx.is_active) {
-            console.warn('[EmployeeContext] Funcionário INATIVO - sem permissões');
-            setPermissions([]);
-          } else {
-            const permList = (ctx.permissions || []) as EmployeePermission[];
-            console.log('[EmployeeContext] Permissões do funcionário:', permList);
-            setPermissions(permList);
-          }
-        } else {
-          // Não é funcionário - é DONO
-          console.log('[EmployeeContext] ✓ NÃO é funcionário - tratando como DONO');
-          setIsEmployee(false);
-          setIsOwner(true);
-          setOwnerId(null);
-          setEmployeeName(null);
-          setPermissions([]);
-        }
-      } catch (err) {
-        console.error('[EmployeeContext] Erro crítico:', err);
-        // Em erro crítico, deixar bloqueado por segurança
-        setIsEmployee(false);
-        setIsOwner(false);
-      } finally {
-        console.log('[EmployeeContext] Verificação concluída');
-        setLoading(false);
-      }
+      setContextReady(false);
+      return;
     }
 
-    checkEmployeeStatus();
-  }, [user?.id]);
+    fetchEmployeeContext(user.id);
+  }, [user?.id, fetchEmployeeContext]);
 
-  // ID efetivo para queries - usa ID do dono se for funcionário
+  // Recarregar ao focar a janela (detecta mudanças feitas pelo dono)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user?.id && contextReady) {
+        console.log('[EmployeeContext] Window focus - revalidando...');
+        fetchEmployeeContext(user.id);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user?.id, contextReady, fetchEmployeeContext]);
+
   const effectiveUserId = isEmployee ? ownerId : user?.id ?? null;
 
-  // Verifica se tem permissão específica
   const hasPermission = useCallback((permission: EmployeePermission): boolean => {
-    // Durante carregamento, SEMPRE negar
+    // Durante carregamento, NEGAR
     if (loading) return false;
     
-    // Dono CONFIRMADO tem todas as permissões
+    // Dono tem todas as permissões
     if (isOwner && !isEmployee) return true;
     
     // Funcionário: verificar permissão específica
     if (isEmployee) {
-      const has = permissions.includes(permission);
-      console.log(`[EmployeeContext] hasPermission(${permission}):`, has);
-      return has;
+      return permissions.includes(permission);
     }
     
-    // Estado indeterminado: NEGAR por segurança
+    // Estado indeterminado: NEGAR
     return false;
   }, [loading, isOwner, isEmployee, permissions]);
 
-  // Log do estado atual para debug
+  // Log do estado final
   useEffect(() => {
-    if (!loading) {
+    if (!loading && contextReady) {
       console.log('[EmployeeContext] Estado final:', {
         isEmployee,
         isOwner,
@@ -188,7 +175,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
         effectiveUserId
       });
     }
-  }, [loading, isEmployee, isOwner, ownerId, employeeName, permissions, effectiveUserId]);
+  }, [loading, contextReady, isEmployee, isOwner, ownerId, employeeName, permissions, effectiveUserId]);
 
   return (
     <EmployeeContext.Provider
@@ -201,6 +188,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
         effectiveUserId,
         loading,
         employeeName,
+        refreshContext,
       }}
     >
       {children}

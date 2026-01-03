@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useEmployeeContext, EmployeePermission } from '@/hooks/useEmployeeContext';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface PermissionRouteProps {
@@ -9,11 +9,54 @@ interface PermissionRouteProps {
   children: React.ReactNode;
 }
 
+const PERMISSION_LABELS: Record<EmployeePermission, string> = {
+  view_loans: 'Visualizar Empréstimos',
+  create_loans: 'Criar Empréstimos',
+  register_payments: 'Registrar Pagamentos',
+  adjust_dates: 'Ajustar Datas',
+  delete_loans: 'Excluir Empréstimos',
+  view_clients: 'Visualizar Clientes',
+  create_clients: 'Criar Clientes',
+  edit_clients: 'Editar Clientes',
+  delete_clients: 'Excluir Clientes',
+  view_reports: 'Visualizar Relatórios',
+  manage_bills: 'Gerenciar Contas',
+  manage_vehicles: 'Gerenciar Veículos',
+  manage_products: 'Gerenciar Produtos',
+  view_settings: 'Visualizar Configurações',
+};
+
 export function PermissionRoute({ permission, children }: PermissionRouteProps) {
-  const { hasPermission, loading, isEmployee } = useEmployeeContext();
-  const hasShownToast = useRef(false);
+  const { hasPermission, loading, isEmployee, permissions } = useEmployeeContext();
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const toastShownRef = useRef(false);
   
-  // Aguardar até que o contexto termine de carregar
+  const hasPerm = hasPermission(permission);
+  
+  // Log para debug
+  useEffect(() => {
+    if (!loading) {
+      console.log(`[PermissionRoute] Verificando "${permission}":`, {
+        isEmployee,
+        hasPerm,
+        allPermissions: permissions
+      });
+    }
+  }, [loading, permission, isEmployee, hasPerm, permissions]);
+  
+  // Mostrar toast e redirecionar quando bloqueado
+  useEffect(() => {
+    if (!loading && !hasPerm && isEmployee && !toastShownRef.current) {
+      toastShownRef.current = true;
+      const label = PERMISSION_LABELS[permission] || permission;
+      toast.error(`Acesso negado: você não tem a permissão "${label}"`, {
+        duration: 4000,
+      });
+      setShouldRedirect(true);
+    }
+  }, [loading, hasPerm, isEmployee, permission]);
+  
+  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -22,19 +65,8 @@ export function PermissionRoute({ permission, children }: PermissionRouteProps) 
     );
   }
   
-  const hasPerm = hasPermission(permission);
-  
-  // Mostrar toast de bloqueio para funcionários
-  useEffect(() => {
-    if (!hasPerm && isEmployee && !hasShownToast.current) {
-      hasShownToast.current = true;
-      toast.error(`Acesso negado: você não tem permissão "${permission}"`, {
-        duration: 4000,
-      });
-    }
-  }, [hasPerm, isEmployee, permission]);
-  
-  if (!hasPerm) {
+  // Redirecionar se não tem permissão
+  if (!hasPerm || shouldRedirect) {
     return <Navigate to="/dashboard" replace />;
   }
   

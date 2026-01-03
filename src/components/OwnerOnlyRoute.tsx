@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface OwnerOnlyRouteProps {
@@ -10,9 +10,28 @@ interface OwnerOnlyRouteProps {
 
 export function OwnerOnlyRoute({ children }: OwnerOnlyRouteProps) {
   const { loading, isEmployee, isOwner } = useEmployeeContext();
-  const hasShownToast = useRef(false);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const toastShownRef = useRef(false);
   
-  // Aguardar até que o contexto termine de carregar
+  // Log para debug
+  useEffect(() => {
+    if (!loading) {
+      console.log('[OwnerOnlyRoute] Estado:', { isEmployee, isOwner, loading });
+    }
+  }, [loading, isEmployee, isOwner]);
+  
+  // Mostrar toast e redirecionar funcionários
+  useEffect(() => {
+    if (!loading && isEmployee && !toastShownRef.current) {
+      toastShownRef.current = true;
+      toast.error('Somente o dono da conta pode acessar esta página', {
+        duration: 4000,
+      });
+      setShouldRedirect(true);
+    }
+  }, [loading, isEmployee]);
+  
+  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -21,17 +40,8 @@ export function OwnerOnlyRoute({ children }: OwnerOnlyRouteProps) {
     );
   }
   
-  // Funcionários não podem acessar rotas de dono
-  useEffect(() => {
-    if (isEmployee && !hasShownToast.current) {
-      hasShownToast.current = true;
-      toast.error('Somente o dono da conta pode acessar esta página', {
-        duration: 4000,
-      });
-    }
-  }, [isEmployee]);
-  
-  if (isEmployee) {
+  // Funcionários não podem acessar
+  if (isEmployee || shouldRedirect) {
     return <Navigate to="/dashboard" replace />;
   }
   
