@@ -1,7 +1,7 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Lock, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import { Users, CheckCircle2, Loader2, ShieldCheck, Rocket, CreditCard } from 'lucide-react';
 
 interface EmployeeFeatureCardProps {
   isUnlocked: boolean;
@@ -23,80 +23,100 @@ export default function EmployeeFeatureCard({
   }
 
   return (
-    <Card className="relative overflow-hidden">
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
-        <div className="text-center p-6 max-w-md">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            {isAdmin ? (
-              <ShieldCheck className="w-8 h-8 text-primary" />
-            ) : (
-              <Lock className="w-8 h-8 text-primary" />
-            )}
+    <Card className="border-2 border-dashed border-primary/30">
+      <CardContent className="p-8">
+        <div className="max-w-2xl mx-auto text-center space-y-6">
+          {/* Ícone principal */}
+          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Users className="w-10 h-10 text-primary" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">
-            {isAdmin ? 'Liberar Funcionário (Admin)' : 'Adicione Funcionários'}
-          </h3>
-          <p className="text-muted-foreground text-sm mb-4">
-            {isAdmin 
-              ? 'Como administrador, você pode liberar slots de funcionários sem pagamento.'
-              : 'Cada funcionário adicional requer um pagamento separado. Libere um slot para cadastrar seu primeiro colaborador.'
-            }
-          </p>
-          <Button onClick={onUnlock} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Verificando...
-              </>
-            ) : isAdmin ? (
-              <>
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Liberar 1 Funcionário
-              </>
-            ) : (
-              'Liberar 1 Funcionário'
-            )}
-          </Button>
-          {!isAdmin && (
-            <p className="text-xs text-muted-foreground mt-3">
-              Você será redirecionado para a página de pagamento
+
+          {/* Título */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">
+              Expanda seu Negócio com Funcionários
+            </h2>
+            <p className="text-muted-foreground">
+              Adicione colaboradores para ajudar no seu dia a dia. Cada funcionário pode trabalhar de qualquer lugar!
             </p>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <Users className="w-5 h-5 text-muted-foreground" />
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              Funcionários
-              <Badge variant="secondary">Por Funcionário</Badge>
-            </CardTitle>
-            <CardDescription>
-              1 pagamento = 1 slot de funcionário
-            </CardDescription>
+          {/* Lista de benefícios */}
+          <div className="grid sm:grid-cols-2 gap-4 text-left max-w-lg mx-auto">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Registrar Pagamentos</p>
+                <p className="text-xs text-muted-foreground">Funcionários podem baixar parcelas dos clientes</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Criar Empréstimos</p>
+                <p className="text-xs text-muted-foreground">Novos negócios direto pelo celular</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Permissões Granulares</p>
+                <p className="text-xs text-muted-foreground">Você define o que cada um pode fazer</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Controle Total</p>
+                <p className="text-xs text-muted-foreground">Tudo fica salvo na sua conta principal</p>
+              </div>
+            </div>
           </div>
-        </div>
-      </CardHeader>
 
-      <CardContent>
-        <div className="space-y-3 opacity-50">
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Pague apenas pelos funcionários que usar
+          {/* Badge de pagamento */}
+          <div className="flex items-center justify-center gap-2">
+            <Badge variant="secondary" className="text-sm py-1 px-3">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Pagamento único por funcionário
+            </Badge>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Permissões granulares por função
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Tudo registrado na conta principal
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Ative e desative a qualquer momento
+
+          {/* Botão de ação */}
+          <div className="space-y-3">
+            <Button 
+              size="lg" 
+              onClick={onUnlock} 
+              disabled={isLoading}
+              className="px-8"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Verificando...
+                </>
+              ) : isAdmin ? (
+                <>
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Liberar 1 Funcionário (Admin)
+                </>
+              ) : (
+                <>
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Liberar 1 Funcionário
+                </>
+              )}
+            </Button>
+            
+            {!isAdmin && (
+              <p className="text-xs text-muted-foreground">
+                Você será redirecionado para a página de pagamento seguro
+              </p>
+            )}
+            {isAdmin && (
+              <p className="text-xs text-muted-foreground">
+                Como admin, o slot será liberado automaticamente sem cobrança
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
