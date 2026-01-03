@@ -113,25 +113,25 @@ export function LoanSimulator() {
     const effectiveInstallments = paymentType === 'single' ? 1 : installments;
     
     // Special handling for daily loans
+    // For daily: interestRate = valor da parcela diária (já inclui principal + lucro)
     if (paymentType === 'daily') {
-      const dailyInstallment = interestRate; // For daily, rate field represents daily profit amount
-      const totalInterest = dailyInstallment * effectiveInstallments;
-      const totalAmount = principal + totalInterest;
+      const dailyInstallment = interestRate; // Valor que o cliente paga por dia
+      const totalAmount = dailyInstallment * effectiveInstallments; // Total a receber
+      const totalInterest = totalAmount - principal; // Lucro = Total - Principal
       const dates = generateDates(firstDueDate, effectiveInstallments, paymentType);
       
-      const schedule = dates.map((date, i) => {
-        const isLast = i === effectiveInstallments - 1;
-        const installmentValue = isLast ? dailyInstallment + principal : dailyInstallment;
-        
-        return {
-          number: i + 1,
-          dueDate: format(date, 'dd/MM/yyyy'),
-          principal: isLast ? principal : 0,
-          interest: dailyInstallment,
-          total: installmentValue,
-          remainingBalance: isLast ? 0 : principal,
-        };
-      });
+      // Distribuir principal e juros proporcionalmente em cada parcela
+      const principalPerInstallment = principal / effectiveInstallments;
+      const interestPerInstallment = totalInterest / effectiveInstallments;
+      
+      const schedule = dates.map((date, i) => ({
+        number: i + 1,
+        dueDate: format(date, 'dd/MM/yyyy'),
+        principal: principalPerInstallment,
+        interest: interestPerInstallment,
+        total: dailyInstallment,
+        remainingBalance: principal - (principalPerInstallment * (i + 1)),
+      }));
 
       return {
         principal,
