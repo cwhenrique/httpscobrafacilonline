@@ -40,6 +40,7 @@ const PERMISSION_GROUPS = {
     { key: 'delete_clients' as EmployeePermission, label: 'Excluir clientes' },
   ],
   'Outros': [
+    { key: 'view_dashboard' as EmployeePermission, label: 'Ver Dashboard (resumo financeiro)' },
     { key: 'view_reports' as EmployeePermission, label: 'Ver relatórios' },
     { key: 'manage_bills' as EmployeePermission, label: 'Gerenciar contas' },
     { key: 'manage_vehicles' as EmployeePermission, label: 'Gerenciar veículos' },

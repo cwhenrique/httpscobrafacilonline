@@ -4,6 +4,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, isLoanOverdue, getDaysOverdue } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +22,7 @@ import {
   Car,
   CalendarCheck,
   Receipt,
+  Lock,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
+  const { isEmployee, hasPermission, loading: employeeLoading } = useEmployeeContext();
   
   // Enable browser notifications for overdue loans
   useOverdueNotifications(loans, loansLoading);
@@ -120,6 +123,48 @@ export default function Dashboard() {
       bg: 'bg-primary/10',
     },
   ];
+
+  // Check if employee has permission to view dashboard
+  const canViewDashboard = !isEmployee || hasPermission('view_dashboard');
+
+  // Show restricted view for employees without permission
+  if (!employeeLoading && !canViewDashboard) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h1 className="text-2xl font-display font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Acesso restrito</p>
+          </div>
+          
+          <Card className="shadow-soft">
+            <CardContent className="py-12 text-center">
+              <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-lg font-semibold mb-2">Acesso Restrito</h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Você não tem permissão para visualizar o resumo financeiro. 
+                Entre em contato com o administrador para solicitar acesso.
+              </p>
+              <div className="mt-6 flex justify-center gap-3">
+                <Link to="/loans">
+                  <Button>
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Ir para Empréstimos
+                  </Button>
+                </Link>
+                <Link to="/clients">
+                  <Button variant="outline">
+                    <Users className="w-4 h-4 mr-2" />
+                    Ir para Clientes
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
