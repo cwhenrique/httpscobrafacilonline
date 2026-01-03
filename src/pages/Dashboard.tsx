@@ -23,6 +23,7 @@ import {
   CalendarCheck,
   Receipt,
   Lock,
+  UserPlus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
-  const { isEmployee, hasPermission, loading: employeeLoading } = useEmployeeContext();
+  const { isEmployee, isOwner, hasPermission, loading: employeeLoading } = useEmployeeContext();
   
   // Enable browser notifications for overdue loans
   useOverdueNotifications(loans, loansLoading);
@@ -176,6 +177,38 @@ export default function Dashboard() {
 
         {/* PWA Install Banner */}
         <PWAInstallBanner variant="card" />
+
+        {/* Employee Feature Promo - Only for owners */}
+        {!isEmployee && isOwner && (
+          <Card className="shadow-soft border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/10">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-amber-500/10">
+                    <UserPlus className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-lg">Expanda seu Negócio!</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Adicione funcionários para ajudar no dia a dia. Você controla o que cada um pode ver.
+                    </p>
+                    <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">✓ Visibilidade controlada</span>
+                      <span className="flex items-center gap-1">✓ Dashboard protegido</span>
+                      <span className="flex items-center gap-1">✓ A partir de R$ 35,90</span>
+                    </div>
+                  </div>
+                </div>
+                <Link to="/employees">
+                  <Button className="gap-2 bg-amber-600 hover:bg-amber-700">
+                    Ver Funcionários
+                    <ArrowUpRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Weekly Summary - Hero Card */}
         <Card className="shadow-soft border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">

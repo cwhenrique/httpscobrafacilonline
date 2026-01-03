@@ -70,7 +70,6 @@ const navigation: NavigationItem[] = [
   // Contas e Ferramentas
   { name: 'Simulador', href: '/simulator', icon: Calculator, permission: null },
   { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText, permission: 'manage_bills' },
-  { name: 'Funcionários', href: '/employees', icon: UserPlus, permission: null, ownerOnly: true },
   { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap, permission: null },
   { name: 'Configurações', href: '/settings', icon: Settings, permission: 'view_settings' },
 ];
