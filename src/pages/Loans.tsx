@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -26,7 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck, ArrowUpRight, UserPlus } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -444,7 +445,7 @@ export default function Loans() {
   const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
-  const { hasPermission, isEmployee } = useEmployeeContext();
+  const { hasPermission, isEmployee, isOwner } = useEmployeeContext();
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [filterByEmployee, setFilterByEmployee] = useState<string | null>(null);
@@ -5569,6 +5570,38 @@ export default function Loans() {
             </div>
           </TooltipProvider>
         </div>
+
+        {/* Employee Feature Promo - Only for owners */}
+        {!isEmployee && isOwner && (
+          <Card className="shadow-soft border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/10 mb-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-amber-500/10">
+                    <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-base sm:text-lg">Expanda seu Negócio!</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                      Adicione funcionários para ajudar no dia a dia. Você controla o que cada um pode ver.
+                    </p>
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">✓ Visibilidade controlada</span>
+                      <span className="flex items-center gap-1">✓ Dashboard protegido</span>
+                      <span className="flex items-center gap-1">✓ A partir de R$ 35,90</span>
+                    </div>
+                  </div>
+                </div>
+                <Link to="/employees">
+                  <Button className="gap-2 bg-amber-600 hover:bg-amber-700 text-sm">
+                    Ver Funcionários
+                    <ArrowUpRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('all'); setOverdueDaysFilter(null); }} className="w-full">
           <TabsList className="mb-4 grid w-full grid-cols-3 max-w-lg">
