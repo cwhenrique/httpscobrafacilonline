@@ -201,7 +201,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <Link to="/employees">
-                  <Button className="gap-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold">
+                  <Button className="gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold">
                     Ver Funcionários
                     <ArrowUpRight className="w-4 h-4" />
                   </Button>
