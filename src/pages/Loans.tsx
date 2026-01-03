@@ -4586,6 +4586,45 @@ export default function Loans() {
                   <p>Inicie o tour guiado para aprender a usar a página</p>
                 </TooltipContent>
               </Tooltip>
+              
+              {/* Filtro por funcionário (só para donos com funcionários) */}
+              {!isEmployee && myEmployees.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={filterByEmployee ? 'default' : 'outline'}
+                      size="sm"
+                      className={`gap-1 text-xs sm:text-sm ${filterByEmployee ? 'bg-violet-500 hover:bg-violet-600' : 'border-violet-500 text-violet-600 hover:bg-violet-500/10'}`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">
+                        {!filterByEmployee ? 'Criador' : 
+                          filterByEmployee === 'owner' ? 'Meus' : 
+                          myEmployees.find(e => e.employee_user_id === filterByEmployee)?.name || 'Func.'}
+                      </span>
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    <DropdownMenuItem onClick={() => setFilterByEmployee(null)}>
+                      <span className="font-medium">Todos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setFilterByEmployee('owner')}>
+                      Criados por mim
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {myEmployees.map(emp => (
+                      <DropdownMenuItem 
+                        key={emp.employee_user_id} 
+                        onClick={() => setFilterByEmployee(emp.employee_user_id)}
+                      >
+                        {emp.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -5835,43 +5874,6 @@ export default function Loans() {
                       <p>Empréstimos com pagamento em parcela única</p>
                     </TooltipContent>
                   </Tooltip>
-                  
-                  {/* Filtro por funcionário (só para donos com funcionários) */}
-                  {!isEmployee && myEmployees.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant={filterByEmployee ? 'default' : 'outline'}
-                          size="sm"
-                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${filterByEmployee ? 'bg-violet-500' : 'border-violet-500 text-violet-600 hover:bg-violet-500/10'}`}
-                        >
-                          <UserCheck className="w-3 h-3 mr-1" />
-                          {!filterByEmployee ? 'Criador' : 
-                            filterByEmployee === 'owner' ? 'Criados por mim' : 
-                            myEmployees.find(e => e.employee_user_id === filterByEmployee)?.name || 'Funcionário'}
-                          <ChevronDown className="w-3 h-3 ml-1" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="bg-background">
-                        <DropdownMenuItem onClick={() => { setFilterByEmployee(null); setIsFiltersExpanded(false); }}>
-                          Todos
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => { setFilterByEmployee('owner'); setIsFiltersExpanded(false); }}>
-                          Criados por mim
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {myEmployees.map(emp => (
-                          <DropdownMenuItem 
-                            key={emp.employee_user_id} 
-                            onClick={() => { setFilterByEmployee(emp.employee_user_id); setIsFiltersExpanded(false); }}
-                          >
-                            {emp.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
                 </div>
               </TooltipProvider>
             </CollapsibleContent>
