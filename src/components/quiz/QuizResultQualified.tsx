@@ -14,7 +14,7 @@ interface QuizResultQualifiedProps {
 }
 
 export function QuizResultQualified({ score, answers, isHot }: QuizResultQualifiedProps) {
-  const whatsappNumber = "5511999999999"; // Substituir pelo número real
+  const whatsappNumber = "5511932935877";
   
   // Código discreto: Q = Quente, M = Morno + score
   const refCode = `${isHot ? 'Q' : 'M'}${score}`;
