@@ -31,6 +31,15 @@ interface EmployeeContextType {
 
 const EmployeeContext = createContext<EmployeeContextType | undefined>(undefined);
 
+interface EmployeeContextResult {
+  is_employee: boolean;
+  employee_id: string | null;
+  owner_id: string | null;
+  employee_name: string | null;
+  is_active: boolean | null;
+  permissions: string[] | null;
+}
+
 export function EmployeeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [isEmployee, setIsEmployee] = useState(false);
@@ -69,7 +78,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       // Marcar que estamos verificando este usuário
       lastCheckedUserRef.current = user.id;
 
-      // Resetar para estado de loading (bloqueado por padrão)
+      // Resetar para estado de loading
       setLoading(true);
       setIsEmployee(false);
       setIsOwner(false);
@@ -78,60 +87,53 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       setEmployeeName(null);
 
       try {
-        // Verificar se o usuário é um funcionário
-        console.log('[EmployeeContext] Buscando registro de funcionário...');
-        const { data: employeeData, error } = await supabase
-          .from('employees')
-          .select('id, owner_id, name, is_active')
-          .eq('employee_user_id', user.id)
-          .maybeSingle();
+        // Usar a função RPC segura para obter contexto do funcionário
+        console.log('[EmployeeContext] Chamando RPC get_employee_context...');
+        const { data, error } = await supabase
+          .rpc('get_employee_context', { _user_id: user.id });
 
-        console.log('[EmployeeContext] Resultado da busca:', { employeeData, error });
+        console.log('[EmployeeContext] Resultado da RPC:', { data, error });
 
         if (error) {
-          console.error('[EmployeeContext] Erro ao verificar status de funcionário:', error);
-          // IMPORTANTE: Em caso de erro, NÃO assumir nada
-          // Deixar como estado "indeterminado" (isEmployee=false, isOwner=false)
-          // Isso vai bloquear acesso até conseguir verificar corretamente
+          console.error('[EmployeeContext] Erro ao chamar get_employee_context:', error);
+          // Em caso de erro, deixar em estado indeterminado (bloqueado)
           setLoading(false);
           return;
         }
 
-        if (employeeData) {
-          // Usuário é um funcionário
-          console.log('[EmployeeContext] FUNCIONÁRIO DETECTADO:', employeeData.name);
+        // A RPC retorna um array, pegamos o primeiro resultado
+        const result = Array.isArray(data) ? data[0] : data;
+        
+        if (!result) {
+          console.log('[EmployeeContext] RPC retornou vazio - tratando como DONO');
+          setIsEmployee(false);
+          setIsOwner(true);
+          setLoading(false);
+          return;
+        }
+
+        const ctx = result as EmployeeContextResult;
+        console.log('[EmployeeContext] Contexto recebido:', ctx);
+
+        if (ctx.is_employee) {
+          // Usuário É um funcionário
+          console.log('[EmployeeContext] ✓ FUNCIONÁRIO DETECTADO:', ctx.employee_name);
           setIsEmployee(true);
           setIsOwner(false);
-          setOwnerId(employeeData.owner_id);
-          setEmployeeName(employeeData.name);
+          setOwnerId(ctx.owner_id);
+          setEmployeeName(ctx.employee_name);
           
-          if (!employeeData.is_active) {
-            // Funcionário inativo - sem permissões
-            console.warn('[EmployeeContext] Funcionário inativo - sem permissões');
+          if (!ctx.is_active) {
+            console.warn('[EmployeeContext] Funcionário INATIVO - sem permissões');
             setPermissions([]);
           } else {
-            // Funcionário ativo - buscar permissões
-            console.log('[EmployeeContext] Buscando permissões para employee_id:', employeeData.id);
-            const { data: permissionsData, error: permError } = await supabase
-              .from('employee_permissions')
-              .select('permission')
-              .eq('employee_id', employeeData.id);
-
-            console.log('[EmployeeContext] Permissões encontradas:', { permissionsData, permError });
-
-            if (permError) {
-              console.error('[EmployeeContext] Erro ao buscar permissões:', permError);
-              // Erro ao buscar permissões = sem permissões (seguro)
-              setPermissions([]);
-            } else {
-              const permList = (permissionsData || []).map(p => p.permission as EmployeePermission);
-              console.log('[EmployeeContext] Lista de permissões:', permList);
-              setPermissions(permList);
-            }
+            const permList = (ctx.permissions || []) as EmployeePermission[];
+            console.log('[EmployeeContext] Permissões do funcionário:', permList);
+            setPermissions(permList);
           }
         } else {
-          // Não é funcionário - é dono
-          console.log('[EmployeeContext] NÃO é funcionário - tratando como DONO');
+          // Não é funcionário - é DONO
+          console.log('[EmployeeContext] ✓ NÃO é funcionário - tratando como DONO');
           setIsEmployee(false);
           setIsOwner(true);
           setOwnerId(null);
@@ -139,9 +141,8 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
           setPermissions([]);
         }
       } catch (err) {
-        console.error('[EmployeeContext] Erro crítico ao verificar funcionário:', err);
-        // IMPORTANTE: Em erro crítico, NÃO assumir que é dono
-        // Deixar bloqueado por segurança
+        console.error('[EmployeeContext] Erro crítico:', err);
+        // Em erro crítico, deixar bloqueado por segurança
         setIsEmployee(false);
         setIsOwner(false);
       } finally {
@@ -156,7 +157,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   // ID efetivo para queries - usa ID do dono se for funcionário
   const effectiveUserId = isEmployee ? ownerId : user?.id ?? null;
 
-  // Verifica se tem permissão específica - SEGURO: só libera se confirmado
+  // Verifica se tem permissão específica
   const hasPermission = useCallback((permission: EmployeePermission): boolean => {
     // Durante carregamento, SEMPRE negar
     if (loading) return false;
@@ -166,13 +167,28 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     
     // Funcionário: verificar permissão específica
     if (isEmployee) {
-      return permissions.includes(permission);
+      const has = permissions.includes(permission);
+      console.log(`[EmployeeContext] hasPermission(${permission}):`, has);
+      return has;
     }
     
-    // Estado indeterminado (não é dono nem funcionário): NEGAR por segurança
-    // Isso acontece quando há erro de conexão/RLS/etc
+    // Estado indeterminado: NEGAR por segurança
     return false;
   }, [loading, isOwner, isEmployee, permissions]);
+
+  // Log do estado atual para debug
+  useEffect(() => {
+    if (!loading) {
+      console.log('[EmployeeContext] Estado final:', {
+        isEmployee,
+        isOwner,
+        ownerId,
+        employeeName,
+        permissions,
+        effectiveUserId
+      });
+    }
+  }, [loading, isEmployee, isOwner, ownerId, employeeName, permissions, effectiveUserId]);
 
   return (
     <EmployeeContext.Provider

@@ -1136,6 +1136,17 @@ export type Database = {
         Args: { p_late: number; p_on_time: number; p_total_loans: number }
         Returns: number
       }
+      get_employee_context: {
+        Args: { _user_id: string }
+        Returns: {
+          employee_id: string
+          employee_name: string
+          is_active: boolean
+          is_employee: boolean
+          owner_id: string
+          permissions: string[]
+        }[]
+      }
       get_employee_owner_id: { Args: { _user_id: string }; Returns: string }
       has_employee_permission: {
         Args: { _permission: string; _user_id: string }
