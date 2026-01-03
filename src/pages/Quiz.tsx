@@ -196,72 +196,80 @@ export default function Quiz() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="text-center space-y-8"
+              className="space-y-8"
             >
-              {/* WhatsApp Icon */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                className="flex justify-center"
-              >
-                <div className="p-4 rounded-full bg-green-500/20">
-                  <MessageCircle className="w-16 h-16 text-green-500" />
-                </div>
-              </motion.div>
+              {/* Progress Bar - Step 1 */}
+              <QuizProgress 
+                currentStep={1} 
+                totalSteps={questions.length + 1} 
+              />
 
-              {/* Title */}
-              <div className="space-y-3">
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                  Quer falar com a gente no WhatsApp?
-                </h1>
-                <p className="text-lg text-muted-foreground max-w-md mx-auto">
-                  Primeiro, responda um quiz rápido para entendermos melhor seu negócio!
-                </p>
-              </div>
-
-              {/* Benefits Card */}
-              <Card className="max-w-md mx-auto">
-                <CardContent className="pt-6">
-                  <h3 className="font-semibold text-lg mb-4 text-foreground">
-                    O que é o CobraFacil?
-                  </h3>
-                  <ul className="space-y-3 text-left">
-                    {benefits.map((benefit, index) => (
-                      <motion.li
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 + index * 0.1 }}
-                        className="flex items-center gap-3"
-                      >
-                        <benefit.icon className="w-5 h-5 text-primary shrink-0" />
-                        <span className="text-muted-foreground">{benefit.text}</span>
-                      </motion.li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              {/* CTA Button */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="space-y-3"
-              >
-                <Button
-                  size="lg"
-                  className="w-full max-w-sm py-6 text-lg bg-green-600 hover:bg-green-700"
-                  onClick={() => setHasStarted(true)}
+              <div className="text-center space-y-8">
+                {/* WhatsApp Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="flex justify-center"
                 >
-                  Começar Quiz
-                </Button>
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Leva menos de 1 minuto
-                </p>
-              </motion.div>
+                  <div className="p-4 rounded-full bg-green-500/20">
+                    <MessageCircle className="w-16 h-16 text-green-500" />
+                  </div>
+                </motion.div>
+
+                {/* Title */}
+                <div className="space-y-3">
+                  <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+                    Quer falar com a gente no WhatsApp?
+                  </h1>
+                  <p className="text-lg text-muted-foreground max-w-md mx-auto">
+                    Primeiro, responda um quiz rápido para entendermos melhor seu negócio!
+                  </p>
+                </div>
+
+                {/* Benefits Card */}
+                <Card className="max-w-md mx-auto">
+                  <CardContent className="pt-6">
+                    <h3 className="font-semibold text-lg mb-4 text-foreground">
+                      O que é o CobraFacil?
+                    </h3>
+                    <ul className="space-y-3 text-left">
+                      {benefits.map((benefit, index) => (
+                        <motion.li
+                          key={index}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 + index * 0.1 }}
+                          className="flex items-center gap-3"
+                        >
+                          <benefit.icon className="w-5 h-5 text-primary shrink-0" />
+                          <span className="text-muted-foreground">{benefit.text}</span>
+                        </motion.li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+
+                {/* CTA Button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="space-y-3"
+                >
+                  <Button
+                    size="lg"
+                    className="w-full max-w-sm py-6 text-lg bg-green-600 hover:bg-green-700"
+                    onClick={() => setHasStarted(true)}
+                  >
+                    Começar Quiz
+                  </Button>
+                  <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Leva menos de 1 minuto
+                  </p>
+                </motion.div>
+              </div>
             </motion.div>
           ) : !isFinished ? (
             <motion.div
@@ -289,8 +297,8 @@ export default function Quiz() {
 
               {/* Progress Bar */}
               <QuizProgress 
-                currentStep={currentStep + 1} 
-                totalSteps={questions.length} 
+                currentStep={currentStep + 2} 
+                totalSteps={questions.length + 1} 
               />
 
               {/* Question */}
