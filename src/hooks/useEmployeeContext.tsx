@@ -95,6 +95,17 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   // ID efetivo para queries - usa ID do dono se for funcionário
   const effectiveUserId = isEmployee ? ownerId : user?.id ?? null;
 
+  // Debug log para verificar o contexto de funcionário
+  console.log('EmployeeContext Debug:', {
+    isEmployee,
+    ownerId,
+    effectiveUserId,
+    userId: user?.id,
+    employeeName,
+    loading,
+    permissions
+  });
+
   // Verifica se tem permissão específica
   const hasPermission = (permission: EmployeePermission): boolean => {
     // Dono tem todas as permissões
