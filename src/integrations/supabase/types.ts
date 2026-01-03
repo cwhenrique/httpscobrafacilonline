@@ -1137,6 +1137,10 @@ export type Database = {
         Returns: number
       }
       get_employee_owner_id: { Args: { _user_id: string }; Returns: string }
+      has_employee_permission: {
+        Args: { _permission: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1144,6 +1148,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_employee: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"

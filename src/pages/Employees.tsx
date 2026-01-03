@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
@@ -7,6 +8,7 @@ import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 // URL de pagamento no Cakto para liberar 1 funcionário
 const CAKTO_EMPLOYEE_PAYMENT_URL = 'https://pay.cakto.com.br/B3sKUqX';
@@ -14,7 +16,7 @@ const CAKTO_EMPLOYEE_PAYMENT_URL = 'https://pay.cakto.com.br/B3sKUqX';
 export default function Employees() {
   const { user } = useAuth();
   const { profile, refetch } = useProfile();
-  const { isEmployee } = useEmployeeContext();
+  const { isEmployee, loading: employeeLoading } = useEmployeeContext();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
 
@@ -47,18 +49,20 @@ export default function Employees() {
     checkAdminStatus();
   }, [user]);
 
-  // Funcionários não podem acessar esta página
-  if (isEmployee) {
+  // Aguardar carregamento do contexto de funcionário
+  if (employeeLoading) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-          <h1 className="text-2xl font-bold mb-2">Acesso Restrito</h1>
-          <p className="text-muted-foreground">
-            Apenas o proprietário da conta pode gerenciar funcionários.
-          </p>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </DashboardLayout>
     );
+  }
+
+  // Funcionários não podem acessar esta página - redirecionar
+  if (isEmployee) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleUnlockEmployee = async () => {

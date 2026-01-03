@@ -8,8 +8,9 @@ interface PermissionRouteProps {
 }
 
 export function PermissionRoute({ permission, children }: PermissionRouteProps) {
-  const { hasPermission, loading } = useEmployeeContext();
+  const { hasPermission, loading, isEmployee, isOwner } = useEmployeeContext();
   
+  // Aguardar até que o contexto termine de carregar
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -18,6 +19,12 @@ export function PermissionRoute({ permission, children }: PermissionRouteProps) 
     );
   }
   
+  // Se não é nem funcionário nem dono (estado indeterminado), bloquear
+  if (!isEmployee && !isOwner) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  // Verificar permissão
   if (!hasPermission(permission)) {
     return <Navigate to="/dashboard" replace />;
   }
