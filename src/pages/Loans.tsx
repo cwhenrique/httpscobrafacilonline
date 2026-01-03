@@ -5574,26 +5574,26 @@ export default function Loans() {
 
         {/* Employee Feature Promo - Only for owners */}
         {!isEmployee && isOwner && showEmployeeBanner && (
-          <Card className="shadow-soft border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/10 mb-4 relative">
+          <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800 mb-4 relative">
             <button 
               onClick={() => setShowEmployeeBanner(false)}
-              className="absolute top-2 right-2 p-1 rounded-full hover:bg-amber-500/20 transition-colors z-10"
+              className="absolute top-2 right-2 p-1 rounded-full hover:bg-blue-500/20 transition-colors z-10"
               aria-label="Fechar banner"
             >
-              <X className="w-4 h-4 text-amber-600/70 hover:text-amber-600" />
+              <X className="w-4 h-4 text-blue-300/70 hover:text-blue-200" />
             </button>
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3 sm:gap-4">
-                  <div className="p-2 sm:p-3 rounded-xl bg-amber-500/10">
-                    <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                  <div className="p-2 sm:p-3 rounded-xl bg-blue-500/30">
+                    <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-300" />
                   </div>
                   <div>
-                    <h3 className="font-display font-semibold text-base sm:text-lg">Expanda seu Negócio!</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                    <h3 className="font-display font-bold text-lg sm:text-xl text-white drop-shadow-md">Expanda seu Negócio!</h3>
+                    <p className="text-xs sm:text-sm text-blue-100 mt-1 font-medium">
                       Adicione funcionários para ajudar no dia a dia. Você controla o que cada um pode ver.
                     </p>
-                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 sm:mt-3 text-xs sm:text-sm text-blue-100 font-medium">
                       <span className="flex items-center gap-1">✓ Visibilidade controlada</span>
                       <span className="flex items-center gap-1">✓ Dashboard protegido</span>
                       <span className="flex items-center gap-1">✓ A partir de R$ 35,90</span>
@@ -5601,7 +5601,7 @@ export default function Loans() {
                   </div>
                 </div>
                 <Link to="/employees">
-                  <Button className="gap-2 bg-amber-600 hover:bg-amber-700 text-sm">
+                  <Button className="gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold text-sm">
                     Ver Funcionários
                     <ArrowUpRight className="w-4 h-4" />
                   </Button>
