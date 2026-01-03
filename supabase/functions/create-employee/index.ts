@@ -6,14 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  let password = '';
-  for (let i = 0; i < 8; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
+// Removido - senha agora é definida pelo dono
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -48,12 +41,16 @@ serve(async (req) => {
     }
 
     const ownerId = user.id;
-    const { name, email, permissions } = await req.json();
+    const { name, email, phone, password, permissions } = await req.json();
 
-    console.log('Criando funcionário:', { ownerId, name, email, permissions });
+    console.log('Criando funcionário:', { ownerId, name, email, phone: phone ? '***' : null, permissions });
 
     if (!name || !email) {
       throw new Error('Nome e email são obrigatórios');
+    }
+
+    if (!password || password.length < 6) {
+      throw new Error('Senha deve ter pelo menos 6 caracteres');
     }
 
     // Verificar se o recurso está habilitado
@@ -96,30 +93,15 @@ serve(async (req) => {
     );
 
     let employeeUserId: string;
-    let tempPassword: string | null = null;
 
     if (existingUser) {
-      // Usuário já existe, apenas vincular
-      employeeUserId = existingUser.id;
-      console.log('Usuário existente encontrado:', employeeUserId);
-
-      // Verificar se já é funcionário de outro dono
-      const { data: otherOwner } = await supabaseAdmin
-        .from('employees')
-        .select('owner_id')
-        .eq('employee_user_id', employeeUserId)
-        .maybeSingle();
-
-      if (otherOwner) {
-        throw new Error('Este usuário já é funcionário de outra conta');
-      }
+      // Usuário já existe - não podemos alterar a senha dele
+      throw new Error('Este email já possui uma conta. O funcionário deve usar a senha existente ou criar uma nova conta.');
     } else {
-      // Criar novo usuário
-      tempPassword = generateTempPassword();
-      
+      // Criar novo usuário com a senha definida pelo dono
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: email.toLowerCase(),
-        password: tempPassword,
+        password: password,
         email_confirm: true,
         user_metadata: { full_name: name },
       });
@@ -131,6 +113,28 @@ serve(async (req) => {
 
       employeeUserId = newUser.user.id;
       console.log('Novo usuário criado:', employeeUserId);
+
+      // Calcular data de expiração (1 mês)
+      const subscriptionExpiresAt = new Date();
+      subscriptionExpiresAt.setMonth(subscriptionExpiresAt.getMonth() + 1);
+
+      // Criar/Atualizar perfil do funcionário com assinatura de 1 mês
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert({
+          id: employeeUserId,
+          email: email.toLowerCase(),
+          full_name: name,
+          phone: phone || null,
+          subscription_plan: 'employee',
+          subscription_expires_at: subscriptionExpiresAt.toISOString(),
+          is_active: true,
+        });
+
+      if (profileError) {
+        console.error('Erro ao criar perfil:', profileError);
+        // Não falhar por causa do perfil, o trigger pode ter criado
+      }
     }
 
     // Criar registro de funcionário
@@ -173,10 +177,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         employeeId: employee.id,
-        tempPassword,
-        message: tempPassword 
-          ? `Funcionário criado! Senha temporária: ${tempPassword}`
-          : 'Funcionário vinculado com sucesso',
+        message: 'Funcionário criado com sucesso!',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
