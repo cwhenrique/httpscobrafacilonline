@@ -16,14 +16,17 @@ interface QuizResultQualifiedProps {
 export function QuizResultQualified({ score, answers, isHot }: QuizResultQualifiedProps) {
   const whatsappNumber = "5511999999999"; // Substituir pelo número real
   
-  const message = `Olá! Fiz o quiz de qualificação no site.
+  // Código discreto: Q = Quente, M = Morno + score
+  const refCode = `${isHot ? 'Q' : 'M'}${score}`;
+  
+  const message = `Olá! Fiz o quiz no site e tenho interesse no CobraFacil.
 
 Meu perfil:
 ${answers.map(a => `• ${a.question}: ${a.answer}`).join('\n')}
 
-Score: ${score} pontos - Lead ${isHot ? 'Quente 🔥' : 'Morno'}
+Gostaria de saber mais!
 
-Gostaria de saber mais sobre o CobraFacil!`;
+Ref: ${refCode}`;
 
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
@@ -40,38 +43,20 @@ Gostaria de saber mais sobre o CobraFacil!`;
         transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
         className="flex justify-center"
       >
-        <div className={`p-4 rounded-full ${isHot ? 'bg-green-500/20' : 'bg-blue-500/20'}`}>
-          <CheckCircle className={`w-16 h-16 ${isHot ? 'text-green-500' : 'text-blue-500'}`} />
+        <div className="p-4 rounded-full bg-green-500/20">
+          <CheckCircle className="w-16 h-16 text-green-500" />
         </div>
       </motion.div>
 
       <div className="space-y-4">
         <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-          {isHot ? (
-            <>Perfeito! <Sparkles className="inline w-8 h-8 text-yellow-500" /></>
-          ) : (
-            "Ótimo!"
-          )}
+          Perfeito! <Sparkles className="inline w-8 h-8 text-yellow-500" />
         </h2>
         <h3 className="text-xl md:text-2xl font-semibold text-primary">
-          {isHot 
-            ? "O CobraFacil foi feito pra você!" 
-            : "Podemos te ajudar!"
-          }
+          O CobraFacil pode te ajudar!
         </h3>
         <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          {isHot 
-            ? "Você tem um negócio estruturado e precisa de uma ferramenta profissional. Vamos conversar agora!"
-            : "Você está no caminho certo. Vamos entender melhor seu negócio e mostrar como o CobraFacil pode te ajudar."
-          }
-        </p>
-      </div>
-
-      <div className="bg-muted/50 rounded-lg p-4 max-w-sm mx-auto">
-        <p className="text-sm text-muted-foreground mb-2">Seu score de qualificação:</p>
-        <p className="text-4xl font-bold text-primary">{score} pontos</p>
-        <p className={`text-sm font-medium ${isHot ? 'text-green-500' : 'text-blue-500'}`}>
-          Lead {isHot ? 'Quente 🔥' : 'Morno'}
+          Vamos conversar e entender melhor como organizar seu negócio de forma profissional.
         </p>
       </div>
 
@@ -82,15 +67,11 @@ Gostaria de saber mais sobre o CobraFacil!`;
       >
         <Button
           size="lg"
-          className={`w-full max-w-sm py-6 text-lg ${
-            isHot 
-              ? 'bg-green-600 hover:bg-green-700' 
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
+          className="w-full max-w-sm py-6 text-lg bg-green-600 hover:bg-green-700"
           onClick={() => window.open(whatsappUrl, '_blank')}
         >
           <MessageCircle className="w-5 h-5 mr-2" />
-          {isHot ? 'Falar com Especialista' : 'Quero saber mais'}
+          Falar no WhatsApp
         </Button>
       </motion.div>
 

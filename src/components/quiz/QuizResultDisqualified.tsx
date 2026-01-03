@@ -53,16 +53,10 @@ export function QuizResultDisqualified({ reason }: QuizResultDisqualifiedProps) 
         transition={{ delay: 0.5 }}
         className="space-y-3"
       >
-        <Link to="/">
+        <Link to="/#pricing">
           <Button variant="outline" size="lg" className="w-full max-w-sm py-6 text-lg">
-            Conhecer o CobraFacil
+            Ver Planos e Preços
             <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
-        </Link>
-        
-        <Link to="/simulador">
-          <Button variant="ghost" size="lg" className="w-full max-w-sm">
-            Usar Simulador Gratuito
           </Button>
         </Link>
       </motion.div>
