@@ -73,12 +73,15 @@ export default function EmployeeFeatureCard({
             </div>
           </div>
 
-          {/* Badge de pagamento */}
-          <div className="flex items-center justify-center gap-2">
-            <Badge variant="secondary" className="text-sm py-1 px-3">
-              <CreditCard className="w-4 h-4 mr-2" />
-              Pagamento único por funcionário
-            </Badge>
+          {/* Destaque de preço */}
+          <div className="flex items-center justify-center">
+            <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl px-6 py-4">
+              <div className="flex items-center justify-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" />
+                <span className="text-2xl font-bold text-primary">R$ 35,90</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">por funcionário / mês</p>
+            </div>
           </div>
 
           {/* Botão de ação */}
