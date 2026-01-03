@@ -17,16 +17,17 @@ export default function EmployeeFeatureCard({ isUnlocked, onUnlock, children }: 
   return (
     <Card className="relative overflow-hidden">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
-        <div className="text-center p-6 max-w-sm">
+        <div className="text-center p-6 max-w-md">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-primary" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">Recurso Bloqueado</h3>
+          <h3 className="text-lg font-semibold mb-2">Adicione Funcionários</h3>
           <p className="text-muted-foreground text-sm mb-4">
-            Adicione colaboradores à sua conta com permissões personalizadas para cada um.
+            Cada funcionário adicional requer um pagamento separado. 
+            Libere um slot para cadastrar seu primeiro colaborador.
           </p>
           <Button onClick={onUnlock}>
-            Liberar Recurso
+            Liberar 1 Funcionário
           </Button>
         </div>
       </div>
@@ -37,10 +38,10 @@ export default function EmployeeFeatureCard({ isUnlocked, onUnlock, children }: 
           <div>
             <CardTitle className="flex items-center gap-2">
               Funcionários
-              <Badge variant="secondary">Premium</Badge>
+              <Badge variant="secondary">Por Funcionário</Badge>
             </CardTitle>
             <CardDescription>
-              Gerencie colaboradores com acesso limitado
+              1 pagamento = 1 slot de funcionário
             </CardDescription>
           </div>
         </div>
@@ -50,7 +51,7 @@ export default function EmployeeFeatureCard({ isUnlocked, onUnlock, children }: 
         <div className="space-y-3 opacity-50">
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Cadastre até 3 funcionários
+            Pague apenas pelos funcionários que usar
           </div>
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle2 className="w-4 h-4 text-green-500" />

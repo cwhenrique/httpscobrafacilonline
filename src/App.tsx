@@ -27,6 +27,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import Tutorials from "./pages/Tutorials";
+import Employees from "./pages/Employees";
 import Quiz from "./pages/Quiz";
 import NotFound from "./pages/NotFound";
 
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
               <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
+              <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

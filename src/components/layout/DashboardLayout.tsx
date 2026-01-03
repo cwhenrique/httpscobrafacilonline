@@ -18,6 +18,7 @@ import {
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   DollarSign,
   BarChart3,
   Settings,
@@ -57,6 +58,7 @@ const navigation = [
   // Contas e Ferramentas
   { name: 'Simulador', href: '/simulator', icon: Calculator },
   { name: 'Minhas Contas a Pagar', href: '/bills', icon: FileText },
+  { name: 'Funcionários', href: '/employees', icon: UserPlus },
   { name: 'Aulas do App', href: '/tutorials', icon: GraduationCap },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
