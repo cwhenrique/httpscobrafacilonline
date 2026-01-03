@@ -175,7 +175,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { isProfileComplete, loading: profileLoading, refetch: refetchProfile } = useProfile();
-  const { isEmployee, employeeName, hasPermission } = useEmployeeContext();
+  const { isEmployee, isOwner, employeeName, hasPermission, permissions, loading: employeeLoading } = useEmployeeContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -259,11 +259,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   Gerencie seus empréstimos
                 </p>
               </div>
-              {isEmployee && (
+              {/* Debug/Status indicator */}
+              {employeeLoading ? (
+                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700">
+                  <span className="text-sm text-gray-500">Carregando...</span>
+                </div>
+              ) : isEmployee ? (
                 <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800">
                   <UserCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                    Funcionário: {employeeName}
+                    Funcionário: {employeeName} ({permissions.length} perm.)
+                  </span>
+                </div>
+              ) : isOwner ? (
+                <div className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-800">
+                  <UserCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-medium text-green-800 dark:text-green-300">
+                    Dono (acesso total)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-red-100 dark:bg-red-900/30 px-3 py-1.5 rounded-full border border-red-200 dark:border-red-800">
+                  <span className="text-sm font-medium text-red-800 dark:text-red-300">
+                    Acesso bloqueado
                   </span>
                 </div>
               )}
