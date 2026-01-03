@@ -333,6 +333,68 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_permissions: {
+        Row: {
+          created_at: string | null
+          employee_id: string
+          id: string
+          permission: Database["public"]["Enums"]["employee_permission"]
+        }
+        Insert: {
+          created_at?: string | null
+          employee_id: string
+          id?: string
+          permission: Database["public"]["Enums"]["employee_permission"]
+        }
+        Update: {
+          created_at?: string | null
+          employee_id?: string
+          id?: string
+          permission?: Database["public"]["Enums"]["employee_permission"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_permissions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          created_at: string | null
+          email: string
+          employee_user_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          employee_user_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          employee_user_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       loan_payments: {
         Row: {
           amount: number
@@ -737,6 +799,7 @@ export type Database = {
           company_name: string | null
           created_at: string
           email: string | null
+          employees_feature_enabled: boolean | null
           evolution_api_key: string | null
           evolution_api_url: string | null
           evolution_instance_name: string | null
@@ -745,6 +808,7 @@ export type Database = {
           has_seen_loans_tutorial: boolean | null
           id: string
           is_active: boolean
+          max_employees: number | null
           payment_link: string | null
           phone: string | null
           pix_key: string | null
@@ -766,6 +830,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          employees_feature_enabled?: boolean | null
           evolution_api_key?: string | null
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
@@ -774,6 +839,7 @@ export type Database = {
           has_seen_loans_tutorial?: boolean | null
           id: string
           is_active?: boolean
+          max_employees?: number | null
           payment_link?: string | null
           phone?: string | null
           pix_key?: string | null
@@ -795,6 +861,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          employees_feature_enabled?: boolean | null
           evolution_api_key?: string | null
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
@@ -803,6 +870,7 @@ export type Database = {
           has_seen_loans_tutorial?: boolean | null
           id?: string
           is_active?: boolean
+          max_employees?: number | null
           payment_link?: string | null
           phone?: string | null
           pix_key?: string | null
@@ -1068,6 +1136,7 @@ export type Database = {
         Args: { p_late: number; p_on_time: number; p_total_loans: number }
         Returns: number
       }
+      get_employee_owner_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1079,6 +1148,21 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       client_type: "loan" | "monthly" | "both"
+      employee_permission:
+        | "view_loans"
+        | "create_loans"
+        | "register_payments"
+        | "adjust_dates"
+        | "delete_loans"
+        | "view_clients"
+        | "create_clients"
+        | "edit_clients"
+        | "delete_clients"
+        | "view_reports"
+        | "manage_bills"
+        | "manage_vehicles"
+        | "manage_products"
+        | "view_settings"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
@@ -1217,6 +1301,22 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       client_type: ["loan", "monthly", "both"],
+      employee_permission: [
+        "view_loans",
+        "create_loans",
+        "register_payments",
+        "adjust_dates",
+        "delete_loans",
+        "view_clients",
+        "create_clients",
+        "edit_clients",
+        "delete_clients",
+        "view_reports",
+        "manage_bills",
+        "manage_vehicles",
+        "manage_products",
+        "view_settings",
+      ],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],
       loan_payment_type: [

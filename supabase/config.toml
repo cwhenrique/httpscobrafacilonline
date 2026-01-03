@@ -104,3 +104,15 @@ verify_jwt = false
 
 [functions.admin-update-user-email]
 verify_jwt = false
+
+[functions.create-employee]
+verify_jwt = true
+
+[functions.update-employee]
+verify_jwt = true
+
+[functions.whatsapp-get-pairing-code]
+verify_jwt = true
+
+[functions.admin-toggle-user-status]
+verify_jwt = false
