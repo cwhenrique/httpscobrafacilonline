@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
+import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
 import Landing from "./pages/Landing";
 import PvWhatsapp from "./pages/PvWhatsapp";
 import Affiliate from "./pages/Affiliate";
@@ -65,7 +66,7 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
               <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
-              <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+              <Route path="/employees" element={<ProtectedRoute><OwnerOnlyRoute><Employees /></OwnerOnlyRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

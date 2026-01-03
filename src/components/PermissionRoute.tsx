@@ -19,12 +19,10 @@ export function PermissionRoute({ permission, children }: PermissionRouteProps) 
     );
   }
   
-  // Se não é nem funcionário nem dono (estado indeterminado), bloquear
-  if (!isEmployee && !isOwner) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Verificar permissão
+  // hasPermission já cuida de tudo:
+  // - dono confirmado = true
+  // - funcionário = verifica lista de permissões
+  // - estado indeterminado = false
   if (!hasPermission(permission)) {
     return <Navigate to="/dashboard" replace />;
   }
