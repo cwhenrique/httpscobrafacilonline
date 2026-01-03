@@ -24,6 +24,7 @@ const PERMISSION_LABELS: Record<EmployeePermission, string> = {
   manage_vehicles: 'Gerenciar Veículos',
   manage_products: 'Gerenciar Produtos',
   view_settings: 'Visualizar Configurações',
+  view_dashboard: 'Visualizar Dashboard',
 };
 
 export function PermissionRoute({ permission, children }: PermissionRouteProps) {

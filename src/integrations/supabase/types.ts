@@ -1191,6 +1191,7 @@ export type Database = {
         | "manage_products"
         | "view_settings"
         | "view_all_loans"
+        | "view_dashboard"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
@@ -1345,6 +1346,7 @@ export const Constants = {
         "manage_products",
         "view_settings",
         "view_all_loans",
+        "view_dashboard",
       ],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],
