@@ -180,19 +180,19 @@ export default function Dashboard() {
 
         {/* Employee Feature Promo - Only for owners */}
         {!isEmployee && isOwner && (
-          <Card className="shadow-soft border-amber-500/50 bg-gradient-to-r from-amber-900 to-amber-800">
+          <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-amber-500/20">
-                    <UserPlus className="w-6 h-6 text-amber-400" />
+                  <div className="p-3 rounded-xl bg-blue-500/30">
+                    <UserPlus className="w-6 h-6 text-blue-300" />
                   </div>
                   <div>
-                    <h3 className="font-display font-semibold text-lg text-amber-100">Expanda seu Negócio!</h3>
-                    <p className="text-sm text-amber-200/80 mt-1">
+                    <h3 className="font-display font-bold text-xl text-white drop-shadow-md">Expanda seu Negócio!</h3>
+                    <p className="text-sm text-blue-100 mt-1 font-medium">
                       Adicione funcionários para ajudar no dia a dia. A partir de R$ 35,90/mês.
                     </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-amber-200/90">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-blue-100 font-medium">
                       <span className="flex items-center gap-1">✓ Controle total de permissões</span>
                       <span className="flex items-center gap-1">✓ Acompanhamento de produtividade</span>
                       <span className="flex items-center gap-1">✓ Notificações via WhatsApp</span>
