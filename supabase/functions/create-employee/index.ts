@@ -94,9 +94,55 @@ serve(async (req) => {
 
     let employeeUserId: string;
 
+    // Calcular data de expiração (1 mês)
+    const subscriptionExpiresAt = new Date();
+    subscriptionExpiresAt.setMonth(subscriptionExpiresAt.getMonth() + 1);
+
     if (existingUser) {
-      // Usuário já existe - não podemos alterar a senha dele
-      throw new Error('Este email já possui uma conta. O funcionário deve usar a senha existente ou criar uma nova conta.');
+      employeeUserId = existingUser.id;
+      console.log('Usuário existente encontrado:', employeeUserId);
+
+      // Verificar se já está vinculado como funcionário ATIVO de outro dono
+      const { data: existingActiveEmployee } = await supabaseAdmin
+        .from('employees')
+        .select('id, owner_id')
+        .eq('employee_user_id', existingUser.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingActiveEmployee && existingActiveEmployee.owner_id !== ownerId) {
+        throw new Error('Este email já está vinculado como funcionário ativo de outra conta.');
+      }
+
+      // Atualizar a senha do usuário existente para a nova senha definida
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        { password: password }
+      );
+
+      if (updateError) {
+        console.error('Erro ao atualizar senha:', updateError);
+        throw new Error('Falha ao atualizar senha do usuário existente.');
+      }
+
+      console.log('Senha do usuário atualizada');
+
+      // Atualizar perfil existente com nova assinatura
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert({
+          id: existingUser.id,
+          email: email.toLowerCase(),
+          full_name: name,
+          phone: phone || null,
+          subscription_plan: 'employee',
+          subscription_expires_at: subscriptionExpiresAt.toISOString(),
+          is_active: true,
+        });
+
+      if (profileError) {
+        console.error('Erro ao atualizar perfil:', profileError);
+      }
     } else {
       // Criar novo usuário com a senha definida pelo dono
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -114,11 +160,7 @@ serve(async (req) => {
       employeeUserId = newUser.user.id;
       console.log('Novo usuário criado:', employeeUserId);
 
-      // Calcular data de expiração (1 mês)
-      const subscriptionExpiresAt = new Date();
-      subscriptionExpiresAt.setMonth(subscriptionExpiresAt.getMonth() + 1);
-
-      // Criar/Atualizar perfil do funcionário com assinatura de 1 mês
+      // Criar perfil do funcionário com assinatura de 1 mês
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .upsert({
@@ -133,7 +175,6 @@ serve(async (req) => {
 
       if (profileError) {
         console.error('Erro ao criar perfil:', profileError);
-        // Não falhar por causa do perfil, o trigger pode ter criado
       }
     }
 
