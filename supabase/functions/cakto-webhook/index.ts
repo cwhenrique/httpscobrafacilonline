@@ -123,12 +123,18 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 
   // FALLBACK: Use price to detect plan
   if (price > 0) {
-    // Monthly: less than R$70
-    if (price < 70) {
-      console.log('Matched: MONTHLY by price (R$', price, ')');
+    // Lifetime: above R$500
+    if (price > 500) {
+      console.log('Matched: LIFETIME by price (R$', price, ')');
+      return { plan: 'lifetime', expiresAt: null };
+    }
+    
+    // Annual: between R$300 and R$500
+    if (price > 300 && price <= 500) {
+      console.log('Matched: ANNUAL by price (R$', price, ')');
       const expiresAt = new Date(now);
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-      return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
     }
     
     // Quarterly: between R$70 and R$300
@@ -139,12 +145,12 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
       return { plan: 'quarterly', expiresAt: expiresAt.toISOString() };
     }
     
-    // Annual: above R$300
-    if (price > 300) {
-      console.log('Matched: ANNUAL by price (R$', price, ')');
+    // Monthly: less than R$70
+    if (price < 70) {
+      console.log('Matched: MONTHLY by price (R$', price, ')');
       const expiresAt = new Date(now);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+      return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
     }
   }
 
