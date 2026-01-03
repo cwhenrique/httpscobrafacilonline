@@ -121,6 +121,22 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
   }
 
+  // Check for quarterly/trimestral by name
+  if (
+    productName.includes('trimestral') ||
+    productName.includes('quarterly') ||
+    productName.includes('3 meses') ||
+    productName.includes('três meses') ||
+    productName.includes('tres meses') ||
+    productId.includes('quarterly') ||
+    productId.includes('trimestral')
+  ) {
+    console.log('Matched: QUARTERLY by name');
+    const expiresAt = new Date(now);
+    expiresAt.setMonth(expiresAt.getMonth() + 3);
+    return { plan: 'quarterly', expiresAt: expiresAt.toISOString() };
+  }
+
   // FALLBACK: Use price to detect plan
   if (price > 0) {
     // Lifetime: above R$500
@@ -240,6 +256,8 @@ function getSubscriptionTimeLabel(plan: string): string {
       return 'Vitalício';
     case 'annual':
       return '1 ano';
+    case 'quarterly':
+      return '3 meses';
     case 'monthly':
       return '1 mês';
     default:
@@ -439,6 +457,7 @@ serve(async (req) => {
         const planNames: Record<string, string> = {
           'lifetime': 'Vitalício',
           'annual': 'Anual',
+          'quarterly': 'Trimestral',
           'monthly': 'Mensal',
         };
         
