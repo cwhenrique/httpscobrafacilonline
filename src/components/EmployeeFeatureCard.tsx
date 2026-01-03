@@ -1,15 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Lock, CheckCircle2 } from 'lucide-react';
+import { Users, Lock, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 
 interface EmployeeFeatureCardProps {
   isUnlocked: boolean;
   onUnlock: () => void;
+  isAdmin?: boolean;
+  isLoading?: boolean;
   children?: React.ReactNode;
 }
 
-export default function EmployeeFeatureCard({ isUnlocked, onUnlock, children }: EmployeeFeatureCardProps) {
+export default function EmployeeFeatureCard({ 
+  isUnlocked, 
+  onUnlock, 
+  isAdmin = false,
+  isLoading = false,
+  children 
+}: EmployeeFeatureCardProps) {
   if (isUnlocked) {
     return <>{children}</>;
   }
@@ -19,16 +27,41 @@ export default function EmployeeFeatureCard({ isUnlocked, onUnlock, children }: 
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
         <div className="text-center p-6 max-w-md">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-primary" />
+            {isAdmin ? (
+              <ShieldCheck className="w-8 h-8 text-primary" />
+            ) : (
+              <Lock className="w-8 h-8 text-primary" />
+            )}
           </div>
-          <h3 className="text-lg font-semibold mb-2">Adicione Funcionários</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            {isAdmin ? 'Liberar Funcionário (Admin)' : 'Adicione Funcionários'}
+          </h3>
           <p className="text-muted-foreground text-sm mb-4">
-            Cada funcionário adicional requer um pagamento separado. 
-            Libere um slot para cadastrar seu primeiro colaborador.
+            {isAdmin 
+              ? 'Como administrador, você pode liberar slots de funcionários sem pagamento.'
+              : 'Cada funcionário adicional requer um pagamento separado. Libere um slot para cadastrar seu primeiro colaborador.'
+            }
           </p>
-          <Button onClick={onUnlock}>
-            Liberar 1 Funcionário
+          <Button onClick={onUnlock} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Verificando...
+              </>
+            ) : isAdmin ? (
+              <>
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Liberar 1 Funcionário
+              </>
+            ) : (
+              'Liberar 1 Funcionário'
+            )}
           </Button>
+          {!isAdmin && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Você será redirecionado para a página de pagamento
+            </p>
+          )}
         </div>
       </div>
 
