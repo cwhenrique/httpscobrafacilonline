@@ -180,6 +180,7 @@ export function useLoans() {
       due_date: loan.due_date,
       notes: loan.notes || null,
       user_id: effectiveUserId,
+      created_by: user.id, // Quem realmente criou o empréstimo (pode ser funcionário)
       remaining_balance: (loan.remaining_balance !== undefined && loan.remaining_balance !== null)
         ? loan.remaining_balance 
         : (loan.principal_amount + (loan.total_interest || 0)),

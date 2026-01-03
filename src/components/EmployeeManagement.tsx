@@ -26,7 +26,8 @@ interface Employee {
 
 const PERMISSION_GROUPS = {
   'Empréstimos': [
-    { key: 'view_loans' as EmployeePermission, label: 'Ver empréstimos' },
+    { key: 'view_loans' as EmployeePermission, label: 'Ver empréstimos próprios' },
+    { key: 'view_all_loans' as EmployeePermission, label: 'Ver TODOS os empréstimos' },
     { key: 'create_loans' as EmployeePermission, label: 'Criar empréstimos' },
     { key: 'register_payments' as EmployeePermission, label: 'Registrar pagamentos' },
     { key: 'adjust_dates' as EmployeePermission, label: 'Ajustar datas/renegociar' },
