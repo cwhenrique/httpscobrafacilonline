@@ -25,6 +25,8 @@ function cleanApiUrl(url: string): string {
 
 // Check if this is an employee slot purchase
 function isEmployeeSlotPurchase(payload: any): boolean {
+  console.log('=== CHECKING IF EMPLOYEE SLOT PURCHASE ===');
+  
   const productName = (
     payload.data?.product?.name ||
     payload.product?.name ||
@@ -45,17 +47,50 @@ function isEmployeeSlotPurchase(payload: any): boolean {
     ''
   ).toLowerCase();
 
-  // Check for employee-related keywords
-  return (
+  // Extract price for fallback detection
+  const price = parseFloat(
+    payload.data?.total ||
+    payload.total ||
+    payload.data?.value ||
+    payload.value ||
+    payload.data?.amount ||
+    payload.amount ||
+    payload.data?.price ||
+    payload.price ||
+    '0'
+  );
+
+  console.log('Employee slot detection - Product name:', productName);
+  console.log('Employee slot detection - Product ID:', productId);
+  console.log('Employee slot detection - Price:', price);
+
+  // Check for employee-related keywords in name
+  const matchesByName = (
     productName.includes('funcionário') ||
     productName.includes('funcionario') ||
     productName.includes('employee') ||
     productName.includes('colaborador') ||
     productName.includes('sub-conta') ||
     productName.includes('subconta') ||
+    productName.includes('slot') ||
     productId.includes('employee') ||
-    productId.includes('funcionario')
+    productId.includes('funcionario') ||
+    productId.includes('pkvkjyp') // ID específico do produto de funcionário
   );
+
+  if (matchesByName) {
+    console.log('=== EMPLOYEE SLOT MATCHED BY NAME/ID ===');
+    return true;
+  }
+
+  // Fallback: check by price for employee slot (R$ 35.90)
+  if (price > 0 && Math.abs(price - 35.90) < 1) {
+    console.log('=== EMPLOYEE SLOT MATCHED BY PRICE (R$ 35.90) ===');
+    return true;
+  }
+
+  console.log('=== NOT AN EMPLOYEE SLOT PURCHASE ===');
+  return false;
 }
 
 // Determine subscription plan from Cakto payload
