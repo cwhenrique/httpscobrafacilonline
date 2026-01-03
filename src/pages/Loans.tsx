@@ -7731,6 +7731,48 @@ export default function Loans() {
                 </div>
               </TooltipProvider>
               
+              {/* Filtro por funcionário (só para donos) */}
+              {!isEmployee && myEmployees && myEmployees.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={filterByEmployee ? 'default' : 'outline'}
+                      size="sm"
+                      className={`gap-1 text-xs sm:text-sm h-9 sm:h-10 ${
+                        filterByEmployee ? 'bg-violet-500 hover:bg-violet-600' : 
+                        'border-violet-500 text-violet-600 hover:bg-violet-500/10'
+                      }`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">
+                        {!filterByEmployee ? 'Criador' : 
+                          filterByEmployee === 'owner' ? 'Meus' : 
+                          myEmployees.find(e => e.employee_user_id === filterByEmployee)?.name || 'Func.'}
+                      </span>
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    <DropdownMenuItem onClick={() => setFilterByEmployee(null)}>
+                      <span className="font-medium">Todos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setFilterByEmployee('owner')}>
+                      Criados por mim
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {myEmployees.map(emp => (
+                      <DropdownMenuItem 
+                        key={emp.employee_user_id} 
+                        onClick={() => setFilterByEmployee(emp.employee_user_id)}
+                      >
+                        {emp.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -8068,6 +8110,13 @@ export default function Loans() {
                               <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
+                              {/* Badge do funcionário criador (só para donos) */}
+                              {!isEmployee && loan.creator_employee && (
+                                <Badge variant="secondary" className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-300 border-violet-500/50">
+                                  <UserCheck className="w-2.5 h-2.5 mr-0.5" />
+                                  {loan.creator_employee.name}
+                                </Badge>
+                              )}
                             </div>
                             
                             {/* LINHA 3: Valor em destaque */}
