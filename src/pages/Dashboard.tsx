@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
@@ -24,6 +25,7 @@ import {
   Receipt,
   Lock,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,15 @@ export default function Dashboard() {
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
   const { isEmployee, isOwner, hasPermission, loading: employeeLoading } = useEmployeeContext();
+  
+  const [showEmployeeBanner, setShowEmployeeBanner] = useState(() => {
+    return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
+  });
+  
+  const handleCloseEmployeeBanner = () => {
+    sessionStorage.setItem('hideEmployeeBanner', 'true');
+    setShowEmployeeBanner(false);
+  };
   
   // Enable browser notifications for overdue loans
   useOverdueNotifications(loans, loansLoading);
@@ -179,8 +190,15 @@ export default function Dashboard() {
         <PWAInstallBanner variant="card" />
 
         {/* Employee Feature Promo - Only for owners */}
-        {!isEmployee && isOwner && (
-          <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800">
+        {!isEmployee && isOwner && showEmployeeBanner && (
+          <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800 relative">
+            <button 
+              onClick={handleCloseEmployeeBanner}
+              className="absolute top-2 right-2 p-1 rounded-full hover:bg-blue-500/20 transition-colors z-10"
+              aria-label="Fechar banner"
+            >
+              <X className="w-4 h-4 text-blue-200" />
+            </button>
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">

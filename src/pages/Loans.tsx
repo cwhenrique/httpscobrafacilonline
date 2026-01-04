@@ -476,7 +476,14 @@ export default function Loans() {
     return saved === 'table' ? 'table' : 'cards';
   });
   const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
-  const [showEmployeeBanner, setShowEmployeeBanner] = useState(true);
+  const [showEmployeeBanner, setShowEmployeeBanner] = useState(() => {
+    return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
+  });
+  
+  const handleCloseEmployeeBanner = () => {
+    sessionStorage.setItem('hideEmployeeBanner', 'true');
+    setShowEmployeeBanner(false);
+  };
   const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = useState(false);
@@ -5576,7 +5583,7 @@ export default function Loans() {
         {!isEmployee && isOwner && showEmployeeBanner && (
           <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800 mb-4 relative">
             <button 
-              onClick={() => setShowEmployeeBanner(false)}
+              onClick={handleCloseEmployeeBanner}
               className="absolute top-2 right-2 p-1 rounded-full hover:bg-blue-500/20 transition-colors z-10"
               aria-label="Fechar banner"
             >
