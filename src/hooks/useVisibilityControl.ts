@@ -18,6 +18,7 @@ export function useVisibilityControl() {
     // Limpar sessão quando a janela for fechada de verdade
     const handleBeforeUnload = () => {
       sessionStorage.removeItem('pwa_session_active');
+      sessionStorage.removeItem('hideEmployeeBanner');
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
