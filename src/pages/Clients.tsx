@@ -748,11 +748,11 @@ export default function Clients() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Cliente</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Tipo</TableHead>
+                      <TableHead className="hidden sm:table-cell">Telefone</TableHead>
+                      <TableHead className="hidden md:table-cell">Tipo</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Cadastrado em</TableHead>
+                      <TableHead className="hidden lg:table-cell">Score</TableHead>
+                      <TableHead className="hidden md:table-cell">Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -770,12 +770,17 @@ export default function Clients() {
                               </Avatar>
                               <div>
                                 <span className="font-medium block">{client.full_name}</span>
-                                {client.cpf && <span className="text-xs text-muted-foreground">{client.cpf}</span>}
+                                <span className="text-xs text-muted-foreground hidden sm:block">
+                                  {client.cpf || ''}
+                                </span>
+                                <span className="text-xs text-muted-foreground sm:hidden">
+                                  {client.phone || ''}
+                                </span>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{client.phone || '-'}</TableCell>
-                          <TableCell>
+                          <TableCell className="hidden sm:table-cell">{client.phone || '-'}</TableCell>
+                          <TableCell className="hidden md:table-cell">
                             <Badge className={getClientTypeBadgeColor(client.client_type)}>
                               {getClientTypeLabel(client.client_type)}
                             </Badge>
@@ -790,7 +795,7 @@ export default function Clients() {
                               {client.is_active !== false ? 'Ativo' : 'Inativo'}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden lg:table-cell">
                             <ClientScoreBadge 
                               score={client.score || 100}
                               totalLoans={client.total_loans || 0}
@@ -799,7 +804,7 @@ export default function Clients() {
                               latePayments={client.late_payments || 0}
                             />
                           </TableCell>
-                          <TableCell>{formatDate(client.created_at)}</TableCell>
+                          <TableCell className="hidden md:table-cell">{formatDate(client.created_at)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               {hasPermission('edit_clients') && (
