@@ -19,6 +19,13 @@ export function useVisibilityControl() {
     const handleBeforeUnload = () => {
       sessionStorage.removeItem('pwa_session_active');
       sessionStorage.removeItem('hideEmployeeBanner');
+      // Limpar dados do formulário de cliente
+      sessionStorage.removeItem('client_dialog_open');
+      sessionStorage.removeItem('client_form_data');
+      sessionStorage.removeItem('client_form_tab');
+      sessionStorage.removeItem('client_editing');
+      sessionStorage.removeItem('client_created_id');
+      sessionStorage.removeItem('client_created_name');
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
