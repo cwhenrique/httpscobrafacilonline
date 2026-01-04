@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
+import { useVisibilityControl } from "@/hooks/useVisibilityControl";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
@@ -34,9 +35,20 @@ import Employees from "./pages/Employees";
 import Quiz from "./pages/Quiz";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 1000 * 60 * 5,
+    },
+  },
+});
 
-const App = () => (
+const App = () => {
+  useVisibilityControl();
+  
+  return (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <EmployeeProvider>
@@ -77,6 +89,7 @@ const App = () => (
       </EmployeeProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
