@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuery } from '@tanstack/react-query';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -484,19 +485,19 @@ export default function Loans() {
     sessionStorage.setItem('hideEmployeeBanner', 'true');
     setShowEmployeeBanner(false);
   };
-  const [isDailyDialogOpen, setIsDailyDialogOpen] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = useState(false);
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
+  const [isDailyDialogOpen, setIsDailyDialogOpen] = usePersistedState('loan_daily_dialog_open', false);
+  const [isDialogOpen, setIsDialogOpen] = usePersistedState('loan_dialog_open', false);
+  const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = usePersistedState('loan_price_dialog_open', false);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = usePersistedState('loan_payment_dialog_open', false);
+  const [selectedLoanId, setSelectedLoanId] = usePersistedState<string | null>('loan_selected_id', null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [installmentDates, setInstallmentDates] = useState<string[]>([]);
-  const [dailyDateMode, setDailyDateMode] = useState<'auto' | 'manual'>('auto');
-  const [dailyFirstDate, setDailyFirstDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [dailyInstallmentCount, setDailyInstallmentCount] = useState('20');
-  const [skipSaturday, setSkipSaturday] = useState(false);
-  const [skipSunday, setSkipSunday] = useState(false);
-  const [skipHolidays, setSkipHolidays] = useState(false);
+  const [installmentDates, setInstallmentDates] = usePersistedState<string[]>('loan_installment_dates', []);
+  const [dailyDateMode, setDailyDateMode] = usePersistedState<'auto' | 'manual'>('loan_daily_date_mode', 'auto');
+  const [dailyFirstDate, setDailyFirstDate] = usePersistedState('loan_daily_first_date', format(new Date(), 'yyyy-MM-dd'));
+  const [dailyInstallmentCount, setDailyInstallmentCount] = usePersistedState('loan_daily_installment_count', '20');
+  const [skipSaturday, setSkipSaturday] = usePersistedState('loan_skip_saturday', false);
+  const [skipSunday, setSkipSunday] = usePersistedState('loan_skip_sunday', false);
+  const [skipHolidays, setSkipHolidays] = usePersistedState('loan_skip_holidays', false);
   
   // Estado para juros históricos simplificado
   const [historicalInterestReceived, setHistoricalInterestReceived] = useState('');
@@ -506,7 +507,7 @@ export default function Loans() {
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
   // Estados para a aba Tabela Price inline
-  const [priceFormData, setPriceFormData] = useState({
+  const [priceFormData, setPriceFormData] = usePersistedState('loan_price_form_data', {
     client_id: '',
     principal_amount: '',
     interest_rate: '',
@@ -1588,7 +1589,7 @@ export default function Loans() {
     }
   };
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = usePersistedState('loan_form_data', {
     client_id: '',
     principal_amount: '',
     interest_rate: '',
@@ -1700,7 +1701,7 @@ export default function Loans() {
     return false;
   })();
   
-  const [installmentValue, setInstallmentValue] = useState('');
+  const [installmentValue, setInstallmentValue] = usePersistedState('loan_installment_value', '');
   const [isManuallyEditingInstallment, setIsManuallyEditingInstallment] = useState(false);
   const [editableTotalInterest, setEditableTotalInterest] = useState('');
   const [isManuallyEditingInterest, setIsManuallyEditingInterest] = useState(false);
@@ -1861,7 +1862,7 @@ export default function Loans() {
     setEditableTotalInterest(totalInterest.toFixed(2));
   };
 
-  const [paymentData, setPaymentData] = useState({
+  const [paymentData, setPaymentData] = usePersistedState('loan_payment_data', {
     amount: '',
     payment_date: format(new Date(), 'yyyy-MM-dd'),
     new_due_date: '', // Nova data de vencimento (opcional)
@@ -3542,6 +3543,17 @@ export default function Loans() {
     setSkipSunday(false);
     setHistoricalInterestReceived('');
     setHistoricalInterestNotes('');
+    
+    // Limpar do sessionStorage
+    const keysToRemove = [
+      'loan_dialog_open', 'loan_daily_dialog_open', 'loan_price_dialog_open',
+      'loan_payment_dialog_open', 'loan_selected_id', 'loan_form_data',
+      'loan_payment_data', 'loan_price_form_data', 'loan_installment_dates',
+      'loan_installment_value', 'loan_daily_date_mode', 'loan_daily_first_date',
+      'loan_daily_installment_count', 'loan_skip_saturday', 'loan_skip_sunday',
+      'loan_skip_holidays'
+    ];
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
   };
 
   const openRenegotiateDialog = (loanId: string) => {

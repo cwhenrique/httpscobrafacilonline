@@ -26,6 +26,23 @@ export function useVisibilityControl() {
       sessionStorage.removeItem('client_editing');
       sessionStorage.removeItem('client_created_id');
       sessionStorage.removeItem('client_created_name');
+      // Limpar dados do formulário de empréstimo
+      sessionStorage.removeItem('loan_dialog_open');
+      sessionStorage.removeItem('loan_daily_dialog_open');
+      sessionStorage.removeItem('loan_price_dialog_open');
+      sessionStorage.removeItem('loan_payment_dialog_open');
+      sessionStorage.removeItem('loan_selected_id');
+      sessionStorage.removeItem('loan_form_data');
+      sessionStorage.removeItem('loan_payment_data');
+      sessionStorage.removeItem('loan_price_form_data');
+      sessionStorage.removeItem('loan_installment_dates');
+      sessionStorage.removeItem('loan_installment_value');
+      sessionStorage.removeItem('loan_daily_date_mode');
+      sessionStorage.removeItem('loan_daily_first_date');
+      sessionStorage.removeItem('loan_daily_installment_count');
+      sessionStorage.removeItem('loan_skip_saturday');
+      sessionStorage.removeItem('loan_skip_sunday');
+      sessionStorage.removeItem('loan_skip_holidays');
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
