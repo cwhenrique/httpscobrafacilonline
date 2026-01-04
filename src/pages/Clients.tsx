@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useClients } from '@/hooks/useClients';
@@ -106,16 +107,16 @@ export default function Clients() {
   const { clients, loading, createClient, updateClient, deleteClient, uploadAvatar } = useClients();
   const { hasPermission } = useEmployeeContext();
   const [search, setSearch] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = usePersistedState('client_dialog_open', false);
+  const [editingClient, setEditingClient] = usePersistedState<Client | null>('client_editing', null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('dados');
-  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
-  const [createdClientName, setCreatedClientName] = useState<string>('');
+  const [activeTab, setActiveTab] = usePersistedState('client_form_tab', 'dados');
+  const [createdClientId, setCreatedClientId] = usePersistedState<string | null>('client_created_id', null);
+  const [createdClientName, setCreatedClientName] = usePersistedState('client_created_name', '');
   const [searchingCep, setSearchingCep] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -293,6 +294,14 @@ export default function Clients() {
     setAvatarFile(null);
     setAvatarPreview(null);
     setFormData(initialFormData);
+    
+    // Limpar do sessionStorage
+    sessionStorage.removeItem('client_dialog_open');
+    sessionStorage.removeItem('client_form_data');
+    sessionStorage.removeItem('client_form_tab');
+    sessionStorage.removeItem('client_editing');
+    sessionStorage.removeItem('client_created_id');
+    sessionStorage.removeItem('client_created_name');
   };
 
   const getClientTypeBadgeColor = (type: ClientType) => {
