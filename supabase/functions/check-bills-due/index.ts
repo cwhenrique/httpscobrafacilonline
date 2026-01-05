@@ -67,15 +67,15 @@ const cleanApiUrl = (url: string): string => {
 const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
   const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  // Usar instância fixa "VendaApp" para notificações do sistema
-  const instanceName = "VendaApp";
+  // Usar instância fixa "notificacao" para notificações do sistema
+  const instanceName = "notificacao";
 
   if (!evolutionApiUrlRaw || !evolutionApiKey) {
     console.error("Missing Evolution API configuration");
     return false;
   }
   
-  console.log("Using fixed system instance: VendaApp");
+  console.log("Using fixed system instance: notificacao");
 
   const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 

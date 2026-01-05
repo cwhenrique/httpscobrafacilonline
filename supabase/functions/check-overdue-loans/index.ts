@@ -57,14 +57,14 @@ const truncate = (str: string, max: number): string =>
 const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
   const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = "VendaApp";
+  const instanceName = "notificacao";
 
   if (!evolutionApiUrlRaw || !evolutionApiKey) {
     console.error("Missing Evolution API configuration");
     return false;
   }
   
-  console.log("Using fixed system instance: VendaApp");
+  console.log("Using fixed system instance: notificacao");
 
   const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
