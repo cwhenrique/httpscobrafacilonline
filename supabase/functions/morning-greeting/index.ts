@@ -365,9 +365,29 @@ const handler = async (req: Request): Promise<Response> => {
         rows: summaryRows,
       });
 
+      // Build rich description with full financial summary
+      let greetingDescription = `📅 ${formatDate(today)}\n`;
+      greetingDescription += `━━━━━━━━━━━━━━━━\n\n`;
+      
+      if (totalDueToday > 0) {
+        greetingDescription += `⏰ *Vence Hoje:* ${formatCurrency(totalDueToday)}\n`;
+      }
+      if (totalOverdue > 0) {
+        greetingDescription += `🚨 *Em Atraso:* ${formatCurrency(totalOverdue)}\n`;
+      }
+      greetingDescription += `📋 *Contratos Ativos:* ${totalContracts}\n\n`;
+      
+      const grandTotal = totalDueToday + totalOverdue;
+      if (grandTotal > 0) {
+        greetingDescription += `💰 *Total Pendente:* ${formatCurrency(grandTotal)}\n\n`;
+      }
+      
+      greetingDescription += `━━━━━━━━━━━━━━━━\n`;
+      greetingDescription += `Relatório detalhado às 8h.\nClique para ver o resumo.`;
+
       const listData: ListData = {
         title: `☀️ Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!`,
-        description: `${formatDate(today)}\n\nClique para ver seu resumo diário.\nRelatório completo será enviado às 8h.`,
+        description: greetingDescription,
         buttonText: "📋 Ver Resumo",
         footerText: "CobraFácil - 7h",
         sections: sections,

@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
-import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
+
 
 interface PaymentReceiptPromptProps {
   open: boolean;
@@ -50,16 +50,32 @@ const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): s
   }
 };
 
-// Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
-const generateClientMessage = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number): string => {
+// Interface for list data
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
+// Generate list data for CLIENT (simple, no technical details)
+const generateClientListData = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number, companyName?: string): ListData => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
   const totalCount = data.totalInstallments;
   
-  // Calcular progresso corretamente:
-  // 1. Se quitado, sempre 100%
-  // 2. Se temos os valores, usar valor pago vs total
-  // 3. Fallback: usar maior parcela paga
   const maxPaidInstallment = Array.isArray(installments) 
     ? Math.max(...installments) 
     : installments;
@@ -73,116 +89,130 @@ const generateClientMessage = (data: PaymentReceiptData, installmentDates?: stri
     progressPercent = Math.round((maxPaidInstallment / totalCount) * 100);
   }
   
-  let message = `✅ *PAGAMENTO RECEBIDO*\n`;
-  message += `━━━━━━━━━━━━━━━━\n\n`;
-  
-  message += `Olá *${data.clientName}*!\n\n`;
-  message += `Confirmamos o recebimento:\n\n`;
-  
-  message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  // Build rich description
+  let description = `Olá *${data.clientName}*!\n`;
+  description += `━━━━━━━━━━━━━━━━\n\n`;
+  description += `✅ *PAGAMENTO CONFIRMADO*\n\n`;
+  description += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    message += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
+    description += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
-    message += `🏷️ *Desconto Concedido:* ${formatCurrency(data.discountAmount)}\n`;
+    description += `🏷️ *Desconto:* ${formatCurrency(data.discountAmount)}\n`;
   }
   
-  // Mostrar parcela(s) paga(s)
   if (Array.isArray(installments)) {
-    message += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
+    description += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
   } else {
-    message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
+    description += `📊 *Parcela:* ${installments}/${totalCount}\n`;
   }
-  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n`;
+  description += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
   
-  // Adicionar lista de status das parcelas com emojis
-  if (installmentDates && installmentDates.length > 0 && paidCount !== undefined) {
-    message += generateInstallmentsStatusList({
-      installmentDates,
-      paidCount,
-      totalInstallments: totalCount
-    });
-  }
-  message += `\n`;
-  
-  // Progress bar visual
+  // Progress bar
   const filledBlocks = Math.round(progressPercent / 10);
   const emptyBlocks = 10 - filledBlocks;
-  message += `📈 *Progresso:*\n`;
-  message += `${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
+  description += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
   
   if (isFullyPaid) {
-    message += `🎉 *CONTRATO QUITADO!* 🎉\n`;
-    message += `Obrigado pela confiança!\n`;
+    description += `🎉 *CONTRATO QUITADO!*\n`;
+    description += `Obrigado pela confiança!\n`;
   } else {
-    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    description += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
     if (data.nextDueDate) {
-      message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
+      description += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
     }
   }
   
-  message += `\n━━━━━━━━━━━━━━━━\n`;
-  const signatureName = data.billingSignatureName || data.companyName;
-  if (signatureName) {
-    message += `_${signatureName}_`;
-  }
-  
-  return message;
+  description += `\n━━━━━━━━━━━━━━━━`;
+
+  const sections: ListSection[] = [{
+    title: "📋 Detalhes",
+    rows: [
+      { title: "Valor Pago", description: formatCurrency(data.amountPaid), rowId: "amount" },
+      { title: "Parcela", description: Array.isArray(installments) ? `${installments.join(', ')} de ${totalCount}` : `${installments}/${totalCount}`, rowId: "inst" },
+      { title: "Saldo Restante", description: formatCurrency(data.remainingBalance), rowId: "balance" },
+    ]
+  }];
+
+  const signatureName = data.billingSignatureName || companyName || 'CobraFácil';
+
+  return {
+    title: "✅ Pagamento Recebido",
+    description,
+    buttonText: "📋 Ver Detalhes",
+    footerText: signatureName,
+    sections,
+  };
 };
 
-// Mensagem COMPLETA para USUÁRIO/COBRADOR (com todos os detalhes)
-const generateCollectorMessage = (data: PaymentReceiptData, clientPhone?: string): string => {
+// Generate list data for COLLECTOR (full details)
+const generateCollectorListData = (data: PaymentReceiptData, clientPhone?: string): ListData => {
   const prefix = getContractPrefix(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
   const isFullyPaid = data.remainingBalance <= 0;
   
-  let message = `🏷️ *CobraFácil*\n`;
-  message += `✅ *PAGAMENTO REGISTRADO*\n`;
-  message += `━━━━━━━━━━━━━━━━\n\n`;
-  
-  message += `📋 *Contrato:* ${contractNumber}\n\n`;
-  
-  message += `👤 *CLIENTE*\n`;
-  message += `• Nome: ${data.clientName}\n`;
+  let description = `📋 *Contrato:* ${contractNumber}\n`;
+  description += `━━━━━━━━━━━━━━━━\n\n`;
+  description += `👤 *Cliente:* ${data.clientName}\n`;
   if (clientPhone) {
-    message += `• Telefone: ${clientPhone}\n`;
+    description += `📱 *Telefone:* ${clientPhone}\n`;
   }
-  message += `\n`;
-  
-  message += `💰 *PAGAMENTO*\n`;
-  message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  description += `\n💰 *PAGAMENTO*\n`;
+  description += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    message += `• Multa Paga: ${formatCurrency(data.penaltyAmount)}\n`;
+    description += `• Multa: ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
-    message += `• Desconto Concedido: ${formatCurrency(data.discountAmount)}\n`;
+    description += `• Desconto: ${formatCurrency(data.discountAmount)}\n`;
   }
-  // Mostrar parcela(s) paga(s)
   if (Array.isArray(data.installmentNumber)) {
-    message += `• Parcelas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
+    description += `• Parcelas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
   } else {
-    message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
+    description += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
   }
-  message += `• Data: ${formatDate(data.paymentDate)}\n\n`;
+  description += `• Data: ${formatDate(data.paymentDate)}\n\n`;
   
-  message += `📊 *SITUAÇÃO*\n`;
+  description += `📊 *SITUAÇÃO*\n`;
   if (data.totalContract) {
-    message += `• Total do Contrato: ${formatCurrency(data.totalContract)}\n`;
+    description += `• Total Contrato: ${formatCurrency(data.totalContract)}\n`;
   }
   if (data.totalPaid) {
-    message += `• Total Pago: ${formatCurrency(data.totalPaid)}\n`;
+    description += `• Total Pago: ${formatCurrency(data.totalPaid)}\n`;
   }
   
   if (isFullyPaid) {
-    message += `\n🎉 *CONTRATO QUITADO!*\n`;
+    description += `\n🎉 *CONTRATO QUITADO!*\n`;
   } else {
-    message += `• Saldo Restante: ${formatCurrency(data.remainingBalance)}\n`;
+    description += `• Saldo: ${formatCurrency(data.remainingBalance)}\n`;
   }
   
-  message += `\n━━━━━━━━━━━━━━━━`;
-  message += `\n\n📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
-  
-  return message;
+  description += `\n━━━━━━━━━━━━━━━━\n`;
+  description += `📲 Responda OK para continuar recebendo.`;
+
+  const sections: ListSection[] = [
+    {
+      title: "💰 Pagamento",
+      rows: [
+        { title: "Valor Pago", description: formatCurrency(data.amountPaid), rowId: "amount" },
+        { title: "Parcela", description: Array.isArray(data.installmentNumber) ? `${data.installmentNumber.join(', ')}/${data.totalInstallments}` : `${data.installmentNumber}/${data.totalInstallments}`, rowId: "inst" },
+        { title: "Data", description: formatDate(data.paymentDate), rowId: "date" },
+      ]
+    },
+    {
+      title: "📊 Situação",
+      rows: [
+        { title: isFullyPaid ? "✅ Quitado" : "Saldo Restante", description: isFullyPaid ? "Contrato finalizado" : formatCurrency(data.remainingBalance), rowId: "balance" },
+      ]
+    }
+  ];
+
+  return {
+    title: "✅ Pagamento Registrado",
+    description,
+    buttonText: "📋 Ver Detalhes",
+    footerText: "CobraFácil",
+    sections,
+  };
 };
 
 export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone, installmentDates, paidCount }: PaymentReceiptPromptProps) {
@@ -206,8 +236,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForSelf(true);
   };
 
-  // Send to collector (after preview confirmation)
-  const handleConfirmSendToSelf = async (editedMessage: string) => {
+  // Send to collector (after preview confirmation) - NOW USES LIST
+  const handleConfirmSendToSelf = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
       return;
@@ -215,8 +245,10 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
+      const listData = generateCollectorListData(data, clientPhone);
+      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, message: editedMessage },
+        body: { phone: profile.phone, listData },
       });
       
       if (error) throw error;
@@ -246,8 +278,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForClient(true);
   };
 
-  // Send to client (after preview confirmation)
-  const handleConfirmSendToClient = async (editedMessage: string) => {
+  // Send to client (after preview confirmation) - NOW USES LIST
+  const handleConfirmSendToClient = async () => {
     if (!clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -270,11 +302,13 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
+      const listData = generateClientListData(data, installmentDates, paidCount, profile?.company_name || undefined);
+      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: clientPhone,
-          message: editedMessage 
+          listData 
         },
       });
       
@@ -425,22 +459,22 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         onConfirm={handleConfirmSpamWarning}
       />
 
-      {/* Preview for self */}
+      {/* Preview for self - show list preview */}
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateCollectorMessage(data, clientPhone)}
+        initialMessage={generateCollectorListData(data, clientPhone).description}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
         isSending={isSendingWhatsApp}
       />
 
-      {/* Preview for client */}
+      {/* Preview for client - show list preview */}
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage(data, installmentDates, paidCount)}
+        initialMessage={generateClientListData(data, installmentDates, paidCount, profile?.company_name || undefined).description}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}

@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
-import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
+
 
 export interface EarlyNotificationData {
   clientName: string;
@@ -59,17 +59,6 @@ const getContractTypeLabel = (type: EarlyNotificationData['contractType']): stri
   return labels[type];
 };
 
-const getPixKeyTypeLabel = (type: string | null): string => {
-  if (!type) return '';
-  const labels: Record<string, string> = {
-    cpf: 'CPF',
-    cnpj: 'CNPJ',
-    email: 'E-mail',
-    phone: 'Telefone',
-    random: 'Chave Aleatória',
-  };
-  return labels[type] || type;
-};
 
 export function SendEarlyNotification({ data, className }: SendEarlyNotificationProps) {
   const [isSending, setIsSending] = useState(false);
@@ -85,86 +74,81 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     profile?.whatsapp_to_clients_enabled &&
     data.clientPhone;
 
-  const generateEarlyMessage = (): string => {
+  // Interface for list data
+  interface ListRow {
+    title: string;
+    description: string;
+    rowId: string;
+  }
+
+  interface ListSection {
+    title: string;
+    rows: ListRow[];
+  }
+
+  interface ListData {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: ListSection[];
+  }
+
+  const generateEarlyListData = (): ListData => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo =
       data.installmentNumber && data.totalInstallments
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
         : 'Parcela Única';
 
-    let message = `📋 *Lembrete de Pagamento*\n\n`;
-    message += `Olá *${data.clientName}*!\n\n`;
-    message += `Este é um lembrete sobre sua próxima parcela:\n\n`;
-    message += `📋 *Tipo:* ${typeLabel}\n`;
-    message += `📊 *${installmentInfo}*\n`;
-    message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
-    
+    // Build rich description
+    let description = `Olá *${data.clientName}*!\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
+    description += `📋 *Tipo:* ${typeLabel}\n`;
+    description += `📊 *${installmentInfo}*\n`;
+    description += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
+    description += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
     if (data.daysUntilDue > 0) {
-      message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
+      description += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
     }
-    message += `\n`;
+    description += `\n\n`;
 
-    // Adicionar lista de status das parcelas com emojis
-    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
-      message += generateInstallmentsStatusList({
-        installmentDates: data.installmentDates,
-        paidCount: data.paidCount,
-        totalInstallments: data.totalInstallments
-      });
-    }
-    message += `\n`;
-
-    // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💰 *OPÇÕES DE PAGAMENTO*\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-      
-      // Opção 1: Valor Total
-      message += `✅ *VALOR TOTAL (quita a parcela):*\n`;
-      message += `💵 ${formatCurrency(data.amount)}\n\n`;
-      
-      // Opção 2: Só Juros
-      message += `⚠️ *SÓ JUROS (pagamento parcial):*\n`;
-      message += `💵 ${formatCurrency(data.interestAmount)}\n`;
-      message += `📌 Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês\n`;
-      message += `⚠️ _Este pagamento NÃO quita a parcela_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
+      description += `💡 *Opções de Pagamento:*\n`;
+      description += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
+      description += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
+      description += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n\n`;
     }
 
     if (profile?.pix_key) {
-      const pixTypeLabel = getPixKeyTypeLabel(profile.pix_key_type);
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💳 *PIX para pagamento:*\n`;
-      message += `📱 *Chave (${pixTypeLabel}):*\n`;
-      message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor total:* ${formatCurrency(data.amount)}\n`;
-      
-      // Mostrar valor de só juros se aplicável
-      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-        message += `💡 *Só juros:* ${formatCurrency(data.interestAmount)}\n`;
-      }
-      
-      message += `\n_Copie a chave e faça o PIX!_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
+      description += `━━━━━━━━━━━━━━━━\n`;
+      description += `💳 *PIX:* ${profile.pix_key}\n`;
     }
 
-    if (profile?.payment_link) {
-      message += `💳 *Link para pagamento:*\n${profile.payment_link}\n\n`;
-    }
-
-    message += `Qualquer dúvida, estou à disposição! 😊`;
+    description += `\nQualquer dúvida, estou à disposição! 😊`;
 
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    if (signatureName) {
-      message += `\n\n_${signatureName}_`;
-    }
+    description += `\n\n━━━━━━━━━━━━━━━━`;
 
-    return message;
+    const sections: ListSection[] = [{
+      title: "📋 Detalhes",
+      rows: [
+        { title: "Valor", description: formatCurrency(data.amount), rowId: "amount" },
+        { title: "Vencimento", description: formatDate(data.dueDate), rowId: "due" },
+      ]
+    }];
+
+    return {
+      title: `📋 Lembrete de Pagamento`,
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: signatureName || 'CobraFácil',
+      sections,
+    };
   };
 
-  const handleSend = async (editedMessage: string) => {
+  const handleSend = async () => {
     if (!user) {
       toast.error('Você precisa estar logado para enviar mensagens');
       return;
@@ -177,11 +161,13 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
     setIsSending(true);
     try {
+      const listData = generateEarlyListData();
+      
       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: {
           userId: user.id,
           clientPhone: data.clientPhone,
-          message: editedMessage,
+          listData,
         },
       });
 
@@ -249,7 +235,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateEarlyMessage()}
+        initialMessage={generateEarlyListData().description}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}

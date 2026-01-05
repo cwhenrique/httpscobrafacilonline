@@ -18,7 +18,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
-import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
+
 
 interface LoanData {
   id: string;
@@ -88,87 +88,110 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  // Mensagem SIMPLES para CLIENTE (sem juros, sem dados técnicos)
-  const generateClientMessage = () => {
-    let message = `📄 *CONTRATO DE EMPRÉSTIMO*\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
-    
-    message += `Olá *${loan.clientName}*!\n\n`;
-    message += `Confirmamos o empréstimo:\n\n`;
-    
-    message += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
-    message += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
+  // Interface for list data
+  interface ListRow {
+    title: string;
+    description: string;
+    rowId: string;
+  }
+
+  interface ListSection {
+    title: string;
+    rows: ListRow[];
+  }
+
+  interface ListData {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: ListSection[];
+  }
+
+  // Generate list data for CLIENT (simple)
+  const generateClientListData = (): ListData => {
+    let description = `Olá *${loan.clientName}*!\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `📄 *CONTRATO DE EMPRÉSTIMO*\n\n`;
+    description += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
+    description += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      description += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    // Adicionar lista de status das parcelas com emojis
-    if (installmentDates && installmentDates.length > 0) {
-      const statusList = generateInstallmentsStatusList({
-        installmentDates,
-        paidCount: 0, // Empréstimo novo, nenhuma parcela paga
-        totalInstallments: loan.installments
-      });
-      message += statusList;
-    } else {
-      message += `\n📅 *VENCIMENTOS*\n`;
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `1ª: ${formatDate(loan.startDate)}\n`;
-    }
+    description += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
     
-    message += `\n━━━━━━━━━━━━━━━━\n`;
-    message += `_${companyName}_`;
-    
-    return message;
+    description += `\n━━━━━━━━━━━━━━━━`;
+
+    const sections: ListSection[] = [{
+      title: "💰 Valores",
+      rows: [
+        { title: "Emprestado", description: formatCurrency(loan.principalAmount), rowId: "principal" },
+        { title: "Total a Pagar", description: formatCurrency(loan.totalToReceive), rowId: "total" },
+        { title: "Parcelas", description: `${loan.installments}x ${formatCurrency(loan.installmentValue)}`, rowId: "inst" },
+      ]
+    }];
+
+    return {
+      title: "📄 Contrato de Empréstimo",
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: companyName || 'CobraFácil',
+      sections,
+    };
   };
 
-  // Mensagem COMPLETA para USUÁRIO/COBRADOR (com juros, telefone, todas as parcelas)
-  const generateCollectorMessage = () => {
+  // Generate list data for COLLECTOR (full details)
+  const generateCollectorListData = (): ListData => {
     const contractId = `EMP-${loan.id.substring(0, 4).toUpperCase()}`;
     
-    let message = `🏷️ *CobraFácil*\n`;
-    message += `📄 *EMPRÉSTIMO REGISTRADO*\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
-    
-    message += `📋 *Contrato:* ${contractId}\n`;
-    message += `📅 *Data do Contrato:* ${formatDate(loan.contractDate)}\n\n`;
-    
-    message += `👤 *CLIENTE*\n`;
-    message += `• Nome: ${loan.clientName}\n`;
+    let description = `📋 *Contrato:* ${contractId}\n`;
+    description += `📅 *Data do Contrato:* ${formatDate(loan.contractDate)}\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `👤 *Cliente:* ${loan.clientName}\n`;
     if (loan.clientPhone) {
-      message += `• Telefone: ${loan.clientPhone}\n`;
+      description += `📱 *Telefone:* ${loan.clientPhone}\n`;
     }
-    message += `\n`;
-    
-    message += `💰 *VALORES*\n`;
-    message += `• Valor Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    message += `• Taxa de Juros: ${loan.interestRate}%\n`;
-    message += `• Total de Juros: ${formatCurrency(loan.totalInterest)}\n`;
-    message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+    description += `\n💰 *VALORES*\n`;
+    description += `• Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
+    description += `• Juros: ${loan.interestRate}%\n`;
+    description += `• Total Juros: ${formatCurrency(loan.totalInterest)}\n`;
+    description += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
-    }
-    message += `\n`;
-    
-    // Adicionar lista de status das parcelas com emojis
-    if (installmentDates && installmentDates.length > 0) {
-      const statusList = generateInstallmentsStatusList({
-        installmentDates,
-        paidCount: 0, // Empréstimo novo, nenhuma parcela paga
-        totalInstallments: loan.installments
-      });
-      message += statusList;
-    } else {
-      message += `📅 *VENCIMENTOS*\n`;
-      message += `1ª: ${formatDate(loan.startDate)}\n`;
+      description += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    message += `\n━━━━━━━━━━━━━━━━`;
-    message += `\n\n📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
-    
-    return message;
+    description += `\n📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
+    description += `\n━━━━━━━━━━━━━━━━\n`;
+    description += `📲 Responda OK para continuar recebendo.`;
+
+    const sections: ListSection[] = [
+      {
+        title: "💰 Valores",
+        rows: [
+          { title: "Emprestado", description: formatCurrency(loan.principalAmount), rowId: "principal" },
+          { title: "Juros", description: `${loan.interestRate}%`, rowId: "rate" },
+          { title: "Total", description: formatCurrency(loan.totalToReceive), rowId: "total" },
+        ]
+      },
+      {
+        title: "📊 Parcelas",
+        rows: [
+          { title: "Quantidade", description: `${loan.installments}x`, rowId: "qty" },
+          { title: "Valor", description: formatCurrency(loan.installmentValue), rowId: "value" },
+        ]
+      }
+    ];
+
+    return {
+      title: "📄 Empréstimo Registrado",
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: "CobraFácil",
+      sections,
+    };
   };
 
   // Open preview for self
@@ -180,8 +203,8 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForSelf(true);
   };
 
-  // Send to collector (with full details) - called after preview confirmation
-  const handleConfirmSendToSelf = async (editedMessage: string) => {
+  // Send to collector - NOW USES LIST
+  const handleConfirmSendToSelf = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
       return;
@@ -189,8 +212,10 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
+      const listData = generateCollectorListData();
+      
       await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: userPhone, message: editedMessage },
+        body: { phone: userPhone, listData },
       });
       
       toast.success('Comprovante enviado via WhatsApp!');
@@ -215,8 +240,8 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForClient(true);
   };
 
-  // Send to client - called after preview confirmation
-  const handleConfirmSendToClient = async (editedMessage: string) => {
+  // Send to client - NOW USES LIST
+  const handleConfirmSendToClient = async () => {
     if (!loan.clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -239,11 +264,13 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
+      const listData = generateClientListData();
+      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: loan.clientPhone,
-          message: editedMessage 
+          listData 
         },
       });
       
@@ -422,7 +449,7 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateCollectorMessage()}
+        initialMessage={generateCollectorListData().description}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -433,7 +460,7 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage()}
+        initialMessage={generateClientListData().description}
         recipientName={loan.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
