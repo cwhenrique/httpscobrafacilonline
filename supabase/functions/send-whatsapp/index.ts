@@ -80,9 +80,10 @@ const ensureWebhookConfigured = async (evolutionApiUrl: string, evolutionApiKey:
     const webhookSetUrl = `${evolutionApiUrl}/webhook/set/${instanceName}`;
     console.log(`Calling: ${webhookSetUrl}`);
 
-    // Try new format first (with nested webhook object)
+    // Try new format first (with nested webhook object and enabled: true)
     const newFormatPayload = {
       webhook: {
+        enabled: true,
         url: webhookUrl,
         byEvents: true,
         base64: false,
