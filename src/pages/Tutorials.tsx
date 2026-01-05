@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,10 @@ export default function Tutorials() {
   const [selectedVideo, setSelectedVideo] = useState<{ id: string; title: string; videoId: string } | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const sortedTutorials = tutorials?.sort((a, b) => a.order_number - b.order_number) || [];
+  const sortedTutorials = useMemo(() => {
+    if (!tutorials) return [];
+    return [...tutorials].sort((a, b) => a.order_number - b.order_number);
+  }, [tutorials]);
 
   const getThumbnail = (videoId: string | null) => {
     if (!videoId) return null;
