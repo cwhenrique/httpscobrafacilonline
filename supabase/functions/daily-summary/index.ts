@@ -30,10 +30,32 @@ const cleanApiUrl = (url: string): string => {
   return cleaned;
 };
 
-const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
+// Helper to truncate strings for API limits
+const truncate = (str: string, max: number): string => 
+  str.length > max ? str.substring(0, max - 3) + '...' : str;
+
+const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
   const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  // Usar instância fixa "VendaApp" para notificações do sistema
   const instanceName = "VendaApp";
 
   if (!evolutionApiUrlRaw || !evolutionApiKey) {
@@ -49,9 +71,19 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
+  // Prepare sections with truncated values
+  const preparedSections = listData.sections.slice(0, 10).map(section => ({
+    title: truncate(section.title, 24),
+    rows: section.rows.slice(0, 10).map(row => ({
+      title: truncate(row.title, 24),
+      description: truncate(row.description, 72),
+      rowId: row.rowId,
+    })),
+  }));
+
   try {
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
+      `${evolutionApiUrl}/message/sendList/${instanceName}`,
       {
         method: "POST",
         headers: {
@@ -60,14 +92,40 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
         },
         body: JSON.stringify({
           number: cleaned,
-          text: message,
+          title: truncate(listData.title, 60),
+          description: truncate(listData.description, 1024),
+          buttonText: truncate(listData.buttonText, 20),
+          footerText: truncate(listData.footerText, 60),
+          sections: preparedSections,
         }),
       }
     );
 
     const data = await response.json();
-    console.log(`WhatsApp sent to ${cleaned}:`, data);
-    return response.ok;
+    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
+    
+    if (!response.ok) {
+      console.error("sendList failed, trying fallback text");
+      // Fallback to text
+      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
+      const textResponse = await fetch(
+        `${evolutionApiUrl}/message/sendText/${instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": evolutionApiKey,
+          },
+          body: JSON.stringify({
+            number: cleaned,
+            text: fallbackMessage,
+          }),
+        }
+      );
+      return textResponse.ok;
+    }
+    
+    return true;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -416,167 +474,163 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build message - different header for report vs reminder
-      let message = '';
-      
-      if (isReminder) {
-        message += `🔔 *LEMBRETE DE COBRANÇAS - ${formatDate(today)}*\n`;
-        message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      } else {
-        // Relatório das 7h: incluir bom dia
-        message += `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
-        message += `📋 *RELATÓRIO DO DIA - ${formatDate(today)}*\n`;
-        message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      }
+      // Build list sections for interactive message
+      const sections: ListSection[] = [];
 
-      // VENCE HOJE / AINDA PENDENTE HOJE
+      // VENCE HOJE section
       if (hasDueToday) {
-        if (isReminder) {
-          message += `⏰ *AINDA PENDENTE HOJE:*\n\n`;
-        } else {
-          message += `⏰ *VENCE HOJE:*\n\n`;
-        }
+        const dueTodayRows: ListRow[] = [];
+        
+        // Separate loans by type
+        const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
+        const dueTodayWeeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'weekly');
+        const dueTodayBiweeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'biweekly');
+        const dueTodayMonthlyLoans = dueTodayLoans.filter(l => 
+          l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
+        );
 
-        if (dueTodayLoans.length > 0) {
-          // Separar por tipo de pagamento
-          const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
-          const dueTodayWeeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'weekly');
-          const dueTodayBiweeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'biweekly');
-          // Mensais = tudo que não for diário, semanal ou quinzenal (inclui single e installment)
-          const dueTodayMonthlyLoans = dueTodayLoans.filter(l => 
-            l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
-          );
-
-          if (dueTodayDailyLoans.length > 0) {
-            message += `📅 *Diários (${dueTodayDailyLoans.length}):*\n`;
-            dueTodayDailyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-            });
-            message += `\n`;
-          }
-
-          if (dueTodayWeeklyLoans.length > 0) {
-            message += `📆 *Semanais (${dueTodayWeeklyLoans.length}):*\n`;
-            dueTodayWeeklyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-            });
-            message += `\n`;
-          }
-
-          if (dueTodayBiweeklyLoans.length > 0) {
-            message += `📆 *Quinzenais (${dueTodayBiweeklyLoans.length}):*\n`;
-            dueTodayBiweeklyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-            });
-            message += `\n`;
-          }
-
-          if (dueTodayMonthlyLoans.length > 0) {
-            message += `💰 *Mensais (${dueTodayMonthlyLoans.length}):*\n`;
-            dueTodayMonthlyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-            });
-            message += `\n`;
-          }
-        }
-
-        if (dueTodayVehicles.length > 0) {
-          message += `🚗 *Veículos (${dueTodayVehicles.length}):*\n`;
-          dueTodayVehicles.forEach(v => {
-            message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)}\n`;
+        // Add daily loans
+        dueTodayDailyLoans.slice(0, 3).forEach((l, idx) => {
+          dueTodayRows.push({
+            title: `📅 ${l.clientName}`,
+            description: `Diário - ${formatCurrency(l.amount)}`,
+            rowId: `due_daily_${idx}`,
           });
-          message += `\n`;
-        }
-
-        if (dueTodayProducts.length > 0) {
-          message += `📦 *Produtos (${dueTodayProducts.length}):*\n`;
-          dueTodayProducts.forEach(p => {
-            message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)}\n`;
+        });
+        if (dueTodayDailyLoans.length > 3) {
+          dueTodayRows.push({
+            title: `📅 +${dueTodayDailyLoans.length - 3} diários`,
+            description: `Ver mais no app`,
+            rowId: `due_daily_more`,
           });
-          message += `\n`;
         }
 
-        message += `💵 *Total Hoje: ${formatCurrency(totalDueToday)}*\n\n`;
+        // Add weekly loans
+        dueTodayWeeklyLoans.slice(0, 2).forEach((l, idx) => {
+          dueTodayRows.push({
+            title: `📆 ${l.clientName}`,
+            description: `Semanal - ${formatCurrency(l.amount)}`,
+            rowId: `due_weekly_${idx}`,
+          });
+        });
+
+        // Add monthly loans
+        dueTodayMonthlyLoans.slice(0, 3).forEach((l, idx) => {
+          dueTodayRows.push({
+            title: `💰 ${l.clientName}`,
+            description: `Mensal - ${formatCurrency(l.amount)}`,
+            rowId: `due_monthly_${idx}`,
+          });
+        });
+
+        // Add vehicles
+        dueTodayVehicles.slice(0, 2).forEach((v, idx) => {
+          dueTodayRows.push({
+            title: `🚗 ${v.buyerName}`,
+            description: `${v.vehicleName} - ${formatCurrency(v.amount)}`,
+            rowId: `due_vehicle_${idx}`,
+          });
+        });
+
+        // Add products
+        dueTodayProducts.slice(0, 2).forEach((p, idx) => {
+          dueTodayRows.push({
+            title: `📦 ${p.clientName}`,
+            description: `${p.productName} - ${formatCurrency(p.amount)}`,
+            rowId: `due_product_${idx}`,
+          });
+        });
+
+        if (dueTodayRows.length > 0) {
+          sections.push({
+            title: `⏰ Vence Hoje (${formatCurrency(totalDueToday)})`,
+            rows: dueTodayRows.slice(0, 10),
+          });
+        }
       }
 
-      // EM ATRASO
+      // EM ATRASO section
       if (hasOverdue) {
-        message += `🚨 *EM ATRASO:*\n\n`;
+        const overdueRows: ListRow[] = [];
+        
+        // Separate loans by type
+        const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
+        const overdueMonthlyLoans = overdueLoans.filter(l => 
+          l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
+        );
 
-        if (overdueLoans.length > 0) {
-          // Separar por tipo de pagamento
-          const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
-          const overdueWeeklyLoans = overdueLoans.filter(l => l.paymentType === 'weekly');
-          const overdueBiweeklyLoans = overdueLoans.filter(l => l.paymentType === 'biweekly');
-          // Mensais = tudo que não for diário, semanal ou quinzenal (inclui single e installment)
-          const overdueMonthlyLoans = overdueLoans.filter(l => 
-            l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
-          );
-
-          if (overdueDailyLoans.length > 0) {
-            message += `📅 *Diários em Atraso (${overdueDailyLoans.length}):*\n`;
-            overdueDailyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-            });
-            message += `\n`;
-          }
-
-          if (overdueWeeklyLoans.length > 0) {
-            message += `📆 *Semanais em Atraso (${overdueWeeklyLoans.length}):*\n`;
-            overdueWeeklyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-            });
-            message += `\n`;
-          }
-
-          if (overdueBiweeklyLoans.length > 0) {
-            message += `📆 *Quinzenais em Atraso (${overdueBiweeklyLoans.length}):*\n`;
-            overdueBiweeklyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-            });
-            message += `\n`;
-          }
-
-          if (overdueMonthlyLoans.length > 0) {
-            message += `💰 *Mensais em Atraso (${overdueMonthlyLoans.length}):*\n`;
-            overdueMonthlyLoans.forEach(l => {
-              message += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-            });
-            message += `\n`;
-          }
-        }
-
-        if (overdueVehicles.length > 0) {
-          message += `🚗 *Veículos em Atraso (${overdueVehicles.length}):*\n`;
-          overdueVehicles.forEach(v => {
-            message += `• ${v.buyerName} - ${v.vehicleName}: ${formatCurrency(v.amount)} (${v.daysOverdue}d)\n`;
+        // Add daily overdue (most critical)
+        overdueDailyLoans.slice(0, 3).forEach((l, idx) => {
+          overdueRows.push({
+            title: `📅 ${l.clientName}`,
+            description: `${l.daysOverdue}d atraso - ${formatCurrency(l.amount)}`,
+            rowId: `overdue_daily_${idx}`,
           });
-          message += `\n`;
-        }
-
-        if (overdueProducts.length > 0) {
-          message += `📦 *Produtos em Atraso (${overdueProducts.length}):*\n`;
-          overdueProducts.forEach(p => {
-            message += `• ${p.clientName} - ${p.productName}: ${formatCurrency(p.amount)} (${p.daysOverdue}d)\n`;
+        });
+        if (overdueDailyLoans.length > 3) {
+          overdueRows.push({
+            title: `📅 +${overdueDailyLoans.length - 3} diários`,
+            description: `Atrasados - ver no app`,
+            rowId: `overdue_daily_more`,
           });
-          message += `\n`;
         }
 
-        message += `⚠️ *Total em Atraso: ${formatCurrency(grandTotalOverdue)}*\n\n`;
-        message += `💡 _Para parar de receber alertas de atraso, registre os pagamentos ou dê baixa nos contratos no app._\n\n`;
+        // Add monthly overdue
+        overdueMonthlyLoans.slice(0, 3).forEach((l, idx) => {
+          overdueRows.push({
+            title: `💰 ${l.clientName}`,
+            description: `${l.daysOverdue}d - ${formatCurrency(l.amount)}`,
+            rowId: `overdue_monthly_${idx}`,
+          });
+        });
+
+        // Add vehicles
+        overdueVehicles.slice(0, 2).forEach((v, idx) => {
+          overdueRows.push({
+            title: `🚗 ${v.buyerName}`,
+            description: `${v.daysOverdue}d - ${formatCurrency(v.amount)}`,
+            rowId: `overdue_vehicle_${idx}`,
+          });
+        });
+
+        // Add products
+        overdueProducts.slice(0, 2).forEach((p, idx) => {
+          overdueRows.push({
+            title: `📦 ${p.clientName}`,
+            description: `${p.daysOverdue}d - ${formatCurrency(p.amount)}`,
+            rowId: `overdue_product_${idx}`,
+          });
+        });
+
+        if (overdueRows.length > 0) {
+          sections.push({
+            title: `🚨 Em Atraso (${formatCurrency(grandTotalOverdue)})`,
+            rows: overdueRows.slice(0, 10),
+          });
+        }
       }
 
-      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      if (isReminder) {
-        message += `_CobraFácil - Lembrete às 12h_\n\n`;
-      } else {
-        message += `_CobraFácil - Relatório Diário_\n\n`;
-      }
-      message += `📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
-
-      console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
+      // Build list data
+      const titleText = isReminder 
+        ? `🔔 Lembrete de Cobranças`
+        : `📋 Relatório do Dia`;
       
-      const sent = await sendWhatsApp(profile.phone, message);
+      const descriptionText = `${formatDate(today)}\n\n` +
+        (hasDueToday ? `⏰ Vence hoje: ${formatCurrency(totalDueToday)}\n` : '') +
+        (hasOverdue ? `🚨 Em atraso: ${formatCurrency(grandTotalOverdue)}\n` : '') +
+        `\nClique para ver os detalhes.`;
+
+      const listData: ListData = {
+        title: titleText,
+        description: descriptionText,
+        buttonText: "📋 Ver Cobranças",
+        footerText: isReminder ? "CobraFácil - 12h" : "CobraFácil",
+        sections: sections,
+      };
+
+      console.log(`Sending ${isReminder ? 'reminder' : 'report'} LIST to user ${profile.id}`);
+      
+      const sent = await sendWhatsAppList(profile.phone, listData);
       if (sent) {
         sentCount++;
       }

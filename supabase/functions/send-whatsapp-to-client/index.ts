@@ -7,13 +7,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
+// Helper to truncate strings for API limits
+const truncate = (str: string, max: number): string => 
+  str.length > max ? str.substring(0, max - 3) + '...' : str;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { userId, clientPhone, message } = await req.json();
+    const { userId, clientPhone, message, listData } = await req.json();
 
     if (!userId) {
       console.error('Missing userId');
@@ -31,9 +54,9 @@ serve(async (req) => {
       });
     }
 
-    if (!message) {
-      console.error('Missing message');
-      return new Response(JSON.stringify({ error: 'message é obrigatória' }), {
+    if (!message && !listData) {
+      console.error('Missing message and listData');
+      return new Response(JSON.stringify({ error: 'message ou listData é obrigatório' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -213,75 +236,178 @@ serve(async (req) => {
     console.log(`Instance: ${instanceName}`);
     console.log(`Phone: ${phoneWithCountryCode}`);
 
-    // Send message via central Evolution API using user's instance
-    const apiUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
-      },
-      body: JSON.stringify({
-        number: phoneWithCountryCode,
-        text: message,
-      }),
-    });
-
-    const responseText = await response.text();
-    console.log('Evolution API response status:', response.status);
-    console.log('Evolution API response:', responseText);
-
-    if (!response.ok) {
-      console.error('Evolution API error:', responseText);
+    // Decide which endpoint to use based on listData presence
+    if (listData) {
+      // Use sendList endpoint for interactive list messages
+      const apiUrl = `${evolutionApiUrl}/message/sendList/${instanceName}`;
       
-      // Try to parse error for better message
-      let errorDetail = 'Erro ao enviar mensagem pelo WhatsApp';
-      let errorCode = 'UNKNOWN_ERROR';
-      
-      try {
-        const errorData = JSON.parse(responseText);
+      console.log('Sending interactive LIST message');
+
+      // Prepare sections with truncated values
+      const preparedSections = (listData as ListData).sections.slice(0, 10).map((section: ListSection) => ({
+        title: truncate(section.title, 24),
+        rows: section.rows.slice(0, 10).map((row: ListRow) => ({
+          title: truncate(row.title, 24),
+          description: truncate(row.description, 72),
+          rowId: row.rowId,
+        })),
+      }));
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionApiKey,
+        },
+        body: JSON.stringify({
+          number: phoneWithCountryCode,
+          title: truncate((listData as ListData).title, 60),
+          description: truncate((listData as ListData).description, 1024),
+          buttonText: truncate((listData as ListData).buttonText, 20),
+          footerText: truncate((listData as ListData).footerText, 60),
+          sections: preparedSections,
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log('Evolution API (sendList) response status:', response.status);
+      console.log('Evolution API (sendList) response:', responseText);
+
+      if (!response.ok) {
+        console.error('Evolution API sendList error, falling back to text message');
+        // Fallback to text message if list fails
+        const fallbackMessage = `${(listData as ListData).title}\n\n${(listData as ListData).description}\n\n${(listData as ListData).footerText}`;
         
-        // Detect "number does not exist on WhatsApp" error
-        const messageInfo = errorData?.response?.message;
-        if (Array.isArray(messageInfo) && messageInfo[0]?.exists === false) {
-          const invalidNumber = messageInfo[0]?.number || phoneWithCountryCode;
-          errorDetail = `O número ${invalidNumber} não possui WhatsApp ou está inválido. Verifique o cadastro do cliente.`;
-          errorCode = 'NUMBER_NOT_ON_WHATSAPP';
-          console.error('Number not on WhatsApp:', invalidNumber);
-        } else if (errorData?.message) {
-          errorDetail = errorData.message;
+        const textUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
+        const textResponse = await fetch(textUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionApiKey,
+          },
+          body: JSON.stringify({
+            number: phoneWithCountryCode,
+            text: fallbackMessage,
+          }),
+        });
+        
+        const textData = await textResponse.text();
+        console.log('Fallback text response:', textData);
+        
+        let result;
+        try {
+          result = JSON.parse(textData);
+        } catch {
+          result = { raw: textData };
         }
-      } catch {
-        // Use default error message
+
+        if (!textResponse.ok) {
+          return new Response(JSON.stringify({ 
+            error: 'Erro ao enviar mensagem pelo WhatsApp',
+            details: textData 
+          }), {
+            status: textResponse.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Mensagem enviada com sucesso para o cliente (fallback)',
+          result,
+          fallback: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-      
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        result = { raw: responseText };
+      }
+
+      console.log('WhatsApp LIST message sent successfully to client:', phoneWithCountryCode);
+
       return new Response(JSON.stringify({ 
-        error: errorDetail,
-        errorCode: errorCode,
-        details: responseText 
+        success: true, 
+        message: 'Mensagem enviada com sucesso para o cliente',
+        result 
       }), {
-        status: response.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      // Use standard sendText endpoint
+      const apiUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionApiKey,
+        },
+        body: JSON.stringify({
+          number: phoneWithCountryCode,
+          text: message,
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log('Evolution API response status:', response.status);
+      console.log('Evolution API response:', responseText);
+
+      if (!response.ok) {
+        console.error('Evolution API error:', responseText);
+        
+        // Try to parse error for better message
+        let errorDetail = 'Erro ao enviar mensagem pelo WhatsApp';
+        let errorCode = 'UNKNOWN_ERROR';
+        
+        try {
+          const errorData = JSON.parse(responseText);
+          
+          // Detect "number does not exist on WhatsApp" error
+          const messageInfo = errorData?.response?.message;
+          if (Array.isArray(messageInfo) && messageInfo[0]?.exists === false) {
+            const invalidNumber = messageInfo[0]?.number || phoneWithCountryCode;
+            errorDetail = `O número ${invalidNumber} não possui WhatsApp ou está inválido. Verifique o cadastro do cliente.`;
+            errorCode = 'NUMBER_NOT_ON_WHATSAPP';
+            console.error('Number not on WhatsApp:', invalidNumber);
+          } else if (errorData?.message) {
+            errorDetail = errorData.message;
+          }
+        } catch {
+          // Use default error message
+        }
+        
+        return new Response(JSON.stringify({ 
+          error: errorDetail,
+          errorCode: errorCode,
+          details: responseText 
+        }), {
+          status: response.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        result = { raw: responseText };
+      }
+
+      console.log('WhatsApp message sent successfully to client:', phoneWithCountryCode);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Mensagem enviada com sucesso para o cliente',
+        result 
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { raw: responseText };
-    }
-
-    console.log('WhatsApp message sent successfully to client:', phoneWithCountryCode);
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Mensagem enviada com sucesso para o cliente',
-      result 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
 
   } catch (error: unknown) {
     console.error('Error in send-whatsapp-to-client function:', error);

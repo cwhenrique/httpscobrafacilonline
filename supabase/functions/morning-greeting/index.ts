@@ -21,7 +21,9 @@ const cleanApiUrl = (url: string): string => {
   let cleaned = url.replace(/\/+$/, '');
   const pathPatterns = [
     /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendList\/[^\/]+$/i,
     /\/message\/sendText$/i,
+    /\/message\/sendList$/i,
     /\/message$/i,
   ];
   for (const pattern of pathPatterns) {
@@ -30,10 +32,31 @@ const cleanApiUrl = (url: string): string => {
   return cleaned;
 };
 
-const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
+const truncate = (str: string, max: number): string => 
+  str.length > max ? str.substring(0, max - 3) + '...' : str;
+
+const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
   const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  // Usar instância fixa "VendaApp" para notificações do sistema
   const instanceName = "VendaApp";
 
   if (!evolutionApiUrlRaw || !evolutionApiKey) {
@@ -49,9 +72,18 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
+  const preparedSections = listData.sections.slice(0, 10).map(section => ({
+    title: truncate(section.title, 24),
+    rows: section.rows.slice(0, 10).map(row => ({
+      title: truncate(row.title, 24),
+      description: truncate(row.description, 72),
+      rowId: row.rowId,
+    })),
+  }));
+
   try {
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
+      `${evolutionApiUrl}/message/sendList/${instanceName}`,
       {
         method: "POST",
         headers: {
@@ -60,14 +92,39 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
         },
         body: JSON.stringify({
           number: cleaned,
-          text: message,
+          title: truncate(listData.title, 60),
+          description: truncate(listData.description, 1024),
+          buttonText: truncate(listData.buttonText, 20),
+          footerText: truncate(listData.footerText, 60),
+          sections: preparedSections,
         }),
       }
     );
 
     const data = await response.json();
-    console.log(`WhatsApp sent to ${cleaned}:`, data);
-    return response.ok;
+    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
+    
+    if (!response.ok) {
+      console.error("sendList failed, trying fallback text");
+      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
+      const textResponse = await fetch(
+        `${evolutionApiUrl}/message/sendText/${instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": evolutionApiKey,
+          },
+          body: JSON.stringify({
+            number: cleaned,
+            text: fallbackMessage,
+          }),
+        }
+      );
+      return textResponse.ok;
+    }
+    
+    return true;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -82,7 +139,6 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Parse request body to check for testPhone parameter
     let testPhone: string | null = null;
     try {
       const body = await req.json();
@@ -104,22 +160,18 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE PAYING users with phone configured
-    // Excludes trial users - only sends to paying customers
     let profilesQuery = supabase
       .from('profiles')
       .select('id, phone, full_name, subscription_plan')
       .eq('is_active', true)
       .not('phone', 'is', null)
-      .not('subscription_plan', 'eq', 'trial'); // Apenas usuários pagantes
+      .not('subscription_plan', 'eq', 'trial');
     
     console.log("Querying PAYING users only (excluding trial)");
 
-    // Filter by testPhone if provided
     if (testPhone) {
       let cleanTestPhone = testPhone.replace(/\D/g, '');
       if (!cleanTestPhone.startsWith('55')) cleanTestPhone = '55' + cleanTestPhone;
-      // Match last 9 digits
       profilesQuery = profilesQuery.ilike('phone', `%${cleanTestPhone.slice(-9)}%`);
     }
 
@@ -199,7 +251,6 @@ const handler = async (req: Request): Promise<Response> => {
         const totalPerInstallment = totalToReceive / numInstallments;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
-        // SPECIAL HANDLING FOR DAILY LOANS: Check ALL unpaid installments
         if (loan.payment_type === 'daily' && installmentDates.length > 0) {
           const dailyAmount = loan.total_interest || totalPerInstallment;
           
@@ -215,7 +266,6 @@ const handler = async (req: Request): Promise<Response> => {
             }
           }
         } else {
-          // Standard logic for non-daily loans
           let nextDueDate: string | null = null;
           let installmentAmount = totalPerInstallment;
 
@@ -283,30 +333,49 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build message
-      let message = `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
-      message += `📊 *Resumo do Dia - ${formatDate(today)}*\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
+      // Build list message
+      const sections: ListSection[] = [];
+      
+      const summaryRows: ListRow[] = [];
+      
       if (totalDueToday > 0) {
-        message += `💵 Total a receber hoje: ${formatCurrency(totalDueToday)}\n`;
+        summaryRows.push({
+          title: "💵 Vence Hoje",
+          description: formatCurrency(totalDueToday),
+          rowId: "due_today",
+        });
       }
       
       if (totalOverdue > 0) {
-        message += `⚠️ Total em atraso: ${formatCurrency(totalOverdue)}\n`;
+        summaryRows.push({
+          title: "⚠️ Em Atraso",
+          description: formatCurrency(totalOverdue),
+          rowId: "overdue",
+        });
       }
       
-      message += `📋 Contratos ativos: ${totalContracts}\n\n`;
+      summaryRows.push({
+        title: "📋 Contratos Ativos",
+        description: `${totalContracts} contrato${totalContracts !== 1 ? 's' : ''}`,
+        rowId: "contracts",
+      });
 
-      message += `⏰ _Às 8h você receberá o relatório completo de cobranças e atrasados._\n\n`;
+      sections.push({
+        title: "📊 Resumo do Dia",
+        rows: summaryRows,
+      });
 
-      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `_CobraFácil - Resumo às 7h_\n\n`;
-      message += `📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
+      const listData: ListData = {
+        title: `☀️ Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!`,
+        description: `${formatDate(today)}\n\nClique para ver seu resumo diário.\nRelatório completo será enviado às 8h.`,
+        buttonText: "📋 Ver Resumo",
+        footerText: "CobraFácil - 7h",
+        sections: sections,
+      };
 
-      console.log(`Sending morning greeting to user ${profile.id}`);
+      console.log(`Sending morning greeting LIST to user ${profile.id}`);
       
-      const sent = await sendWhatsApp(profile.phone, message);
+      const sent = await sendWhatsAppList(profile.phone, listData);
       if (sent) {
         sentCount++;
       }
