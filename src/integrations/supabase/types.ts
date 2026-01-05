@@ -667,6 +667,57 @@ export type Database = {
           },
         ]
       }
+      pending_messages: {
+        Row: {
+          client_name: string
+          client_phone: string
+          confirmation_keyword: string | null
+          confirmed_at: string | null
+          contract_id: string | null
+          contract_type: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          message_content: string
+          message_type: string
+          sent_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          client_name: string
+          client_phone: string
+          confirmation_keyword?: string | null
+          confirmed_at?: string | null
+          contract_id?: string | null
+          contract_type?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          message_content: string
+          message_type: string
+          sent_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          client_name?: string
+          client_phone?: string
+          confirmation_keyword?: string | null
+          confirmed_at?: string | null
+          contract_id?: string | null
+          contract_type?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          message_content?: string
+          message_type?: string
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       product_sale_payments: {
         Row: {
           amount: number

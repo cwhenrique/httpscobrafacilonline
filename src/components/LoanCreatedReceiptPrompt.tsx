@@ -229,7 +229,18 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForClient(true);
   };
 
-  // Send to client - USES PLAIN TEXT
+  // Generate the warning message for opt-in confirmation
+  const generateWarningMessage = (): string => {
+    const signatureName = profile?.billing_signature_name || companyName;
+    let message = `Olá *${loan.clientName}*!\n\n`;
+    message += `Você tem um *comprovante de empréstimo* disponível.\n\n`;
+    message += `Para receber, responda com *OK*.\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `_${signatureName || 'CobraFácil'}_`;
+    return message;
+  };
+
+  // Send to client - NOW USES OPT-IN CONFIRMATION SYSTEM
   const handleConfirmSendToClient = async () => {
     if (!loan.clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
@@ -253,23 +264,50 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage();
+      const warningMessage = generateWarningMessage();
+      const fullMessage = generateClientMessage();
       
+      // 1. Save the full message in pending_messages table
+      const { error: pendingError } = await supabase
+        .from('pending_messages')
+        .insert({
+          user_id: user.id,
+          client_phone: loan.clientPhone,
+          client_name: loan.clientName,
+          message_type: 'loan_receipt',
+          contract_id: loan.id,
+          contract_type: 'loan',
+          message_content: fullMessage,
+          status: 'pending',
+        });
+
+      if (pendingError) {
+        console.error('Error saving pending message:', pendingError);
+        throw pendingError;
+      }
+
+      // 2. Send only the warning message
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: loan.clientPhone,
-          message 
+          message: warningMessage
         },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Comprovante enviado para o cliente!');
+        toast.success('Aviso enviado! O comprovante será entregue quando o cliente responder OK.');
         setShowPreviewForClient(false);
         onOpenChange(false);
       } else {
+        // If sending failed, remove the pending message
+        await supabase
+          .from('pending_messages')
+          .delete()
+          .eq('contract_id', loan.id)
+          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {
