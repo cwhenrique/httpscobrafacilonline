@@ -21,7 +21,9 @@ const cleanApiUrl = (url: string): string => {
   let cleaned = url.replace(/\/+$/, '');
   const pathPatterns = [
     /\/message\/sendText\/[^\/]+$/i,
+    /\/message\/sendList\/[^\/]+$/i,
     /\/message\/sendText$/i,
+    /\/message\/sendList$/i,
     /\/message$/i,
   ];
   for (const pattern of pathPatterns) {
@@ -30,10 +32,31 @@ const cleanApiUrl = (url: string): string => {
   return cleaned;
 };
 
-const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
+const truncate = (str: string, max: number): string => 
+  str.length > max ? str.substring(0, max - 3) + '...' : str;
+
+const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
   const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  // Usar instância fixa "VendaApp" para notificações do sistema
   const instanceName = "VendaApp";
 
   if (!evolutionApiUrlRaw || !evolutionApiKey) {
@@ -49,9 +72,18 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
+  const preparedSections = listData.sections.slice(0, 10).map(section => ({
+    title: truncate(section.title, 24),
+    rows: section.rows.slice(0, 10).map(row => ({
+      title: truncate(row.title, 24),
+      description: truncate(row.description, 72),
+      rowId: row.rowId,
+    })),
+  }));
+
   try {
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
+      `${evolutionApiUrl}/message/sendList/${instanceName}`,
       {
         method: "POST",
         headers: {
@@ -60,14 +92,39 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
         },
         body: JSON.stringify({
           number: cleaned,
-          text: message,
+          title: truncate(listData.title, 60),
+          description: truncate(listData.description, 1024),
+          buttonText: truncate(listData.buttonText, 20),
+          footerText: truncate(listData.footerText, 60),
+          sections: preparedSections,
         }),
       }
     );
 
     const data = await response.json();
-    console.log(`WhatsApp sent to ${cleaned}:`, data);
-    return response.ok;
+    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
+    
+    if (!response.ok) {
+      console.error("sendList failed, trying fallback text");
+      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
+      const textResponse = await fetch(
+        `${evolutionApiUrl}/message/sendText/${instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": evolutionApiKey,
+          },
+          body: JSON.stringify({
+            number: cleaned,
+            text: fallbackMessage,
+          }),
+        }
+      );
+      return textResponse.ok;
+    }
+    
+    return true;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -76,6 +133,17 @@ const sendWhatsApp = async (phone: string, message: string): Promise<boolean> =>
 
 const getContractId = (id: string): string => {
   return `EMP-${id.substring(0, 4).toUpperCase()}`;
+};
+
+const getPaymentTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'daily': return 'Diário';
+    case 'weekly': return 'Semanal';
+    case 'biweekly': return 'Quinzenal';
+    case 'installment': return 'Parcelado';
+    case 'single': return 'Único';
+    default: return type;
+  }
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -94,10 +162,8 @@ const handler = async (req: Request): Promise<Response> => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    // Check for loans due TODAY only (removed 1, 3, 7 day reminders - consolidated in daily summary)
     console.log("Checking loans due today:", todayStr);
 
-    // Fetch all pending loans with client data
     const { data: loans, error: loansError } = await supabase
       .from('loans')
       .select(`
@@ -113,7 +179,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Found ${loans?.length || 0} pending loans`);
 
-    // Group loans by user_id
     const userLoansMap: Map<string, any[]> = new Map();
 
     for (const loan of loans || []) {
@@ -122,29 +187,24 @@ const handler = async (req: Request): Promise<Response> => {
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
       
-      // USE DATABASE VALUES AS SOURCE OF TRUTH
-      // total_interest from DB already includes user adjustments (rounding, renewal fees)
       let totalInterest = loan.total_interest || 0;
       if (totalInterest === 0) {
-        // Fallback: calculate only if not stored
-      if (loan.interest_mode === 'on_total') {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100);
-      } else if (loan.interest_mode === 'compound') {
-        // Usar fórmula PMT de amortização (Sistema Price)
-        const i = loan.interest_rate / 100;
-        if (i === 0 || !isFinite(i)) {
-          totalInterest = 0;
+        if (loan.interest_mode === 'on_total') {
+          totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+        } else if (loan.interest_mode === 'compound') {
+          const i = loan.interest_rate / 100;
+          if (i === 0 || !isFinite(i)) {
+            totalInterest = 0;
+          } else {
+            const factor = Math.pow(1 + i, numInstallments);
+            const pmt = loan.principal_amount * (i * factor) / (factor - 1);
+            totalInterest = (pmt * numInstallments) - loan.principal_amount;
+          }
         } else {
-          const factor = Math.pow(1 + i, numInstallments);
-          const pmt = loan.principal_amount * (i * factor) / (factor - 1);
-          totalInterest = (pmt * numInstallments) - loan.principal_amount;
+          totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
         }
-      } else {
-        totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
-      }
       }
       
-      // remaining_balance from DB is the source of truth
       const remainingBalance = loan.remaining_balance;
       const totalToReceive = remainingBalance + (loan.total_paid || 0);
       
@@ -188,7 +248,6 @@ const handler = async (req: Request): Promise<Response> => {
     let sentCount = 0;
     const notifications: any[] = [];
 
-    // Send individual detailed messages for each loan due today
     for (const [userId, userLoans] of userLoansMap) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -196,14 +255,8 @@ const handler = async (req: Request): Promise<Response> => {
         .eq('id', userId)
         .single();
 
-      // Skip inactive users
       if (profileError || !profile?.phone || profile.is_active === false) {
         console.log(`User ${userId} is inactive or has no phone, skipping`);
-        continue;
-      }
-
-      if (profileError || !profile?.phone) {
-        console.log(`User ${userId} has no phone configured, skipping`);
         continue;
       }
 
@@ -211,31 +264,81 @@ const handler = async (req: Request): Promise<Response> => {
         const contractId = getContractId(loan.id);
         const progressPercent = Math.round((loan.paidInstallments / loan.totalInstallments) * 100);
         
-        let message = `🏦 *Resumo do Empréstimo - ${contractId}*\n\n`;
-        message += `👤 Cliente: ${loan.clientName}\n\n`;
-        message += `💰 *Informações do Empréstimo:*\n`;
-        message += `• Valor Emprestado: ${formatCurrency(loan.principal_amount)}\n`;
-        message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
-        message += `• Taxa de Juros: ${loan.interest_rate}%\n`;
-        message += `• Data Início: ${formatDate(new Date(loan.start_date))}\n`;
-        message += `• Modalidade: ${loan.payment_type === 'daily' ? 'Diário' : loan.payment_type === 'weekly' ? 'Semanal' : loan.payment_type === 'biweekly' ? 'Quinzenal' : loan.payment_type === 'installment' ? 'Parcelado' : 'Único'}\n\n`;
-        
-        message += `📊 *Status das Parcelas:*\n`;
-        message += `✅ Pagas: ${loan.paidInstallments} de ${loan.totalInstallments} parcelas (${formatCurrency(loan.totalPaid)})\n`;
-        message += `⏰ Pendentes: ${loan.totalInstallments - loan.paidInstallments} parcelas (${formatCurrency(loan.remainingBalance)})\n`;
-        message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
-        
-        message += `📅 *PARCELA DE HOJE:*\n`;
-        message += `• Vencimento: ${formatDate(new Date(loan.due_date))} ⚠️\n`;
-        message += `• Valor: ${formatCurrency(loan.installmentAmount)}\n\n`;
-        
-        message += `💰 Saldo Devedor: ${formatCurrency(loan.remainingBalance)}\n\n`;
-        message += `━━━━━━━━━━━━━━━━━━━━━\n`;
-        message += `_CobraFácil - Não deixe de cobrar!_`;
+        // Build interactive list message
+        const sections: ListSection[] = [];
 
-        console.log(`Sending detailed loan reminder to user ${userId} for loan ${loan.id}`);
+        // Loan details section
+        sections.push({
+          title: "💰 Valores",
+          rows: [
+            {
+              title: "Emprestado",
+              description: formatCurrency(loan.principal_amount),
+              rowId: "principal",
+            },
+            {
+              title: "Total a Receber",
+              description: formatCurrency(loan.totalToReceive),
+              rowId: "total",
+            },
+            {
+              title: "Taxa de Juros",
+              description: `${loan.interest_rate}%`,
+              rowId: "rate",
+            },
+          ],
+        });
+
+        // Installment status section
+        sections.push({
+          title: "📊 Parcelas",
+          rows: [
+            {
+              title: `✅ Pagas`,
+              description: `${loan.paidInstallments}/${loan.totalInstallments} - ${formatCurrency(loan.totalPaid)}`,
+              rowId: "paid",
+            },
+            {
+              title: `⏰ Pendentes`,
+              description: `${loan.totalInstallments - loan.paidInstallments} - ${formatCurrency(loan.remainingBalance)}`,
+              rowId: "pending",
+            },
+            {
+              title: `📈 Progresso`,
+              description: `${progressPercent}% concluído`,
+              rowId: "progress",
+            },
+          ],
+        });
+
+        // Today's installment section
+        sections.push({
+          title: "📅 Vence Hoje",
+          rows: [
+            {
+              title: `Parcela ${loan.currentInstallment}`,
+              description: formatCurrency(loan.installmentAmount),
+              rowId: "today",
+            },
+            {
+              title: `Saldo Devedor`,
+              description: formatCurrency(loan.remainingBalance),
+              rowId: "balance",
+            },
+          ],
+        });
+
+        const listData: ListData = {
+          title: `⏰ Vencimento Hoje - ${contractId}`,
+          description: `${loan.clientName}\n\n${getPaymentTypeLabel(loan.payment_type)}\nValor: ${formatCurrency(loan.installmentAmount)}`,
+          buttonText: "📋 Ver Detalhes",
+          footerText: "CobraFácil",
+          sections: sections,
+        };
+
+        console.log(`Sending loan reminder LIST to user ${userId} for loan ${loan.id}`);
         
-        const sent = await sendWhatsApp(profile.phone, message);
+        const sent = await sendWhatsAppList(profile.phone, listData);
         if (sent) {
           sentCount++;
           notifications.push({
