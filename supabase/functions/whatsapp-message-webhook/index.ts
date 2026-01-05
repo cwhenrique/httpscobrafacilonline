@@ -111,10 +111,24 @@ serve(async (req) => {
 
     console.log('Searching for pending messages with phone variants:', phoneVariants);
 
+    // Also search for user's own phone in profiles to handle self-messages
+    const { data: profileMatch } = await supabase
+      .from('profiles')
+      .select('id, phone')
+      .or(phoneVariants.map(p => `phone.ilike.%${p.slice(-8)}`).join(','))
+      .limit(1);
+
+    const userPhoneMatch = profileMatch?.[0]?.phone;
+    const allPhoneVariants = userPhoneMatch 
+      ? [...phoneVariants, userPhoneMatch]
+      : phoneVariants;
+
+    console.log('All phone variants:', allPhoneVariants);
+
     const { data: pendingMessages, error: searchError } = await supabase
       .from('pending_messages')
       .select('*')
-      .in('client_phone', phoneVariants)
+      .in('client_phone', allPhoneVariants)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(1);
@@ -134,14 +148,35 @@ serve(async (req) => {
     const pending = pendingMessages[0];
     console.log('Found pending message:', pending.id, 'for client:', pending.client_name);
 
-    // Send the full message content
-    const { data: sendResult, error: sendError } = await supabase.functions.invoke('send-whatsapp-to-client', {
-      body: {
-        userId: pending.user_id,
-        clientPhone: pending.client_phone,
-        message: pending.message_content,
-      },
-    });
+    // Determine if this is a self-message (message_type starts with 'self_')
+    const isSelfMessage = pending.message_type?.startsWith('self_');
+    
+    let sendResult, sendError;
+    
+    if (isSelfMessage) {
+      // For self-messages, use send-whatsapp (CobraFácil instance)
+      console.log('Sending self-message via send-whatsapp');
+      const result = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          phone: pending.client_phone,
+          message: pending.message_content,
+        },
+      });
+      sendResult = result.data;
+      sendError = result.error;
+    } else {
+      // For client messages, use send-whatsapp-to-client (user's instance)
+      console.log('Sending client message via send-whatsapp-to-client');
+      const result = await supabase.functions.invoke('send-whatsapp-to-client', {
+        body: {
+          userId: pending.user_id,
+          clientPhone: pending.client_phone,
+          message: pending.message_content,
+        },
+      });
+      sendResult = result.data;
+      sendError = result.error;
+    }
 
     if (sendError) {
       console.error('Error sending message:', sendError);

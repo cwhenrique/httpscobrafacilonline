@@ -144,16 +144,6 @@ export default function SendOverdueNotification({
     }
   };
 
-  // Generate warning message for opt-in confirmation
-  const generateWarningMessage = (): string => {
-    const signatureName = profile?.billing_signature_name || profile?.company_name;
-    let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
-    message += `Você tem uma *cobrança pendente* disponível.\n\n`;
-    message += `Para receber os detalhes, responda com *OK*.\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `_${signatureName || 'CobraFácil'}_`;
-    return message;
-  };
 
   const generateOverdueMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
@@ -249,34 +239,13 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
-      const warningMessage = generateWarningMessage();
-      const fullMessage = generateOverdueMessage();
+      const message = generateOverdueMessage();
       
-      // 1. Save the full message in pending_messages table
-      const { error: pendingError } = await supabase
-        .from('pending_messages')
-        .insert({
-          user_id: user.id,
-          client_phone: data.clientPhone,
-          client_name: data.clientName,
-          message_type: 'overdue',
-          contract_id: data.loanId,
-          contract_type: data.contractType,
-          message_content: fullMessage,
-          status: 'pending',
-        });
-
-      if (pendingError) {
-        console.error('Error saving pending message:', pendingError);
-        throw pendingError;
-      }
-
-      // 2. Send only the warning message
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message: warningMessage
+          message
         },
       });
       
@@ -295,15 +264,9 @@ export default function SendOverdueNotification({
           clientName: data.clientName,
         });
         
-        toast.success('Aviso enviado! A cobrança será entregue quando o cliente responder OK.');
+        toast.success('Cobrança enviada para o cliente!');
         setShowPreview(false);
       } else {
-        // If sending failed, remove the pending message
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', data.loanId)
-          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {
