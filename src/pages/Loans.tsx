@@ -4352,13 +4352,35 @@ export default function Loans() {
       updateData.interest_rate = Math.min(calculatedRate, 999.99);
     } else {
       let totalInterest: number;
-      if (editFormData.interest_mode === 'per_installment') {
-        totalInterest = principalAmount * (interestRate / 100) * numInstallments;
-      } else if (editFormData.interest_mode === 'compound') {
-        totalInterest = principalAmount * Math.pow(1 + (interestRate / 100), numInstallments) - principalAmount;
+      
+      // Verificar se o usuário arredondou o valor da parcela manualmente
+      if (isEditManuallyEditingInstallment && editInstallmentValue && 
+          (editFormData.payment_type === 'installment' || editFormData.payment_type === 'weekly' || editFormData.payment_type === 'biweekly')) {
+        const perInstallment = parseFloat(editInstallmentValue);
+        const totalToReceive = perInstallment * numInstallments;
+        totalInterest = totalToReceive - principalAmount;
+        
+        // Recalcular a taxa de juros baseada no arredondamento
+        let computedRate: number;
+        if (editFormData.interest_mode === 'per_installment') {
+          computedRate = (totalInterest / principalAmount / numInstallments) * 100;
+        } else if (editFormData.interest_mode === 'compound') {
+          computedRate = (Math.pow((totalInterest / principalAmount) + 1, 1 / numInstallments) - 1) * 100;
+        } else {
+          computedRate = (totalInterest / principalAmount) * 100;
+        }
+        updateData.interest_rate = parseFloat(computedRate.toFixed(2));
       } else {
-        totalInterest = principalAmount * (interestRate / 100);
+        // Cálculo padrão quando não há arredondamento manual
+        if (editFormData.interest_mode === 'per_installment') {
+          totalInterest = principalAmount * (interestRate / 100) * numInstallments;
+        } else if (editFormData.interest_mode === 'compound') {
+          totalInterest = principalAmount * Math.pow(1 + (interestRate / 100), numInstallments) - principalAmount;
+        } else {
+          totalInterest = principalAmount * (interestRate / 100);
+        }
       }
+      
       // For renegotiation, reset total_paid to 0 as it's a new contract
       if (editIsRenegotiation) {
         updateData.total_paid = 0;
