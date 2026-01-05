@@ -139,6 +139,8 @@ export function useLoans() {
     queryFn: () => fetchLoansFromDB(effectiveUserId!),
     enabled: !!user && !employeeLoading && !!effectiveUserId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true, // Recarrega ao voltar para a aba
+    refetchOnMount: 'always', // Sempre recarrega ao montar o componente
   });
 
   // Function to invalidate loans cache - all components using useLoans will be updated
