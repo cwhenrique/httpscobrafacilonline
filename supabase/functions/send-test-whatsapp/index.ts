@@ -49,7 +49,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
-    const { phone, message, instanceName = "notificacao" }: { 
+    const { phone, message, instanceName = "notficacao" }: { 
       phone: string; 
       message: string; 
       instanceName?: string;

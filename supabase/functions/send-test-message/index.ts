@@ -43,8 +43,8 @@ serve(async (req) => {
 
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    // Usar instância fixa "notificacao" para notificações do sistema
-    const evolutionInstanceName = "notificacao";
+    // Usar instância fixa "notficacao" para notificações do sistema
+    const evolutionInstanceName = "notficacao";
 
     if (!evolutionApiUrl || !evolutionApiKey) {
       return new Response(
@@ -53,7 +53,7 @@ serve(async (req) => {
       );
     }
     
-    console.log("Using fixed system instance: notificacao");
+    console.log("Using fixed system instance: notficacao");
 
     const formattedPhone = formatPhoneNumber(phone);
     const cleanedUrl = cleanApiUrl(evolutionApiUrl);
