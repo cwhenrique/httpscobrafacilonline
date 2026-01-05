@@ -94,19 +94,40 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const formattedPhone = formatPhoneNumber(phone);
-    
-    // Convert listData to formatted text message if provided
-    // Note: sendList is disabled due to Evolution API bug "this.isZero is not a function"
-    let finalMessage = message;
-    if (listData && !message) {
-      finalMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
-    }
 
-    // Always use sendText endpoint
-    const fullUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-    
-    console.log(`Sending WhatsApp TEXT to: ${formattedPhone}`);
+    // Decide which endpoint to use
+    const isListMessage = !!listData && !message;
+    const endpoint = isListMessage ? 'sendList' : 'sendText';
+    const fullUrl = `${evolutionApiUrl}/message/${endpoint}/${instanceName}`;
+
+    console.log(`Sending WhatsApp ${endpoint.toUpperCase()} to: ${formattedPhone}`);
     console.log(`Full API URL: ${fullUrl}`);
+
+    let requestBody: any;
+
+    if (isListMessage) {
+      // Build list message payload for Evolution API v2+
+      requestBody = {
+        number: formattedPhone,
+        title: truncate(listData.title, 60),
+        description: truncate(listData.description, 1024),
+        buttonText: truncate(listData.buttonText, 20),
+        footerText: truncate(listData.footerText || '', 60),
+        sections: listData.sections.map(section => ({
+          title: truncate(section.title, 24),
+          rows: section.rows.map(row => ({
+            title: truncate(row.title, 24),
+            description: truncate(row.description, 72),
+            rowId: row.rowId,
+          })),
+        })),
+      };
+    } else {
+      requestBody = {
+        number: formattedPhone,
+        text: message,
+      };
+    }
 
     const response = await fetch(fullUrl, {
       method: "POST",
@@ -114,14 +135,42 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
         "apikey": evolutionApiKey,
       },
-      body: JSON.stringify({
-        number: formattedPhone,
-        text: finalMessage,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const responseData = await response.json();
     console.log("Evolution API response:", responseData);
+
+    // Fallback to text if list fails
+    if (!response.ok && isListMessage) {
+      console.log("List message failed, falling back to text...");
+      const fallbackUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
+      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText || ''}`;
+      
+      const fallbackResponse = await fetch(fallbackUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: fallbackMessage,
+        }),
+      });
+      
+      const fallbackData = await fallbackResponse.json();
+      console.log("Fallback response:", fallbackData);
+      
+      if (!fallbackResponse.ok) {
+        throw new Error(`Evolution API error: ${JSON.stringify(fallbackData)}`);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true, data: fallbackData, fallback: true }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     if (!response.ok) {
       throw new Error(`Evolution API error: ${JSON.stringify(responseData)}`);
@@ -129,10 +178,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     return new Response(
       JSON.stringify({ success: true, data: responseData }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
     console.error("Error sending WhatsApp:", error);
