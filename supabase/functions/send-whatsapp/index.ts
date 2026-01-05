@@ -178,38 +178,45 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // For list messages - try multiple formats
-    const listUrl = `${evolutionApiUrl}/message/sendList/${instanceName}`;
-    console.log(`Sending WhatsApp LIST to: ${formattedPhone}`);
-    console.log(`Full API URL: ${listUrl}`);
-
-    // Try 1: Evolution API v2 format with "values"
-    const result1 = await trySendList(listUrl, evolutionApiKey, formattedPhone, listData, true);
-    if (result1.ok) {
-      console.log("SUCCESS: List sent with 'values' format");
-      return new Response(
-        JSON.stringify({ success: true, data: result1.data, format: 'values' }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Try 2: Legacy format with "sections"
-    console.log("'values' format failed, trying 'sections' format...");
-    const result2 = await trySendList(listUrl, evolutionApiKey, formattedPhone, listData, false);
-    if (result2.ok) {
-      console.log("SUCCESS: List sent with 'sections' format");
-      return new Response(
-        JSON.stringify({ success: true, data: result2.data, format: 'sections' }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Try 3: Fallback to plain text
-    console.log("Both list formats failed, falling back to text...");
-    const fallbackUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-    const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText || ''}`;
+    // Convert listData to rich formatted text (sendList is broken in Evolution API v2 Easypanel build)
+    console.log(`Converting WhatsApp LIST to rich text for: ${formattedPhone}`);
     
-    const fallbackResponse = await fetch(fallbackUrl, {
+    let formattedText = '';
+    
+    // Title with emoji
+    if (listData.title) {
+      formattedText += `${listData.title}\n\n`;
+    }
+    
+    // Description
+    if (listData.description) {
+      formattedText += `${listData.description}\n\n`;
+    }
+    
+    // Sections as structured text
+    for (const section of listData.sections) {
+      if (section.title) {
+        formattedText += `*${section.title}*\n`;
+      }
+      for (const row of section.rows) {
+        formattedText += `  • ${row.title}`;
+        if (row.description) {
+          formattedText += `: ${row.description}`;
+        }
+        formattedText += `\n`;
+      }
+      formattedText += `\n`;
+    }
+    
+    // Footer
+    if (listData.footerText) {
+      formattedText += `━━━━━━━━━━━━━━━━\n${listData.footerText}`;
+    }
+    
+    const textUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
+    console.log(`Sending rich text message to: ${formattedPhone}`);
+    
+    const response = await fetch(textUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -217,19 +224,19 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         number: formattedPhone,
-        text: fallbackMessage,
+        text: formattedText.trim(),
       }),
     });
-    
-    const fallbackData = await fallbackResponse.json();
-    console.log("Fallback text response:", fallbackData);
-    
-    if (!fallbackResponse.ok) {
-      throw new Error(`Evolution API error: ${JSON.stringify(fallbackData)}`);
+
+    const responseData = await response.json();
+    console.log("Rich text response:", responseData);
+
+    if (!response.ok) {
+      throw new Error(`Evolution API error: ${JSON.stringify(responseData)}`);
     }
-    
+
     return new Response(
-      JSON.stringify({ success: true, data: fallbackData, fallback: true }),
+      JSON.stringify({ success: true, data: responseData, format: 'rich_text' }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
 
