@@ -144,35 +144,14 @@ export default function SendOverdueNotification({
     }
   };
 
-  // Interface for list data
-  interface ListRow {
-    title: string;
-    description: string;
-    rowId: string;
-  }
-
-  interface ListSection {
-    title: string;
-    rows: ListRow[];
-  }
-
-  interface ListData {
-    title: string;
-    description: string;
-    buttonText: string;
-    footerText: string;
-    sections: ListSection[];
-  }
-
-  const generateOverdueListData = (): ListData => {
+  const generateOverdueMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
     const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
     const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
     
-    // Build rich description
-    let description = `⚠️ *Atenção ${data.clientName}*\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
+    let message = `⚠️ *Atenção ${data.clientName}*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
     
     if (hasMultipleOverdue && data.isDaily) {
       const effectivePenalty = data.hasDynamicPenalty 
@@ -180,22 +159,22 @@ export default function SendOverdueNotification({
         : (data.manualPenaltyAmount || 0);
       const totalAmount = (data.totalOverdueAmount || 0) + effectivePenalty;
       
-      description += `🚨 *${data.overdueInstallmentsCount} PARCELAS EM ATRASO*\n\n`;
-      description += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
+      message += `🚨 *${data.overdueInstallmentsCount} PARCELAS EM ATRASO*\n\n`;
+      message += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
       
       for (const item of data.overdueInstallmentsDetails!) {
         const manualPenalty = data.manualPenaltiesBreakdown?.[item.installmentNumber - 1] || 0;
-        description += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue}d\n`;
-        description += `   💰 ${formatCurrency(item.installmentAmount)}`;
+        message += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue}d\n`;
+        message += `   💰 ${formatCurrency(item.installmentAmount)}`;
         if (data.hasDynamicPenalty && item.penaltyAmount > 0) {
-          description += ` + ${formatCurrency(item.penaltyAmount)} multa`;
+          message += ` + ${formatCurrency(item.penaltyAmount)} multa`;
         } else if (!data.hasDynamicPenalty && manualPenalty > 0) {
-          description += ` + ${formatCurrency(manualPenalty)} multa`;
+          message += ` + ${formatCurrency(manualPenalty)} multa`;
         }
-        description += `\n`;
+        message += `\n`;
       }
       
-      description += `\n💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
+      message += `\n💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
     } else {
       const installmentInfo = data.installmentNumber && data.totalInstallments 
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
@@ -203,47 +182,36 @@ export default function SendOverdueNotification({
       const effectivePenalty = hasPenalty ? data.penaltyAmount! : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
       const totalAmount = data.amount + effectivePenalty;
 
-      description += `📋 *Tipo:* ${typeLabel}\n`;
-      description += `📊 *${installmentInfo}*\n`;
-      description += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
-      description += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
-      description += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
+      message += `📋 *Tipo:* ${typeLabel}\n`;
+      message += `📊 *${installmentInfo}*\n`;
+      message += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
+      message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
+      message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
       
       if (effectivePenalty > 0) {
-        description += `⚠️ *Multa:* +${formatCurrency(effectivePenalty)}\n`;
-        description += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
+        message += `⚠️ *Multa:* +${formatCurrency(effectivePenalty)}\n`;
+        message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
       }
       
       if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
         const interestPlusPenalty = data.interestAmount + effectivePenalty;
-        description += `💡 *Opção só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
-        description += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n`;
+        message += `💡 *Opção só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
+        message += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n`;
       }
     }
     
     if (profile?.pix_key) {
-      description += `\n━━━━━━━━━━━━━━━━\n`;
-      description += `💳 *PIX:* ${profile.pix_key}\n`;
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `💳 *${getPixKeyTypeLabel(profile.pix_key_type)}:* ${profile.pix_key}\n`;
     }
     
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    description += `\n━━━━━━━━━━━━━━━━`;
+    if (signatureName) {
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `_${signatureName}_`;
+    }
 
-    const sections: ListSection[] = [{
-      title: "📋 Ação Necessária",
-      rows: [
-        { title: "Ver detalhes", description: `${data.daysOverdue} dias em atraso`, rowId: "details" },
-        { title: "Valor pendente", description: formatCurrency(data.amount), rowId: "amount" },
-      ]
-    }];
-
-    return {
-      title: `⚠️ Cobrança - ${data.daysOverdue}d atraso`,
-      description,
-      buttonText: "📋 Ver Opções",
-      footerText: signatureName || 'CobraFácil',
-      sections,
-    };
+    return message;
   };
 
   const handleSend = async () => {
@@ -270,13 +238,13 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
-      const listData = generateOverdueListData();
+      const message = generateOverdueMessage();
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          listData 
+          message 
         },
       });
       
@@ -380,7 +348,7 @@ export default function SendOverdueNotification({
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateOverdueListData().description}
+        initialMessage={generateOverdueMessage()}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}

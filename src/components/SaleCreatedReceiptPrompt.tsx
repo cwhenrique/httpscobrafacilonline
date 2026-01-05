@@ -18,6 +18,7 @@ import { ProductSale } from '@/hooks/useProductSales';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 
 interface SaleCreatedReceiptPromptProps {
   open: boolean;
@@ -40,6 +41,8 @@ export default function SaleCreatedReceiptPrompt({
   const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
+  const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -58,7 +61,7 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  // Interface for list data
+  // Interface for list data (used for collector messages)
   interface ListRow {
     title: string;
     description: string;
@@ -78,41 +81,30 @@ export default function SaleCreatedReceiptPrompt({
     sections: ListSection[];
   }
 
-  // Generate list data for CLIENT (simple, no cost/profit)
-  const generateClientListData = (): ListData => {
+  // Generate plain text message for CLIENT (simple, no cost/profit)
+  const generateClientMessage = (): string => {
     const downPayment = sale.down_payment || 0;
     
-    let description = `Olá *${sale.client_name}*!\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
-    description += `📦 *COMPROVANTE DE VENDA*\n\n`;
-    description += `📋 *Produto:* ${sale.product_name}\n`;
-    description += `💵 *Valor Total:* ${formatCurrency(sale.total_amount)}\n`;
+    let message = `Olá *${sale.client_name}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📦 *COMPROVANTE DE VENDA*\n\n`;
+    message += `📋 *Produto:* ${sale.product_name}\n`;
+    message += `💵 *Valor Total:* ${formatCurrency(sale.total_amount)}\n`;
     
     if (downPayment > 0) {
-      description += `📥 *Entrada:* ${formatCurrency(downPayment)}\n`;
+      message += `📥 *Entrada:* ${formatCurrency(downPayment)}\n`;
     }
     
-    description += `📊 *Parcelas:* ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
-    description += `📅 *Primeiro Vencimento:* ${formatDate(sale.first_due_date)}\n`;
+    message += `📊 *Parcelas:* ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
+    message += `📅 *Primeiro Vencimento:* ${formatDate(sale.first_due_date)}\n`;
     
-    description += `\n━━━━━━━━━━━━━━━━`;
+    const signatureName = profile?.billing_signature_name || companyName;
+    if (signatureName) {
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `_${signatureName}_`;
+    }
 
-    const sections: ListSection[] = [{
-      title: "📋 Detalhes",
-      rows: [
-        { title: "Produto", description: sale.product_name, rowId: "product" },
-        { title: "Valor", description: formatCurrency(sale.total_amount), rowId: "total" },
-        { title: "Parcelas", description: `${sale.installments}x ${formatCurrency(sale.installment_value)}`, rowId: "inst" },
-      ]
-    }];
-
-    return {
-      title: "📦 Comprovante de Venda",
-      description,
-      buttonText: "📋 Ver Detalhes",
-      footerText: companyName || 'CobraFácil',
-      sections,
-    };
+    return message;
   };
 
   // Generate list data for COLLECTOR (full details)
@@ -175,8 +167,17 @@ export default function SaleCreatedReceiptPrompt({
     };
   };
 
-  // Send to collector - NOW USES LIST
-  const handleSendWhatsApp = async () => {
+  // Open preview for self
+  const handleSendToSelfClick = () => {
+    if (!userPhone) {
+      toast.error('Telefone não configurado no perfil');
+      return;
+    }
+    setShowPreviewForSelf(true);
+  };
+
+  // Send to collector - USES LIST
+  const handleConfirmSendToSelf = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
       return;
@@ -191,6 +192,7 @@ export default function SaleCreatedReceiptPrompt({
       });
       
       toast.success('Comprovante enviado via WhatsApp!');
+      setShowPreviewForSelf(false);
       onOpenChange(false);
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
@@ -200,8 +202,19 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  // Send to client - NOW USES LIST
-  const handleSendToClient = async () => {
+  // Open spam warning first for client
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  // After spam warning, show preview for client
+  const handleConfirmSpamWarning = () => {
+    setShowSpamWarning(false);
+    setShowPreviewForClient(true);
+  };
+
+  // Send to client - USES PLAIN TEXT
+  const handleConfirmSendToClient = async () => {
     if (!sale.client_phone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -224,13 +237,13 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const listData = generateClientListData();
+      const message = generateClientMessage();
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: sale.client_phone,
-          listData 
+          message 
         },
       });
       
@@ -238,6 +251,7 @@ export default function SaleCreatedReceiptPrompt({
       
       if (result?.success) {
         toast.success('Comprovante enviado para o cliente!');
+        setShowPreviewForClient(false);
         onOpenChange(false);
       } else {
         throw new Error(result?.error || 'Erro ao enviar');
@@ -248,15 +262,6 @@ export default function SaleCreatedReceiptPrompt({
     } finally {
       setIsSendingToClient(false);
     }
-  };
-
-  const handleClientButtonClick = () => {
-    setShowSpamWarning(true);
-  };
-
-  const handleConfirmSendToClient = () => {
-    setShowSpamWarning(false);
-    handleSendToClient();
   };
 
   const handleDownloadPdf = async () => {
@@ -352,7 +357,7 @@ export default function SaleCreatedReceiptPrompt({
 
           <div className="flex flex-col gap-3 mt-4">
             <Button 
-              onClick={handleSendWhatsApp} 
+              onClick={handleSendToSelfClick} 
               disabled={isSending || !userPhone}
               className="w-full"
             >
@@ -405,7 +410,29 @@ export default function SaleCreatedReceiptPrompt({
       <SpamWarningDialog
         open={showSpamWarning}
         onOpenChange={setShowSpamWarning}
+        onConfirm={handleConfirmSpamWarning}
+      />
+
+      {/* Preview for self */}
+      <MessagePreviewDialog
+        open={showPreviewForSelf}
+        onOpenChange={setShowPreviewForSelf}
+        initialMessage={generateCollectorListData().description}
+        recipientName="Você"
+        recipientType="self"
+        onConfirm={handleConfirmSendToSelf}
+        isSending={isSending}
+      />
+
+      {/* Preview for client - plain text */}
+      <MessagePreviewDialog
+        open={showPreviewForClient}
+        onOpenChange={setShowPreviewForClient}
+        initialMessage={generateClientMessage()}
+        recipientName={sale.client_name}
+        recipientType="client"
         onConfirm={handleConfirmSendToClient}
+        isSending={isSendingToClient}
       />
     </>
   );

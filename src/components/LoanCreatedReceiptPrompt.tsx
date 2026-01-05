@@ -88,7 +88,7 @@ export default function LoanCreatedReceiptPrompt({
     }
   };
 
-  // Interface for list data
+  // Interface for list data (used for collector messages)
   interface ListRow {
     title: string;
     description: string;
@@ -108,38 +108,27 @@ export default function LoanCreatedReceiptPrompt({
     sections: ListSection[];
   }
 
-  // Generate list data for CLIENT (simple)
-  const generateClientListData = (): ListData => {
-    let description = `Olá *${loan.clientName}*!\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
-    description += `📄 *CONTRATO DE EMPRÉSTIMO*\n\n`;
-    description += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
-    description += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
+  // Generate plain text message for CLIENT
+  const generateClientMessage = (): string => {
+    let message = `Olá *${loan.clientName}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📄 *CONTRATO DE EMPRÉSTIMO*\n\n`;
+    message += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
+    message += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      description += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    description += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
+    message += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
     
-    description += `\n━━━━━━━━━━━━━━━━`;
+    const signatureName = profile?.billing_signature_name || companyName;
+    if (signatureName) {
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `_${signatureName}_`;
+    }
 
-    const sections: ListSection[] = [{
-      title: "💰 Valores",
-      rows: [
-        { title: "Emprestado", description: formatCurrency(loan.principalAmount), rowId: "principal" },
-        { title: "Total a Pagar", description: formatCurrency(loan.totalToReceive), rowId: "total" },
-        { title: "Parcelas", description: `${loan.installments}x ${formatCurrency(loan.installmentValue)}`, rowId: "inst" },
-      ]
-    }];
-
-    return {
-      title: "📄 Contrato de Empréstimo",
-      description,
-      buttonText: "📋 Ver Detalhes",
-      footerText: companyName || 'CobraFácil',
-      sections,
-    };
+    return message;
   };
 
   // Generate list data for COLLECTOR (full details)
@@ -203,7 +192,7 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForSelf(true);
   };
 
-  // Send to collector - NOW USES LIST
+  // Send to collector - USES LIST
   const handleConfirmSendToSelf = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -240,7 +229,7 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForClient(true);
   };
 
-  // Send to client - NOW USES LIST
+  // Send to client - USES PLAIN TEXT
   const handleConfirmSendToClient = async () => {
     if (!loan.clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
@@ -264,13 +253,13 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const listData = generateClientListData();
+      const message = generateClientMessage();
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: loan.clientPhone,
-          listData 
+          message 
         },
       });
       
@@ -456,11 +445,11 @@ export default function LoanCreatedReceiptPrompt({
         isSending={isSending}
       />
 
-      {/* Preview for client */}
+      {/* Preview for client - plain text */}
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientListData().description}
+        initialMessage={generateClientMessage()}
         recipientName={loan.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}

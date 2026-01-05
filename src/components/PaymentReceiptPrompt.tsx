@@ -50,7 +50,7 @@ const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): s
   }
 };
 
-// Interface for list data
+// Interface for list data (used for collector messages)
 interface ListRow {
   title: string;
   description: string;
@@ -70,8 +70,8 @@ interface ListData {
   sections: ListSection[];
 }
 
-// Generate list data for CLIENT (simple, no technical details)
-const generateClientListData = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number, companyName?: string): ListData => {
+// Generate plain text message for CLIENT
+const generateClientMessage = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number, companyName?: string): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
   const totalCount = data.totalInstallments;
@@ -89,60 +89,46 @@ const generateClientListData = (data: PaymentReceiptData, installmentDates?: str
     progressPercent = Math.round((maxPaidInstallment / totalCount) * 100);
   }
   
-  // Build rich description
-  let description = `Olá *${data.clientName}*!\n`;
-  description += `━━━━━━━━━━━━━━━━\n\n`;
-  description += `✅ *PAGAMENTO CONFIRMADO*\n\n`;
-  description += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  let message = `Olá *${data.clientName}*!\n`;
+  message += `━━━━━━━━━━━━━━━━\n\n`;
+  message += `✅ *PAGAMENTO CONFIRMADO*\n\n`;
+  message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    description += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
+    message += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
-    description += `🏷️ *Desconto:* ${formatCurrency(data.discountAmount)}\n`;
+    message += `🏷️ *Desconto:* ${formatCurrency(data.discountAmount)}\n`;
   }
   
   if (Array.isArray(installments)) {
-    description += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
+    message += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
   } else {
-    description += `📊 *Parcela:* ${installments}/${totalCount}\n`;
+    message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
   }
-  description += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
+  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
   
   // Progress bar
   const filledBlocks = Math.round(progressPercent / 10);
   const emptyBlocks = 10 - filledBlocks;
-  description += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
+  message += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
   
   if (isFullyPaid) {
-    description += `🎉 *CONTRATO QUITADO!*\n`;
-    description += `Obrigado pela confiança!\n`;
+    message += `🎉 *CONTRATO QUITADO!*\n`;
+    message += `Obrigado pela confiança!\n`;
   } else {
-    description += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
     if (data.nextDueDate) {
-      description += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
+      message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
     }
   }
   
-  description += `\n━━━━━━━━━━━━━━━━`;
+  const signatureName = data.billingSignatureName || companyName;
+  if (signatureName) {
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_${signatureName}_`;
+  }
 
-  const sections: ListSection[] = [{
-    title: "📋 Detalhes",
-    rows: [
-      { title: "Valor Pago", description: formatCurrency(data.amountPaid), rowId: "amount" },
-      { title: "Parcela", description: Array.isArray(installments) ? `${installments.join(', ')} de ${totalCount}` : `${installments}/${totalCount}`, rowId: "inst" },
-      { title: "Saldo Restante", description: formatCurrency(data.remainingBalance), rowId: "balance" },
-    ]
-  }];
-
-  const signatureName = data.billingSignatureName || companyName || 'CobraFácil';
-
-  return {
-    title: "✅ Pagamento Recebido",
-    description,
-    buttonText: "📋 Ver Detalhes",
-    footerText: signatureName,
-    sections,
-  };
+  return message;
 };
 
 // Generate list data for COLLECTOR (full details)
@@ -236,7 +222,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForSelf(true);
   };
 
-  // Send to collector (after preview confirmation) - NOW USES LIST
+  // Send to collector (after preview confirmation) - USES LIST
   const handleConfirmSendToSelf = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
@@ -278,7 +264,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForClient(true);
   };
 
-  // Send to client (after preview confirmation) - NOW USES LIST
+  // Send to client (after preview confirmation) - USES PLAIN TEXT
   const handleConfirmSendToClient = async () => {
     if (!clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
@@ -302,13 +288,13 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
-      const listData = generateClientListData(data, installmentDates, paidCount, profile?.company_name || undefined);
+      const message = generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: clientPhone,
-          listData 
+          message 
         },
       });
       
@@ -470,11 +456,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         isSending={isSendingWhatsApp}
       />
 
-      {/* Preview for client - show list preview */}
+      {/* Preview for client - plain text */}
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientListData(data, installmentDates, paidCount, profile?.company_name || undefined).description}
+        initialMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
