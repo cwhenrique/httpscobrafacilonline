@@ -9,7 +9,6 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface DueTodayData {
   clientName: string;
@@ -106,91 +105,77 @@ export default function SendDueTodayNotification({
     return () => clearInterval(interval);
   }, [data.loanId]);
 
-  const getPixKeyTypeLabel = (type: string | null): string => {
-    switch (type) {
-      case 'cpf': return 'CPF';
-      case 'cnpj': return 'CNPJ';
-      case 'telefone': return 'Telefone';
-      case 'email': return 'Email';
-      case 'aleatoria': return 'Chave Aleatória';
-      default: return 'PIX';
-    }
-  };
 
-  const generateDueTodayMessage = (): string => {
+  // Interface for list data
+  interface ListRow {
+    title: string;
+    description: string;
+    rowId: string;
+  }
+
+  interface ListSection {
+    title: string;
+    rows: ListRow[];
+  }
+
+  interface ListData {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: ListSection[];
+  }
+
+  const generateDueTodayListData = (): ListData => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
 
-    let message = `📅 *Lembrete de Vencimento*\n\n`;
-    message += `Olá *${data.clientName}*!\n\n`;
-    message += `Passando para lembrar que você tem uma parcela vencendo hoje:\n\n`;
-    message += `📋 *Tipo:* ${typeLabel}\n`;
-    message += `📊 *${installmentInfo}*\n`;
-    message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    // Build rich description
+    let description = `Olá *${data.clientName}*!\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `📅 *VENCIMENTO HOJE*\n\n`;
+    description += `📋 *Tipo:* ${typeLabel}\n`;
+    description += `📊 *${installmentInfo}*\n`;
+    description += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
+    description += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
     
-    // Adicionar lista de status das parcelas com emojis
-    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
-      message += generateInstallmentsStatusList({
-        installmentDates: data.installmentDates,
-        paidCount: data.paidCount,
-        totalInstallments: data.totalInstallments
-      });
-    }
-    message += `\n`;
-    
-    // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💰 *OPÇÕES DE PAGAMENTO*\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-      
-      // Opção 1: Valor Total
-      message += `✅ *VALOR TOTAL (quita a parcela):*\n`;
-      message += `💵 ${formatCurrency(data.amount)}\n\n`;
-      
-      // Opção 2: Só Juros
-      message += `⚠️ *SÓ JUROS (pagamento parcial):*\n`;
-      message += `💵 ${formatCurrency(data.interestAmount)}\n`;
-      message += `📌 Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês\n`;
-      message += `⚠️ _Este pagamento NÃO quita a parcela_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
+      description += `💡 *Opções de Pagamento:*\n`;
+      description += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
+      description += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
+      description += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n\n`;
     }
     
-    // PIX key section with value
     if (profile?.pix_key) {
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💳 *PIX para pagamento:*\n`;
-      message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
-      message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor total:* ${formatCurrency(data.amount)}\n`;
-      
-      // Mostrar valor de só juros se aplicável
-      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-        message += `💡 *Só juros:* ${formatCurrency(data.interestAmount)}\n`;
-      }
-      
-      message += `\n_Copie a chave e faça o PIX!_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
+      description += `━━━━━━━━━━━━━━━━\n`;
+      description += `💳 *PIX:* ${profile.pix_key}\n`;
     }
     
-    if (profile?.payment_link) {
-      message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
-    }
-    
-    message += `Evite juros e multas pagando em dia!`;
+    description += `\nEvite juros e multas pagando em dia!`;
     
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    if (signatureName) {
-      message += `\n\n_${signatureName}_`;
-    }
+    description += `\n\n━━━━━━━━━━━━━━━━`;
 
-    return message;
+    const sections: ListSection[] = [{
+      title: "📋 Detalhes",
+      rows: [
+        { title: "Valor", description: formatCurrency(data.amount), rowId: "amount" },
+        { title: "Parcela", description: installmentInfo, rowId: "inst" },
+      ]
+    }];
+
+    return {
+      title: `📅 Vencimento Hoje`,
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: signatureName || 'CobraFácil',
+      sections,
+    };
   };
 
-  const handleSend = async (editedMessage: string) => {
+  const handleSend = async () => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
@@ -214,11 +199,13 @@ export default function SendDueTodayNotification({
 
     setIsSending(true);
     try {
+      const listData = generateDueTodayListData();
+      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message: editedMessage 
+          listData 
         },
       });
       
@@ -307,7 +294,7 @@ export default function SendDueTodayNotification({
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateDueTodayMessage()}
+        initialMessage={generateDueTodayListData().description}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}

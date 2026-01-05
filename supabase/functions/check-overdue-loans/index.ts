@@ -419,11 +419,26 @@ const handler = async (req: Request): Promise<Response> => {
             ],
           });
 
+          // Build rich description with overdue details
+          let overdueDescription = `👤 *Cliente:* ${loan.clientName}\n`;
+          overdueDescription += `📋 *Contrato:* ${contractId}\n`;
+          overdueDescription += `━━━━━━━━━━━━━━━━\n\n`;
+          overdueDescription += `🚨 *${alertDay} DIA${alertDay > 1 ? 'S' : ''} EM ATRASO*\n\n`;
+          overdueDescription += `📅 *Venceu em:* ${formatDate(new Date(loan.dueDate))}\n`;
+          overdueDescription += `💸 *Saldo Devedor:* ${formatCurrency(loan.remainingBalance)}\n\n`;
+          overdueDescription += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
+          overdueDescription += `📈 *Juros:* ${loan.interest_rate}%\n`;
+          overdueDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
+          overdueDescription += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
+          overdueDescription += `📊 *Parcelas:* ${loan.paidInstallments}/${loan.totalInstallments} pagas\n\n`;
+          overdueDescription += `━━━━━━━━━━━━━━━━\n`;
+          overdueDescription += `⚠️ AÇÃO URGENTE NECESSÁRIA`;
+
           const listData: ListData = {
             title: `${emoji} ${title}`,
-            description: `${loan.clientName}\n${contractId}\n\nValor pendente: ${formatCurrency(loan.remainingBalance)}`,
+            description: overdueDescription,
             buttonText: "📋 Ver Detalhes",
-            footerText: "CobraFácil - Ação urgente",
+            footerText: "CobraFácil - Urgente",
             sections: sections,
           };
 

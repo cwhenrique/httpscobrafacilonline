@@ -610,20 +610,60 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      // Build list data
+      // Build list data with DETAILED description
       const titleText = isReminder 
         ? `🔔 Lembrete de Cobranças`
         : `📋 Relatório do Dia`;
       
-      const descriptionText = `${formatDate(today)}\n\n` +
-        (hasDueToday ? `⏰ Vence hoje: ${formatCurrency(totalDueToday)}\n` : '') +
-        (hasOverdue ? `🚨 Em atraso: ${formatCurrency(grandTotalOverdue)}\n` : '') +
-        `\nClique para ver os detalhes.`;
+      // Build a rich description with all the important info upfront
+      let descriptionText = `📅 ${formatDate(today)}\n`;
+      descriptionText += `━━━━━━━━━━━━━━━━\n\n`;
+      
+      if (hasDueToday) {
+        descriptionText += `⏰ *VENCE HOJE*\n`;
+        descriptionText += `💵 Total: ${formatCurrency(totalDueToday)}\n`;
+        descriptionText += `📊 ${dueTodayLoans.length} empréstimo${dueTodayLoans.length !== 1 ? 's' : ''}`;
+        if (dueTodayVehicles.length > 0) descriptionText += `, ${dueTodayVehicles.length} veículo${dueTodayVehicles.length !== 1 ? 's' : ''}`;
+        if (dueTodayProducts.length > 0) descriptionText += `, ${dueTodayProducts.length} produto${dueTodayProducts.length !== 1 ? 's' : ''}`;
+        descriptionText += `\n\n`;
+        
+        // List top 3 clients with amounts
+        const topDueToday = [...dueTodayLoans, ...dueTodayVehicles.map(v => ({clientName: v.buyerName, amount: v.amount})), ...dueTodayProducts].slice(0, 3);
+        topDueToday.forEach(item => {
+          descriptionText += `• ${item.clientName}: ${formatCurrency(item.amount)}\n`;
+        });
+        if (dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length > 3) {
+          descriptionText += `  (+${dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length - 3} mais)\n`;
+        }
+        descriptionText += `\n`;
+      }
+      
+      if (hasOverdue) {
+        descriptionText += `🚨 *EM ATRASO*\n`;
+        descriptionText += `💸 Total: ${formatCurrency(grandTotalOverdue)}\n`;
+        descriptionText += `📊 ${overdueLoans.length} empréstimo${overdueLoans.length !== 1 ? 's' : ''}`;
+        if (overdueVehicles.length > 0) descriptionText += `, ${overdueVehicles.length} veículo${overdueVehicles.length !== 1 ? 's' : ''}`;
+        if (overdueProducts.length > 0) descriptionText += `, ${overdueProducts.length} produto${overdueProducts.length !== 1 ? 's' : ''}`;
+        descriptionText += `\n\n`;
+        
+        // List top 3 overdue with days
+        const topOverdue = [...overdueLoans, ...overdueVehicles, ...overdueProducts].slice(0, 3);
+        topOverdue.forEach(item => {
+          descriptionText += `• ${item.clientName}: ${formatCurrency(item.amount)} (${item.daysOverdue}d)\n`;
+        });
+        if (overdueLoans.length + overdueVehicles.length + overdueProducts.length > 3) {
+          descriptionText += `  (+${overdueLoans.length + overdueVehicles.length + overdueProducts.length - 3} mais)\n`;
+        }
+        descriptionText += `\n`;
+      }
+      
+      descriptionText += `━━━━━━━━━━━━━━━━\n`;
+      descriptionText += `Clique no botão abaixo para ver a lista completa de clientes.`;
 
       const listData: ListData = {
         title: titleText,
         description: descriptionText,
-        buttonText: "📋 Ver Cobranças",
+        buttonText: "📋 Ver Clientes",
         footerText: isReminder ? "CobraFácil - 12h" : "CobraFácil",
         sections: sections,
       };

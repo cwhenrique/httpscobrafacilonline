@@ -9,7 +9,6 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { generateInstallmentsStatusList } from '@/lib/installmentStatusUtils';
 
 interface OverdueData {
   clientName: string;
@@ -145,193 +144,109 @@ export default function SendOverdueNotification({
     }
   };
 
-  const generateOverdueMessage = (): string => {
+  // Interface for list data
+  interface ListRow {
+    title: string;
+    description: string;
+    rowId: string;
+  }
+
+  interface ListSection {
+    title: string;
+    rows: ListRow[];
+  }
+
+  interface ListData {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: ListSection[];
+  }
+
+  const generateOverdueListData = (): ListData => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
     const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
     const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
     
-    // Para múltiplas parcelas em atraso (diários)
+    // Build rich description
+    let description = `⚠️ *Atenção ${data.clientName}*\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    
     if (hasMultipleOverdue && data.isDaily) {
-      // Se há multa dinâmica configurada, usa APENAS ela; senão usa multa manual
       const effectivePenalty = data.hasDynamicPenalty 
         ? (data.totalPenaltyAmount || 0) 
         : (data.manualPenaltyAmount || 0);
       const totalAmount = (data.totalOverdueAmount || 0) + effectivePenalty;
       
-      let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
-      message += `Identificamos *${data.overdueInstallmentsCount} parcelas* em atraso:\n\n`;
-      message += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `📊 *PARCELAS EM ATRASO:*\n\n`;
+      description += `🚨 *${data.overdueInstallmentsCount} PARCELAS EM ATRASO*\n\n`;
+      description += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
       
       for (const item of data.overdueInstallmentsDetails!) {
-        // Verificar se essa parcela tem multa manual (índice = installmentNumber - 1)
         const manualPenalty = data.manualPenaltiesBreakdown?.[item.installmentNumber - 1] || 0;
-        
-        message += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue} dias\n`;
-        message += `   💰 ${formatCurrency(item.installmentAmount)}`;
-        
-        // Se há multa dinâmica configurada, usa apenas ela; senão usa multa manual
+        description += `📌 Parc. ${item.installmentNumber}/${data.totalInstallments} • ${item.daysOverdue}d\n`;
+        description += `   💰 ${formatCurrency(item.installmentAmount)}`;
         if (data.hasDynamicPenalty && item.penaltyAmount > 0) {
-          message += ` + ${formatCurrency(item.penaltyAmount)} multa`;
+          description += ` + ${formatCurrency(item.penaltyAmount)} multa`;
         } else if (!data.hasDynamicPenalty && manualPenalty > 0) {
-          message += ` + ${formatCurrency(manualPenalty)} multa`;
+          description += ` + ${formatCurrency(manualPenalty)} multa`;
         }
-        message += `\n`;
+        description += `\n`;
       }
       
-      message += `\n━━━━━━━━━━━━━━━━\n`;
-      message += `💰 *Subtotal Parcelas:* ${formatCurrency(data.totalOverdueAmount || 0)}\n`;
-      
-      // Mostra apenas o tipo de multa efetivo (dinâmica OU manual)
-      if (effectivePenalty > 0) {
-        message += `⚠️ *Total Multas:* +${formatCurrency(effectivePenalty)}\n`;
-      }
-      
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-      message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
-      
-      // PIX key section
-      if (profile?.pix_key) {
-        message += `━━━━━━━━━━━━━━━━\n`;
-        message += `💳 *PIX para pagamento:*\n`;
-        message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
-        message += `${profile.pix_key}\n\n`;
-        message += `💰 *Valor a pagar:* ${formatCurrency(totalAmount)}\n\n`;
-        message += `_Copie a chave e faça o PIX no valor exato!_\n`;
-        message += `━━━━━━━━━━━━━━━━\n\n`;
-      }
-      
-      if (profile?.payment_link) {
-        message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
-      }
-      
-      message += `Por favor, entre em contato para regularizar sua situação.`;
-      
-      const signatureName = profile?.billing_signature_name || profile?.company_name;
-      if (signatureName) {
-        message += `\n\n_${signatureName}_`;
-      }
-      
-      return message;
-    }
-    
-    // Mensagem padrão para parcela única
-    const installmentInfo = data.installmentNumber && data.totalInstallments 
-      ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
-      : 'Pagamento';
-
-    // Determinar multa efetiva: dinâmica ou manual
-    const effectivePenalty = hasPenalty 
-      ? data.penaltyAmount! 
-      : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
-
-    const totalAmount = data.amount + effectivePenalty;
-
-    let message = `⚠️ *Atenção ${data.clientName}*\n\n`;
-    message += `Identificamos que você possui uma parcela em atraso:\n\n`;
-    message += `📋 *Tipo:* ${typeLabel}\n`;
-    message += `📊 *${installmentInfo}*\n`;
-    message += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
-    message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n`;
-    
-    // Seção de multa (dinâmica OU manual)
-    if (effectivePenalty > 0) {
-      message += `\n━━━━━━━━━━━━━━━━\n`;
-      message += `⚠️ *MULTA POR ATRASO*\n`;
-      
-      if (hasPenalty) {
-        // Multa dinâmica - mostrar cálculo
-        if (data.penaltyType === 'percentage' && data.penaltyValue) {
-          message += `📊 *Cálculo:* ${data.penaltyValue}% × ${data.daysOverdue} dias\n`;
-        } else if (data.penaltyValue) {
-          message += `📊 *Cálculo:* R$ ${data.penaltyValue.toFixed(2)}/dia × ${data.daysOverdue} dias\n`;
-        }
-      } else {
-        // Multa manual - não mostrar cálculo
-        message += `📋 *Multa aplicada*\n`;
-      }
-      
-      message += `💸 *Valor da Multa:* +${formatCurrency(effectivePenalty)}\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-      message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
+      description += `\n💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
     } else {
-      message += `\n`;
-    }
-    
-    // Seção de opções de pagamento (valor total E só juros na mesma mensagem)
-    // NÃO mostra para contratos diários - cliente tem que pagar o valor completo todo dia
-    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      const interestPlusPenalty = data.interestAmount + effectivePenalty;
+      const installmentInfo = data.installmentNumber && data.totalInstallments 
+        ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
+        : 'Pagamento';
+      const effectivePenalty = hasPenalty ? data.penaltyAmount! : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
+      const totalAmount = data.amount + effectivePenalty;
+
+      description += `📋 *Tipo:* ${typeLabel}\n`;
+      description += `📊 *${installmentInfo}*\n`;
+      description += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
+      description += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
+      description += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
       
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💰 *OPÇÕES DE PAGAMENTO*\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-      
-      // Opção 1: Valor Total
-      message += `✅ *VALOR TOTAL (quita a parcela):*\n`;
-      message += `💵 ${formatCurrency(totalAmount)}\n`;
       if (effectivePenalty > 0) {
-        message += `   _(parcela ${formatCurrency(data.amount)} + multa ${formatCurrency(effectivePenalty)})_\n`;
+        description += `⚠️ *Multa:* +${formatCurrency(effectivePenalty)}\n`;
+        description += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
       }
-      message += `\n`;
       
-      // Opção 2: Só Juros
-      message += `⚠️ *SÓ JUROS (pagamento parcial):*\n`;
-      message += `💵 ${formatCurrency(interestPlusPenalty)}\n`;
-      if (effectivePenalty > 0) {
-        message += `   _(juros ${formatCurrency(data.interestAmount)} + multa ${formatCurrency(effectivePenalty)})_\n`;
-      }
-      message += `📌 Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês\n`;
-      message += `⚠️ _Este pagamento NÃO quita a parcela_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // PIX key section with value
-    if (profile?.pix_key) {
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💳 *PIX para pagamento:*\n`;
-      message += `📱 *Chave (${getPixKeyTypeLabel(profile.pix_key_type)}):*\n`;
-      message += `${profile.pix_key}\n\n`;
-      message += `💰 *Valor total:* ${formatCurrency(totalAmount)}\n`;
-      
-      // Mostrar valor de só juros se aplicável
       if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
         const interestPlusPenalty = data.interestAmount + effectivePenalty;
-        message += `💡 *Só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
+        description += `💡 *Opção só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
+        description += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n`;
       }
-      
-      message += `\n_Copie a chave e faça o PIX!_\n`;
-      message += `━━━━━━━━━━━━━━━━\n\n`;
     }
     
-    if (profile?.payment_link) {
-      message += `🔗 *Link alternativo:*\n${profile.payment_link}\n\n`;
+    if (profile?.pix_key) {
+      description += `\n━━━━━━━━━━━━━━━━\n`;
+      description += `💳 *PIX:* ${profile.pix_key}\n`;
     }
-    
-    // Adicionar lista de status das parcelas com emojis (para contratos não diários ou quando não há múltiplas parcelas em atraso)
-    if (data.installmentDates && data.installmentDates.length > 0 && data.paidCount !== undefined && data.totalInstallments) {
-      message += generateInstallmentsStatusList({
-        installmentDates: data.installmentDates,
-        paidCount: data.paidCount,
-        totalInstallments: data.totalInstallments
-      });
-      message += `\n`;
-    }
-    
-    message += `Por favor, entre em contato para regularizar sua situação.`;
     
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    if (signatureName) {
-      message += `\n\n_${signatureName}_`;
-    }
+    description += `\n━━━━━━━━━━━━━━━━`;
 
-    return message;
+    const sections: ListSection[] = [{
+      title: "📋 Ação Necessária",
+      rows: [
+        { title: "Ver detalhes", description: `${data.daysOverdue} dias em atraso`, rowId: "details" },
+        { title: "Valor pendente", description: formatCurrency(data.amount), rowId: "amount" },
+      ]
+    }];
+
+    return {
+      title: `⚠️ Cobrança - ${data.daysOverdue}d atraso`,
+      description,
+      buttonText: "📋 Ver Opções",
+      footerText: signatureName || 'CobraFácil',
+      sections,
+    };
   };
 
-  const handleSend = async (editedMessage: string) => {
+  const handleSend = async () => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
@@ -355,11 +270,13 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
+      const listData = generateOverdueListData();
+      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message: editedMessage 
+          listData 
         },
       });
       
@@ -370,7 +287,6 @@ export default function SendOverdueNotification({
         setCooldownState(true);
         setRemainingMinutes(60);
         
-        // Register message in database
         await registerMessage({
           loanId: data.loanId,
           contractType: data.contractType,
@@ -387,11 +303,9 @@ export default function SendOverdueNotification({
     } catch (error: any) {
       console.error('Error sending overdue notification:', error);
       
-      // Parse error message for better UX
       let errorMessage = 'Tente novamente';
       const errorStr = error.message || '';
       
-      // Detect "number not on WhatsApp" error
       if (errorStr.includes('não possui WhatsApp') || errorStr.includes('NUMBER_NOT_ON_WHATSAPP')) {
         errorMessage = `O número "${data.clientPhone}" não possui WhatsApp. Verifique o cadastro do cliente.`;
       } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code')) {
@@ -466,7 +380,7 @@ export default function SendOverdueNotification({
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateOverdueMessage()}
+        initialMessage={generateOverdueListData().description}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}

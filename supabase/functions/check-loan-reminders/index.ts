@@ -328,9 +328,23 @@ const handler = async (req: Request): Promise<Response> => {
           ],
         });
 
+        // Build rich description with all loan details
+        let loanDescription = `👤 *Cliente:* ${loan.clientName}\n`;
+        loanDescription += `━━━━━━━━━━━━━━━━\n\n`;
+        loanDescription += `📋 *Tipo:* ${getPaymentTypeLabel(loan.payment_type)}\n`;
+        loanDescription += `💵 *Valor da Parcela:* ${formatCurrency(loan.installmentAmount)}\n`;
+        loanDescription += `📊 *Parcela:* ${loan.currentInstallment}/${loan.totalInstallments}\n\n`;
+        loanDescription += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
+        loanDescription += `📈 *Juros:* ${loan.interest_rate}%\n`;
+        loanDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
+        loanDescription += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
+        loanDescription += `📊 *Saldo Devedor:* ${formatCurrency(loan.remainingBalance)}\n\n`;
+        loanDescription += `━━━━━━━━━━━━━━━━\n`;
+        loanDescription += `Clique para ver mais detalhes.`;
+
         const listData: ListData = {
           title: `⏰ Vencimento Hoje - ${contractId}`,
-          description: `${loan.clientName}\n\n${getPaymentTypeLabel(loan.payment_type)}\nValor: ${formatCurrency(loan.installmentAmount)}`,
+          description: loanDescription,
           buttonText: "📋 Ver Detalhes",
           footerText: "CobraFácil",
           sections: sections,

@@ -327,9 +327,35 @@ const handler = async (req: Request): Promise<Response> => {
         ],
       });
 
+      // Build rich weekly summary description
+      let weeklyDescription = `Olá${profile.full_name ? `, ${profile.full_name}` : ''}!\n`;
+      weeklyDescription += `━━━━━━━━━━━━━━━━\n\n`;
+      weeklyDescription += `📊 *SEMANA PASSADA*\n`;
+      weeklyDescription += `✅ Pagamentos: ${paymentsCount}\n`;
+      weeklyDescription += `💵 Recebido: ${formatCurrency(totalReceivedLastWeek)}\n\n`;
+      weeklyDescription += `🔮 *ESTA SEMANA*\n`;
+      weeklyDescription += `📋 Vencimentos: ${dueThisWeek.length} parcela${dueThisWeek.length !== 1 ? 's' : ''}\n`;
+      weeklyDescription += `💰 A Receber: ${formatCurrency(totalDueThisWeek)}\n`;
+      if (overdueLoans.length > 0) {
+        weeklyDescription += `🚨 Em Atraso: ${overdueLoans.length} - ${formatCurrency(totalOverdue)}\n`;
+      }
+      weeklyDescription += `\n`;
+      // Top 3 due this week
+      if (dueThisWeek.length > 0) {
+        weeklyDescription += `📋 *Próximos vencimentos:*\n`;
+        dueThisWeek.slice(0, 3).forEach(loan => {
+          weeklyDescription += `• ${loan.clientName}: ${formatCurrency(loan.amount)}\n`;
+        });
+        if (dueThisWeek.length > 3) {
+          weeklyDescription += `  (+${dueThisWeek.length - 3} mais)\n`;
+        }
+      }
+      weeklyDescription += `\n━━━━━━━━━━━━━━━━\n`;
+      weeklyDescription += `Clique para ver detalhes.`;
+
       const listData: ListData = {
         title: `📅 Resumo Semanal`,
-        description: `Olá${profile.full_name ? `, ${profile.full_name}` : ''}!\n\nSemana passada: ${formatCurrency(totalReceivedLastWeek)}\nEsta semana: ${formatCurrency(totalDueThisWeek)}${overdueLoans.length > 0 ? `\n⚠️ Atrasados: ${formatCurrency(totalOverdue)}` : ''}`,
+        description: weeklyDescription,
         buttonText: "📋 Ver Detalhes",
         footerText: "CobraFácil - Semanal",
         sections: sections,

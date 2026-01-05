@@ -58,95 +58,124 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  // Mensagem SIMPLES para CLIENTE (sem custo, sem lucro)
-  const generateClientMessage = () => {
+  // Interface for list data
+  interface ListRow {
+    title: string;
+    description: string;
+    rowId: string;
+  }
+
+  interface ListSection {
+    title: string;
+    rows: ListRow[];
+  }
+
+  interface ListData {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: ListSection[];
+  }
+
+  // Generate list data for CLIENT (simple, no cost/profit)
+  const generateClientListData = (): ListData => {
     const downPayment = sale.down_payment || 0;
     
-    let message = `📦 *COMPROVANTE DE VENDA*\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
-    
-    message += `Olá *${sale.client_name}*!\n\n`;
-    message += `Confirmamos a venda:\n\n`;
-    
-    message += `📋 *Produto:* ${sale.product_name}\n`;
-    message += `💵 *Valor Total:* ${formatCurrency(sale.total_amount)}\n`;
+    let description = `Olá *${sale.client_name}*!\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `📦 *COMPROVANTE DE VENDA*\n\n`;
+    description += `📋 *Produto:* ${sale.product_name}\n`;
+    description += `💵 *Valor Total:* ${formatCurrency(sale.total_amount)}\n`;
     
     if (downPayment > 0) {
-      message += `📥 *Entrada:* ${formatCurrency(downPayment)}\n`;
+      description += `📥 *Entrada:* ${formatCurrency(downPayment)}\n`;
     }
     
-    message += `📊 *Parcelas:* ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n\n`;
+    description += `📊 *Parcelas:* ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
+    description += `📅 *Primeiro Vencimento:* ${formatDate(sale.first_due_date)}\n`;
     
-    message += `📅 *VENCIMENTOS*\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    
-    const dates = installmentDates || [];
-    const maxDatesToShow = 6;
-    dates.slice(0, maxDatesToShow).forEach((inst, index) => {
-      message += `${index + 1}ª: ${formatDate(inst.date)}\n`;
-    });
-    
-    if (dates.length > maxDatesToShow) {
-      message += `... e mais ${dates.length - maxDatesToShow} parcela(s)\n`;
-    }
-    
-    message += `\n━━━━━━━━━━━━━━━━\n`;
-    message += `_${companyName}_`;
-    
-    return message;
+    description += `\n━━━━━━━━━━━━━━━━`;
+
+    const sections: ListSection[] = [{
+      title: "📋 Detalhes",
+      rows: [
+        { title: "Produto", description: sale.product_name, rowId: "product" },
+        { title: "Valor", description: formatCurrency(sale.total_amount), rowId: "total" },
+        { title: "Parcelas", description: `${sale.installments}x ${formatCurrency(sale.installment_value)}`, rowId: "inst" },
+      ]
+    }];
+
+    return {
+      title: "📦 Comprovante de Venda",
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: companyName || 'CobraFácil',
+      sections,
+    };
   };
 
-  // Mensagem COMPLETA para USUÁRIO/COBRADOR (com custo, lucro, telefone)
-  const generateCollectorMessage = () => {
+  // Generate list data for COLLECTOR (full details)
+  const generateCollectorListData = (): ListData => {
     const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
     const downPayment = sale.down_payment || 0;
     const costValue = sale.cost_value || 0;
     const profit = sale.total_amount - costValue;
     
-    let message = `🏷️ *CobraFácil*\n`;
-    message += `📦 *VENDA REGISTRADA*\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
-    
-    message += `📋 *Contrato:* ${contractId}\n\n`;
-    
-    message += `👤 *CLIENTE*\n`;
-    message += `• Nome: ${sale.client_name}\n`;
+    let description = `📋 *Contrato:* ${contractId}\n`;
+    description += `━━━━━━━━━━━━━━━━\n\n`;
+    description += `👤 *Cliente:* ${sale.client_name}\n`;
     if (sale.client_phone) {
-      message += `• Telefone: ${sale.client_phone}\n`;
+      description += `📱 *Telefone:* ${sale.client_phone}\n`;
     }
-    message += `\n`;
-    
-    message += `📦 *PRODUTO*\n`;
-    message += `• ${sale.product_name}\n`;
+    description += `\n📦 *Produto:* ${sale.product_name}\n`;
     if (sale.product_description) {
-      message += `• ${sale.product_description}\n`;
+      description += `   ${sale.product_description}\n`;
     }
-    message += `\n`;
-    
-    message += `💰 *VALORES*\n`;
-    message += `• Valor Total: ${formatCurrency(sale.total_amount)}\n`;
+    description += `\n💰 *VALORES*\n`;
+    description += `• Valor Total: ${formatCurrency(sale.total_amount)}\n`;
     if (costValue > 0) {
-      message += `• Custo: ${formatCurrency(costValue)}\n`;
-      message += `• Lucro: ${formatCurrency(profit)}\n`;
+      description += `• Custo: ${formatCurrency(costValue)}\n`;
+      description += `• Lucro: ${formatCurrency(profit)}\n`;
     }
     if (downPayment > 0) {
-      message += `• Entrada: ${formatCurrency(downPayment)}\n`;
+      description += `• Entrada: ${formatCurrency(downPayment)}\n`;
     }
-    message += `• Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n\n`;
+    description += `• Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
     
-    message += `📅 *VENCIMENTOS*\n`;
-    const dates = installmentDates || [];
-    dates.forEach((inst, index) => {
-      message += `${index + 1}ª: ${formatDate(inst.date)}\n`;
-    });
+    description += `\n━━━━━━━━━━━━━━━━\n`;
+    description += `📲 Responda OK para continuar recebendo.`;
+
+    const sections: ListSection[] = [
+      {
+        title: "💰 Valores",
+        rows: [
+          { title: "Total", description: formatCurrency(sale.total_amount), rowId: "total" },
+          { title: "Parcelas", description: `${sale.installments}x ${formatCurrency(sale.installment_value)}`, rowId: "inst" },
+        ]
+      }
+    ];
     
-    message += `\n━━━━━━━━━━━━━━━━`;
-    message += `\n\n📲 _Responda *OK* para continuar recebendo. Sem resposta, entendemos que prefere parar._`;
-    
-    return message;
+    if (costValue > 0) {
+      sections.push({
+        title: "📊 Financeiro",
+        rows: [
+          { title: "Custo", description: formatCurrency(costValue), rowId: "cost" },
+          { title: "Lucro", description: formatCurrency(profit), rowId: "profit" },
+        ]
+      });
+    }
+
+    return {
+      title: "📦 Venda Registrada",
+      description,
+      buttonText: "📋 Ver Detalhes",
+      footerText: "CobraFácil",
+      sections,
+    };
   };
 
-  // Send to collector (existing behavior)
+  // Send to collector - NOW USES LIST
   const handleSendWhatsApp = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -155,10 +184,10 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const message = generateCollectorMessage();
+      const listData = generateCollectorListData();
       
       await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: userPhone, message },
+        body: { phone: userPhone, listData },
       });
       
       toast.success('Comprovante enviado via WhatsApp!');
@@ -171,7 +200,7 @@ export default function SaleCreatedReceiptPrompt({
     }
   };
 
-  // Send to client (new feature)
+  // Send to client - NOW USES LIST
   const handleSendToClient = async () => {
     if (!sale.client_phone) {
       toast.error('Cliente não possui telefone cadastrado');
@@ -195,13 +224,13 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage();
+      const listData = generateClientListData();
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: sale.client_phone,
-          message 
+          listData 
         },
       });
       
