@@ -8,6 +8,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 
+interface ListRow {
+  title: string;
+  description: string;
+  rowId: string;
+}
+
+interface ListSection {
+  title: string;
+  rows: ListRow[];
+}
+
+interface ListData {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: ListSection[];
+}
+
 interface ReceiptPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -131,6 +150,39 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   return message;
 };
 
+const generateListData = (data: ContractReceiptData): ListData => {
+  const prefix = getContractPrefix(data.type);
+  const typeName = getContractTypeName(data.type);
+  const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
+  
+  const description = generateWhatsAppMessage(data);
+  
+  const sections: ListSection[] = [
+    {
+      title: "Valores",
+      rows: [
+        { title: "Principal", description: formatCurrency(data.negotiation.principal), rowId: "principal" },
+        { title: "Total a Receber", description: formatCurrency(data.negotiation.totalToReceive), rowId: "total" },
+        { title: "Parcelas", description: `${data.negotiation.installments}x ${formatCurrency(data.negotiation.installmentValue)}`, rowId: "installment" },
+      ]
+    },
+    {
+      title: "Cliente",
+      rows: [
+        { title: data.client.name, description: data.client.phone || "Sem telefone", rowId: "client" },
+      ]
+    }
+  ];
+
+  return {
+    title: `${typeName} Registrado`,
+    description,
+    buttonText: "Ver Detalhes",
+    footerText: data.companyName || "CobraFácil",
+    sections,
+  };
+};
+
 export default function ReceiptPreviewDialog({ open, onOpenChange, data }: ReceiptPreviewDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
@@ -146,10 +198,10 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
     
     setIsSendingWhatsApp(true);
     try {
-      const message = generateWhatsAppMessage(data);
+      const listData = generateListData(data);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, message },
+        body: { phone: profile.phone, listData },
       });
       
       if (error) throw error;
