@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 
 export interface ClientDocument {
@@ -20,9 +21,10 @@ export function useClientDocuments(clientId: string | null) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
   const fetchDocuments = async () => {
-    if (!user || !clientId) return;
+    if (!user || !clientId || employeeLoading) return;
     
     setLoading(true);
     const { data, error } = await supabase
@@ -40,13 +42,13 @@ export function useClientDocuments(clientId: string | null) {
   };
 
   const uploadDocument = async (file: File, description?: string) => {
-    if (!user || !clientId) return { error: new Error('Não autenticado') };
+    if (!user || !clientId || !effectiveUserId) return { error: new Error('Não autenticado') };
 
     setUploading(true);
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${user.id}/${clientId}/${fileName}`;
+    const filePath = `${effectiveUserId}/${clientId}/${fileName}`;
 
     // Upload to storage
     const { error: uploadError } = await supabase.storage
@@ -64,7 +66,7 @@ export function useClientDocuments(clientId: string | null) {
     const { data, error: dbError } = await supabase
       .from('client_documents')
       .insert({
-        user_id: user.id,
+        user_id: effectiveUserId,
         client_id: clientId,
         file_name: file.name,
         file_path: filePath,
@@ -156,7 +158,7 @@ export function useClientDocuments(clientId: string | null) {
 
   useEffect(() => {
     fetchDocuments();
-  }, [user, clientId]);
+  }, [user, clientId, effectiveUserId, employeeLoading]);
 
   return {
     documents,
