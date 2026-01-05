@@ -60,9 +60,10 @@ const handler = async (req: Request): Promise<Response> => {
     const webhookSetUrl = `${evolutionApiUrl}/webhook/set/${instanceName}`;
     console.log(`Calling: ${webhookSetUrl}`);
 
-    // Try new format first (with nested webhook object)
+    // Try new format first (with nested webhook object and enabled: true)
     const newFormatPayload = {
       webhook: {
+        enabled: true,
         url: finalWebhookUrl,
         byEvents: true,
         base64: false,
