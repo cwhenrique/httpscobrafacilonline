@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,22 @@ export default function Tutorials() {
   const [viewMode, setViewMode] = useState<"carousel" | "panorama">("panorama");
   const [selectedVideo, setSelectedVideo] = useState<{ id: string; title: string; videoId: string } | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [shouldShowVideo, setShouldShowVideo] = useState(false);
+
+  // Controla quando mostrar o iframe do vídeo
+  useEffect(() => {
+    if (selectedVideo) {
+      setShouldShowVideo(true);
+    }
+  }, [selectedVideo]);
+
+  // Handler para fechar o modal corretamente
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setShouldShowVideo(false); // Para o vídeo imediatamente
+      setTimeout(() => setSelectedVideo(null), 150); // Delay para animação
+    }
+  };
 
   const sortedTutorials = useMemo(() => {
     if (!tutorials) return [];
@@ -248,7 +264,7 @@ export default function Tutorials() {
         )}
 
         {/* Video Player Modal */}
-        <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+        <Dialog open={!!selectedVideo} onOpenChange={handleDialogClose}>
           <DialogContent className="max-w-4xl p-0 overflow-hidden">
             <DialogHeader className="p-4 pb-0">
               <DialogTitle className="flex items-center gap-2">
@@ -256,8 +272,8 @@ export default function Tutorials() {
                 {selectedVideo?.title}
               </DialogTitle>
             </DialogHeader>
-            <div className="aspect-video">
-              {selectedVideo && (
+            <div className="aspect-video bg-black">
+              {shouldShowVideo && selectedVideo && (
                 <iframe
                   src={getEmbedUrl(selectedVideo.videoId)}
                   title={selectedVideo.title}
