@@ -25,8 +25,8 @@ async function sendWhatsApp(phone: string, message: string): Promise<boolean> {
   try {
     const apiUrl = Deno.env.get('EVOLUTION_API_URL');
     const apiKey = Deno.env.get('EVOLUTION_API_KEY');
-    // Usar instância fixa "notificacao" para notificações do sistema
-    const instanceName = "notificacao";
+    // Usar instância fixa "notficacao" para notificações do sistema
+    const instanceName = "notficacao";
 
     if (!apiUrl || !apiKey || !instanceName) {
       console.log('Evolution API not configured');
