@@ -1266,6 +1266,29 @@ export default function Loans() {
     }
   }, [isEditDialogOpen, editFormData.payment_type, editFormData.start_date, editFormData.installments]);
   
+  // Auto-regenerate daily loan dates when skip options change in edit dialog
+  useEffect(() => {
+    if (!isEditDialogOpen || editFormData.payment_type !== 'daily') return;
+    if (!editFormData.start_date || !editFormData.installments) return;
+    
+    const numInstallments = parseInt(editFormData.installments) || 0;
+    if (numInstallments <= 0) return;
+    
+    const newDates = generateDailyDates(
+      editFormData.start_date, 
+      numInstallments, 
+      editSkipSaturday, 
+      editSkipSunday, 
+      editSkipHolidays
+    );
+    
+    setEditInstallmentDates(newDates);
+    
+    if (newDates.length > 0) {
+      setEditFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
+    }
+  }, [isEditDialogOpen, editFormData.payment_type, editFormData.start_date, editFormData.installments, editSkipSaturday, editSkipSunday, editSkipHolidays]);
+  
   // Auto-recalculate edit installment value when form values change (unless manually editing)
   useEffect(() => {
     if (isEditManuallyEditingInstallment || isEditManuallyEditingInterest) return;
