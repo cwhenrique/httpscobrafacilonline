@@ -255,8 +255,8 @@ async function sendWhatsAppMessage(phone: string, message: string, instanceName?
   
   const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-  // Usar instância fixa "VendaApp" para notificações do sistema
-  const instance = instanceName || "VendaApp";
+  // Usar instância fixa "notificacao" para notificações do sistema
+  const instance = instanceName || "notificacao";
 
   if (!evolutionApiUrl || !evolutionApiKey) {
     console.error('=== WHATSAPP ERROR: Evolution API not configured ===');

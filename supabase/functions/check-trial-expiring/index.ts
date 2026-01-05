@@ -31,15 +31,15 @@ async function sendWhatsApp(phone: string, message: string): Promise<boolean> {
   try {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    // Usar instância fixa "VendaApp" para notificações do sistema
-    const evolutionInstanceName = "VendaApp";
+    // Usar instância fixa "notificacao" para notificações do sistema
+    const evolutionInstanceName = "notificacao";
 
     if (!evolutionApiUrl || !evolutionApiKey) {
       console.error('Missing Evolution API configuration');
       return false;
     }
     
-    console.log("Using fixed system instance: VendaApp");
+    console.log("Using fixed system instance: notificacao");
 
     const formattedPhone = formatPhoneNumber(phone);
     const cleanedUrl = cleanApiUrl(evolutionApiUrl);
