@@ -60,13 +60,39 @@ const handler = async (req: Request): Promise<Response> => {
     const webhookSetUrl = `${evolutionApiUrl}/webhook/set/${instanceName}`;
     console.log(`Calling: ${webhookSetUrl}`);
 
-    const response = await fetch(webhookSetUrl, {
+    // Try new format first (with nested webhook object)
+    const newFormatPayload = {
+      webhook: {
+        url: finalWebhookUrl,
+        byEvents: true,
+        base64: false,
+        events: [
+          "MESSAGES_UPSERT",
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED"
+        ],
+      }
+    };
+
+    console.log("Trying new webhook format:", JSON.stringify(newFormatPayload));
+
+    let response = await fetch(webhookSetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "apikey": evolutionApiKey,
       },
-      body: JSON.stringify({
+      body: JSON.stringify(newFormatPayload),
+    });
+
+    let responseData = await response.json();
+    console.log("Webhook config response (new format):", response.status, JSON.stringify(responseData));
+
+    // If new format fails with 400, try old format as fallback
+    if (!response.ok && response.status === 400) {
+      console.log("New format failed, trying old format...");
+      
+      const oldFormatPayload = {
         enabled: true,
         url: finalWebhookUrl,
         webhookByEvents: true,
@@ -76,11 +102,20 @@ const handler = async (req: Request): Promise<Response> => {
           "CONNECTION_UPDATE",
           "QRCODE_UPDATED"
         ],
-      }),
-    });
+      };
 
-    const responseData = await response.json();
-    console.log("Webhook configuration response:", JSON.stringify(responseData));
+      response = await fetch(webhookSetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": evolutionApiKey,
+        },
+        body: JSON.stringify(oldFormatPayload),
+      });
+
+      responseData = await response.json();
+      console.log("Webhook config response (old format):", response.status, JSON.stringify(responseData));
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to configure webhook: ${JSON.stringify(responseData)}`);
