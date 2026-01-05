@@ -119,3 +119,9 @@ verify_jwt = true
 
 [functions.admin-toggle-user-status]
 verify_jwt = false
+
+[functions.whatsapp-message-webhook]
+verify_jwt = false
+
+[functions.check-expired-pending-messages]
+verify_jwt = false

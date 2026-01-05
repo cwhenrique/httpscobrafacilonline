@@ -128,14 +128,15 @@ serve(async (req) => {
         readStatus: false,    // Não marcar status como lido
         alwaysOnline: true,   // ✅ MANTER SEMPRE ONLINE - conexão persistente
         syncFullHistory: false,
-        // ✅ Webhook para notificação de mudanças de conexão
+        // ✅ Webhook para notificação de mudanças de conexão e mensagens recebidas
         webhook: {
           url: webhookUrl,
           byEvents: true,
           base64: false,
           events: [
             "CONNECTION_UPDATE",
-            "QRCODE_UPDATED"
+            "QRCODE_UPDATED",
+            "MESSAGES_UPSERT"
           ]
         }
       }),

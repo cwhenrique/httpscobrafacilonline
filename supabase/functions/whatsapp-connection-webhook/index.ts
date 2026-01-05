@@ -45,6 +45,39 @@ serve(async (req) => {
 
     console.log(`Event: ${event}, Instance: ${instance}`);
 
+    // Route MESSAGES_UPSERT to the message webhook
+    if (event === 'MESSAGES_UPSERT' || event === 'messages.upsert') {
+      console.log('Routing message event to whatsapp-message-webhook...');
+      
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/whatsapp-message-webhook`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+        
+        const result = await response.text();
+        console.log('Message webhook response:', result);
+        
+        return new Response(result, {
+          status: response.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (routeError) {
+        console.error('Error routing to message webhook:', routeError);
+        return new Response(JSON.stringify({ error: 'Failed to route message' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // Only process CONNECTION_UPDATE events
     if (event !== 'CONNECTION_UPDATE' && event !== 'connection.update') {
       console.log('Ignoring non-connection event:', event);
