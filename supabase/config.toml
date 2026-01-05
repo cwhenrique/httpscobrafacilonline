@@ -125,3 +125,6 @@ verify_jwt = false
 
 [functions.check-expired-pending-messages]
 verify_jwt = false
+
+[functions.whatsapp-configure-webhook]
+verify_jwt = false

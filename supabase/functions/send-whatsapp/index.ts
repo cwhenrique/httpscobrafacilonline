@@ -30,6 +30,9 @@ interface WhatsAppRequest {
   listData?: ListData;
 }
 
+// Track if webhook has been configured (in-memory, resets on cold start)
+let webhookConfigured = false;
+
 const formatPhoneNumber = (phone: string): string => {
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
@@ -59,6 +62,57 @@ const cleanApiUrl = (url: string): string => {
 // Helper to truncate strings for API limits
 const truncate = (str: string, max: number): string => 
   str.length > max ? str.substring(0, max - 3) + '...' : str;
+
+// Configure webhook for the notficacao instance
+const ensureWebhookConfigured = async (evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string): Promise<void> => {
+  if (webhookConfigured) {
+    console.log("Webhook already configured in this instance, skipping...");
+    return;
+  }
+
+  const instanceName = "notficacao";
+  const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-message-webhook`;
+  
+  console.log(`Ensuring webhook is configured for instance: ${instanceName}`);
+  console.log(`Webhook URL: ${webhookUrl}`);
+
+  try {
+    const webhookSetUrl = `${evolutionApiUrl}/webhook/set/${instanceName}`;
+    console.log(`Calling: ${webhookSetUrl}`);
+
+    const response = await fetch(webhookSetUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": evolutionApiKey,
+      },
+      body: JSON.stringify({
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: true,
+        webhookBase64: false,
+        events: [
+          "MESSAGES_UPSERT",
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED"
+        ],
+      }),
+    });
+
+    const responseData = await response.json();
+    console.log("Webhook configuration response:", JSON.stringify(responseData));
+
+    if (response.ok) {
+      webhookConfigured = true;
+      console.log("Webhook configured successfully!");
+    } else {
+      console.error("Failed to configure webhook:", responseData);
+    }
+  } catch (error) {
+    console.error("Error configuring webhook:", error);
+    // Don't throw - we still want to send the message even if webhook config fails
+  }
+};
 
 // Helper to send list with specific format
 const trySendList = async (
@@ -122,6 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
     const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const instanceName = "notficacao";
 
     console.log("Raw EVOLUTION_API_URL:", evolutionApiUrlRaw);
@@ -134,6 +189,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
     console.log("Cleaned EVOLUTION_API_URL:", evolutionApiUrl);
+
+    // Ensure webhook is configured for receiving confirmations
+    if (supabaseUrl) {
+      await ensureWebhookConfigured(evolutionApiUrl, evolutionApiKey, supabaseUrl);
+    }
 
     const { phone, message, listData }: WhatsAppRequest = await req.json();
     
