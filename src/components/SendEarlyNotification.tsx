@@ -74,78 +74,57 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     profile?.whatsapp_to_clients_enabled &&
     data.clientPhone;
 
-  // Interface for list data
-  interface ListRow {
-    title: string;
-    description: string;
-    rowId: string;
-  }
+  const getPixKeyTypeLabel = (type: string | null): string => {
+    switch (type) {
+      case 'cpf': return 'CPF';
+      case 'cnpj': return 'CNPJ';
+      case 'telefone': return 'Telefone';
+      case 'email': return 'Email';
+      case 'aleatoria': return 'Chave Aleatória';
+      default: return 'PIX';
+    }
+  };
 
-  interface ListSection {
-    title: string;
-    rows: ListRow[];
-  }
-
-  interface ListData {
-    title: string;
-    description: string;
-    buttonText: string;
-    footerText: string;
-    sections: ListSection[];
-  }
-
-  const generateEarlyListData = (): ListData => {
+  const generateEarlyMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo =
       data.installmentNumber && data.totalInstallments
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
         : 'Parcela Única';
 
-    // Build rich description
-    let description = `Olá *${data.clientName}*!\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
-    description += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
-    description += `📋 *Tipo:* ${typeLabel}\n`;
-    description += `📊 *${installmentInfo}*\n`;
-    description += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
-    description += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
+    let message = `Olá *${data.clientName}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
+    message += `📋 *Tipo:* ${typeLabel}\n`;
+    message += `📊 *${installmentInfo}*\n`;
+    message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
+    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
     if (data.daysUntilDue > 0) {
-      description += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
+      message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
     }
-    description += `\n\n`;
+    message += `\n\n`;
 
     if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      description += `💡 *Opções de Pagamento:*\n`;
-      description += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
-      description += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
-      description += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n\n`;
+      message += `💡 *Opções de Pagamento:*\n`;
+      message += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
+      message += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
+      message += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n\n`;
     }
 
     if (profile?.pix_key) {
-      description += `━━━━━━━━━━━━━━━━\n`;
-      description += `💳 *PIX:* ${profile.pix_key}\n`;
+      message += `━━━━━━━━━━━━━━━━\n`;
+      message += `💳 *${getPixKeyTypeLabel(profile.pix_key_type)}:* ${profile.pix_key}\n`;
     }
 
-    description += `\nQualquer dúvida, estou à disposição! 😊`;
+    message += `\nQualquer dúvida, estou à disposição! 😊`;
 
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    description += `\n\n━━━━━━━━━━━━━━━━`;
+    if (signatureName) {
+      message += `\n\n━━━━━━━━━━━━━━━━\n`;
+      message += `_${signatureName}_`;
+    }
 
-    const sections: ListSection[] = [{
-      title: "📋 Detalhes",
-      rows: [
-        { title: "Valor", description: formatCurrency(data.amount), rowId: "amount" },
-        { title: "Vencimento", description: formatDate(data.dueDate), rowId: "due" },
-      ]
-    }];
-
-    return {
-      title: `📋 Lembrete de Pagamento`,
-      description,
-      buttonText: "📋 Ver Detalhes",
-      footerText: signatureName || 'CobraFácil',
-      sections,
-    };
+    return message;
   };
 
   const handleSend = async () => {
@@ -161,13 +140,13 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
     setIsSending(true);
     try {
-      const listData = generateEarlyListData();
+      const message = generateEarlyMessage();
       
       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: {
           userId: user.id,
           clientPhone: data.clientPhone,
-          listData,
+          message,
         },
       });
 
@@ -235,7 +214,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateEarlyListData().description}
+        initialMessage={generateEarlyMessage()}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}
