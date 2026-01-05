@@ -427,10 +427,27 @@ serve(async (req) => {
         );
       }
 
-      const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
+      let existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
+      
+      // Fallback: try to find user by email from checkoutUrl if not found by customer email
+      if (!existingUser) {
+        console.log('User not found by customer email, trying checkoutUrl fallback...');
+        const checkoutUrl = payload.data?.checkoutUrl || payload.checkoutUrl || '';
+        const emailMatch = checkoutUrl.match(/email=([^&]+)/);
+        const emailFromUrl = emailMatch ? decodeURIComponent(emailMatch[1]) : '';
+        
+        console.log('Email extracted from checkoutUrl:', emailFromUrl);
+        
+        if (emailFromUrl && emailFromUrl !== customerEmail) {
+          existingUser = existingUsers?.users?.find(u => u.email === emailFromUrl);
+          if (existingUser) {
+            console.log('Found user by checkoutUrl email:', existingUser.id, emailFromUrl);
+          }
+        }
+      }
       
       if (!existingUser) {
-        console.error('User not found for email:', customerEmail);
+        console.error('User not found for email:', customerEmail, '(also tried checkoutUrl)');
         return new Response(
           JSON.stringify({ error: 'User not found', email: customerEmail }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
