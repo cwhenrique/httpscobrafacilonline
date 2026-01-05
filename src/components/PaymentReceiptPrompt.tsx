@@ -222,27 +222,70 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForSelf(true);
   };
 
-  // Send to collector (after preview confirmation) - USES LIST
+  // Generate warning message for self (anti-spam)
+  const generateWarningMessageForSelf = (): string => {
+    let message = `📋 *COMPROVANTE DISPONÍVEL*\n\n`;
+    message += `Você tem um comprovante de pagamento pronto.\n\n`;
+    message += `📌 Responda *OK* para receber.\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
+    message += `_CobraFácil_`;
+    return message;
+  };
+
+  // Send to collector (after preview confirmation) - USES CONFIRMATION FLOW (anti-spam)
   const handleConfirmSendToSelf = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
       return;
     }
+
+    if (!user?.id) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
     
     setIsSendingWhatsApp(true);
     try {
-      const listData = generateCollectorListData(data, clientPhone);
+      const warningMessage = generateWarningMessageForSelf();
+      const fullMessage = generateCollectorListData(data, clientPhone).description;
       
+      // 1. Save the full message in pending_messages table
+      const { error: pendingError } = await supabase
+        .from('pending_messages')
+        .insert({
+          user_id: user.id,
+          client_phone: profile.phone,
+          client_name: 'Você',
+          message_type: 'self_payment_receipt',
+          contract_id: data.contractId,
+          contract_type: data.type,
+          message_content: fullMessage,
+          status: 'pending',
+        });
+
+      if (pendingError) {
+        console.error('Error saving pending message:', pendingError);
+        throw pendingError;
+      }
+
+      // 2. Send only the warning message
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, listData },
+        body: { phone: profile.phone, message: warningMessage },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Comprovante enviado para seu WhatsApp!');
+        toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
         setShowPreviewForSelf(false);
       } else {
+        // If sending failed, remove the pending message
+        await supabase
+          .from('pending_messages')
+          .delete()
+          .eq('contract_id', data.contractId)
+          .eq('client_phone', profile.phone)
+          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {
