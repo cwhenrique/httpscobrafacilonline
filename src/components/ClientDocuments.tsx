@@ -21,12 +21,12 @@ import { formatDate } from '@/lib/calculations';
 interface ClientDocumentsProps {
   clientId: string;
   clientName: string;
-  onSelectFiles?: () => void; // Callback para abrir seletor externo (fix iOS PWA)
+  useExternalInput?: boolean; // Se true, usa label apontando para input externo (fix iOS PWA)
   pendingFiles?: FileList | null; // Arquivos selecionados do input externo
   onPendingFilesProcessed?: () => void; // Callback após processar arquivos
 }
 
-export function ClientDocuments({ clientId, clientName, onSelectFiles, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
+export function ClientDocuments({ clientId, clientName, useExternalInput, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
   const { documents, loading, uploading, uploadDocument, deleteDocument, downloadDocument } = useClientDocuments(clientId);
   const { loading: contextLoading } = useEmployeeContext();
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
@@ -102,22 +102,21 @@ export function ClientDocuments({ clientId, clientName, onSelectFiles, pendingFi
         </div>
         
         <div className="flex items-center gap-2">
-          {onSelectFiles ? (
-            // Usar botão que aciona input externo (fix iOS PWA)
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 gap-2"
-              onClick={onSelectFiles}
-              disabled={isUploadDisabled}
+          {useExternalInput ? (
+            // Usar label nativo que aponta para input externo (fix iOS PWA - sem .click())
+            <label 
+              htmlFor="doc-upload-external" 
+              className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : ''}`}
             >
-              {isUploadDisabled ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-            </Button>
+              <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+                {isUploadDisabled ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+              </span>
+            </label>
           ) : (
             // Fallback: input interno (para uso fora de Dialog)
             <>
@@ -127,7 +126,7 @@ export function ClientDocuments({ clientId, clientName, onSelectFiles, pendingFi
                 multiple
                 onChange={handleFileSelect}
                 className="sr-only"
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                accept="image/*,application/pdf"
               />
               <label 
                 htmlFor="doc-upload-input" 
