@@ -443,7 +443,7 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
 };
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments, invalidateLoans } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const { hasPermission, isEmployee, isOwner } = useEmployeeContext();
@@ -767,6 +767,7 @@ export default function Loans() {
   });
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClientData, setNewClientData] = useState({
@@ -2958,10 +2959,69 @@ export default function Loans() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLoanId) return;
+    if (!selectedLoanId || isPaymentSubmitting) return;
     
+    setIsPaymentSubmitting(true);
+    
+    try {
     const selectedLoan = loans.find(l => l.id === selectedLoanId);
-    if (!selectedLoan) return;
+    if (!selectedLoan) {
+      setIsPaymentSubmitting(false);
+      return;
+    }
+    
+    // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO: Buscar dados frescos do banco antes de processar
+    const { data: freshLoanData, error: freshLoanError } = await supabase
+      .from('loans')
+      .select('notes, remaining_balance, total_paid, status')
+      .eq('id', selectedLoanId)
+      .single();
+    
+    if (freshLoanError || !freshLoanData) {
+      toast.error('Erro ao verificar empréstimo');
+      setIsPaymentSubmitting(false);
+      return;
+    }
+    
+    // Verificar se empréstimo já está quitado
+    if (freshLoanData.status === 'paid' || freshLoanData.remaining_balance <= 0.01) {
+      toast.error('Este empréstimo já está quitado');
+      setIsPaymentSubmitting(false);
+      await fetchLoans();
+      setIsPaymentDialogOpen(false);
+      return;
+    }
+    
+    // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO: Verificar se parcelas selecionadas já estão pagas
+    if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      const freshPartialPayments = getPartialPaymentsFromNotes(freshLoanData.notes);
+      const numInstallmentsCheck = selectedLoan.installments || 1;
+      const isDailyCheck = selectedLoan.payment_type === 'daily';
+      
+      // Calcular valor base da parcela para verificação
+      let baseValueCheck = 0;
+      if (isDailyCheck) {
+        baseValueCheck = selectedLoan.total_interest || 0;
+      } else if (selectedLoan.total_interest !== undefined && selectedLoan.total_interest !== null && selectedLoan.total_interest > 0) {
+        baseValueCheck = (selectedLoan.principal_amount + selectedLoan.total_interest) / numInstallmentsCheck;
+      } else {
+        const intCheck = selectedLoan.principal_amount * (selectedLoan.interest_rate / 100) * numInstallmentsCheck;
+        baseValueCheck = (selectedLoan.principal_amount + intCheck) / numInstallmentsCheck;
+      }
+      
+      const alreadyPaid = paymentData.selected_installments.filter(idx => {
+        const paidAmount = freshPartialPayments[idx] || 0;
+        return paidAmount >= baseValueCheck * 0.99;
+      });
+      
+      if (alreadyPaid.length > 0) {
+        toast.error(`Parcela(s) ${alreadyPaid.map(i => i + 1).join(', ')} já está(ão) paga(s)`);
+        setIsPaymentSubmitting(false);
+        await fetchLoans();
+        setIsPaymentDialogOpen(false);
+        return;
+      }
+    }
     
     const numInstallments = selectedLoan.installments || 1;
     const isDaily = selectedLoan.payment_type === 'daily';
@@ -3030,10 +3090,12 @@ export default function Loans() {
       const receivedAmount = parseFloat(discountSettlementData.receivedAmount) || 0;
       if (receivedAmount <= 0) {
         toast.error('Informe o valor recebido');
+        setIsPaymentSubmitting(false);
         return;
       }
       if (receivedAmount > selectedLoan.remaining_balance) {
         toast.error('O valor recebido não pode ser maior que o saldo devedor');
+        setIsPaymentSubmitting(false);
         return;
       }
       
@@ -3535,9 +3597,15 @@ export default function Loans() {
     });
     setIsPaymentReceiptOpen(true);
     
+    // 🆕 Forçar atualização imediata do cache para evitar dados stale
+    invalidateLoans();
+    
     setIsPaymentDialogOpen(false);
     setSelectedLoanId(null);
     setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false, recalculate_interest: false });
+    } finally {
+      setIsPaymentSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -9730,6 +9798,15 @@ export default function Loans() {
                     }
                     
                     const toggleInstallment = (index: number) => {
+                      // 🆕 PROTEÇÃO: Verificar se a parcela já está paga antes de permitir seleção
+                      if (index >= 0) {
+                        const status = getInstallmentStatus(index);
+                        if (status.isPaid) {
+                          toast.error(`Parcela ${index + 1} já está paga`);
+                          return;
+                        }
+                      }
+                      
                       const current = paymentData.selected_installments;
                       let next: number[];
                       if (current.includes(index)) {
@@ -10355,12 +10432,15 @@ export default function Loans() {
                   )}
                   
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
+                    <Button type="button" variant="outline" onClick={() => setIsPaymentDialogOpen(false)} disabled={isPaymentSubmitting}>Cancelar</Button>
                     <Button 
                       type="submit" 
+                      disabled={isPaymentSubmitting}
                       className={paymentData.payment_type === 'discount' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
                     >
-                      {paymentData.payment_type === 'discount' ? 'Quitar com Desconto' : 'Registrar Pagamento'}
+                      {isPaymentSubmitting 
+                        ? 'Processando...' 
+                        : (paymentData.payment_type === 'discount' ? 'Quitar com Desconto' : 'Registrar Pagamento')}
                     </Button>
                   </div>
                 </form>
