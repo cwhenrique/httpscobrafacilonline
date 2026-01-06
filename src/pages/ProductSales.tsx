@@ -40,10 +40,12 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { generateContractReceipt, generatePaymentReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
@@ -244,6 +246,8 @@ export default function ProductSales() {
   const [selectedSubscriptionPayment, setSelectedSubscriptionPayment] = useState<{ paymentId: string; amount: number; feeId: string } | null>(null);
   const [subscriptionPaymentDate, setSubscriptionPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<'all' | 'active' | 'pending' | 'overdue'>('all');
+  const [isSendingCharge, setIsSendingCharge] = useState<Record<string, boolean>>({});
+  const { user } = useAuth();
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -1904,7 +1908,11 @@ export default function ProductSales() {
                           </div>
                           <div className="p-2 rounded-lg bg-muted/50">
                             <p className="text-xs text-muted-foreground">Vencimento</p>
-                            <p className="font-semibold">Dia {fee.due_day}</p>
+                            <p className="font-semibold">
+                              {currentPayment 
+                                ? format(parseISO(currentPayment.due_date), 'dd/MM') 
+                                : `Dia ${fee.due_day}`}
+                            </p>
                           </div>
                           <div className="p-2 rounded-lg bg-muted/50">
                             <p className="text-xs text-muted-foreground">Juros/mês</p>
@@ -1953,12 +1961,66 @@ export default function ProductSales() {
                         <div className="flex items-center justify-between pt-2 border-t">
                           <div className="flex items-center gap-2">
                             {fee.client?.phone && (
-                              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" asChild>
-                                <a href={`https://wa.me/55${fee.client.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
-                                  <MessageCircle className="w-3 h-3" />
-                                  WhatsApp
-                                </a>
-                              </Button>
+                              <>
+                                <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" asChild>
+                                  <a href={`https://wa.me/55${fee.client.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                                    <MessageCircle className="w-3 h-3" />
+                                    WhatsApp
+                                  </a>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs gap-1"
+                                  disabled={!profile?.whatsapp_instance_id || isSendingCharge[fee.id] || status === 'paid'}
+                                  onClick={async () => {
+                                    if (!fee.client?.phone || !user?.id) return;
+                                    
+                                    setIsSendingCharge(prev => ({ ...prev, [fee.id]: true }));
+                                    
+                                    try {
+                                      const companyName = profile?.company_name || 'Empresa';
+                                      const dueDate = currentPayment 
+                                        ? format(parseISO(currentPayment.due_date), 'dd/MM/yyyy') 
+                                        : `dia ${fee.due_day}`;
+                                      
+                                      let message = '';
+                                      
+                                      if (status === 'overdue' && currentPayment) {
+                                        const daysLate = Math.floor((new Date().getTime() - new Date(currentPayment.due_date).getTime()) / (1000 * 60 * 60 * 24));
+                                        message = `Olá ${fee.client.full_name}! 👋\n\nSua mensalidade de *${fee.description || 'IPTV'}* está em *atraso* há ${daysLate} dia(s).\n\n💰 Valor original: ${formatCurrency(fee.amount)}\n📅 Vencimento: ${dueDate}\n💵 Valor com juros: *${formatCurrency(amountWithInterest)}*\n\nPor favor, regularize sua situação para continuar utilizando o serviço.\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
+                                      } else if (status === 'due_today') {
+                                        message = `Olá ${fee.client.full_name}! 👋\n\nLembrete: sua mensalidade de *${fee.description || 'IPTV'}* vence *hoje*!\n\n💰 Valor: *${formatCurrency(fee.amount)}*\n\nFaça o pagamento para manter seu serviço ativo.\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
+                                      } else {
+                                        message = `Olá ${fee.client.full_name}! 👋\n\nLembrete: sua mensalidade de *${fee.description || 'IPTV'}* vence em *${dueDate}*.\n\n💰 Valor: *${formatCurrency(fee.amount)}*\n\nFique atento ao vencimento!\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
+                                      }
+
+                                      const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
+                                        body: {
+                                          userId: user.id,
+                                          clientPhone: fee.client.phone,
+                                          message,
+                                        },
+                                      });
+
+                                      if (error) throw error;
+                                      toast.success('Cobrança enviada com sucesso!');
+                                    } catch (error: any) {
+                                      console.error('Error sending charge:', error);
+                                      toast.error(error?.message || 'Erro ao enviar cobrança');
+                                    } finally {
+                                      setIsSendingCharge(prev => ({ ...prev, [fee.id]: false }));
+                                    }
+                                  }}
+                                >
+                                  {isSendingCharge[fee.id] ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Bell className="w-3 h-3" />
+                                  )}
+                                  Cobrar
+                                </Button>
+                              </>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
