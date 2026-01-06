@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, X, MessageCircle, Loader2 } from 'lucide-react';
+import { Download, MessageCircle, Loader2, Copy } from 'lucide-react';
 import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
+import MessagePreviewDialog from './MessagePreviewDialog';
 
 interface ListRow {
   title: string;
@@ -205,6 +206,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
+  const [showCopyPreview, setShowCopyPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -475,23 +477,31 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
         </ScrollArea>
 
         <DialogFooter className="p-4 border-t gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-            <X className="w-4 h-4 mr-2" />
-            Fechar
-          </Button>
+          {/* Botão Copiar - SEMPRE aparece */}
           <Button 
             variant="outline" 
-            onClick={handleSendWhatsApp} 
-            disabled={isSendingWhatsApp}
-            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+            onClick={() => setShowCopyPreview(true)}
+            className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white border-amber-500 hover:border-amber-600"
           >
-            {isSendingWhatsApp ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <MessageCircle className="w-4 h-4 mr-2" />
-            )}
-            {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
+            <Copy className="w-4 h-4 mr-2" />
+            Copiar Texto
           </Button>
+          {/* Botão Enviar para Mim - só se WhatsApp conectado */}
+          {profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && (
+            <Button 
+              variant="outline" 
+              onClick={handleSendWhatsApp} 
+              disabled={isSendingWhatsApp}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+            >
+              {isSendingWhatsApp ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4 mr-2" />
+              )}
+              {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
+            </Button>
+          )}
           <Button onClick={handleDownload} disabled={isGenerating} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             {isGenerating ? 'Gerando...' : 'Baixar PDF'}
@@ -504,6 +514,18 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
     <WhatsAppNotConnectedDialog
       open={showWhatsAppNotConnected}
       onOpenChange={setShowWhatsAppNotConnected}
+    />
+
+    {/* Copy preview dialog */}
+    <MessagePreviewDialog
+      open={showCopyPreview}
+      onOpenChange={setShowCopyPreview}
+      initialMessage={generateWhatsAppMessage(data)}
+      recipientName="Copiar"
+      recipientType="self"
+      onConfirm={() => setShowCopyPreview(false)}
+      isSending={false}
+      mode="copy"
     />
     </>
   );

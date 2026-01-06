@@ -440,14 +440,6 @@ export default function LoanCreatedReceiptPrompt({
               {isGeneratingPdf ? 'Gerando...' : 'Baixar PDF'}
             </Button>
             
-            <Button 
-              variant="ghost" 
-              onClick={() => onOpenChange(false)}
-              className="w-full"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Fechar
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
