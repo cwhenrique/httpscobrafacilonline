@@ -527,6 +527,161 @@ export default function ClientScores() {
           </>
         )}
 
+        {/* Client Ranking */}
+        {!loading && !loadingPayments && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Ranking de Clientes ({clients.length})
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  variant={sortBy === 'score' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('score')}
+                >
+                  Por Score
+                </Button>
+                <Button
+                  variant={sortBy === 'profit' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('profit')}
+                >
+                  Por Lucro
+                </Button>
+              </div>
+            </div>
+
+            {sortedClients.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Nenhum cliente cadastrado ainda</p>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {sortedClients.map((client, index) => {
+                  const profit = clientProfitMap.get(client.id);
+                  const score = client.score || 100;
+                  const { label: scoreLabel, color: scoreColor } = calculateScoreLabel(score);
+                  
+                  return (
+                    <Card key={client.id} className="relative overflow-hidden">
+                      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${getScoreGradient(score)}`} />
+                      
+                      <CardContent className="pt-6">
+                        <div className="flex items-start gap-4">
+                          {/* Rank */}
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                            <Avatar className="w-12 h-12 border-2 border-muted">
+                              <AvatarImage src={client.avatar_url || undefined} />
+                              <AvatarFallback className="text-sm">
+                                {client.full_name.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                          
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold truncate">{client.full_name}</p>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6"
+                                onClick={() => openEditScoreModal(client)}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Badge className={`text-xs ${scoreColor}`}>
+                              {getScoreIcon(score)} {score} - {scoreLabel}
+                            </Badge>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                {client.on_time_payments || 0} em dia
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-red-500" />
+                                {client.late_payments || 0} atrasados
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Score Ring */}
+                          <div className="relative w-14 h-14">
+                            <svg className="w-full h-full -rotate-90">
+                              <circle
+                                cx="28"
+                                cy="28"
+                                r="24"
+                                strokeWidth="4"
+                                fill="none"
+                                className="stroke-muted"
+                              />
+                              <circle
+                                cx="28"
+                                cy="28"
+                                r="24"
+                                strokeWidth="4"
+                                fill="none"
+                                strokeDasharray={`${(score / 150) * 150.8} 150.8`}
+                                className={getScoreRingColor(score)}
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-sm font-bold">{score}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Profit Section */}
+                        {profit && (
+                          <div className="mt-4 pt-4 border-t">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="bg-blue-500/10 rounded-lg p-2">
+                                <p className="text-[9px] text-muted-foreground">Principal</p>
+                                <p className="text-xs font-semibold">{formatCurrency(profit.totalPrincipal)}</p>
+                              </div>
+                              <div className="bg-emerald-500/10 rounded-lg p-2">
+                                <p className="text-[9px] text-muted-foreground">
+                                  L. Quitados ({profit.paidLoansCount})
+                                </p>
+                                <p className="text-xs font-semibold text-emerald-500">
+                                  {formatCurrency(profit.profitFromPaidLoans)}
+                                </p>
+                              </div>
+                              <div className="bg-blue-500/10 rounded-lg p-2">
+                                <p className="text-[9px] text-muted-foreground">
+                                  L. Ativos ({profit.activeLoansCount})
+                                </p>
+                                <p className="text-xs font-semibold text-blue-500">
+                                  {formatCurrency(profit.profitFromActiveLoans)}
+                                </p>
+                              </div>
+                            </div>
+                            {profit.extraProfit > 0 && (
+                              <div className="mt-2 text-center">
+                                <Badge variant="secondary" className="text-purple-500 bg-purple-500/10">
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  Lucro Extra: {formatCurrency(profit.extraProfit)}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Modal de Edição de Score */}
         <Dialog open={!!editingClient} onOpenChange={() => setEditingClient(null)}>
           <DialogContent className="sm:max-w-md">
