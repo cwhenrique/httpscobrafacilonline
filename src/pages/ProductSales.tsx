@@ -1974,7 +1974,12 @@ export default function ProductSales() {
                                   className="h-8 text-xs gap-1"
                                   disabled={!profile?.whatsapp_instance_id || isSendingCharge[fee.id] || status === 'paid'}
                                   onClick={async () => {
-                                    if (!fee.client?.phone || !user?.id) return;
+                                    const phoneDigits = fee.client?.phone?.replace(/\D/g, '') || '';
+                                    if (!user?.id) return;
+                                    if (!phoneDigits || phoneDigits.length < 10) {
+                                      toast.error('Telefone do cliente inválido. Cadastre o número com DDD.');
+                                      return;
+                                    }
                                     
                                     setIsSendingCharge(prev => ({ ...prev, [fee.id]: true }));
                                     
@@ -1998,7 +2003,7 @@ export default function ProductSales() {
                                       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
                                         body: {
                                           userId: user.id,
-                                          clientPhone: fee.client.phone,
+                                          clientPhone: phoneDigits,
                                           message,
                                         },
                                       });
