@@ -448,7 +448,17 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
               <X className="w-4 h-4 mr-1 sm:mr-2" />
               Fechar
             </Button>
-            {hasWhatsAppConnected ? (
+            {/* Botão Copiar - SEMPRE aparece */}
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCopyPreview(true)}
+              className="text-xs sm:text-sm bg-amber-500 hover:bg-amber-600 text-white border-amber-500 hover:border-amber-600"
+            >
+              <Copy className="w-4 h-4 mr-1 sm:mr-2" />
+              Copiar
+            </Button>
+            {/* Botão Enviar para Mim - só se WhatsApp conectado */}
+            {hasWhatsAppConnected && (
               <Button 
                 variant="outline" 
                 onClick={handleSendToSelfClick} 
@@ -461,15 +471,6 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                   <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
                 )}
                 {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
-              </Button>
-            ) : (
-              <Button 
-                variant="outline" 
-                onClick={() => setShowCopyPreview(true)}
-                className="text-xs sm:text-sm bg-amber-500 hover:bg-amber-600 text-white border-amber-500 hover:border-amber-600"
-              >
-                <Copy className="w-4 h-4 mr-1 sm:mr-2" />
-                Copiar
               </Button>
             )}
             {canSendToClient && (
