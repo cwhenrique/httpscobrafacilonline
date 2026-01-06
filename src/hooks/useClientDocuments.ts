@@ -207,11 +207,6 @@ export function useClientDocuments(clientId: string | null) {
       }
     }
 
-    // Sincronizar lista com o banco após upload
-    if (!hadError) {
-      await fetchDocuments();
-    }
-
     // Resetar uploading ao final
     setUploading(false);
     setUploadProgress(0);
@@ -219,7 +214,24 @@ export function useClientDocuments(clientId: string | null) {
     setTotalFiles(0);
     setCompletedFiles(0);
     console.log('[Upload] uploadMultipleDocuments finalizado', { hadError });
-  }, [uploadDocument, fetchDocuments]);
+
+    // Sincronizar lista com o banco após upload (com pequeno delay para garantir consistência)
+    if (!hadError && clientId) {
+      setTimeout(async () => {
+        console.log('[Upload] Re-fetching documents após upload...');
+        const { data, error } = await supabase
+          .from('client_documents')
+          .select('*')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false });
+        
+        if (!error && data) {
+          console.log('[Upload] Documentos atualizados:', data.length);
+          setDocuments(data as ClientDocument[]);
+        }
+      }, 500);
+    }
+  }, [uploadDocument, clientId]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
     if (!user) return { error: new Error('Não autenticado') };
