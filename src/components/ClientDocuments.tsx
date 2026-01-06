@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Upload, File, Trash2, Download, FileText, Image, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Upload, File, Trash2, Download, FileText, Image, FileSpreadsheet, Loader2, CheckCircle } from 'lucide-react';
 import { formatDate } from '@/lib/calculations';
 import { toast } from 'sonner';
 
@@ -28,7 +29,20 @@ interface ClientDocumentsProps {
 }
 
 export function ClientDocuments({ clientId, clientName, useExternalInput, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
-  const { documents, loading, uploading, uploadDocument, deleteDocument, downloadDocument } = useClientDocuments(clientId);
+  const { 
+    documents, 
+    loading, 
+    uploading, 
+    uploadProgress,
+    currentFileName,
+    totalFiles,
+    completedFiles,
+    uploadComplete,
+    uploadMultipleDocuments, 
+    deleteDocument, 
+    downloadDocument,
+    dismissUploadComplete 
+  } = useClientDocuments(clientId);
   const { loading: contextLoading } = useEmployeeContext();
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
@@ -39,9 +53,7 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
-    for (let i = 0; i < files.length; i++) {
-      await uploadDocument(files[i], description || undefined);
-    }
+    await uploadMultipleDocuments(Array.from(files), description || undefined);
     setDescription('');
     e.target.value = '';
   };
@@ -50,18 +62,15 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   useEffect(() => {
     if (pendingFiles && pendingFiles.length > 0 && !contextLoading) {
       console.log('[Docs] Context ready, processing pending files:', pendingFiles.length);
-      toast.info(`Enviando ${pendingFiles.length} arquivo(s)...`);
       
       const processAll = async () => {
-        for (let i = 0; i < pendingFiles.length; i++) {
-          await uploadDocument(pendingFiles[i], description || undefined);
-        }
+        await uploadMultipleDocuments(pendingFiles, description || undefined);
         setDescription('');
         onPendingFilesProcessed?.();
       };
       processAll();
     }
-  }, [pendingFiles, contextLoading, uploadDocument, description, onPendingFilesProcessed]);
+  }, [pendingFiles, contextLoading, uploadMultipleDocuments, description, onPendingFilesProcessed]);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     await downloadDocument(filePath, fileName);
@@ -149,6 +158,53 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
           Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
         </p>
       </div>
+
+      {/* Barra de Progresso */}
+      {uploading && (
+        <div className="space-y-2 p-4 bg-muted/50 rounded-lg border animate-in fade-in duration-200">
+          <div className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 truncate">
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              <span className="truncate">{currentFileName}</span>
+            </span>
+            <span className="font-medium flex-shrink-0 ml-2">{uploadProgress}%</span>
+          </div>
+          <Progress value={uploadProgress} className="h-2" />
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {uploadProgress < 80 ? 'Fazendo upload...' : 
+               uploadProgress < 100 ? 'Salvando documento...' : 
+               'Concluído!'}
+            </span>
+            {totalFiles > 1 && (
+              <span>Arquivo {completedFiles + 1} de {totalFiles}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mensagem de Sucesso */}
+      {uploadComplete && !uploading && (
+        <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-green-800 dark:text-green-400">
+              Documento(s) enviado(s) com sucesso!
+            </p>
+            <p className="text-sm text-green-600 dark:text-green-500">
+              Os documentos já aparecem abaixo.
+            </p>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={dismissUploadComplete}
+            className="text-green-700 hover:text-green-800 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/50"
+          >
+            OK
+          </Button>
+        </div>
+      )}
 
       <div className="border-t pt-4">
         <Label className="mb-2 block">Documentos Salvos ({documents.length})</Label>

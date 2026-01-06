@@ -20,6 +20,11 @@ export function useClientDocuments(clientId: string | null) {
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentFileName, setCurrentFileName] = useState('');
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [completedFiles, setCompletedFiles] = useState(0);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const { user } = useAuth();
   const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
@@ -53,7 +58,7 @@ export function useClientDocuments(clientId: string | null) {
   }, [user, clientId, employeeLoading]);
 
   // Estabilizar uploadDocument com useCallback
-  const uploadDocument = useCallback(async (file: File, description?: string) => {
+  const uploadDocument = useCallback(async (file: File, description?: string, fileIndex?: number, total?: number) => {
     console.log('[Upload] Tentativa:', { 
       hasUser: !!user, 
       clientId, 
@@ -87,6 +92,19 @@ export function useClientDocuments(clientId: string | null) {
     }
 
     setUploading(true);
+    setCurrentFileName(file.name);
+    setUploadProgress(10);
+    
+    // Se recebeu info de batch, atualiza
+    if (typeof fileIndex === 'number' && typeof total === 'number') {
+      setTotalFiles(total);
+      setCompletedFiles(fileIndex);
+    }
+    
+    // Simular progresso durante upload
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 15, 75));
+    }, 150);
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -99,12 +117,17 @@ export function useClientDocuments(clientId: string | null) {
       .from('client-documents')
       .upload(filePath, file);
 
+    clearInterval(progressInterval);
+
     if (uploadError) {
       console.error('[Upload] Storage error:', uploadError.message, uploadError);
       toast.error(`Erro no upload: ${uploadError.message}`);
       setUploading(false);
+      setUploadProgress(0);
       return { error: uploadError };
     }
+
+    setUploadProgress(85);
 
     // Save document record
     const { data, error: dbError } = await supabase
@@ -125,18 +148,39 @@ export function useClientDocuments(clientId: string | null) {
       console.error('[Upload] DB error:', dbError.message, dbError);
       toast.error(`Erro ao salvar: ${dbError.message}`);
       setUploading(false);
+      setUploadProgress(0);
       return { error: dbError };
     }
 
+    setUploadProgress(100);
     console.log('[Upload] Sucesso! Documento salvo:', data);
-    toast.success('Documento enviado com sucesso!');
     
     // Chamar fetchDocuments que agora é estável
     await fetchDocuments();
     
+    // Pequeno delay para mostrar 100%
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     setUploading(false);
+    setUploadProgress(0);
     return { data: data as ClientDocument };
   }, [user, clientId, effectiveUserId, employeeLoading, fetchDocuments]);
+  
+  // Função para upload de múltiplos arquivos com tracking
+  const uploadMultipleDocuments = useCallback(async (files: File[], description?: string) => {
+    setTotalFiles(files.length);
+    setCompletedFiles(0);
+    setUploadComplete(false);
+    
+    for (let i = 0; i < files.length; i++) {
+      await uploadDocument(files[i], description, i, files.length);
+      setCompletedFiles(i + 1);
+    }
+    
+    setUploadComplete(true);
+    setTotalFiles(0);
+    setCompletedFiles(0);
+  }, [uploadDocument]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
     if (!user) return { error: new Error('Não autenticado') };
@@ -208,14 +252,25 @@ export function useClientDocuments(clientId: string | null) {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  const dismissUploadComplete = useCallback(() => {
+    setUploadComplete(false);
+  }, []);
+
   return {
     documents,
     loading,
     uploading,
+    uploadProgress,
+    currentFileName,
+    totalFiles,
+    completedFiles,
+    uploadComplete,
     uploadDocument,
+    uploadMultipleDocuments,
     deleteDocument,
     getDocumentUrl,
     downloadDocument,
     fetchDocuments,
+    dismissUploadComplete,
   };
 }
