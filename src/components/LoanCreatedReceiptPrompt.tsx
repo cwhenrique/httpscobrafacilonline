@@ -18,6 +18,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
 
 
 interface LoanData {
@@ -60,6 +61,7 @@ export default function LoanCreatedReceiptPrompt({
   const [showSpamWarning, setShowSpamWarning] = useState(false);
   const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
   const [showPreviewForClient, setShowPreviewForClient] = useState(false);
+  const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -189,6 +191,11 @@ export default function LoanCreatedReceiptPrompt({
       toast.error('Telefone não configurado no perfil');
       return;
     }
+    // Check if user has WhatsApp connected
+    if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
+      setShowWhatsAppNotConnected(true);
+      return;
+    }
     setShowPreviewForSelf(true);
   };
 
@@ -238,9 +245,9 @@ export default function LoanCreatedReceiptPrompt({
         throw pendingError;
       }
 
-      // 2. Send only the warning message
-      const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: userPhone, message: warningMessage },
+      // 2. Send only the warning message via user's own WhatsApp
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
+        body: { userId: user.id, message: warningMessage },
       });
       
       if (error) throw error;
@@ -249,6 +256,15 @@ export default function LoanCreatedReceiptPrompt({
         toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
         setShowPreviewForSelf(false);
         onOpenChange(false);
+      } else if (result?.error === 'whatsapp_not_connected') {
+        // WhatsApp not connected - show dialog
+        await supabase
+          .from('pending_messages')
+          .delete()
+          .eq('contract_id', loan.id)
+          .eq('client_phone', userPhone)
+          .eq('status', 'pending');
+        setShowWhatsAppNotConnected(true);
       } else {
         // If sending failed, remove the pending message
         await supabase
@@ -503,6 +519,12 @@ export default function LoanCreatedReceiptPrompt({
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
         isSending={isSendingToClient}
+      />
+
+      {/* WhatsApp not connected dialog */}
+      <WhatsAppNotConnectedDialog
+        open={showWhatsAppNotConnected}
+        onOpenChange={setShowWhatsAppNotConnected}
       />
     </>
   );

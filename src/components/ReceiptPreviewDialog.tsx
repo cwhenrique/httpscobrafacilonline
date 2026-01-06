@@ -6,7 +6,9 @@ import { Download, X, MessageCircle, Loader2 } from 'lucide-react';
 import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
 
 interface ListRow {
   title: string;
@@ -196,13 +198,26 @@ const generateWarningMessageForSelf = (): string => {
 export default function ReceiptPreviewDialog({ open, onOpenChange, data }: ReceiptPreviewDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
   const { profile } = useProfile();
+  const { user } = useAuth();
 
   if (!data) return null;
 
   const handleSendWhatsApp = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
+      return;
+    }
+
+    // Check if user has WhatsApp connected
+    if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
+      setShowWhatsAppNotConnected(true);
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error('Usuário não autenticado');
       return;
     }
     
@@ -215,7 +230,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
       const { error: pendingError } = await supabase
         .from('pending_messages')
         .insert({
-          user_id: profile.id,
+          user_id: user.id,
           client_phone: profile.phone,
           client_name: 'Você',
           message_type: 'self_contract_receipt',
@@ -230,15 +245,24 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
         throw pendingError;
       }
 
-      // 2. Send only the warning message
-      const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, message: warningMessage },
+      // 2. Send only the warning message via user's own WhatsApp
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
+        body: { userId: user.id, message: warningMessage },
       });
       
       if (error) throw error;
       
       if (result?.success) {
         toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
+      } else if (result?.error === 'whatsapp_not_connected') {
+        // WhatsApp not connected - show dialog
+        await supabase
+          .from('pending_messages')
+          .delete()
+          .eq('contract_id', data.contractId)
+          .eq('client_phone', profile.phone)
+          .eq('status', 'pending');
+        setShowWhatsAppNotConnected(true);
       } else {
         // If sending failed, remove the pending message
         await supabase
@@ -275,6 +299,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-lg sm:max-w-xl md:max-w-2xl max-h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="bg-primary text-primary-foreground p-4">
@@ -495,5 +520,12 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* WhatsApp not connected dialog */}
+    <WhatsAppNotConnectedDialog
+      open={showWhatsAppNotConnected}
+      onOpenChange={setShowWhatsAppNotConnected}
+    />
+    </>
   );
 }

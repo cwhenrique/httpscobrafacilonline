@@ -131,3 +131,9 @@ verify_jwt = false
 
 [functions.list-client-documents]
 verify_jwt = false
+
+[functions.admin-update-employee-slots]
+verify_jwt = false
+
+[functions.send-whatsapp-to-self]
+verify_jwt = false
