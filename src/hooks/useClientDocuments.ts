@@ -25,23 +25,26 @@ export function useClientDocuments(clientId: string | null) {
   const [totalFiles, setTotalFiles] = useState(0);
   const [completedFiles, setCompletedFiles] = useState(0);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const { user } = useAuth();
   const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
   // Estabilizar fetchDocuments com useCallback
   const fetchDocuments = useCallback(async () => {
-    console.log('[Docs] fetchDocuments chamado:', { 
-      hasUser: !!user, 
-      clientId, 
-      employeeLoading 
+    console.log('[Docs] fetchDocuments chamado:', {
+      hasUser: !!user,
+      clientId,
+      employeeLoading,
     });
-    
+
     if (!user || !clientId || employeeLoading) {
       console.log('[Docs] fetchDocuments retornando cedo');
       return;
     }
-    
+
     setLoading(true);
+    setLastFetchError(null);
+
     const { data, error } = await supabase
       .from('client_documents')
       .select('*')
@@ -50,10 +53,13 @@ export function useClientDocuments(clientId: string | null) {
 
     if (error) {
       console.error('[Docs] Error fetching documents:', error);
+      setLastFetchError(error.message || 'Erro ao buscar documentos');
+      toast.error(`Erro ao buscar documentos: ${error.message}`);
     } else {
       console.log('[Docs] Documentos carregados:', data?.length);
-      setDocuments(data as ClientDocument[]);
+      setDocuments((data as ClientDocument[]) || []);
     }
+
     setLoading(false);
   }, [user, clientId, employeeLoading]);
 
@@ -316,6 +322,7 @@ export function useClientDocuments(clientId: string | null) {
     totalFiles,
     completedFiles,
     uploadComplete,
+    lastFetchError,
     uploadDocument,
     uploadMultipleDocuments,
     deleteDocument,

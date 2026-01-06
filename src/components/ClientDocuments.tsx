@@ -38,6 +38,7 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
     totalFiles,
     completedFiles,
     uploadComplete,
+    lastFetchError,
     uploadMultipleDocuments, 
     deleteDocument, 
     downloadDocument,
@@ -212,6 +213,11 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
 
       <div className="border-t pt-4">
         <Label className="mb-2 block">Documentos Salvos ({documents.length})</Label>
+        {lastFetchError && (
+          <p className="text-xs text-destructive mb-2">
+            Erro ao carregar documentos: {lastFetchError}
+          </p>
+        )}
         
         {loading ? (
           <div className="space-y-2">
