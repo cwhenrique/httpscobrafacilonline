@@ -104,12 +104,6 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     }
     message += `\n\n`;
 
-    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      message += `💡 *Opções de Pagamento:*\n`;
-      message += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
-      message += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
-      message += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n\n`;
-    }
 
     if (profile?.pix_key) {
       message += `━━━━━━━━━━━━━━━━\n`;
