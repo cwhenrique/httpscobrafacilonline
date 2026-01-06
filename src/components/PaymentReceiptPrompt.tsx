@@ -444,10 +444,6 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
           </div>
 
           <DialogFooter className="gap-2 flex-col sm:flex-row">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="text-xs sm:text-sm">
-              <X className="w-4 h-4 mr-1 sm:mr-2" />
-              Fechar
-            </Button>
             {/* Botão Copiar - SEMPRE aparece */}
             <Button 
               variant="outline" 
