@@ -32,58 +32,47 @@ const cleanApiUrl = (url: string): string => {
   return cleaned;
 };
 
-interface ListRow {
-  title: string;
-  description: string;
-  rowId: string;
+interface ProfileWithWhatsApp {
+  id: string;
+  phone: string;
+  full_name: string | null;
+  subscription_plan: string | null;
+  whatsapp_instance_id: string | null;
+  whatsapp_connected_phone: string | null;
+  evolution_api_url: string | null;
+  evolution_api_key: string | null;
 }
 
-interface ListSection {
-  title: string;
-  rows: ListRow[];
-}
-
-interface ListData {
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  sections: ListSection[];
-}
-
-const truncate = (str: string, max: number): string => 
-  str.length > max ? str.substring(0, max - 3) + '...' : str;
-
-const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
-  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = "notficacao";
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error("Missing Evolution API configuration");
+// Send WhatsApp message to user's own instance (self-message)
+const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string): Promise<boolean> => {
+  // Check if user has WhatsApp connected
+  if (!profile.whatsapp_instance_id || !profile.whatsapp_connected_phone) {
+    console.log(`User ${profile.id} has no WhatsApp connected, skipping`);
     return false;
   }
-  
-  console.log("Using fixed system instance: notficacao");
+
+  // Use user's credentials or fallback to global
+  const evolutionApiUrlRaw = profile.evolution_api_url || Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiKey = profile.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY");
+  const instanceName = profile.whatsapp_instance_id;
+
+  if (!evolutionApiUrlRaw || !evolutionApiKey) {
+    console.error(`Missing Evolution API configuration for user ${profile.id}`);
+    return false;
+  }
+
+  console.log(`Using user's own instance: ${instanceName}`);
 
   const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
-  let cleaned = phone.replace(/\D/g, '');
+  // Clean the connected phone number
+  let cleaned = profile.whatsapp_connected_phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
-  const preparedSections = listData.sections.slice(0, 10).map(section => ({
-    title: truncate(section.title, 24),
-    rows: section.rows.slice(0, 10).map(row => ({
-      title: truncate(row.title, 24),
-      description: truncate(row.description, 72),
-      rowId: row.rowId,
-    })),
-  }));
-
   try {
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendList/${instanceName}`,
+      `${evolutionApiUrl}/message/sendText/${instanceName}`,
       {
         method: "POST",
         headers: {
@@ -92,39 +81,15 @@ const sendWhatsAppList = async (phone: string, listData: ListData): Promise<bool
         },
         body: JSON.stringify({
           number: cleaned,
-          title: truncate(listData.title, 60),
-          description: truncate(listData.description, 1024),
-          buttonText: truncate(listData.buttonText, 20),
-          footerText: truncate(listData.footerText, 60),
-          sections: preparedSections,
+          text: message,
         }),
       }
     );
 
     const data = await response.json();
-    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
+    console.log(`WhatsApp sent to ${cleaned}:`, data);
     
-    if (!response.ok) {
-      console.error("sendList failed, trying fallback text");
-      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
-      const textResponse = await fetch(
-        `${evolutionApiUrl}/message/sendText/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: cleaned,
-            text: fallbackMessage,
-          }),
-        }
-      );
-      return textResponse.ok;
-    }
-    
-    return true;
+    return response.ok;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -162,12 +127,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key')
       .eq('is_active', true)
       .not('phone', 'is', null)
+      .not('whatsapp_instance_id', 'is', null) // Only users with WhatsApp connected
+      .not('whatsapp_connected_phone', 'is', null)
       .not('subscription_plan', 'eq', 'trial');
     
-    console.log("Querying PAYING users only (excluding trial)");
+    console.log("Querying PAYING users with WhatsApp connected only");
 
     if (testPhone) {
       let cleanTestPhone = testPhone.replace(/\D/g, '');
@@ -184,7 +151,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     let sentCount = 0;
 
-    for (const profile of profiles || []) {
+    for (const profile of (profiles || []) as ProfileWithWhatsApp[]) {
       if (!profile.phone) continue;
 
       // Count active contracts
@@ -333,69 +300,31 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build list message
-      const sections: ListSection[] = [];
-      
-      const summaryRows: ListRow[] = [];
-      
-      if (totalDueToday > 0) {
-        summaryRows.push({
-          title: "💵 Vence Hoje",
-          description: formatCurrency(totalDueToday),
-          rowId: "due_today",
-        });
-      }
-      
-      if (totalOverdue > 0) {
-        summaryRows.push({
-          title: "⚠️ Em Atraso",
-          description: formatCurrency(totalOverdue),
-          rowId: "overdue",
-        });
-      }
-      
-      summaryRows.push({
-        title: "📋 Contratos Ativos",
-        description: `${totalContracts} contrato${totalContracts !== 1 ? 's' : ''}`,
-        rowId: "contracts",
-      });
-
-      sections.push({
-        title: "📊 Resumo do Dia",
-        rows: summaryRows,
-      });
-
-      // Build rich description with full financial summary
-      let greetingDescription = `📅 ${formatDate(today)}\n`;
-      greetingDescription += `━━━━━━━━━━━━━━━━\n\n`;
+      // Build text message
+      let messageText = `☀️ *Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!*\n\n`;
+      messageText += `📅 ${formatDate(today)}\n`;
+      messageText += `━━━━━━━━━━━━━━━━\n\n`;
       
       if (totalDueToday > 0) {
-        greetingDescription += `⏰ *Vence Hoje:* ${formatCurrency(totalDueToday)}\n`;
+        messageText += `⏰ *Vence Hoje:* ${formatCurrency(totalDueToday)}\n`;
       }
       if (totalOverdue > 0) {
-        greetingDescription += `🚨 *Em Atraso:* ${formatCurrency(totalOverdue)}\n`;
+        messageText += `🚨 *Em Atraso:* ${formatCurrency(totalOverdue)}\n`;
       }
-      greetingDescription += `📋 *Contratos Ativos:* ${totalContracts}\n\n`;
+      messageText += `📋 *Contratos Ativos:* ${totalContracts}\n\n`;
       
       const grandTotal = totalDueToday + totalOverdue;
       if (grandTotal > 0) {
-        greetingDescription += `💰 *Total Pendente:* ${formatCurrency(grandTotal)}\n\n`;
+        messageText += `💰 *Total Pendente:* ${formatCurrency(grandTotal)}\n\n`;
       }
       
-      greetingDescription += `━━━━━━━━━━━━━━━━\n`;
-      greetingDescription += `Relatório detalhado às 8h.\nClique para ver o resumo.`;
+      messageText += `━━━━━━━━━━━━━━━━\n`;
+      messageText += `Relatório detalhado às 8h.\n`;
+      messageText += `CobraFácil - 7h`;
 
-      const listData: ListData = {
-        title: `☀️ Bom dia${profile.full_name ? `, ${profile.full_name}` : ''}!`,
-        description: greetingDescription,
-        buttonText: "📋 Ver Resumo",
-        footerText: "CobraFácil - 7h",
-        sections: sections,
-      };
-
-      console.log(`Sending morning greeting LIST to user ${profile.id}`);
+      console.log(`Sending morning greeting to user ${profile.id}`);
       
-      const sent = await sendWhatsAppList(profile.phone, listData);
+      const sent = await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
       }
