@@ -89,7 +89,7 @@ async function fetchOperationalStats(): Promise<StatsData> {
       due_date, total_interest, total_paid, remaining_balance, status, notes,
       created_at, updated_at,
       client:clients(full_name, phone),
-      payments:loan_payments(interest_paid, principal_paid)
+      payments:loan_payments(id, amount, interest_paid, principal_paid, payment_date)
     `)
     .order('created_at', { ascending: false })
     .limit(1000);
