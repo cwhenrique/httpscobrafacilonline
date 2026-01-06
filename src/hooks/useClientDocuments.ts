@@ -42,21 +42,36 @@ export function useClientDocuments(clientId: string | null) {
   };
 
   const uploadDocument = async (file: File, description?: string) => {
-    console.log('Upload attempt:', { user: !!user, clientId, effectiveUserId, employeeLoading });
+    console.log('[Upload] Tentativa:', { 
+      hasUser: !!user, 
+      clientId, 
+      effectiveUserId, 
+      employeeLoading,
+      fileName: file.name 
+    });
     
     if (!user) {
+      console.error('[Upload] ERRO: Não autenticado');
       toast.error('Você precisa estar logado para enviar documentos');
       return { error: new Error('Não autenticado') };
     }
     
     if (!clientId) {
+      console.error('[Upload] ERRO: Cliente não identificado');
       toast.error('Erro: Cliente não identificado');
       return { error: new Error('Cliente não identificado') };
     }
     
-    if (employeeLoading || !effectiveUserId) {
+    if (employeeLoading) {
+      console.error('[Upload] ERRO: Contexto ainda carregando');
       toast.error('Aguarde o carregamento da sessão e tente novamente');
       return { error: new Error('Sessão ainda carregando') };
+    }
+    
+    if (!effectiveUserId) {
+      console.error('[Upload] ERRO: effectiveUserId é null');
+      toast.error('Erro de sessão. Recarregue a página e tente novamente.');
+      return { error: new Error('effectiveUserId não disponível') };
     }
 
     setUploading(true);
@@ -65,14 +80,16 @@ export function useClientDocuments(clientId: string | null) {
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${effectiveUserId}/${clientId}/${fileName}`;
 
+    console.log('[Upload] Iniciando upload para:', filePath);
+
     // Upload to storage
     const { error: uploadError } = await supabase.storage
       .from('client-documents')
       .upload(filePath, file);
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
-      toast.error('Erro ao fazer upload do documento');
+      console.error('[Upload] Storage error:', uploadError.message, uploadError);
+      toast.error(`Erro no upload: ${uploadError.message}`);
       setUploading(false);
       return { error: uploadError };
     }
@@ -93,12 +110,13 @@ export function useClientDocuments(clientId: string | null) {
       .single();
 
     if (dbError) {
-      console.error('DB error:', dbError);
-      toast.error('Erro ao salvar documento');
+      console.error('[Upload] DB error:', dbError.message, dbError);
+      toast.error(`Erro ao salvar: ${dbError.message}`);
       setUploading(false);
       return { error: dbError };
     }
 
+    console.log('[Upload] Sucesso! Documento salvo:', data);
     toast.success('Documento enviado com sucesso!');
     await fetchDocuments();
     setUploading(false);

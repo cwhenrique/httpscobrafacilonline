@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Upload, File, Trash2, Download, FileText, Image, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { formatDate } from '@/lib/calculations';
+import { toast } from 'sonner';
 
 interface ClientDocumentsProps {
   clientId: string;
@@ -32,6 +33,12 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
   
+  // Ref para garantir versão mais recente do uploadDocument (evitar stale closure)
+  const uploadDocumentRef = useRef(uploadDocument);
+  useEffect(() => {
+    uploadDocumentRef.current = uploadDocument;
+  }, [uploadDocument]);
+  
   const isUploadDisabled = uploading || contextLoading;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,21 +53,29 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
     console.log('[Docs] Processing files:', files.length);
 
     for (let i = 0; i < files.length; i++) {
-      await uploadDocument(files[i], description || undefined);
+      await uploadDocumentRef.current(files[i], description || undefined);
     }
     
     setDescription('');
   };
 
   // Processar arquivos vindos do input externo (fix iOS PWA)
-  React.useEffect(() => {
-    if (pendingFiles && pendingFiles.length > 0) {
-      console.log('[Docs] Processing pending files from external input:', pendingFiles.length);
-      processFiles(pendingFiles).then(() => {
+  // Aguarda contexto estar pronto antes de processar
+  useEffect(() => {
+    if (pendingFiles && pendingFiles.length > 0 && !contextLoading) {
+      console.log('[Docs] Context ready, processing pending files:', pendingFiles.length);
+      toast.info(`Enviando ${pendingFiles.length} arquivo(s)...`);
+      
+      const processAll = async () => {
+        for (let i = 0; i < pendingFiles.length; i++) {
+          await uploadDocumentRef.current(pendingFiles[i], description || undefined);
+        }
+        setDescription('');
         onPendingFilesProcessed?.();
-      });
+      };
+      processAll();
     }
-  }, [pendingFiles]);
+  }, [pendingFiles, contextLoading]);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     await downloadDocument(filePath, fileName);

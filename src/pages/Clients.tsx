@@ -341,9 +341,16 @@ export default function Clients() {
   // Handler quando arquivos são selecionados no input externo
   const handleDocFilesFromExternal = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    console.log('[Docs] Files selected from external input:', files?.length);
+    console.log('[Docs] Files selected from external input:', files?.length, 'contextLoading:', employeeLoading);
+    
+    if (employeeLoading) {
+      toast.warning('Aguarde o carregamento... Tente novamente em instantes.');
+      e.target.value = '';
+      return;
+    }
+    
     if (files && files.length > 0) {
-      toast.info(`${files.length} arquivo(s) selecionado(s). Enviando...`);
+      toast.info(`${files.length} arquivo(s) selecionado(s)`);
     }
     setPendingDocFiles(files);
     // Reset para permitir selecionar mesmo arquivo novamente
