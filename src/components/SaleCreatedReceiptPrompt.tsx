@@ -371,11 +371,22 @@ export default function SaleCreatedReceiptPrompt({
           </Card>
 
           <div className="flex flex-col gap-3 mt-4">
-            {hasWhatsAppConnected ? (
+            {/* Botão Copiar - SEMPRE aparece */}
+            <Button 
+              variant="outline"
+              onClick={() => setShowCopyPreview(true)} 
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white border-amber-500 hover:border-amber-600"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copiar Texto
+            </Button>
+
+            {/* Botão Enviar para Mim - só se WhatsApp conectado */}
+            {hasWhatsAppConnected && (
               <Button 
                 onClick={handleSendToSelfClick} 
                 disabled={isSending || !userPhone}
-                className="w-full"
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
                 {isSending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -383,14 +394,6 @@ export default function SaleCreatedReceiptPrompt({
                   <MessageCircle className="w-4 h-4 mr-2" />
                 )}
                 {isSending ? 'Enviando...' : 'Enviar para Mim'}
-              </Button>
-            ) : (
-              <Button 
-                onClick={() => setShowCopyPreview(true)} 
-                className="w-full bg-amber-500 hover:bg-amber-600"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copiar Texto (Sem WhatsApp)
               </Button>
             )}
 
