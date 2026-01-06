@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Upload, File, Trash2, Download, FileText, Image, FileSpreadsheet, Loader2, CheckCircle } from 'lucide-react';
+import { Upload, File as FileIcon, Trash2, Download, FileText, Image, FileSpreadsheet, Loader2, CheckCircle } from 'lucide-react';
 import { formatDate } from '@/lib/calculations';
 import { toast } from 'sonner';
 
@@ -93,11 +93,11 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   };
 
   const getFileIcon = (fileType: string | null) => {
-    if (!fileType) return <File className="w-5 h-5" />;
+    if (!fileType) return <FileIcon className="w-5 h-5" />;
     if (fileType.startsWith('image/')) return <Image className="w-5 h-5 text-blue-500" />;
     if (fileType.includes('pdf')) return <FileText className="w-5 h-5 text-red-500" />;
     if (fileType.includes('sheet') || fileType.includes('excel')) return <FileSpreadsheet className="w-5 h-5 text-green-500" />;
-    return <File className="w-5 h-5" />;
+    return <FileIcon className="w-5 h-5" />;
   };
 
   const formatFileSize = (bytes: number | null) => {
@@ -166,9 +166,26 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
             </div>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isUploadDisabled}
+            onClick={async () => {
+              // Teste de upload sem depender do seletor de arquivos (diagnóstico)
+              const content = `teste_upload_${Date.now()}`;
+              const testFile = new window.File([content], `teste-${Date.now()}.txt`, { type: 'text/plain' });
+              toast.info('Enviando arquivo de teste...');
+              await uploadMultipleDocuments([testFile], 'teste');
+            }}
+          >
+            Testar upload
+          </Button>
+        </div>
       </div>
 
       {/* Barra de Progresso */}
