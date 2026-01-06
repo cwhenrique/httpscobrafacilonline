@@ -21,35 +21,17 @@ interface PaymentReceiptPromptProps {
   paidCount?: number; // Número de parcelas pagas
 }
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
-
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.toLocaleDateString('pt-BR');
-};
-
-const getTypeLabel = (type: 'loan' | 'product' | 'vehicle' | 'contract'): string => {
-  switch (type) {
-    case 'loan': return 'Empréstimo';
-    case 'product': return 'Venda de Produto';
-    case 'vehicle': return 'Venda de Veículo';
-    case 'contract': return 'Contrato';
-    default: return 'Pagamento';
-  }
-};
-
-const getContractPrefix = (type: 'loan' | 'product' | 'vehicle' | 'contract'): string => {
-  switch (type) {
-    case 'loan': return 'EMP';
-    case 'product': return 'PRD';
-    case 'vehicle': return 'VEI';
-    case 'contract': return 'CTR';
-    default: return 'DOC';
-  }
-};
+import {
+  formatCurrency,
+  formatDate,
+  getContractTypeLabel,
+  getContractPrefix,
+  generateProgressBar,
+  calculateProgress,
+  generateInstallmentStatusList,
+  generatePixSection,
+  generateSignature,
+} from '@/lib/messageUtils';
 
 // Interface for list data (used for collector messages)
 interface ListRow {
@@ -72,7 +54,14 @@ interface ListData {
 }
 
 // Generate plain text message for CLIENT
-const generateClientMessage = (data: PaymentReceiptData, installmentDates?: string[], paidCount?: number, companyName?: string): string => {
+const generateClientMessage = (
+  data: PaymentReceiptData, 
+  installmentDates?: string[], 
+  paidCount?: number, 
+  companyName?: string,
+  pixKey?: string | null,
+  pixKeyType?: string | null
+): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
   const totalCount = data.totalInstallments;
@@ -81,83 +70,59 @@ const generateClientMessage = (data: PaymentReceiptData, installmentDates?: stri
     ? Math.max(...installments) 
     : installments;
   
-  let progressPercent: number;
-  if (isFullyPaid) {
-    progressPercent = 100;
-  } else if (data.totalContract && data.totalPaid) {
-    progressPercent = Math.min(100, Math.round((data.totalPaid / data.totalContract) * 100));
-  } else {
-    progressPercent = Math.round((maxPaidInstallment / totalCount) * 100);
-  }
+  const actualPaidCount = paidCount ?? maxPaidInstallment;
+  const progressPercent = isFullyPaid ? 100 : calculateProgress(actualPaidCount, totalCount, data.totalPaid, data.totalContract);
   
   let message = `Olá *${data.clientName}*!\n`;
   message += `━━━━━━━━━━━━━━━━\n\n`;
   message += `✅ *PAGAMENTO CONFIRMADO*\n\n`;
-  message += `💰 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  
+  // Informações principais
+  message += `💵 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  if (Array.isArray(installments)) {
+    message += `📊 *Parcelas:* ${installments.join(', ')} de ${totalCount}\n`;
+  } else {
+    message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
+  }
+  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n`;
+  
+  // Multa e desconto
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    message += `⚠️ *Multa Inclusa:* ${formatCurrency(data.penaltyAmount)}\n`;
+    message += `⚠️ *Multa:* ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
     message += `🏷️ *Desconto:* ${formatCurrency(data.discountAmount)}\n`;
   }
   
-  if (Array.isArray(installments)) {
-    message += `📊 *Parcelas Pagas:* ${installments.join(', ')} de ${totalCount}\n`;
-  } else {
-    message += `📊 *Parcela:* ${installments}/${totalCount}\n`;
-  }
-  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n\n`;
+  // Barra de progresso
+  message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
   
-  // Progress bar
-  const filledBlocks = Math.round(progressPercent / 10);
-  const emptyBlocks = 10 - filledBlocks;
-  message += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
-  
-  // Status das parcelas com emojis (para mensagem do cliente)
+  // Status das parcelas (inteligente)
   if (installmentDates && installmentDates.length > 0) {
-    const actualPaidCount = paidCount ?? maxPaidInstallment;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    message += `\n📊 *STATUS DAS PARCELAS:*\n`;
-    installmentDates.forEach((dateStr, index) => {
-      const installmentNum = index + 1;
-      const dueDate = new Date(dateStr + 'T12:00:00');
-      
-      let emoji: string;
-      let status: string;
-      
-      if (installmentNum <= actualPaidCount) {
-        emoji = '✅';
-        status = 'Paga';
-      } else if (dueDate < today) {
-        emoji = '❌';
-        status = 'Em Atraso';
-      } else {
-        emoji = '⏳';
-        status = 'Em Aberto';
-      }
-      
-      message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+    message += `\n`;
+    message += generateInstallmentStatusList({
+      installmentDates,
+      paidCount: actualPaidCount,
     });
   }
-  message += `\n`;
   
+  // Saldo restante ou quitação
   if (isFullyPaid) {
-    message += `🎉 *CONTRATO QUITADO!*\n`;
+    message += `\n🎉 *CONTRATO QUITADO!*\n`;
     message += `Obrigado pela confiança!\n`;
   } else {
-    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    message += `\n📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
     if (data.nextDueDate) {
       message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
     }
   }
   
+  // PIX
+  message += generatePixSection(pixKey || null, pixKeyType || null);
+  
+  // Assinatura
   const signatureName = data.billingSignatureName || companyName;
-  if (signatureName) {
-    message += `\n━━━━━━━━━━━━━━━━\n`;
-    message += `_${signatureName}_`;
-  }
+  message += generateSignature(signatureName);
 
   return message;
 };
@@ -167,7 +132,9 @@ const generateSelfMessage = (
   data: PaymentReceiptData, 
   clientPhone?: string, 
   installmentDates?: string[], 
-  paidCount?: number
+  paidCount?: number,
+  pixKey?: string | null,
+  pixKeyType?: string | null
 ): string => {
   const prefix = getContractPrefix(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
@@ -177,15 +144,8 @@ const generateSelfMessage = (
     ? Math.max(...data.installmentNumber) 
     : data.installmentNumber;
   
-  // Calculate progress
-  let progressPercent: number;
-  if (isFullyPaid) {
-    progressPercent = 100;
-  } else if (data.totalContract && data.totalPaid) {
-    progressPercent = Math.min(100, Math.round((data.totalPaid / data.totalContract) * 100));
-  } else {
-    progressPercent = Math.round((maxPaidInstallment / data.totalInstallments) * 100);
-  }
+  const actualPaidCount = paidCount ?? maxPaidInstallment;
+  const progressPercent = isFullyPaid ? 100 : calculateProgress(actualPaidCount, data.totalInstallments, data.totalPaid, data.totalContract);
   
   let message = `✅ *PAGAMENTO REGISTRADO*\n`;
   message += `━━━━━━━━━━━━━━━━\n\n`;
@@ -195,67 +155,50 @@ const generateSelfMessage = (
     message += `📱 *Telefone:* ${clientPhone}\n`;
   }
   
-  message += `\n💰 *PAGAMENTO*\n`;
-  message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  // Informações principais
+  message += `\n💵 *Valor Pago:* ${formatCurrency(data.amountPaid)}\n`;
+  if (Array.isArray(data.installmentNumber)) {
+    message += `📊 *Parcelas:* ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
+  } else {
+    message += `📊 *Parcela:* ${data.installmentNumber}/${data.totalInstallments}\n`;
+  }
+  message += `📅 *Data:* ${formatDate(data.paymentDate)}\n`;
+  
+  // Multa e desconto
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    message += `• Multa: ${formatCurrency(data.penaltyAmount)}\n`;
+    message += `⚠️ *Multa:* ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
-    message += `• Desconto: ${formatCurrency(data.discountAmount)}\n`;
+    message += `🏷️ *Desconto:* ${formatCurrency(data.discountAmount)}\n`;
   }
-  if (Array.isArray(data.installmentNumber)) {
-    message += `• Parcelas Pagas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
-  } else {
-    message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
-  }
-  message += `• Data: ${formatDate(data.paymentDate)}\n`;
   
-  // Progress bar
-  const filledBlocks = Math.round(progressPercent / 10);
-  const emptyBlocks = 10 - filledBlocks;
-  message += `\n📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
+  // Barra de progresso
+  message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
   
-  // Installment status with emojis
+  // Status das parcelas (inteligente)
   if (installmentDates && installmentDates.length > 0) {
-    const actualPaidCount = paidCount ?? maxPaidInstallment;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    message += `\n📊 *STATUS DAS PARCELAS:*\n`;
-    installmentDates.forEach((dateStr, index) => {
-      const installmentNum = index + 1;
-      const dueDate = new Date(dateStr + 'T12:00:00');
-      
-      let emoji: string;
-      let status: string;
-      
-      if (installmentNum <= actualPaidCount) {
-        emoji = '✅';
-        status = 'Paga';
-      } else if (dueDate < today) {
-        emoji = '🔴';
-        status = 'Em Atraso';
-      } else {
-        emoji = '⏳';
-        status = 'Em Aberto';
-      }
-      
-      message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+    message += `\n`;
+    message += generateInstallmentStatusList({
+      installmentDates,
+      paidCount: actualPaidCount,
     });
   }
   
-  message += `\n`;
+  // Saldo restante ou quitação
   if (isFullyPaid) {
-    message += `🎉 *CONTRATO QUITADO!*\n`;
+    message += `\n🎉 *CONTRATO QUITADO!*\n`;
   } else {
-    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    message += `\n📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
     if (data.nextDueDate) {
       message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
     }
   }
   
-  message += `\n━━━━━━━━━━━━━━━━\n`;
-  message += `_CobraFácil_`;
+  // PIX
+  message += generatePixSection(pixKey || null, pixKeyType || null);
+  
+  // Assinatura
+  message += generateSignature('CobraFácil');
   
   return message;
 };
@@ -304,7 +247,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
-      const message = generateSelfMessage(data, clientPhone, installmentDates, paidCount);
+      const message = generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
         body: { userId: user.id, message },
@@ -363,7 +306,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined);
+      const message = generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type);
       
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
@@ -431,7 +374,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
             <div className="bg-primary/10 rounded-lg p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tipo:</span>
-                <span className="font-medium">{getTypeLabel(data.type)}</span>
+                <span className="font-medium">{getContractTypeLabel(data.type)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Cliente:</span>
@@ -544,7 +487,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount)}
+        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -555,7 +498,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined)}
+        initialMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -572,7 +515,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount)}
+        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}

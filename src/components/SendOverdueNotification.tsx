@@ -82,25 +82,17 @@ const getRemainingCooldownMinutes = (loanId: string): number => {
   return Math.max(0, Math.ceil(remaining / 60000));
 };
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
-
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.toLocaleDateString('pt-BR');
-};
-
-const getContractTypeLabel = (type: OverdueData['contractType']): string => {
-  switch (type) {
-    case 'loan': return 'Empréstimo';
-    case 'product': return 'Venda de Produto';
-    case 'vehicle': return 'Venda de Veículo';
-    case 'contract': return 'Contrato';
-    default: return 'Contrato';
-  }
-};
+import {
+  formatCurrency,
+  formatDate,
+  getContractTypeLabel,
+  getPixKeyTypeLabel,
+  generateProgressBar,
+  generateInstallmentStatusList,
+  generatePixSection,
+  generateSignature,
+  generatePaymentOptions,
+} from '@/lib/messageUtils';
 
 export default function SendOverdueNotification({ 
   data, 
@@ -133,16 +125,6 @@ export default function SendOverdueNotification({
     return () => clearInterval(interval);
   }, [data.loanId]);
 
-  const getPixKeyTypeLabel = (type: string | null): string => {
-    switch (type) {
-      case 'cpf': return 'Chave PIX CPF';
-      case 'cnpj': return 'Chave PIX CNPJ';
-      case 'telefone': return 'Chave PIX Telefone';
-      case 'email': return 'Chave PIX Email';
-      case 'aleatoria': return 'Chave PIX Aleatória';
-      default: return 'Chave PIX';
-    }
-  };
 
 
   const generateOverdueMessage = (): string => {
@@ -183,75 +165,49 @@ export default function SendOverdueNotification({
       const effectivePenalty = hasPenalty ? data.penaltyAmount! : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
       const totalAmount = data.amount + effectivePenalty;
 
-      message += `📋 *Tipo:* ${typeLabel}\n`;
+      // Informações principais
+      message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
       message += `📊 *${installmentInfo}*\n`;
-      message += `💰 *Valor Original:* ${formatCurrency(data.amount)}\n`;
       message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
-      message += `⏰ *Dias em atraso:* ${data.daysOverdue}\n\n`;
+      message += `⏰ *Dias em Atraso:* ${data.daysOverdue}\n`;
       
+      // Multa
       if (effectivePenalty > 0) {
-        message += `⚠️ *Multa:* +${formatCurrency(effectivePenalty)}\n`;
-        message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
+        message += `⚠️ *Multa:* ${formatCurrency(effectivePenalty)}\n`;
+        message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
       }
       
-      // Opção de pagar só juros (com texto CORRETO)
-      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-        const interestPlusPenalty = data.interestAmount + effectivePenalty;
-        message += `💡 *Opções de Pagamento:*\n`;
-        message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
-        message += `⚠️ Só juros: ${formatCurrency(interestPlusPenalty)}\n`;
-        message += `   (Parcela de ${formatCurrency(data.amount)} será adicionada ao próximo mês)\n\n`;
-      }
+      // Barra de progresso
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || 1;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+      message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
       
-      // Status das parcelas com emojis
+      // Status das parcelas (inteligente)
       if (data.installmentDates && data.installmentDates.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        message += `📊 *STATUS DAS PARCELAS:*\n`;
-        data.installmentDates.forEach((dateStr, index) => {
-          const installmentNum = index + 1;
-          const dueDate = new Date(dateStr + 'T12:00:00');
-          const isPaid = installmentNum <= (data.paidCount || 0);
-          
-          let emoji: string;
-          let status: string;
-          
-          if (isPaid) {
-            emoji = '✅';
-            status = 'Paga';
-          } else if (dueDate < today) {
-            const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            emoji = '❌';
-            status = `Em Atraso (${daysOverdue}d)`;
-          } else {
-            emoji = '⏳';
-            status = 'Em Aberto';
-          }
-          
-          message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+        message += `\n`;
+        message += generateInstallmentStatusList({
+          installmentDates: data.installmentDates,
+          paidCount: paidCount,
         });
-        
-        // Barra de progresso
-        const paidCount = data.paidCount || 0;
-        const totalInstallments = data.totalInstallments || data.installmentDates.length;
-        const progressPercent = Math.round((paidCount / totalInstallments) * 100);
-        const filledBlocks = Math.round(progressPercent / 10);
-        const emptyBlocks = 10 - filledBlocks;
-        message += `\n📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
       }
+      
+      // Opções de pagamento
+      message += generatePaymentOptions(
+        totalAmount,
+        data.interestAmount,
+        data.principalAmount,
+        data.isDaily,
+        effectivePenalty
+      );
     }
     
-    if (profile?.pix_key) {
-      message += `\n━━━━━━━━━━━━━━━━\n`;
-      message += `💳 *${getPixKeyTypeLabel(profile.pix_key_type)}:* ${profile.pix_key}\n`;
-    }
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
     
+    // Assinatura
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    if (signatureName) {
-      message += `\n━━━━━━━━━━━━━━━━\n`;
-      message += `_${signatureName}_`;
-    }
+    message += generateSignature(signatureName);
 
     return message;
   };
