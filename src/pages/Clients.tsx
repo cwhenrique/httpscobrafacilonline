@@ -214,9 +214,7 @@ export default function Clients() {
     setAvatarPreview(URL.createObjectURL(file));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const submitClient = async () => {
     if (employeeLoading) {
       toast.error('Aguarde o carregamento da sessão');
       return;
@@ -249,6 +247,11 @@ export default function Clients() {
         setActiveTab('documentos');
       }
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitClient();
   };
 
   const handleEdit = (client: Client) => {
@@ -702,7 +705,7 @@ export default function Clients() {
                         <Button type="button" variant="outline" onClick={() => setActiveTab('endereco')}>
                           ← Voltar
                         </Button>
-                        <Button onClick={handleSubmit}>
+                        <Button onClick={submitClient}>
                           Criar Cliente
                         </Button>
                       </div>
