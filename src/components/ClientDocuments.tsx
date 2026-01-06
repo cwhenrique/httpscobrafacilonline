@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
@@ -21,9 +21,12 @@ import { formatDate } from '@/lib/calculations';
 interface ClientDocumentsProps {
   clientId: string;
   clientName: string;
+  onSelectFiles?: () => void; // Callback para abrir seletor externo (fix iOS PWA)
+  pendingFiles?: FileList | null; // Arquivos selecionados do input externo
+  onPendingFilesProcessed?: () => void; // Callback após processar arquivos
 }
 
-export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) {
+export function ClientDocuments({ clientId, clientName, onSelectFiles, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
   const { documents, loading, uploading, uploadDocument, deleteDocument, downloadDocument } = useClientDocuments(clientId);
   const { loading: contextLoading } = useEmployeeContext();
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
@@ -33,16 +36,31 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    await processFiles(files);
+    // Reset input to allow selecting the same file again
+    e.target.value = '';
+  };
+
+  const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    console.log('[Docs] Processing files:', files.length);
 
     for (let i = 0; i < files.length; i++) {
       await uploadDocument(files[i], description || undefined);
     }
     
     setDescription('');
-    // Reset input to allow selecting the same file again
-    e.target.value = '';
   };
+
+  // Processar arquivos vindos do input externo (fix iOS PWA)
+  React.useEffect(() => {
+    if (pendingFiles && pendingFiles.length > 0) {
+      console.log('[Docs] Processing pending files from external input:', pendingFiles.length);
+      processFiles(pendingFiles).then(() => {
+        onPendingFilesProcessed?.();
+      });
+    }
+  }, [pendingFiles]);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     await downloadDocument(filePath, fileName);
@@ -84,27 +102,48 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
         </div>
         
         <div className="flex items-center gap-2">
-          <input
-            id="doc-upload-input"
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            className="sr-only"
-            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-          />
-          <label 
-            htmlFor="doc-upload-input" 
-            className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : ''}`}
-          >
-            <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+          {onSelectFiles ? (
+            // Usar botão que aciona input externo (fix iOS PWA)
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={onSelectFiles}
+              disabled={isUploadDisabled}
+            >
               {isUploadDisabled ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Upload className="w-4 h-4" />
               )}
               {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-            </span>
-          </label>
+            </Button>
+          ) : (
+            // Fallback: input interno (para uso fora de Dialog)
+            <>
+              <input
+                id="doc-upload-input"
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="sr-only"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              />
+              <label 
+                htmlFor="doc-upload-input" 
+                className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              >
+                <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+                  {isUploadDisabled ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+                </span>
+              </label>
+            </>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.

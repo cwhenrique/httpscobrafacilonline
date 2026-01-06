@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,6 +117,10 @@ export default function Clients() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
+  
+  // Ref para input de documentos FORA do Dialog (fix iOS PWA)
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [pendingDocFiles, setPendingDocFiles] = useState<FileList | null>(null);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -335,8 +339,33 @@ export default function Clients() {
 
   const currentClientForDocs = editingClient || (createdClientId ? { id: createdClientId, full_name: createdClientName } : null);
 
+  // Handler para abrir seletor de documentos (input fora do Dialog)
+  const handleOpenDocSelector = () => {
+    console.log('[Docs] Opening file selector via external input');
+    docInputRef.current?.click();
+  };
+
+  // Handler quando arquivos são selecionados no input externo
+  const handleDocFilesFromExternal = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[Docs] Files selected from external input:', e.target.files?.length);
+    setPendingDocFiles(e.target.files);
+    // Reset para permitir selecionar mesmo arquivo novamente
+    e.target.value = '';
+  };
+
   return (
     <DashboardLayout>
+      {/* Input de documentos FORA do Dialog para funcionar no iOS PWA */}
+      <input
+        ref={docInputRef}
+        type="file"
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+        onChange={handleDocFilesFromExternal}
+        className="sr-only"
+        aria-hidden="true"
+      />
+      
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -692,7 +721,10 @@ export default function Clients() {
                     <div className="space-y-4">
                       <ClientDocuments 
                         clientId={currentClientForDocs.id} 
-                        clientName={currentClientForDocs.full_name} 
+                        clientName={currentClientForDocs.full_name}
+                        onSelectFiles={handleOpenDocSelector}
+                        pendingFiles={pendingDocFiles}
+                        onPendingFilesProcessed={() => setPendingDocFiles(null)}
                       />
                       <div className="flex justify-between">
                         <Button type="button" variant="outline" onClick={() => setActiveTab('endereco')}>
