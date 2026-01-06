@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera, Hash } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera, Hash, FileText, Send } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -74,6 +74,7 @@ export default function Settings() {
   const [qrExpired, setQrExpired] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [resettingInstance, setResettingInstance] = useState(false);
+  const [sendingDailyTest, setSendingDailyTest] = useState(false);
   
   // Pairing code states (for mobile connection)
   const [showPairingCodeOption, setShowPairingCodeOption] = useState(false);
@@ -482,6 +483,29 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
     }
   };
 
+  const handleTestDailySummary = async () => {
+    if (!profile?.phone) {
+      toast.error('Você precisa ter um telefone cadastrado');
+      return;
+    }
+    
+    setSendingDailyTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('daily-summary', {
+        body: { testPhone: profile.phone }
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Relatório enviado! Verifique seu WhatsApp.');
+    } catch (error) {
+      console.error('Error sending daily test:', error);
+      toast.error('Erro ao enviar relatório de teste');
+    } finally {
+      setSendingDailyTest(false);
+    }
+  };
+
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 2) return numbers;
@@ -755,6 +779,39 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                     checked={sendToClientsEnabled}
                     onCheckedChange={handleToggleSendToClients}
                   />
+                </div>
+
+                {/* Test Daily Summary Button */}
+                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Testar Relatório Diário</p>
+                      <p className="text-xs text-muted-foreground">
+                        Receba o relatório de cobranças do dia no seu WhatsApp
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleTestDailySummary}
+                    disabled={sendingDailyTest}
+                    variant="outline"
+                    className="w-full mt-2 border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
+                  >
+                    {sendingDailyTest ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar Relatório de Teste
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 <Button 
