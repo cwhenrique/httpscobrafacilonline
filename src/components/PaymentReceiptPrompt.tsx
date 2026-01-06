@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X, FileText, MessageCircle, Loader2, Users } from 'lucide-react';
+import { Download, X, FileText, MessageCircle, Loader2, Users, Copy } from 'lucide-react';
 import { generatePaymentReceipt, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
@@ -238,8 +238,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
   const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
+  const [showCopyPreview, setShowCopyPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
+
+  const hasWhatsAppConnected = profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone;
 
   if (!data) return null;
 
@@ -445,19 +448,30 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
               <X className="w-4 h-4 mr-1 sm:mr-2" />
               Fechar
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleSendToSelfClick} 
-              disabled={isSendingWhatsApp}
-              className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
-            >
-              {isSendingWhatsApp ? (
-                <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
-              ) : (
-                <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
-              )}
-              {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
-            </Button>
+            {hasWhatsAppConnected ? (
+              <Button 
+                variant="outline" 
+                onClick={handleSendToSelfClick} 
+                disabled={isSendingWhatsApp}
+                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                {isSendingWhatsApp ? (
+                  <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
+                )}
+                {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCopyPreview(true)}
+                className="text-xs sm:text-sm bg-amber-500 hover:bg-amber-600 text-white border-amber-500 hover:border-amber-600"
+              >
+                <Copy className="w-4 h-4 mr-1 sm:mr-2" />
+                Copiar
+              </Button>
+            )}
             {canSendToClient && (
               <Button 
                 variant="outline" 
@@ -513,6 +527,17 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <WhatsAppNotConnectedDialog
         open={showWhatsAppNotConnected}
         onOpenChange={setShowWhatsAppNotConnected}
+      />
+
+      {/* Copy preview for users without WhatsApp */}
+      <MessagePreviewDialog
+        open={showCopyPreview}
+        onOpenChange={setShowCopyPreview}
+        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount)}
+        recipientName="Você"
+        recipientType="self"
+        onConfirm={() => setShowCopyPreview(false)}
+        mode="copy"
       />
     </>
   );
