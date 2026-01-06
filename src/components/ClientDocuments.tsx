@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,9 @@ import { toast } from 'sonner';
 interface ClientDocumentsProps {
   clientId: string;
   clientName: string;
-  useExternalInput?: boolean; // Se true, usa label apontando para input externo (fix iOS PWA)
-  pendingFiles?: File[] | null; // Arquivos selecionados do input externo (Array, não FileList)
-  onPendingFilesProcessed?: () => void; // Callback após processar arquivos
+  useExternalInput?: boolean;
+  pendingFiles?: File[] | null;
+  onPendingFilesProcessed?: () => void;
 }
 
 export function ClientDocuments({ clientId, clientName, useExternalInput, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
@@ -33,34 +33,20 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
   
-  // Ref para garantir versão mais recente do uploadDocument (evitar stale closure)
-  const uploadDocumentRef = useRef(uploadDocument);
-  useEffect(() => {
-    uploadDocumentRef.current = uploadDocument;
-  }, [uploadDocument]);
-  
   const isUploadDisabled = uploading || contextLoading;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    await processFiles(files);
-    // Reset input to allow selecting the same file again
+    if (!files || files.length === 0) return;
+    
+    for (let i = 0; i < files.length; i++) {
+      await uploadDocument(files[i], description || undefined);
+    }
+    setDescription('');
     e.target.value = '';
   };
 
-  const processFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    console.log('[Docs] Processing files:', files.length);
-
-    for (let i = 0; i < files.length; i++) {
-      await uploadDocumentRef.current(files[i], description || undefined);
-    }
-    
-    setDescription('');
-  };
-
   // Processar arquivos vindos do input externo (fix iOS PWA)
-  // Aguarda contexto estar pronto antes de processar
   useEffect(() => {
     if (pendingFiles && pendingFiles.length > 0 && !contextLoading) {
       console.log('[Docs] Context ready, processing pending files:', pendingFiles.length);
@@ -68,14 +54,14 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
       
       const processAll = async () => {
         for (let i = 0; i < pendingFiles.length; i++) {
-          await uploadDocumentRef.current(pendingFiles[i], description || undefined);
+          await uploadDocument(pendingFiles[i], description || undefined);
         }
         setDescription('');
         onPendingFilesProcessed?.();
       };
       processAll();
     }
-  }, [pendingFiles, contextLoading]);
+  }, [pendingFiles, contextLoading, uploadDocument, description, onPendingFilesProcessed]);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     await downloadDocument(filePath, fileName);

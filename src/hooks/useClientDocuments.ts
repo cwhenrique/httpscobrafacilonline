@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
@@ -23,8 +23,18 @@ export function useClientDocuments(clientId: string | null) {
   const { user } = useAuth();
   const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
-  const fetchDocuments = async () => {
-    if (!user || !clientId || employeeLoading) return;
+  // Estabilizar fetchDocuments com useCallback
+  const fetchDocuments = useCallback(async () => {
+    console.log('[Docs] fetchDocuments chamado:', { 
+      hasUser: !!user, 
+      clientId, 
+      employeeLoading 
+    });
+    
+    if (!user || !clientId || employeeLoading) {
+      console.log('[Docs] fetchDocuments retornando cedo');
+      return;
+    }
     
     setLoading(true);
     const { data, error } = await supabase
@@ -34,14 +44,16 @@ export function useClientDocuments(clientId: string | null) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching documents:', error);
+      console.error('[Docs] Error fetching documents:', error);
     } else {
+      console.log('[Docs] Documentos carregados:', data?.length);
       setDocuments(data as ClientDocument[]);
     }
     setLoading(false);
-  };
+  }, [user, clientId, employeeLoading]);
 
-  const uploadDocument = async (file: File, description?: string) => {
+  // Estabilizar uploadDocument com useCallback
+  const uploadDocument = useCallback(async (file: File, description?: string) => {
     console.log('[Upload] Tentativa:', { 
       hasUser: !!user, 
       clientId, 
@@ -118,10 +130,13 @@ export function useClientDocuments(clientId: string | null) {
 
     console.log('[Upload] Sucesso! Documento salvo:', data);
     toast.success('Documento enviado com sucesso!');
+    
+    // Chamar fetchDocuments que agora é estável
     await fetchDocuments();
+    
     setUploading(false);
     return { data: data as ClientDocument };
-  };
+  }, [user, clientId, effectiveUserId, employeeLoading, fetchDocuments]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
     if (!user) return { error: new Error('Não autenticado') };
@@ -191,7 +206,7 @@ export function useClientDocuments(clientId: string | null) {
 
   useEffect(() => {
     fetchDocuments();
-  }, [user, clientId, effectiveUserId, employeeLoading]);
+  }, [fetchDocuments]);
 
   return {
     documents,
