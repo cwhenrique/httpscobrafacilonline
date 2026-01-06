@@ -369,7 +369,7 @@ export default function Clients() {
         id="doc-upload-external"
         type="file"
         multiple
-        accept="image/*,application/pdf"
+        accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
         onChange={handleDocFilesFromExternal}
         className="sr-only"
         aria-hidden="true"
