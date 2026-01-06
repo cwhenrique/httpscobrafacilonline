@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.whatsapp-configure-webhook]
 verify_jwt = false
+
+[functions.list-client-documents]
+verify_jwt = false
