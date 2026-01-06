@@ -395,6 +395,42 @@ export type Database = {
         }
         Relationships: []
       }
+      iptv_plans: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          max_devices: number | null
+          name: string
+          price: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_devices?: number | null
+          name: string
+          price: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_devices?: number | null
+          name?: string
+          price?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       loan_payments: {
         Row: {
           amount: number
@@ -574,11 +610,22 @@ export type Database = {
           amount: number
           client_id: string
           created_at: string
+          credit_expires_at: string | null
+          current_devices: number | null
+          demo_expires_at: string | null
           description: string | null
           due_day: number
           id: string
           interest_rate: number | null
           is_active: boolean
+          is_demo: boolean | null
+          last_renewal_at: string | null
+          login_password: string | null
+          login_username: string | null
+          max_devices: number | null
+          plan_type: string | null
+          referral_source: string | null
+          renewal_count: number | null
           updated_at: string
           user_id: string
         }
@@ -586,11 +633,22 @@ export type Database = {
           amount: number
           client_id: string
           created_at?: string
+          credit_expires_at?: string | null
+          current_devices?: number | null
+          demo_expires_at?: string | null
           description?: string | null
           due_day?: number
           id?: string
           interest_rate?: number | null
           is_active?: boolean
+          is_demo?: boolean | null
+          last_renewal_at?: string | null
+          login_password?: string | null
+          login_username?: string | null
+          max_devices?: number | null
+          plan_type?: string | null
+          referral_source?: string | null
+          renewal_count?: number | null
           updated_at?: string
           user_id: string
         }
@@ -598,11 +656,22 @@ export type Database = {
           amount?: number
           client_id?: string
           created_at?: string
+          credit_expires_at?: string | null
+          current_devices?: number | null
+          demo_expires_at?: string | null
           description?: string | null
           due_day?: number
           id?: string
           interest_rate?: number | null
           is_active?: boolean
+          is_demo?: boolean | null
+          last_renewal_at?: string | null
+          login_password?: string | null
+          login_username?: string | null
+          max_devices?: number | null
+          plan_type?: string | null
+          referral_source?: string | null
+          renewal_count?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -941,6 +1010,44 @@ export type Database = {
           whatsapp_to_clients_enabled?: boolean | null
         }
         Relationships: []
+      }
+      subscription_reactivations: {
+        Row: {
+          created_at: string | null
+          id: string
+          monthly_fee_id: string
+          notes: string | null
+          previous_inactive_days: number | null
+          reactivated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          monthly_fee_id: string
+          notes?: string | null
+          previous_inactive_days?: number | null
+          reactivated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          monthly_fee_id?: string
+          notes?: string | null
+          previous_inactive_days?: number | null
+          reactivated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_reactivations_monthly_fee_id_fkey"
+            columns: ["monthly_fee_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_fees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tutorial_videos: {
         Row: {

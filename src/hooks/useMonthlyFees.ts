@@ -16,10 +16,23 @@ export interface MonthlyFee {
   interest_rate: number | null;
   created_at: string;
   updated_at: string;
+  // IPTV specific fields
+  plan_type: string | null;
+  login_username: string | null;
+  login_password: string | null;
+  credit_expires_at: string | null;
+  max_devices: number | null;
+  current_devices: number | null;
+  referral_source: string | null;
+  is_demo: boolean | null;
+  demo_expires_at: string | null;
+  last_renewal_at: string | null;
+  renewal_count: number | null;
   client?: {
     id: string;
     full_name: string;
     phone: string | null;
+    email: string | null;
   };
 }
 
@@ -44,6 +57,15 @@ export interface CreateMonthlyFeeData {
   due_day: number;
   interest_rate?: number;
   generate_current_month?: boolean;
+  // IPTV fields
+  plan_type?: string;
+  login_username?: string;
+  login_password?: string;
+  credit_expires_at?: string;
+  max_devices?: number;
+  referral_source?: string;
+  is_demo?: boolean;
+  demo_expires_at?: string;
 }
 
 export interface UpdateMonthlyFeeData {
@@ -52,6 +74,18 @@ export interface UpdateMonthlyFeeData {
   due_day?: number;
   interest_rate?: number;
   is_active?: boolean;
+  // IPTV fields
+  plan_type?: string;
+  login_username?: string;
+  login_password?: string;
+  credit_expires_at?: string;
+  max_devices?: number;
+  current_devices?: number;
+  referral_source?: string;
+  is_demo?: boolean;
+  demo_expires_at?: string;
+  last_renewal_at?: string;
+  renewal_count?: number;
 }
 
 export function useMonthlyFees() {
@@ -71,7 +105,7 @@ export function useMonthlyFees() {
         .from('monthly_fees')
         .select(`
           *,
-          client:clients(id, full_name, phone)
+          client:clients(id, full_name, phone, email)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
@@ -97,6 +131,17 @@ export function useMonthlyFees() {
           due_day: data.due_day,
           interest_rate: data.interest_rate || 0,
           is_active: true,
+          // IPTV fields
+          plan_type: data.plan_type || 'basic',
+          login_username: data.login_username || null,
+          login_password: data.login_password || null,
+          credit_expires_at: data.credit_expires_at || null,
+          max_devices: data.max_devices || 1,
+          referral_source: data.referral_source || null,
+          is_demo: data.is_demo || false,
+          demo_expires_at: data.demo_expires_at || null,
+          last_renewal_at: new Date().toISOString(),
+          renewal_count: 0,
         })
         .select()
         .single();
@@ -251,6 +296,71 @@ export function useMonthlyFees() {
     },
   });
 
+  // Renew credit - update credit expiration
+  const renewCredit = useMutation({
+    mutationFn: async ({ id, months = 1 }: { id: string; months?: number }) => {
+      const fee = fees.find(f => f.id === id);
+      if (!fee) throw new Error('Assinatura não encontrada');
+
+      const now = new Date();
+      const currentExpiry = fee.credit_expires_at ? new Date(fee.credit_expires_at) : now;
+      const baseDate = currentExpiry > now ? currentExpiry : now;
+      const newExpiry = addMonths(baseDate, months);
+
+      const { error } = await supabase
+        .from('monthly_fees')
+        .update({
+          credit_expires_at: format(newExpiry, 'yyyy-MM-dd'),
+          last_renewal_at: new Date().toISOString(),
+          renewal_count: (fee.renewal_count || 0) + 1,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['monthly-fees'] });
+      toast.success('Crédito renovado com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Error renewing credit:', error);
+      toast.error('Erro ao renovar crédito');
+    },
+  });
+
+  // Batch renew credits
+  const renewBatch = useMutation({
+    mutationFn: async ({ feeIds, months = 1 }: { feeIds: string[]; months?: number }) => {
+      const now = new Date();
+      
+      for (const id of feeIds) {
+        const fee = fees.find(f => f.id === id);
+        if (!fee) continue;
+
+        const currentExpiry = fee.credit_expires_at ? new Date(fee.credit_expires_at) : now;
+        const baseDate = currentExpiry > now ? currentExpiry : now;
+        const newExpiry = addMonths(baseDate, months);
+
+        await supabase
+          .from('monthly_fees')
+          .update({
+            credit_expires_at: format(newExpiry, 'yyyy-MM-dd'),
+            last_renewal_at: new Date().toISOString(),
+            renewal_count: (fee.renewal_count || 0) + 1,
+          })
+          .eq('id', id);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['monthly-fees'] });
+      toast.success(`${variables.feeIds.length} assinaturas renovadas!`);
+    },
+    onError: (error: Error) => {
+      console.error('Error batch renewing:', error);
+      toast.error('Erro ao renovar assinaturas');
+    },
+  });
+
   return {
     fees,
     isLoading,
@@ -259,6 +369,8 @@ export function useMonthlyFees() {
     deleteFee,
     toggleActive,
     generatePayment,
+    renewCredit,
+    renewBatch,
   };
 }
 
