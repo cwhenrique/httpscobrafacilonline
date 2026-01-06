@@ -140,7 +140,7 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
                 multiple
                 onChange={handleFileSelect}
                 className="sr-only"
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
               />
               <label 
                 htmlFor="doc-upload-input" 
