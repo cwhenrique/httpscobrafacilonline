@@ -33,31 +33,16 @@ interface SendEarlyNotificationProps {
   className?: string;
 }
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
-};
-
-const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T12:00:00');
-  return date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
-const getContractTypeLabel = (type: EarlyNotificationData['contractType']): string => {
-  const labels: Record<EarlyNotificationData['contractType'], string> = {
-    loan: 'Empréstimo',
-    product: 'Venda de Produto',
-    vehicle: 'Veículo',
-    contract: 'Contrato',
-  };
-  return labels[type];
-};
+import {
+  formatCurrency,
+  formatDate,
+  getContractTypeLabel,
+  generateProgressBar,
+  generateInstallmentStatusList,
+  generatePixSection,
+  generateSignature,
+  generatePaymentOptions,
+} from '@/lib/messageUtils';
 
 
 export function SendEarlyNotification({ data, className }: SendEarlyNotificationProps) {
@@ -74,94 +59,52 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     profile?.whatsapp_to_clients_enabled &&
     data.clientPhone;
 
-  const getPixKeyTypeLabel = (type: string | null): string => {
-    switch (type) {
-      case 'cpf': return 'Chave PIX CPF';
-      case 'cnpj': return 'Chave PIX CNPJ';
-      case 'telefone': return 'Chave PIX Telefone';
-      case 'email': return 'Chave PIX Email';
-      case 'aleatoria': return 'Chave PIX Aleatória';
-      default: return 'Chave PIX';
-    }
-  };
-
   const generateEarlyMessage = (): string => {
-    const typeLabel = getContractTypeLabel(data.contractType);
     const installmentInfo =
       data.installmentNumber && data.totalInstallments
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
         : 'Parcela Única';
+    
+    const paidCount = data.paidCount || 0;
+    const totalInstallments = data.totalInstallments || 1;
+    const progressPercent = Math.round((paidCount / totalInstallments) * 100);
 
     let message = `Olá *${data.clientName}*!\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     message += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
-    message += `📋 *Tipo:* ${typeLabel}\n`;
+    
+    // Informações principais
+    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📊 *${installmentInfo}*\n`;
-    message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
     if (data.daysUntilDue > 0) {
       message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
     }
-    message += `\n\n`;
-
-    // Opção de pagar só juros (com texto CORRETO)
-    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-      message += `💡 *Opções de Pagamento:*\n`;
-      message += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
-      message += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
-      message += `   (Parcela de ${formatCurrency(data.amount)} será adicionada ao próximo mês)\n\n`;
-    }
-
-    // Status das parcelas com emojis
+    message += `\n`;
+    
+    // Barra de progresso
+    message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
+    
+    // Status das parcelas (inteligente)
     if (data.installmentDates && data.installmentDates.length > 0) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      message += `📊 *STATUS DAS PARCELAS:*\n`;
-      data.installmentDates.forEach((dateStr, index) => {
-        const installmentNum = index + 1;
-        const dueDate = new Date(dateStr + 'T12:00:00');
-        const isPaid = installmentNum <= (data.paidCount || 0);
-        
-        let emoji: string;
-        let status: string;
-        
-        if (isPaid) {
-          emoji = '✅';
-          status = 'Paga';
-        } else if (dueDate < today) {
-          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          emoji = '❌';
-          status = `Em Atraso (${daysOverdue}d)`;
-        } else {
-          emoji = '⏳';
-          status = 'Em Aberto';
-        }
-        
-        message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+      message += `\n`;
+      message += generateInstallmentStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: paidCount,
       });
-      
-      // Barra de progresso
-      const paidCount = data.paidCount || 0;
-      const totalInstallments = data.totalInstallments || data.installmentDates.length;
-      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
-      const filledBlocks = Math.round(progressPercent / 10);
-      const emptyBlocks = 10 - filledBlocks;
-      message += `\n📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
     }
-
-    if (profile?.pix_key) {
-      message += `━━━━━━━━━━━━━━━━\n`;
-      message += `💳 *${getPixKeyTypeLabel(profile.pix_key_type)}:* ${profile.pix_key}\n`;
-    }
-
+    
+    // Opções de pagamento
+    message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
+    
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
     message += `\nQualquer dúvida, estou à disposição! 😊`;
-
+    
+    // Assinatura
     const signatureName = profile?.billing_signature_name || profile?.company_name;
-    if (signatureName) {
-      message += `\n\n━━━━━━━━━━━━━━━━\n`;
-      message += `_${signatureName}_`;
-    }
+    message += generateSignature(signatureName);
 
     return message;
   };

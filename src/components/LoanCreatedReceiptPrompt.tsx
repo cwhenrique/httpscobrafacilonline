@@ -19,6 +19,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
+import {
+  formatCurrency,
+  formatDate,
+  getPaymentTypeLabel,
+  generateProgressBar,
+  generateInstallmentStatusList,
+  generatePixSection,
+  generateSignature,
+} from '@/lib/messageUtils';
 
 
 interface LoanData {
@@ -70,54 +79,13 @@ export default function LoanCreatedReceiptPrompt({
 
   if (!loan) return null;
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    try {
-      return format(new Date(dateStr + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const getPaymentTypeLabel = (type: string) => {
-    switch (type) {
-      case 'single': return 'Pagamento Único';
-      case 'installment': return 'Parcelado';
-      case 'daily': return 'Diário';
-      case 'weekly': return 'Semanal';
-      default: return type;
-    }
-  };
-
-  // Interface for list data (used for collector messages)
-  interface ListRow {
-    title: string;
-    description: string;
-    rowId: string;
-  }
-
-  interface ListSection {
-    title: string;
-    rows: ListRow[];
-  }
-
-  interface ListData {
-    title: string;
-    description: string;
-    buttonText: string;
-    footerText: string;
-    sections: ListSection[];
-  }
-
   // Generate plain text message for CLIENT
   const generateClientMessage = (): string => {
     let message = `Olá *${loan.clientName}*!\n`;
     message += `━━━━━━━━━━━━━━━━\n\n`;
     message += `📄 *CONTRATO DE EMPRÉSTIMO*\n\n`;
+    
+    // Informações principais
     message += `💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
     message += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
     
@@ -127,23 +95,24 @@ export default function LoanCreatedReceiptPrompt({
     
     message += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
     
-    // Status das parcelas com emojis
+    // Barra de progresso (0% quando criado)
+    message += `\n📈 *Progresso:* ${generateProgressBar(0)}\n`;
+    
+    // Status das parcelas (inteligente)
     if (installmentDates && installmentDates.length > 0) {
-      message += `\n📊 *VENCIMENTOS:*\n`;
-      installmentDates.forEach((dateStr, index) => {
-        const installmentNum = index + 1;
-        message += `${installmentNum}️⃣ ⏳ ${formatDate(dateStr)} - Em Aberto\n`;
+      message += `\n`;
+      message += generateInstallmentStatusList({
+        installmentDates,
+        paidCount: 0,
       });
-      
-      // Barra de progresso (0% quando criado)
-      message += `\n📈 *Progresso:* ${'░'.repeat(10)} 0%\n`;
     }
     
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
+    // Assinatura
     const signatureName = profile?.billing_signature_name || companyName;
-    if (signatureName) {
-      message += `\n━━━━━━━━━━━━━━━━\n`;
-      message += `_${signatureName}_`;
-    }
+    message += generateSignature(signatureName);
 
     return message;
   };
@@ -161,29 +130,35 @@ export default function LoanCreatedReceiptPrompt({
       message += `📱 *Telefone:* ${loan.clientPhone}\n`;
     }
     
-    message += `\n💰 *VALORES*\n`;
-    message += `• Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    message += `• Juros: ${loan.interestRate}%\n`;
-    message += `• Total Juros: ${formatCurrency(loan.totalInterest)}\n`;
-    message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+    // Informações principais
+    message += `\n💵 *Valor Emprestado:* ${formatCurrency(loan.principalAmount)}\n`;
+    message += `📊 *Juros:* ${loan.interestRate}%\n`;
+    message += `💰 *Total Juros:* ${formatCurrency(loan.totalInterest)}\n`;
+    message += `💵 *Total a Receber:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    message += `\n📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
+    message += `📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
     
-    // Add installment status with emojis
+    // Barra de progresso (0% quando criado)
+    message += `\n📈 *Progresso:* ${generateProgressBar(0)}\n`;
+    
+    // Status das parcelas (inteligente)
     if (installmentDates && installmentDates.length > 0) {
-      message += `\n📊 *STATUS DAS PARCELAS:*\n`;
-      installmentDates.forEach((date, index) => {
-        const emoji = '⏳'; // All are open when loan is just created
-        message += `${index + 1}️⃣ ${emoji} ${formatDate(date)} - Em Aberto\n`;
+      message += `\n`;
+      message += generateInstallmentStatusList({
+        installmentDates,
+        paidCount: 0,
       });
     }
     
-    message += `\n━━━━━━━━━━━━━━━━\n`;
-    message += `_CobraFácil_`;
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
+    // Assinatura
+    message += generateSignature('CobraFácil');
     
     return message;
   };
