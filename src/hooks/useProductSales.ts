@@ -106,6 +106,7 @@ export function useProductSales() {
       const { data, error } = await supabase
         .from('product_sales')
         .select('*')
+        .eq('user_id', effectiveUserId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -439,6 +440,7 @@ export function useProductSalePayments(saleId?: string) {
       let query = supabase
         .from('product_sale_payments')
         .select('*, productSale:product_sales(*)')
+        .eq('user_id', effectiveUserId)
         .order('due_date', { ascending: true });
 
       if (saleId) {
