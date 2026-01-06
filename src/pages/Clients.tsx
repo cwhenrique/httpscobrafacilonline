@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -118,8 +118,7 @@ export default function Clients() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
   
-  // Ref para input de documentos FORA do Dialog (fix iOS PWA)
-  const docInputRef = useRef<HTMLInputElement>(null);
+  // State para arquivos pendentes de documentos (fix iOS PWA)
   const [pendingDocFiles, setPendingDocFiles] = useState<FileList | null>(null);
 
   const filteredClients = clients.filter(client =>
@@ -339,28 +338,26 @@ export default function Clients() {
 
   const currentClientForDocs = editingClient || (createdClientId ? { id: createdClientId, full_name: createdClientName } : null);
 
-  // Handler para abrir seletor de documentos (input fora do Dialog)
-  const handleOpenDocSelector = () => {
-    console.log('[Docs] Opening file selector via external input');
-    docInputRef.current?.click();
-  };
-
   // Handler quando arquivos são selecionados no input externo
   const handleDocFilesFromExternal = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('[Docs] Files selected from external input:', e.target.files?.length);
-    setPendingDocFiles(e.target.files);
+    const files = e.target.files;
+    console.log('[Docs] Files selected from external input:', files?.length);
+    if (files && files.length > 0) {
+      toast.info(`${files.length} arquivo(s) selecionado(s). Enviando...`);
+    }
+    setPendingDocFiles(files);
     // Reset para permitir selecionar mesmo arquivo novamente
     e.target.value = '';
   };
 
   return (
     <DashboardLayout>
-      {/* Input de documentos FORA do Dialog para funcionar no iOS PWA */}
+      {/* Input de documentos FORA do Dialog para funcionar no iOS PWA - usa id fixo para label nativo */}
       <input
-        ref={docInputRef}
+        id="doc-upload-external"
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+        accept="image/*,application/pdf"
         onChange={handleDocFilesFromExternal}
         className="sr-only"
         aria-hidden="true"
@@ -722,7 +719,7 @@ export default function Clients() {
                       <ClientDocuments 
                         clientId={currentClientForDocs.id} 
                         clientName={currentClientForDocs.full_name}
-                        onSelectFiles={handleOpenDocSelector}
+                        useExternalInput={true}
                         pendingFiles={pendingDocFiles}
                         onPendingFilesProcessed={() => setPendingDocFiles(null)}
                       />
