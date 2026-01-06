@@ -40,6 +40,8 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
     completedFiles,
     uploadComplete,
     lastFetchError,
+    lastUploadError,
+    lastUploadStage,
     uploadMultipleDocuments, 
     deleteDocument, 
     downloadDocument,
@@ -220,6 +222,11 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
         {lastFetchError && (
           <p className="text-xs text-destructive mb-2">
             Erro ao carregar documentos: {lastFetchError}
+          </p>
+        )}
+        {(lastUploadError || lastUploadStage) && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Upload (debug): {lastUploadStage || '—'}{lastUploadError ? ` • ${lastUploadError}` : ''}
           </p>
         )}
         

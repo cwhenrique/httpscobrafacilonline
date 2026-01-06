@@ -26,6 +26,8 @@ export function useClientDocuments(clientId: string | null) {
   const [completedFiles, setCompletedFiles] = useState(0);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
+  const [lastUploadError, setLastUploadError] = useState<string | null>(null);
+  const [lastUploadStage, setLastUploadStage] = useState<string | null>(null);
   const { user } = useAuth();
   const { effectiveUserId: ctxEffectiveUserId, loading: employeeLoading, isEmployee } = useEmployeeContext();
 
@@ -69,43 +71,57 @@ export function useClientDocuments(clientId: string | null) {
 
   // Estabilizar uploadDocument com useCallback
   const uploadDocument = useCallback(async (file: File, description?: string, fileIndex?: number, total?: number) => {
+    setLastUploadError(null);
+    setLastUploadStage('init');
+
     // Calcular userId localmente para garantir valor atualizado
     const userId = isEmployee ? ctxEffectiveUserId : user?.id;
-    
-    console.log('[Upload] Tentativa:', { 
-      hasUser: !!user, 
-      clientId, 
+
+    console.log('[Upload] Tentativa:', {
+      hasUser: !!user,
+      clientId,
       userId,
       isEmployee,
       employeeLoading,
-      fileName: file.name 
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
     });
-    
+
     if (!user) {
       console.error('[Upload] ERRO: Não autenticado');
+      setLastUploadError('Não autenticado');
+      setLastUploadStage('auth');
       toast.error('Você precisa estar logado para enviar documentos');
       return { error: new Error('Não autenticado') };
     }
-    
+
     if (!clientId) {
       console.error('[Upload] ERRO: Cliente não identificado');
+      setLastUploadError('Cliente não identificado');
+      setLastUploadStage('client');
       toast.error('Erro: Cliente não identificado');
       return { error: new Error('Cliente não identificado') };
     }
-    
+
     if (employeeLoading) {
       console.error('[Upload] ERRO: Contexto ainda carregando');
+      setLastUploadError('Sessão ainda carregando');
+      setLastUploadStage('context');
       toast.error('Aguarde o carregamento da sessão e tente novamente');
       return { error: new Error('Sessão ainda carregando') };
     }
-    
+
     if (!userId) {
       console.error('[Upload] ERRO: userId é null', { isEmployee, ctxEffectiveUserId, userId: user?.id });
+      setLastUploadError('userId não disponível');
+      setLastUploadStage('userId');
       toast.error('Erro de sessão. Recarregue a página e tente novamente.');
       return { error: new Error('userId não disponível') };
     }
 
     // Verificar se o cliente existe no banco antes de fazer upload
+    setLastUploadStage('check_client');
     const { data: clientExists, error: clientError } = await supabase
       .from('clients')
       .select('id')
@@ -114,6 +130,8 @@ export function useClientDocuments(clientId: string | null) {
 
     if (clientError || !clientExists) {
       console.error('[Upload] ERRO: Cliente não encontrado no banco:', clientId, clientError);
+      setLastUploadError('Cliente não existe no banco');
+      setLastUploadStage('check_client_failed');
       toast.error('Cliente não encontrado. Salve o cliente primeiro.');
       return { error: new Error('Cliente não existe no banco de dados') };
     }
@@ -121,7 +139,7 @@ export function useClientDocuments(clientId: string | null) {
     // Não setar uploading aqui - é controlado por uploadMultipleDocuments
     setCurrentFileName(file.name);
     setUploadProgress(10);
-    
+
     // Se recebeu info de batch, atualiza
     if (typeof fileIndex === 'number' && typeof total === 'number') {
       setTotalFiles(total);
@@ -139,6 +157,8 @@ export function useClientDocuments(clientId: string | null) {
 
     console.log('[Upload] Iniciando upload para:', filePath);
 
+    setLastUploadStage('storage_upload');
+
     // Upload to storage
     const { error: uploadError } = await supabase.storage
       .from('client-documents')
@@ -148,12 +168,16 @@ export function useClientDocuments(clientId: string | null) {
 
     if (uploadError) {
       console.error('[Upload] Storage error:', uploadError.message, uploadError);
+      setLastUploadError(uploadError.message);
+      setLastUploadStage('storage_upload_failed');
       toast.error(`Erro no upload: ${uploadError.message}`);
       setUploadProgress(0);
       return { error: uploadError };
     }
 
     setUploadProgress(85);
+
+    setLastUploadStage('db_insert');
 
     // Save document record
     const { data, error: dbError } = await supabase
@@ -172,11 +196,13 @@ export function useClientDocuments(clientId: string | null) {
 
     if (dbError) {
       console.error('[Upload] DB error:', dbError.message, dbError);
-      
+      setLastUploadError(dbError.message);
+      setLastUploadStage('db_insert_failed');
+
       // Tentar remover arquivo órfão do storage
       console.log('[Upload] Removendo arquivo órfão do storage:', filePath);
       await supabase.storage.from('client-documents').remove([filePath]);
-      
+
       toast.error(`Erro ao salvar documento: ${dbError.message}`);
       setUploadProgress(0);
       return { error: dbError };
@@ -319,6 +345,8 @@ export function useClientDocuments(clientId: string | null) {
     completedFiles,
     uploadComplete,
     lastFetchError,
+    lastUploadError,
+    lastUploadStage,
     uploadDocument,
     uploadMultipleDocuments,
     deleteDocument,
