@@ -8,6 +8,10 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -23,20 +27,29 @@ import {
   ThumbsDown,
   DollarSign,
   Wallet,
-  Sparkles
+  Sparkles,
+  Pencil,
+  History
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { Client } from '@/types/database';
 
 export default function ClientScores() {
-  const { clients, loading } = useClients();
+  const { clients, loading, invalidateClients } = useClients();
   const { loans } = useLoans();
   const { user } = useAuth();
   const [sortBy, setSortBy] = useState<'score' | 'profit'>('score');
   const [loanPayments, setLoanPayments] = useState<Array<{ loan_id: string; interest_paid: number | null }>>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
+  
+  // Estado para edição de score
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [newScore, setNewScore] = useState(100);
+  const [scoreReason, setScoreReason] = useState('');
 
   // Buscar todos os pagamentos para calcular interesse real recebido
   useEffect(() => {
@@ -53,6 +66,42 @@ export default function ClientScores() {
     fetchPayments();
   }, [user]);
 
+  // Abrir modal de edição de score
+  const openEditScoreModal = (client: Client) => {
+    setEditingClient(client);
+    setNewScore(client.score || 100);
+    setScoreReason('');
+  };
+
+  // Salvar score editado
+  const saveScore = async () => {
+    if (!editingClient) return;
+    
+    try {
+      const updatedNotes = scoreReason 
+        ? `${editingClient.notes || ''}\n[SCORE_MANUAL:${newScore}] ${scoreReason} - ${new Date().toLocaleDateString('pt-BR')}`
+        : editingClient.notes;
+      
+      const { error } = await supabase
+        .from('clients')
+        .update({ 
+          score: newScore,
+          score_updated_at: new Date().toISOString(),
+          notes: updatedNotes,
+        })
+        .eq('id', editingClient.id);
+      
+      if (error) throw error;
+      
+      invalidateClients();
+      setEditingClient(null);
+      toast.success('Score atualizado com sucesso!');
+    } catch (error) {
+      console.error('Error updating score:', error);
+      toast.error('Erro ao atualizar score');
+    }
+  };
+
   // Calcular lucro por cliente usando interest_paid como fonte de verdade
   const clientProfitMap = useMemo(() => {
     // Criar mapa de interest_paid por loan_id
@@ -62,10 +111,28 @@ export default function ClientScores() {
       interestByLoan.set(payment.loan_id, current + (payment.interest_paid || 0));
     });
 
-    const map = new Map<string, { expectedProfit: number; realizedProfit: number; extraProfit: number; totalPrincipal: number }>();
+    const map = new Map<string, { 
+      expectedProfit: number; 
+      realizedProfit: number; 
+      extraProfit: number; 
+      totalPrincipal: number;
+      paidLoansCount: number;
+      activeLoansCount: number;
+      profitFromPaidLoans: number;
+      profitFromActiveLoans: number;
+    }>();
     
     loans.forEach(loan => {
-      const existing = map.get(loan.client_id) || { expectedProfit: 0, realizedProfit: 0, extraProfit: 0, totalPrincipal: 0 };
+      const existing = map.get(loan.client_id) || { 
+        expectedProfit: 0, 
+        realizedProfit: 0, 
+        extraProfit: 0, 
+        totalPrincipal: 0,
+        paidLoansCount: 0,
+        activeLoansCount: 0,
+        profitFromPaidLoans: 0,
+        profitFromActiveLoans: 0,
+      };
       
       // Lucro previsto = total de juros do contrato
       const expectedProfit = loan.total_interest || 0;
@@ -79,11 +146,18 @@ export default function ClientScores() {
       // Lucro EXTRA = o que passou do previsto (multas, penalidades)
       const extraProfit = Math.max(0, actualInterestReceived - expectedProfit);
       
+      // Contar por status e separar lucro
+      const isPaid = loan.status === 'paid';
+      
       map.set(loan.client_id, {
         expectedProfit: existing.expectedProfit + expectedProfit,
         realizedProfit: existing.realizedProfit + realizedProfit,
         extraProfit: existing.extraProfit + extraProfit,
         totalPrincipal: existing.totalPrincipal + loan.principal_amount,
+        paidLoansCount: existing.paidLoansCount + (isPaid ? 1 : 0),
+        activeLoansCount: existing.activeLoansCount + (isPaid ? 0 : 1),
+        profitFromPaidLoans: existing.profitFromPaidLoans + (isPaid ? realizedProfit : 0),
+        profitFromActiveLoans: existing.profitFromActiveLoans + (isPaid ? 0 : realizedProfit),
       });
     });
     
@@ -376,7 +450,10 @@ export default function ClientScores() {
                   </div>
                 </div>
                 <p className="text-muted-foreground text-xs mt-3">
-                  +2 pontos por pagamento em dia • -10 pontos por pagamento atrasado • +10 bônus para clientes fiéis
+                  +3 pontos por pagamento em dia • -20 pontos por atraso • -30 pontos por atraso crítico (+30d) • +15 bônus fidelidade
+                </p>
+                <p className="text-muted-foreground text-[10px] mt-1 flex items-center gap-1">
+                  <Pencil className="w-3 h-3" /> Você pode editar o score manualmente clicando no ícone de lápis
                 </p>
               </CardContent>
             </Card>
@@ -464,32 +541,42 @@ export default function ClientScores() {
                               </div>
                             </div>
 
-                            {/* Score Circle */}
-                            <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0">
-                              <svg className="w-11 h-11 sm:w-14 sm:h-14 -rotate-90">
-                                <circle
-                                  cx="50%"
-                                  cy="50%"
-                                  r="40%"
-                                  stroke="currentColor"
-                                  strokeWidth="3"
-                                  fill="none"
-                                  className="text-muted"
-                                />
-                                <circle
-                                  cx="50%"
-                                  cy="50%"
-                                  r="40%"
-                                  strokeWidth="3"
-                                  fill="none"
-                                  strokeDasharray={`${(score / 150) * 100} 100`}
-                                  strokeLinecap="round"
-                                  className={getScoreRingColor(score)}
-                                  pathLength="100"
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-xs sm:text-base font-bold">{score}</span>
+                            {/* Score Circle + Edit Button */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-6 h-6 sm:w-8 sm:h-8"
+                                onClick={() => openEditScoreModal(client)}
+                              >
+                                <Pencil className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
+                              </Button>
+                              <div className="relative w-11 h-11 sm:w-14 sm:h-14">
+                                <svg className="w-11 h-11 sm:w-14 sm:h-14 -rotate-90">
+                                  <circle
+                                    cx="50%"
+                                    cy="50%"
+                                    r="40%"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    className="text-muted"
+                                  />
+                                  <circle
+                                    cx="50%"
+                                    cy="50%"
+                                    r="40%"
+                                    strokeWidth="3"
+                                    fill="none"
+                                    strokeDasharray={`${(score / 150) * 100} 100`}
+                                    strokeLinecap="round"
+                                    className={getScoreRingColor(score)}
+                                    pathLength="100"
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                  <span className="text-xs sm:text-base font-bold">{score}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -510,7 +597,13 @@ export default function ClientScores() {
                           {/* Profit Section - responsive grid */}
                           {profit && profit.expectedProfit > 0 && (
                             <div className="mt-3 pt-3 border-t border-border/50">
-                              <div className={`grid gap-2 sm:gap-3 ${profit.extraProfit > 0 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                              {/* Histórico de empréstimos */}
+                              <div className="flex items-center gap-2 mb-2 text-[10px] text-muted-foreground">
+                                <History className="w-3 h-3" />
+                                <span>Histórico: {profit.paidLoansCount} quitados + {profit.activeLoansCount} ativos</span>
+                              </div>
+                              
+                              <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                                 <div className="bg-muted/30 rounded-lg p-2">
                                   <p className="text-[9px] sm:text-[10px] text-muted-foreground">Principal</p>
                                   <p className="text-xs sm:text-sm font-semibold truncate">
@@ -524,9 +617,19 @@ export default function ClientScores() {
                                   </p>
                                 </div>
                                 <div className="bg-emerald-500/10 rounded-lg p-2">
-                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro Realizado</p>
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3" /> Quitados ({profit.paidLoansCount})
+                                  </p>
                                   <p className="text-xs sm:text-sm font-semibold text-emerald-500 truncate">
-                                    {formatCurrency(profit.realizedProfit)}
+                                    {formatCurrency(profit.profitFromPaidLoans)}
+                                  </p>
+                                </div>
+                                <div className="bg-cyan-500/10 rounded-lg p-2">
+                                  <p className="text-[9px] sm:text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <Clock className="w-3 h-3" /> Ativos ({profit.activeLoansCount})
+                                  </p>
+                                  <p className="text-xs sm:text-sm font-semibold text-cyan-500 truncate">
+                                    {formatCurrency(profit.profitFromActiveLoans)}
                                   </p>
                                 </div>
                                 {profit.extraProfit > 0 && (
@@ -561,6 +664,68 @@ export default function ClientScores() {
             </Card>
           </>
         )}
+
+        {/* Modal de Edição de Score */}
+        <Dialog open={!!editingClient} onOpenChange={() => setEditingClient(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="w-5 h-5" />
+                Editar Score de {editingClient?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6 py-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Novo Score</Label>
+                  <Badge className={calculateScoreLabel(newScore).color}>
+                    {getScoreIcon(newScore)} {calculateScoreLabel(newScore).label}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground w-6">0</span>
+                  <Slider
+                    value={[newScore]}
+                    onValueChange={([v]) => setNewScore(v)}
+                    min={0}
+                    max={150}
+                    step={1}
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-muted-foreground w-8">150</span>
+                </div>
+                <div className="text-center">
+                  <span className="text-4xl font-bold">{newScore}</span>
+                  <span className="text-muted-foreground text-sm ml-1">pontos</span>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reason">Motivo da alteração (opcional)</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Ex: Cliente pagou dívida antiga fora do sistema, bom relacionamento, etc."
+                  value={scoreReason}
+                  onChange={(e) => setScoreReason(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  O motivo será salvo nas notas do cliente para referência futura.
+                </p>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingClient(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveScore}>
+                Salvar Score
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

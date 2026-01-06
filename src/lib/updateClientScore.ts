@@ -32,8 +32,11 @@ export async function updateClientScore(clientId: string): Promise<void> {
     // Calculate metrics
     let onTimePayments = 0;
     let latePayments = 0;
+    let criticalLatePayments = 0;
     let totalPaid = 0;
 
+    const now = new Date();
+    
     loans.forEach(loan => {
       totalPaid += loan.total_paid || 0;
       
@@ -41,20 +44,29 @@ export async function updateClientScore(clientId: string): Promise<void> {
         onTimePayments++;
       } else if (loan.status === 'overdue') {
         latePayments++;
+        // Verificar se é atraso crítico (>30 dias)
+        const dueDate = new Date(loan.due_date);
+        const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue > 30) {
+          criticalLatePayments++;
+        }
       }
     });
 
-    // Calculate score
+    // Calculate score - NOVAS PENALIDADES MAIS SEVERAS
     const totalPayments = onTimePayments + latePayments;
     let score = 100;
     
     if (totalPayments > 0) {
-      score = 100 + (onTimePayments * 2) - (latePayments * 10);
+      // +3 pontos por pagamento em dia (antes era +2)
+      // -20 pontos por atraso (antes era -10)
+      // -10 pontos adicional para atrasos críticos (+30 dias)
+      score = 100 + (onTimePayments * 3) - (latePayments * 20) - (criticalLatePayments * 10);
       
-      // Bonus for loyal customers with good history
+      // Bônus de fidelidade melhorado: +15 pontos (antes era +10)
       const onTimeRatio = onTimePayments / totalPayments;
       if (loans.length >= 3 && onTimeRatio >= 0.8) {
-        score += 10;
+        score += 15;
       }
     }
 
