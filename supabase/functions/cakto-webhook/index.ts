@@ -796,8 +796,8 @@ Recomendamos alterar sua senha após o primeiro acesso.
 
 Qualquer dúvida, estamos à disposição.`;
 
-      console.log('Sending welcome message via SuporteApp instance...');
-      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'SuporteApp');
+      console.log('Sending welcome message via acesso instance...');
+      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'acesso');
       
       if (messageSent) {
         console.log('=== WELCOME MESSAGE SENT SUCCESSFULLY ===');
