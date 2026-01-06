@@ -183,7 +183,7 @@ export function useClientDocuments(clientId: string | null) {
   // Função para upload de múltiplos arquivos com tracking
   const uploadMultipleDocuments = useCallback(async (files: File[], description?: string) => {
     console.log('[Upload] uploadMultipleDocuments iniciado, arquivos:', files.length);
-    
+
     // IMPORTANTE: Setar uploading ANTES de qualquer coisa
     setUploading(true);
     setTotalFiles(files.length);
@@ -191,21 +191,35 @@ export function useClientDocuments(clientId: string | null) {
     setUploadComplete(false);
     setCurrentFileName(files[0]?.name || '');
     setUploadProgress(5);
-    
+
+    let hadError = false;
+
     for (let i = 0; i < files.length; i++) {
       setCurrentFileName(files[i].name);
-      await uploadDocument(files[i], description, i, files.length);
+      const result = await uploadDocument(files[i], description, i, files.length);
       setCompletedFiles(i + 1);
+
+      if (result?.error) {
+        hadError = true;
+        console.error('[Upload] Falha ao enviar arquivo:', files[i].name, result.error);
+        toast.error('Falha ao enviar documento. Verifique sua permissão/sessão e tente novamente.');
+        break;
+      }
     }
-    
-    // Resetar uploading ao final de TODOS os uploads
+
+    // Sincronizar lista com o banco após upload
+    if (!hadError) {
+      await fetchDocuments();
+    }
+
+    // Resetar uploading ao final
     setUploading(false);
     setUploadProgress(0);
-    setUploadComplete(true);
+    setUploadComplete(!hadError);
     setTotalFiles(0);
     setCompletedFiles(0);
-    console.log('[Upload] uploadMultipleDocuments finalizado');
-  }, [uploadDocument]);
+    console.log('[Upload] uploadMultipleDocuments finalizado', { hadError });
+  }, [uploadDocument, fetchDocuments]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
     if (!user) return { error: new Error('Não autenticado') };
