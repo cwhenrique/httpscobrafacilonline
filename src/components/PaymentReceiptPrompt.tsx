@@ -111,7 +111,37 @@ const generateClientMessage = (data: PaymentReceiptData, installmentDates?: stri
   // Progress bar
   const filledBlocks = Math.round(progressPercent / 10);
   const emptyBlocks = 10 - filledBlocks;
-  message += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n\n`;
+  message += `📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
+  
+  // Status das parcelas com emojis (para mensagem do cliente)
+  if (installmentDates && installmentDates.length > 0) {
+    const actualPaidCount = paidCount ?? maxPaidInstallment;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    message += `\n📊 *STATUS DAS PARCELAS:*\n`;
+    installmentDates.forEach((dateStr, index) => {
+      const installmentNum = index + 1;
+      const dueDate = new Date(dateStr + 'T12:00:00');
+      
+      let emoji: string;
+      let status: string;
+      
+      if (installmentNum <= actualPaidCount) {
+        emoji = '✅';
+        status = 'Paga';
+      } else if (dueDate < today) {
+        emoji = '❌';
+        status = 'Em Atraso';
+      } else {
+        emoji = '⏳';
+        status = 'Em Aberto';
+      }
+      
+      message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+    });
+  }
+  message += `\n`;
   
   if (isFullyPaid) {
     message += `🎉 *CONTRATO QUITADO!*\n`;

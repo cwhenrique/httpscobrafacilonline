@@ -127,6 +127,18 @@ export default function LoanCreatedReceiptPrompt({
     
     message += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
     
+    // Status das parcelas com emojis
+    if (installmentDates && installmentDates.length > 0) {
+      message += `\n📊 *VENCIMENTOS:*\n`;
+      installmentDates.forEach((dateStr, index) => {
+        const installmentNum = index + 1;
+        message += `${installmentNum}️⃣ ⏳ ${formatDate(dateStr)} - Em Aberto\n`;
+      });
+      
+      // Barra de progresso (0% quando criado)
+      message += `\n📈 *Progresso:* ${'░'.repeat(10)} 0%\n`;
+    }
+    
     const signatureName = profile?.billing_signature_name || companyName;
     if (signatureName) {
       message += `\n━━━━━━━━━━━━━━━━\n`;

@@ -130,6 +130,51 @@ export default function SendDueTodayNotification({
     message += `💰 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n\n`;
     
+    // Opção de pagar só juros (com texto CORRETO)
+    if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
+      message += `💡 *Opções de Pagamento:*\n`;
+      message += `✅ Valor total: ${formatCurrency(data.amount)}\n`;
+      message += `⚠️ Só juros: ${formatCurrency(data.interestAmount)}\n`;
+      message += `   (Parcela de ${formatCurrency(data.amount)} será adicionada ao próximo mês)\n\n`;
+    }
+    
+    // Status das parcelas com emojis
+    if (data.installmentDates && data.installmentDates.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      message += `📊 *STATUS DAS PARCELAS:*\n`;
+      data.installmentDates.forEach((dateStr, index) => {
+        const installmentNum = index + 1;
+        const dueDate = new Date(dateStr + 'T12:00:00');
+        const isPaid = installmentNum <= (data.paidCount || 0);
+        
+        let emoji: string;
+        let status: string;
+        
+        if (isPaid) {
+          emoji = '✅';
+          status = 'Paga';
+        } else if (dueDate < today) {
+          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          emoji = '❌';
+          status = `Em Atraso (${daysOverdue}d)`;
+        } else {
+          emoji = '⏳';
+          status = 'Em Aberto';
+        }
+        
+        message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+      });
+      
+      // Barra de progresso
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || data.installmentDates.length;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+      const filledBlocks = Math.round(progressPercent / 10);
+      const emptyBlocks = 10 - filledBlocks;
+      message += `\n📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
+    }
     
     if (profile?.pix_key) {
       message += `━━━━━━━━━━━━━━━━\n`;
