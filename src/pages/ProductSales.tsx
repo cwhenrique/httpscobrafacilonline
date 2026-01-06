@@ -58,6 +58,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import MessagePreviewDialog from '@/components/MessagePreviewDialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -248,6 +249,7 @@ export default function ProductSales() {
   const [subscriptionPaymentDate, setSubscriptionPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<'all' | 'active' | 'pending' | 'overdue'>('all');
   const [isSendingCharge, setIsSendingCharge] = useState<Record<string, boolean>>({});
+  const [expandedSubscriptions, setExpandedSubscriptions] = useState<Record<string, boolean>>({});
   const [showChargePreview, setShowChargePreview] = useState(false);
   const [chargePreviewData, setChargePreviewData] = useState<{
     feeId: string;
@@ -810,6 +812,20 @@ export default function ProductSales() {
     );
     if (hasDueToday) return 'due_today';
     return 'pending';
+  };
+
+  // Toggle subscription card expand
+  const toggleSubscriptionExpand = (id: string) => {
+    setExpandedSubscriptions(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  // Get active months count for a subscription
+  const getActiveMonths = (feeId: string): number => {
+    const payments = feePayments?.filter(p => p.monthly_fee_id === feeId && p.status === 'paid') || [];
+    return payments.length;
   };
 
   // Filtered data
@@ -2004,8 +2020,56 @@ export default function ProductSales() {
                             {status === 'overdue' && <Badge variant="destructive">Atrasado</Badge>}
                             {status === 'due_today' && <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">Vence Hoje</Badge>}
                             {status === 'paid' && <Badge className="bg-primary/20 text-primary border-primary/30">Pago</Badge>}
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0"
+                              onClick={() => toggleSubscriptionExpand(fee.id)}
+                            >
+                              {expandedSubscriptions[fee.id] ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </Button>
                           </div>
                         </div>
+
+                        {/* Expandable Client Details */}
+                        <Collapsible open={expandedSubscriptions[fee.id]}>
+                          <CollapsibleContent>
+                            <div className="p-3 rounded-lg bg-muted/30 border space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <User className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Cliente:</span>
+                                <span className="font-medium">{fee.client?.full_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Telefone:</span>
+                                <span className="font-medium">
+                                  {fee.client?.phone 
+                                    ? fee.client.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
+                                    : 'Não cadastrado'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Meses ativos:</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {getActiveMonths(fee.id)} {getActiveMonths(fee.id) === 1 ? 'mês' : 'meses'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Clock className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">Desde:</span>
+                                <span className="font-medium">
+                                  {format(parseISO(fee.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                                </span>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
 
                         {/* Info Grid */}
                         <div className="grid grid-cols-3 gap-3 text-sm">
