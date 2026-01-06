@@ -399,11 +399,38 @@ export function useMonthlyFeePayments(feeId?: string) {
     return payment.amount + interest;
   };
 
+  // Update payment (due date, amount)
+  const updatePayment = useMutation({
+    mutationFn: async ({ 
+      paymentId, 
+      data 
+    }: { 
+      paymentId: string; 
+      data: { due_date?: string; amount?: number } 
+    }) => {
+      const { error } = await supabase
+        .from('monthly_fee_payments')
+        .update(data)
+        .eq('id', paymentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['monthly-fee-payments'] });
+      toast.success('Pagamento atualizado!');
+    },
+    onError: (error: Error) => {
+      console.error('Error updating payment:', error);
+      toast.error('Erro ao atualizar pagamento');
+    },
+  });
+
   return {
     payments,
     isLoading,
     markAsPaid,
     deletePayment,
+    updatePayment,
     calculateWithInterest,
   };
 }

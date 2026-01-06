@@ -13,7 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +43,7 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -180,7 +183,7 @@ export default function ProductSales() {
   
   // Monthly Fees (Subscriptions) hooks
   const { fees: monthlyFees, isLoading: feesLoading, createFee, updateFee, deleteFee, toggleActive, generatePayment } = useMonthlyFees();
-  const { payments: feePayments, isLoading: feePaymentsLoading, markAsPaid: markFeePaymentAsPaid, calculateWithInterest } = useMonthlyFeePayments();
+  const { payments: feePayments, isLoading: feePaymentsLoading, markAsPaid: markFeePaymentAsPaid, calculateWithInterest, updatePayment: updateFeePayment } = useMonthlyFeePayments();
   const { clients } = useClients();
   
   const { profile } = useProfile();
@@ -257,6 +260,18 @@ export default function ProductSales() {
     clientPhone: string;
     message: string;
   } | null>(null);
+  
+  // Subscription edit states
+  const [editingSubscriptionDueDateId, setEditingSubscriptionDueDateId] = useState<string | null>(null);
+  const [newSubscriptionDueDate, setNewSubscriptionDueDate] = useState<Date | undefined>(undefined);
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
+  const [editSubscriptionForm, setEditSubscriptionForm] = useState({
+    amount: 0,
+    description: '',
+    interest_rate: 0,
+    due_day: 10,
+  });
+  const [historyDialogFee, setHistoryDialogFee] = useState<MonthlyFee | null>(null);
   const { user } = useAuth();
 
   // Receipt preview states
@@ -2038,7 +2053,7 @@ export default function ProductSales() {
                         {/* Expandable Client Details */}
                         <Collapsible open={expandedSubscriptions[fee.id]}>
                           <CollapsibleContent>
-                            <div className="p-3 rounded-lg bg-muted/30 border space-y-2">
+                            <div className="p-3 rounded-lg bg-muted/30 border space-y-3">
                               <div className="flex items-center gap-2 text-sm">
                                 <User className="w-4 h-4 text-muted-foreground" />
                                 <span className="text-muted-foreground">Cliente:</span>
@@ -2066,6 +2081,94 @@ export default function ProductSales() {
                                 <span className="font-medium">
                                   {format(parseISO(fee.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                                 </span>
+                              </div>
+                              
+                              <Separator className="my-2" />
+                              
+                              {/* Ações de Gerenciamento */}
+                              <div className="flex flex-wrap gap-2">
+                                {/* Botão Editar Data de Vencimento */}
+                                {currentPayment && currentPayment.status !== 'paid' && (
+                                  <Popover
+                                    open={editingSubscriptionDueDateId === currentPayment.id}
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        setEditingSubscriptionDueDateId(currentPayment.id);
+                                        setNewSubscriptionDueDate(parseISO(currentPayment.due_date));
+                                      } else {
+                                        setEditingSubscriptionDueDateId(null);
+                                      }
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                                        <Calendar className="w-3 h-3" />
+                                        Alterar Vencimento
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-3">
+                                      <CalendarComponent
+                                        mode="single"
+                                        selected={newSubscriptionDueDate}
+                                        onSelect={setNewSubscriptionDueDate}
+                                        locale={ptBR}
+                                      />
+                                      <div className="flex gap-2 mt-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={async () => {
+                                            if (newSubscriptionDueDate && currentPayment) {
+                                              await updateFeePayment.mutateAsync({
+                                                paymentId: currentPayment.id,
+                                                data: { due_date: format(newSubscriptionDueDate, 'yyyy-MM-dd') }
+                                              });
+                                              setEditingSubscriptionDueDateId(null);
+                                            }
+                                          }}
+                                        >
+                                          Salvar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => setEditingSubscriptionDueDateId(null)}
+                                        >
+                                          Cancelar
+                                        </Button>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                                
+                                {/* Botão Ver Histórico */}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 gap-1 text-xs"
+                                  onClick={() => setHistoryDialogFee(fee)}
+                                >
+                                  <History className="w-3 h-3" />
+                                  Histórico
+                                </Button>
+                                
+                                {/* Botão Editar Assinatura */}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 gap-1 text-xs"
+                                  onClick={() => {
+                                    setEditingSubscriptionId(fee.id);
+                                    setEditSubscriptionForm({
+                                      amount: fee.amount,
+                                      description: fee.description || 'IPTV',
+                                      interest_rate: fee.interest_rate || 0,
+                                      due_day: fee.due_day,
+                                    });
+                                  }}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  Editar Valor
+                                </Button>
                               </div>
                             </div>
                           </CollapsibleContent>
@@ -2690,6 +2793,143 @@ export default function ProductSales() {
           }}
           isSending={chargePreviewData ? isSendingCharge[chargePreviewData.feeId] : false}
         />
+
+        {/* Subscription History Dialog */}
+        <Dialog open={!!historyDialogFee} onOpenChange={(open) => !open && setHistoryDialogFee(null)}>
+          <DialogContent className="max-w-md max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Histórico de Pagamentos</DialogTitle>
+              <DialogDescription>
+                {historyDialogFee?.client?.full_name} - {historyDialogFee?.description}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2">
+                {feePayments
+                  .filter(p => p.monthly_fee_id === historyDialogFee?.id)
+                  .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+                  .map(payment => (
+                    <div 
+                      key={payment.id}
+                      className={cn(
+                        "p-3 rounded-lg border flex items-center justify-between",
+                        payment.status === 'paid' && "bg-green-500/10 border-green-500/30",
+                        payment.status !== 'paid' && isPast(parseISO(payment.due_date)) && "bg-destructive/10 border-destructive/30"
+                      )}
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {format(parseISO(payment.reference_month), 'MMMM/yyyy', { locale: ptBR })}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Venc: {format(parseISO(payment.due_date), 'dd/MM/yyyy')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">{formatCurrency(payment.amount)}</p>
+                        <Badge 
+                          variant={payment.status === 'paid' ? 'default' : 'destructive'}
+                          className={payment.status === 'paid' ? 'bg-green-500' : ''}
+                        >
+                          {payment.status === 'paid' ? 'Pago' : 'Pendente'}
+                        </Badge>
+                        {payment.payment_date && (
+                          <p className="text-xs text-muted-foreground">
+                            Pago em {format(parseISO(payment.payment_date), 'dd/MM')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                {feePayments.filter(p => p.monthly_fee_id === historyDialogFee?.id).length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum pagamento registrado.</p>
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Subscription Dialog */}
+        <Dialog 
+          open={!!editingSubscriptionId} 
+          onOpenChange={(open) => !open && setEditingSubscriptionId(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Assinatura</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  value={editSubscriptionForm.description}
+                  onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Ex: IPTV Premium"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Valor Mensal (R$)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editSubscriptionForm.amount || ''}
+                  onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Dia de Vencimento</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={editSubscriptionForm.due_day}
+                  onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, due_day: parseInt(e.target.value) || 10 }))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Taxa de Multa (%)
+                  {editSubscriptionForm.interest_rate === 0 && (
+                    <Badge variant="outline" className="text-xs">Sem multa</Badge>
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={editSubscriptionForm.interest_rate || ''}
+                  onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, interest_rate: parseFloat(e.target.value) || 0 }))}
+                  placeholder="0.0 = sem multa"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingSubscriptionId(null)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={async () => {
+                  if (editingSubscriptionId) {
+                    await updateFee.mutateAsync({
+                      id: editingSubscriptionId,
+                      data: editSubscriptionForm,
+                    });
+                    setEditingSubscriptionId(null);
+                  }
+                }}
+              >
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
