@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
 
 
 interface PaymentReceiptPromptProps {
@@ -208,6 +209,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const [showSpamWarning, setShowSpamWarning] = useState(false);
   const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
   const [showPreviewForClient, setShowPreviewForClient] = useState(false);
+  const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -217,6 +219,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const handleSendToSelfClick = () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
+      return;
+    }
+    // Check if user has WhatsApp connected
+    if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
+      setShowWhatsAppNotConnected(true);
       return;
     }
     setShowPreviewForSelf(true);
@@ -268,9 +275,9 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         throw pendingError;
       }
 
-      // 2. Send only the warning message
-      const { data: result, error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { phone: profile.phone, message: warningMessage },
+      // 2. Send only the warning message via user's own WhatsApp
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
+        body: { userId: user.id, message: warningMessage },
       });
       
       if (error) throw error;
@@ -278,6 +285,15 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       if (result?.success) {
         toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
         setShowPreviewForSelf(false);
+      } else if (result?.error === 'whatsapp_not_connected') {
+        // WhatsApp not connected - show dialog
+        await supabase
+          .from('pending_messages')
+          .delete()
+          .eq('contract_id', data.contractId)
+          .eq('client_phone', profile.phone)
+          .eq('status', 'pending');
+        setShowWhatsAppNotConnected(true);
       } else {
         // If sending failed, remove the pending message
         await supabase
@@ -508,6 +524,12 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
         isSending={isSendingToClient}
+      />
+
+      {/* WhatsApp not connected dialog */}
+      <WhatsAppNotConnectedDialog
+        open={showWhatsAppNotConnected}
+        onOpenChange={setShowWhatsAppNotConnected}
       />
     </>
   );
