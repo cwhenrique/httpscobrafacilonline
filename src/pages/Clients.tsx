@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,7 +117,6 @@ export default function Clients() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -397,22 +396,18 @@ export default function Clients() {
                         {avatarPreview || editingClient?.avatar_url ? 'Foto personalizada' : 'Avatar gerado automaticamente'}
                       </p>
                       <input
-                        ref={avatarInputRef}
+                        id="avatar-upload"
                         type="file"
                         accept="image/*"
                         onChange={handleAvatarSelect}
-                        className="hidden"
+                        className="sr-only"
                       />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        className="gap-2"
-                        onClick={() => avatarInputRef.current?.click()}
-                      >
-                        <Camera className="w-4 h-4" />
-                        {avatarPreview || editingClient?.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
-                      </Button>
+                      <label htmlFor="avatar-upload">
+                        <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+                          <Camera className="w-4 h-4" />
+                          {avatarPreview || editingClient?.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
+                        </span>
+                      </label>
                       <p className="text-xs text-muted-foreground">
                         A foto será enviada ao salvar o cliente
                       </p>
