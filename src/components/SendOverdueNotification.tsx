@@ -194,11 +194,6 @@ export default function SendOverdueNotification({
         message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n\n`;
       }
       
-      if (data.interestAmount && data.interestAmount > 0 && !data.isDaily && data.principalAmount && data.principalAmount > 0) {
-        const interestPlusPenalty = data.interestAmount + effectivePenalty;
-        message += `💡 *Opção só juros:* ${formatCurrency(interestPlusPenalty)}\n`;
-        message += `   (Principal de ${formatCurrency(data.principalAmount)} fica para próximo mês)\n`;
-      }
     }
     
     if (profile?.pix_key) {
