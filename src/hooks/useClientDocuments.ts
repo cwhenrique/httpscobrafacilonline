@@ -45,21 +45,22 @@ export function useClientDocuments(clientId: string | null) {
     setLoading(true);
     setLastFetchError(null);
 
-    const { data, error } = await supabase
-      .from('client_documents')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.functions.invoke('list-client-documents', {
+      body: { clientId },
+    });
 
     if (error) {
-      console.error('[Docs] Error fetching documents:', error);
-      setLastFetchError(error.message || 'Erro ao buscar documentos');
-      toast.error(`Erro ao buscar documentos: ${error.message}`);
-    } else {
-      console.log('[Docs] Documentos carregados:', data?.length);
-      setDocuments((data as ClientDocument[]) || []);
+      console.error('[Docs] Error fetching documents (function):', error);
+      const msg = (error as any)?.message || 'Erro ao buscar documentos';
+      setLastFetchError(msg);
+      toast.error(`Erro ao buscar documentos: ${msg}`);
+      setDocuments([]);
+      setLoading(false);
+      return;
     }
 
+    const docs = (data as any)?.documents as ClientDocument[] | undefined;
+    setDocuments(docs || []);
     setLoading(false);
   }, [user, clientId, employeeLoading]);
 
@@ -221,23 +222,11 @@ export function useClientDocuments(clientId: string | null) {
     setCompletedFiles(0);
     console.log('[Upload] uploadMultipleDocuments finalizado', { hadError });
 
-    // Sincronizar lista com o banco após upload (com pequeno delay para garantir consistência)
-    if (!hadError && clientId) {
-      setTimeout(async () => {
-        console.log('[Upload] Re-fetching documents após upload...');
-        const { data, error } = await supabase
-          .from('client_documents')
-          .select('*')
-          .eq('client_id', clientId)
-          .order('created_at', { ascending: false });
-        
-        if (!error && data) {
-          console.log('[Upload] Documentos atualizados:', data.length);
-          setDocuments(data as ClientDocument[]);
-        }
-      }, 500);
+    // Sincronizar lista com o backend após upload
+    if (!hadError) {
+      await fetchDocuments();
     }
-  }, [uploadDocument, clientId]);
+  }, [uploadDocument, clientId, fetchDocuments]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
     if (!user) return { error: new Error('Não autenticado') };
