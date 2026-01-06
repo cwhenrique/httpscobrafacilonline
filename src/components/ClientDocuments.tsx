@@ -23,7 +23,7 @@ interface ClientDocumentsProps {
   clientId: string;
   clientName: string;
   useExternalInput?: boolean; // Se true, usa label apontando para input externo (fix iOS PWA)
-  pendingFiles?: FileList | null; // Arquivos selecionados do input externo
+  pendingFiles?: File[] | null; // Arquivos selecionados do input externo (Array, não FileList)
   onPendingFilesProcessed?: () => void; // Callback após processar arquivos
 }
 

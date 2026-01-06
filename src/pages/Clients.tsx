@@ -119,7 +119,8 @@ export default function Clients() {
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
   
   // State para arquivos pendentes de documentos (fix iOS PWA)
-  const [pendingDocFiles, setPendingDocFiles] = useState<FileList | null>(null);
+  // Usar File[] ao invés de FileList porque FileList é invalidado quando o input é resetado
+  const [pendingDocFiles, setPendingDocFiles] = useState<File[] | null>(null);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -350,9 +351,13 @@ export default function Clients() {
     }
     
     if (files && files.length > 0) {
-      toast.info(`${files.length} arquivo(s) selecionado(s)`);
+      // CRÍTICO: Converter FileList para Array ANTES de resetar o input
+      // FileList é invalidado quando o input é resetado
+      const filesArray = Array.from(files);
+      console.log('[Docs] Converted to array:', filesArray.length);
+      toast.info(`${filesArray.length} arquivo(s) selecionado(s)`);
+      setPendingDocFiles(filesArray);
     }
-    setPendingDocFiles(files);
     // Reset para permitir selecionar mesmo arquivo novamente
     e.target.value = '';
   };
