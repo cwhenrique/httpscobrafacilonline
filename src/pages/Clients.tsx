@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,6 +117,7 @@ export default function Clients() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -198,6 +199,7 @@ export default function Clients() {
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log('[Avatar] File selected:', file?.name);
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -212,6 +214,12 @@ export default function Clients() {
 
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+    toast.success('Foto selecionada! Será enviada ao salvar.');
+    
+    // Clear input to allow selecting the same file again
+    if (e.target) {
+      e.target.value = '';
+    }
   };
 
   const submitClient = async () => {
@@ -388,20 +396,26 @@ export default function Clients() {
                       <p className="text-xs text-muted-foreground text-center">
                         {avatarPreview || editingClient?.avatar_url ? 'Foto personalizada' : 'Avatar gerado automaticamente'}
                       </p>
-                      <label className="cursor-pointer">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleAvatarSelect}
-                          className="hidden"
-                        />
-                        <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
-                          <span>
-                            <Camera className="w-4 h-4" />
-                            {avatarPreview || editingClient?.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
-                          </span>
-                        </Button>
-                      </label>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarSelect}
+                        className="hidden"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <Camera className="w-4 h-4" />
+                        {avatarPreview || editingClient?.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        A foto será enviada ao salvar o cliente
+                      </p>
                     </div>
 
                     {/* Basic Info */}

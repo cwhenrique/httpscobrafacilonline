@@ -85,35 +85,43 @@ export function useClients() {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${clientId}-${Date.now()}.${fileExt}`;
-      const filePath = `${clientId}/${fileName}`;
+      // Use simpler path: clientId.ext (consistent with other uploads)
+      const filePath = `${clientId}.${fileExt}`;
 
-      console.log('Uploading avatar to path:', filePath);
+      console.log('[Avatar] Uploading to path:', filePath);
 
       const { error: uploadError } = await supabase.storage
         .from('client-avatars')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        throw uploadError;
+        console.error('[Avatar] Storage upload error:', uploadError);
+        toast.error('Erro ao enviar foto: ' + uploadError.message);
+        return { error: uploadError };
       }
 
       const { data: { publicUrl } } = supabase.storage
         .from('client-avatars')
         .getPublicUrl(filePath);
 
+      console.log('[Avatar] Public URL:', publicUrl);
+
       const { error: updateError } = await supabase
         .from('clients')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: publicUrl + '?v=' + Date.now() }) // Cache bust
         .eq('id', clientId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('[Avatar] DB update error:', updateError);
+        toast.error('Erro ao salvar foto no cliente');
+        return { error: updateError };
+      }
 
+      toast.success('Foto enviada com sucesso!');
       await fetchClients();
       return { url: publicUrl };
     } catch (error) {
-      console.error('Error uploading avatar:', error);
+      console.error('[Avatar] Error uploading:', error);
       toast.error('Erro ao enviar foto: ' + (error as Error).message);
       return { error };
     }
