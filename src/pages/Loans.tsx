@@ -10191,7 +10191,7 @@ export default function Loans() {
                           const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
                           
                           // Só mostra para pagamentos parciais (amortização) que reduzem o saldo devedor
-                          if (!isPartialAmount || paymentData.is_advance_payment) return null;
+                          if (!isPartialAmount) return null;
                           
                           // Calcular novo saldo e novos juros
                           const originalPrincipal = selectedLoan?.principal_amount || 0;
@@ -10295,13 +10295,11 @@ export default function Loans() {
                           const paymentDateObj = new Date(paymentData.payment_date + 'T12:00:00');
                           const installmentDueDate = dates[selectedPartialIndex ?? 0];
                           const dueDateObj = installmentDueDate ? new Date(installmentDueDate + 'T12:00:00') : null;
-                          const isBeforeDueDate = dueDateObj ? paymentDateObj < dueDateObj : false;
                           const paidAmount = parseFloat(paymentData.amount) || 0;
                           const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
-                          const showAdvanceOption = isBeforeDueDate && isPartialAmount;
                           const remainderAmount = selectedStatus.remaining - paidAmount;
                           
-                          if (!showAdvanceOption) return null;
+                          if (!isPartialAmount) return null;
                           
                           return (
                             <>
