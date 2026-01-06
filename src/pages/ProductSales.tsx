@@ -62,6 +62,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import MessagePreviewDialog from '@/components/MessagePreviewDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import IPTVDashboard from '@/components/iptv/IPTVDashboard';
+import IPTVPlanManager from '@/components/iptv/IPTVPlanManager';
+import IPTVSubscriptionForm from '@/components/iptv/IPTVSubscriptionForm';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -1759,61 +1762,8 @@ export default function ProductSales() {
 
           {/* ASSINATURAS TAB */}
           <TabsContent value="subscriptions" className="mt-4 space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <Tv className="w-4 h-4 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{subscriptionStats.active}</p>
-                      <p className="text-xs text-muted-foreground">Ativas</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <DollarSign className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-blue-500 truncate">{formatCurrency(subscriptionStats.mrr)}</p>
-                      <p className="text-xs text-muted-foreground">Mensal</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-yellow-500" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-yellow-500">{subscriptionStats.pending}</p>
-                      <p className="text-xs text-muted-foreground">Pendentes</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
-                      <AlertTriangle className="w-4 h-4 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-destructive">{subscriptionStats.overdue}</p>
-                      <p className="text-xs text-muted-foreground">Atrasados</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            {/* IPTV Dashboard */}
+            <IPTVDashboard fees={monthlyFees} payments={feePayments} />
 
             {/* Search and Actions */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1826,107 +1776,26 @@ export default function ProductSales() {
                   className="pl-9" 
                 />
               </div>
-              <Dialog open={isSubscriptionOpen} onOpenChange={setIsSubscriptionOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Nova Assinatura
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Nova Assinatura</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Cliente *</Label>
-                      <Select
-                        value={subscriptionForm.client_id}
-                        onValueChange={(value) => setSubscriptionForm({ ...subscriptionForm, client_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clients?.map((client) => (
-                            <SelectItem key={client.id} value={client.id}>
-                              {client.full_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Descrição *</Label>
-                      <Input
-                        value={subscriptionForm.description}
-                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, description: e.target.value })}
-                        placeholder="Ex: IPTV Premium, Streaming HD..."
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Valor Mensal (R$) *</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={subscriptionForm.amount || ''}
-                          onChange={(e) => setSubscriptionForm({ ...subscriptionForm, amount: parseFloat(e.target.value) || 0 })}
-                          placeholder="50,00"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Dia Vencimento</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={subscriptionForm.due_day}
-                          onChange={(e) => setSubscriptionForm({ ...subscriptionForm, due_day: parseInt(e.target.value) || 10 })}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        Taxa de Multa por Atraso (%)
-                        {(subscriptionForm.interest_rate || 0) === 0 && (
-                          <Badge variant="outline" className="text-xs font-normal">Sem multa</Badge>
-                        )}
-                      </Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={subscriptionForm.interest_rate || ''}
-                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, interest_rate: parseFloat(e.target.value) || 0 })}
-                        placeholder="0.0 = sem multa"
-                      />
-                      <p className="text-xs text-muted-foreground">Deixe 0 para não cobrar multa. Valor aplicado mensalmente em atraso.</p>
-                    </div>
-                    <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-                      <input
-                        type="checkbox"
-                        id="generate_current_month"
-                        checked={subscriptionForm.generate_current_month}
-                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, generate_current_month: e.target.checked })}
-                        className="rounded border-input"
-                      />
-                      <label htmlFor="generate_current_month" className="text-sm cursor-pointer">
-                        Gerar cobrança do mês atual automaticamente
-                      </label>
-                    </div>
-                    <Button
-                      onClick={handleCreateSubscription}
-                      disabled={!subscriptionForm.client_id || !subscriptionForm.amount || createFee.isPending}
-                      className="w-full"
-                    >
-                      {createFee.isPending ? 'Salvando...' : 'Cadastrar Assinatura'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <div className="flex gap-2">
+                <IPTVPlanManager />
+                <Button className="gap-2" onClick={() => setIsSubscriptionOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Nova Assinatura
+                </Button>
+              </div>
             </div>
+
+            {/* IPTV Subscription Form */}
+            <IPTVSubscriptionForm
+              isOpen={isSubscriptionOpen}
+              onOpenChange={setIsSubscriptionOpen}
+              clients={clients || []}
+              onSubmit={async (data) => {
+                await createFee.mutateAsync(data);
+                setIsSubscriptionOpen(false);
+              }}
+              isPending={createFee.isPending}
+            />
 
             {/* Status Filters */}
             <div className="flex gap-2 flex-wrap">
