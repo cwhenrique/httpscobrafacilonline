@@ -91,6 +91,19 @@ export function useClientDocuments(clientId: string | null) {
       return { error: new Error('effectiveUserId não disponível') };
     }
 
+    // Verificar se o cliente existe no banco antes de fazer upload
+    const { data: clientExists, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError || !clientExists) {
+      console.error('[Upload] ERRO: Cliente não encontrado no banco:', clientId, clientError);
+      toast.error('Cliente não encontrado. Salve o cliente primeiro.');
+      return { error: new Error('Cliente não existe no banco de dados') };
+    }
+
     // Não setar uploading aqui - é controlado por uploadMultipleDocuments
     setCurrentFileName(file.name);
     setUploadProgress(10);
@@ -145,7 +158,12 @@ export function useClientDocuments(clientId: string | null) {
 
     if (dbError) {
       console.error('[Upload] DB error:', dbError.message, dbError);
-      toast.error(`Erro ao salvar: ${dbError.message}`);
+      
+      // Tentar remover arquivo órfão do storage
+      console.log('[Upload] Removendo arquivo órfão do storage:', filePath);
+      await supabase.storage.from('client-documents').remove([filePath]);
+      
+      toast.error(`Erro ao salvar documento: ${dbError.message}`);
       setUploadProgress(0);
       return { error: dbError };
     }
