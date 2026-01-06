@@ -40,7 +40,7 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2 } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -239,7 +239,7 @@ export default function ProductSales() {
     amount: 0,
     description: 'IPTV',
     due_day: 10,
-    interest_rate: 1,
+    interest_rate: 0,
     generate_current_month: true,
   });
   const [deleteSubscriptionId, setDeleteSubscriptionId] = useState<string | null>(null);
@@ -1857,16 +1857,21 @@ export default function ProductSales() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Taxa de Juros por Atraso (%)</Label>
+                      <Label className="flex items-center gap-2">
+                        Taxa de Multa por Atraso (%)
+                        {(subscriptionForm.interest_rate || 0) === 0 && (
+                          <Badge variant="outline" className="text-xs font-normal">Sem multa</Badge>
+                        )}
+                      </Label>
                       <Input
                         type="number"
                         min="0"
                         step="0.1"
                         value={subscriptionForm.interest_rate || ''}
                         onChange={(e) => setSubscriptionForm({ ...subscriptionForm, interest_rate: parseFloat(e.target.value) || 0 })}
-                        placeholder="1,0"
+                        placeholder="0.0 = sem multa"
                       />
-                      <p className="text-xs text-muted-foreground">Juros mensais aplicados em caso de atraso</p>
+                      <p className="text-xs text-muted-foreground">Deixe 0 para não cobrar multa. Valor aplicado mensalmente em atraso.</p>
                     </div>
                     <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
                       <input
@@ -1948,13 +1953,36 @@ export default function ProductSales() {
                     <Card 
                       key={fee.id}
                       className={cn(
-                        "transition-all",
+                        "transition-all hover:shadow-md relative",
                         !fee.is_active && "opacity-60",
-                        status === 'overdue' && "bg-destructive/5 border-destructive/40",
-                        status === 'due_today' && "bg-yellow-500/5 border-yellow-500/40",
-                        status === 'paid' && "bg-primary/5 border-primary/40"
+                        status === 'overdue' && "bg-destructive/10 border-destructive/50",
+                        status === 'due_today' && "bg-yellow-500/10 border-yellow-500/50",
+                        status === 'paid' && "bg-green-500/10 border-green-500/40",
+                        status === 'pending' && "bg-muted/20"
                       )}
                     >
+                      {/* Alert Icons */}
+                      {status === 'overdue' && (
+                        <div className="absolute -top-2 -right-2 animate-pulse z-10">
+                          <div className="bg-destructive text-destructive-foreground rounded-full p-1.5 shadow-lg">
+                            <AlertTriangle className="w-4 h-4" />
+                          </div>
+                        </div>
+                      )}
+                      {status === 'due_today' && (
+                        <div className="absolute -top-2 -right-2 animate-pulse z-10">
+                          <div className="bg-yellow-500 text-white rounded-full p-1.5 shadow-lg">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                        </div>
+                      )}
+                      {status === 'paid' && (
+                        <div className="absolute -top-2 -right-2 z-10">
+                          <div className="bg-green-500 text-white rounded-full p-1.5 shadow-lg">
+                            <CheckCircle className="w-4 h-4" />
+                          </div>
+                        </div>
+                      )}
                       <CardContent className="p-4 space-y-4">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-3">
@@ -1994,8 +2022,13 @@ export default function ProductSales() {
                             </p>
                           </div>
                           <div className="p-2 rounded-lg bg-muted/50">
-                            <p className="text-xs text-muted-foreground">Juros/mês</p>
-                            <p className="font-semibold">{(fee.interest_rate || 0).toFixed(1)}%</p>
+                            <p className="text-xs text-muted-foreground">Multa/mês</p>
+                            <p className={cn(
+                              "font-semibold",
+                              (fee.interest_rate || 0) === 0 && "text-muted-foreground"
+                            )}>
+                              {(fee.interest_rate || 0) === 0 ? 'Sem multa' : `${(fee.interest_rate || 0).toFixed(1)}%`}
+                            </p>
                           </div>
                         </div>
 
