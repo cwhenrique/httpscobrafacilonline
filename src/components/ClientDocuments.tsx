@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,6 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
   const { loading: contextLoading } = useEmployeeContext();
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isUploadDisabled = uploading || contextLoading;
 
@@ -41,9 +40,8 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
     }
     
     setDescription('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Reset input to allow selecting the same file again
+    e.target.value = '';
   };
 
   const handleDownload = async (filePath: string, fileName: string) => {
@@ -87,28 +85,26 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
         
         <div className="flex items-center gap-2">
           <input
-            ref={fileInputRef}
+            id="doc-upload-input"
             type="file"
             multiple
             onChange={handleFileSelect}
-            className="hidden"
-            id="doc-upload"
+            className="sr-only"
             accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
           />
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 flex-1"
-            disabled={isUploadDisabled}
-            onClick={() => fileInputRef.current?.click()}
+          <label 
+            htmlFor="doc-upload-input" 
+            className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
-            {isUploadDisabled ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-          </Button>
+            <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+              {isUploadDisabled ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+            </span>
+          </label>
         </div>
         <p className="text-xs text-muted-foreground">
           Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
