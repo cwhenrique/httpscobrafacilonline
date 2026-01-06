@@ -155,8 +155,8 @@ export function useClientDocuments(clientId: string | null) {
     setUploadProgress(100);
     console.log('[Upload] Sucesso! Documento salvo:', data);
     
-    // Chamar fetchDocuments que agora é estável
-    await fetchDocuments();
+    // Atualização otimista: adicionar documento diretamente ao state
+    setDocuments(prev => [data as ClientDocument, ...prev]);
     
     // Pequeno delay para mostrar 100%
     await new Promise(resolve => setTimeout(resolve, 300));
