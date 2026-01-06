@@ -63,14 +63,18 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
     if (pendingFiles && pendingFiles.length > 0 && !contextLoading) {
       console.log('[Docs] Context ready, processing pending files:', pendingFiles.length);
       
+      // Capturar description no momento da execução para evitar re-run
+      const descAtMoment = description;
+      
       const processAll = async () => {
-        await uploadMultipleDocuments(pendingFiles, description || undefined);
+        await uploadMultipleDocuments(pendingFiles, descAtMoment || undefined);
         setDescription('');
         onPendingFilesProcessed?.();
       };
       processAll();
     }
-  }, [pendingFiles, contextLoading, uploadMultipleDocuments, description, onPendingFilesProcessed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFiles, contextLoading]);
 
   const handleDownload = async (filePath: string, fileName: string) => {
     await downloadDocument(filePath, fileName);

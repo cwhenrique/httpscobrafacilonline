@@ -91,7 +91,7 @@ export function useClientDocuments(clientId: string | null) {
       return { error: new Error('effectiveUserId não disponível') };
     }
 
-    setUploading(true);
+    // Não setar uploading aqui - é controlado por uploadMultipleDocuments
     setCurrentFileName(file.name);
     setUploadProgress(10);
     
@@ -122,7 +122,6 @@ export function useClientDocuments(clientId: string | null) {
     if (uploadError) {
       console.error('[Upload] Storage error:', uploadError.message, uploadError);
       toast.error(`Erro no upload: ${uploadError.message}`);
-      setUploading(false);
       setUploadProgress(0);
       return { error: uploadError };
     }
@@ -147,7 +146,6 @@ export function useClientDocuments(clientId: string | null) {
     if (dbError) {
       console.error('[Upload] DB error:', dbError.message, dbError);
       toast.error(`Erro ao salvar: ${dbError.message}`);
-      setUploading(false);
       setUploadProgress(0);
       return { error: dbError };
     }
@@ -161,25 +159,34 @@ export function useClientDocuments(clientId: string | null) {
     // Pequeno delay para mostrar 100%
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    setUploading(false);
-    setUploadProgress(0);
     return { data: data as ClientDocument };
-  }, [user, clientId, effectiveUserId, employeeLoading, fetchDocuments]);
+  }, [user, clientId, effectiveUserId, employeeLoading]);
   
   // Função para upload de múltiplos arquivos com tracking
   const uploadMultipleDocuments = useCallback(async (files: File[], description?: string) => {
+    console.log('[Upload] uploadMultipleDocuments iniciado, arquivos:', files.length);
+    
+    // IMPORTANTE: Setar uploading ANTES de qualquer coisa
+    setUploading(true);
     setTotalFiles(files.length);
     setCompletedFiles(0);
     setUploadComplete(false);
+    setCurrentFileName(files[0]?.name || '');
+    setUploadProgress(5);
     
     for (let i = 0; i < files.length; i++) {
+      setCurrentFileName(files[i].name);
       await uploadDocument(files[i], description, i, files.length);
       setCompletedFiles(i + 1);
     }
     
+    // Resetar uploading ao final de TODOS os uploads
+    setUploading(false);
+    setUploadProgress(0);
     setUploadComplete(true);
     setTotalFiles(0);
     setCompletedFiles(0);
+    console.log('[Upload] uploadMultipleDocuments finalizado');
   }, [uploadDocument]);
 
   const deleteDocument = async (documentId: string, filePath: string) => {
