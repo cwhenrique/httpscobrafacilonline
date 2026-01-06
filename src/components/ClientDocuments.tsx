@@ -135,23 +135,12 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
               </span>
             </label>
           ) : (
-            // Desktop/normal: usar button com .click() no input (mais compatível)
-            <>
-              <input
-                ref={internalInputRef}
-                id="doc-upload-input"
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="sr-only"
-                accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-              />
+            // Desktop/normal: input real por cima (mais compatível em modal/iframe)
+            <div className={`relative flex-1 ${isUploadDisabled ? 'opacity-50' : ''}`}>
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1 gap-2"
-                disabled={isUploadDisabled}
-                onClick={() => internalInputRef.current?.click()}
+                className="w-full gap-2 pointer-events-none"
               >
                 {isUploadDisabled ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -160,7 +149,18 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
                 )}
                 {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
               </Button>
-            </>
+
+              <input
+                ref={internalInputRef}
+                id="doc-upload-input"
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                disabled={isUploadDisabled}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+              />
+            </div>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
