@@ -453,35 +453,47 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
               <Copy className="w-4 h-4 mr-1 sm:mr-2" />
               Copiar
             </Button>
-            {/* Botão Enviar para Mim - só se WhatsApp conectado */}
-            {hasWhatsAppConnected && (
+            
+            {/* Botões de WhatsApp - condicionais */}
+            {hasWhatsAppConnected ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleSendToSelfClick} 
+                  disabled={isSendingWhatsApp}
+                  className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+                >
+                  {isSendingWhatsApp ? (
+                    <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+                  ) : (
+                    <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
+                  )}
+                  {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
+                </Button>
+                {canSendToClient && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleClientButtonClick} 
+                    disabled={isSendingToClient}
+                    className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                  >
+                    {isSendingToClient ? (
+                      <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+                    ) : (
+                      <Users className="w-4 h-4 mr-1 sm:mr-2" />
+                    )}
+                    {isSendingToClient ? 'Enviando...' : 'Cliente'}
+                  </Button>
+                )}
+              </>
+            ) : (
               <Button 
                 variant="outline" 
-                onClick={handleSendToSelfClick} 
-                disabled={isSendingWhatsApp}
-                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+                onClick={() => setShowWhatsAppNotConnected(true)}
+                className="text-xs sm:text-sm border-green-600 text-green-600 hover:bg-green-50"
               >
-                {isSendingWhatsApp ? (
-                  <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
-                ) : (
-                  <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
-                )}
-                {isSendingWhatsApp ? 'Enviando...' : 'Para Mim'}
-              </Button>
-            )}
-            {canSendToClient && (
-              <Button 
-                variant="outline" 
-                onClick={handleClientButtonClick} 
-                disabled={isSendingToClient}
-                className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
-              >
-                {isSendingToClient ? (
-                  <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
-                ) : (
-                  <Users className="w-4 h-4 mr-1 sm:mr-2" />
-                )}
-                {isSendingToClient ? 'Enviando...' : 'Para Cliente'}
+                <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
+                Conecte o WhatsApp
               </Button>
             )}
             <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
