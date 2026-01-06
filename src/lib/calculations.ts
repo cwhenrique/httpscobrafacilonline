@@ -183,10 +183,18 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function formatDate(date: string): string {
-  // Add T12:00:00 to avoid timezone issues when parsing date-only strings
-  const dateObj = date.includes('T') ? new Date(date) : new Date(date + 'T12:00:00');
-  return dateObj.toLocaleDateString('pt-BR');
+export function formatDate(date: string | undefined | null): string {
+  // Guard against undefined/null values
+  if (!date) return '-';
+  
+  try {
+    // Add T12:00:00 to avoid timezone issues when parsing date-only strings
+    const dateObj = date.includes('T') ? new Date(date) : new Date(date + 'T12:00:00');
+    if (isNaN(dateObj.getTime())) return '-';
+    return dateObj.toLocaleDateString('pt-BR');
+  } catch {
+    return '-';
+  }
 }
 
 export function formatPercentage(value: number): string {
