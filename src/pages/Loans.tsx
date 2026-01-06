@@ -10293,7 +10293,7 @@ export default function Loans() {
                         {/* Checkbox de Adiantamento - NÃO aparece para sub-parcelas (já são sub-parcelas) */}
                         {!selectedSubparcela && (() => {
                           const paymentDateObj = new Date(paymentData.payment_date + 'T12:00:00');
-                          const installmentDueDate = dates[selectedPartialIndex ?? 0];
+                          const installmentDueDate = dates[selectedPartialIndex ?? 0] || '';
                           const dueDateObj = installmentDueDate ? new Date(installmentDueDate + 'T12:00:00') : null;
                           const paidAmount = parseFloat(paymentData.amount) || 0;
                           const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
@@ -10315,7 +10315,7 @@ export default function Loans() {
                                   </label>
                                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                                     Se marcado, o valor restante ({formatCurrency(remainderAmount)}) 
-                                    continuará vencendo em {formatDate(installmentDueDate)}
+                                    continuará vencendo em {installmentDueDate ? formatDate(installmentDueDate) : 'data não definida'}
                                   </p>
                                 </div>
                               </div>
@@ -10324,7 +10324,7 @@ export default function Loans() {
                                   <p className="text-muted-foreground">
                                     📅 A sub-parcela manterá a data de vencimento original da parcela: 
                                     <span className="font-medium text-foreground ml-1">
-                                      {formatDate(installmentDueDate)}
+                                      {installmentDueDate ? formatDate(installmentDueDate) : 'Data não definida'}
                                     </span>
                                   </p>
                                 </div>
