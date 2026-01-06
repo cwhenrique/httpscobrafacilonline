@@ -881,6 +881,8 @@ export default function ReportsLoans() {
                         borderRadius: '8px',
                         fontSize: '12px'
                       }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
                       formatter={(value: number) => [formatCurrency(value), '']}
                     />
                     <Legend wrapperStyle={{ fontSize: '10px' }} />
@@ -948,6 +950,8 @@ export default function ReportsLoans() {
                         borderRadius: '8px',
                         fontSize: '12px'
                       }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
                       formatter={(value: number) => [formatCurrency(value), '']}
                     />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]} />
