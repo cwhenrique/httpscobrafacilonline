@@ -146,7 +146,8 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('focus', handleFocus);
   }, [user?.id, contextReady, fetchEmployeeContext]);
 
-  const effectiveUserId = isEmployee ? ownerId : user?.id ?? null;
+  // Para dono: usar user.id; para funcionário: usar owner_id
+  const effectiveUserId = isEmployee ? ownerId : (user?.id ?? null);
 
   const hasPermission = useCallback((permission: EmployeePermission): boolean => {
     // Durante carregamento, NEGAR

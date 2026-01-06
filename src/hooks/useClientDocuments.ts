@@ -27,7 +27,10 @@ export function useClientDocuments(clientId: string | null) {
   const [uploadComplete, setUploadComplete] = useState(false);
   const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
+  const { effectiveUserId: ctxEffectiveUserId, loading: employeeLoading, isEmployee } = useEmployeeContext();
+
+  // Fallback: se o contexto ainda não resolveu mas temos user, usar user.id (para donos)
+  const effectiveUserId = ctxEffectiveUserId ?? (isEmployee ? null : user?.id ?? null);
 
   // Estabilizar fetchDocuments com useCallback
   const fetchDocuments = useCallback(async () => {
@@ -66,10 +69,14 @@ export function useClientDocuments(clientId: string | null) {
 
   // Estabilizar uploadDocument com useCallback
   const uploadDocument = useCallback(async (file: File, description?: string, fileIndex?: number, total?: number) => {
+    // Calcular userId localmente para garantir valor atualizado
+    const userId = isEmployee ? ctxEffectiveUserId : user?.id;
+    
     console.log('[Upload] Tentativa:', { 
       hasUser: !!user, 
       clientId, 
-      effectiveUserId, 
+      userId,
+      isEmployee,
       employeeLoading,
       fileName: file.name 
     });
@@ -92,10 +99,10 @@ export function useClientDocuments(clientId: string | null) {
       return { error: new Error('Sessão ainda carregando') };
     }
     
-    if (!effectiveUserId) {
-      console.error('[Upload] ERRO: effectiveUserId é null');
+    if (!userId) {
+      console.error('[Upload] ERRO: userId é null', { isEmployee, ctxEffectiveUserId, userId: user?.id });
       toast.error('Erro de sessão. Recarregue a página e tente novamente.');
-      return { error: new Error('effectiveUserId não disponível') };
+      return { error: new Error('userId não disponível') };
     }
 
     // Verificar se o cliente existe no banco antes de fazer upload
@@ -128,7 +135,7 @@ export function useClientDocuments(clientId: string | null) {
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${effectiveUserId}/${clientId}/${fileName}`;
+    const filePath = `${userId}/${clientId}/${fileName}`;
 
     console.log('[Upload] Iniciando upload para:', filePath);
 
@@ -152,7 +159,7 @@ export function useClientDocuments(clientId: string | null) {
     const { data, error: dbError } = await supabase
       .from('client_documents')
       .insert({
-        user_id: effectiveUserId,
+        user_id: userId,
         client_id: clientId,
         file_name: file.name,
         file_path: filePath,
@@ -185,7 +192,7 @@ export function useClientDocuments(clientId: string | null) {
     await new Promise(resolve => setTimeout(resolve, 300));
     
     return { data: data as ClientDocument };
-  }, [user, clientId, effectiveUserId, employeeLoading]);
+  }, [user, clientId, ctxEffectiveUserId, isEmployee, employeeLoading]);
   
   // Função para upload de múltiplos arquivos com tracking
   const uploadMultipleDocuments = useCallback(async (files: File[], description?: string) => {
