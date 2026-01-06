@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
 import { useProductSales, useProductSalePayments } from '@/hooks/useProductSales';
 import { useContracts } from '@/hooks/useContracts';
 import { useVehicles, useVehiclePayments } from '@/hooks/useVehicles';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -97,12 +101,27 @@ const ChartFilterButton = ({
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
+  const { user } = useAuth();
+  const { effectiveUserId } = useEmployeeContext();
   const { loans } = useLoans();
   const { sales } = useProductSales();
   const { payments: productPayments } = useProductSalePayments();
   const { contracts, allContractPayments } = useContracts();
   const { vehicles } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
+
+  // Fetch loan payments for period filtering
+  const { data: loanPayments = [] } = useQuery({
+    queryKey: ['loan-payments-for-reports', effectiveUserId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('loan_payments')
+        .select('id, loan_id, amount, payment_date, notes')
+        .order('payment_date', { ascending: false });
+      return data || [];
+    },
+    enabled: !!user && !!effectiveUserId,
+  });
 
   // Period filter state
   const [period, setPeriod] = useState<PeriodType>('custom');
@@ -231,8 +250,6 @@ export default function Reports() {
     // Empréstimos em atraso (todos, não apenas do período)
     const overdueLoans = activeLoans.filter(l => l.status === 'overdue');
     const totalLoanOverdue = overdueLoans.reduce((sum, l) => sum + l.remaining_balance, 0);
-    // Total recebido de empréstimos ativos
-    const totalLoanReceived = activeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
 
     // === MÉTRICAS DE FLUXO (usando empréstimos do período) ===
     const totalLoanedInPeriod = filteredLoans.reduce((sum, l) => sum + l.principal_amount, 0);
@@ -256,10 +273,46 @@ export default function Reports() {
     const prevTotalLoaned = prevPeriodLoans.reduce((sum, l) => sum + l.principal_amount, 0);
     const loanedVariation = prevTotalLoaned > 0 ? ((totalLoanedInPeriod - prevTotalLoaned) / prevTotalLoaned) * 100 : 0;
 
-    // Products
+    // === PAGAMENTOS RECEBIDOS NO PERÍODO (filtrados por paid_date) ===
+    
+    // Loan payments in period
+    const loanPaymentsInPeriod = loanPayments.filter(p => {
+      if (!p.payment_date) return false;
+      const paidDate = new Date(p.payment_date);
+      return isWithinInterval(paidDate, { start: startDate, end: endDate });
+    });
+    const totalLoanReceivedInPeriod = loanPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Product payments in period
+    const productPaymentsInPeriod = safeProductPayments.filter(p => {
+      if (!p.paid_date || p.status !== 'paid') return false;
+      const paidDate = new Date(p.paid_date);
+      return isWithinInterval(paidDate, { start: startDate, end: endDate });
+    });
+    const totalProductReceivedInPeriod = productPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Vehicle payments in period
+    const vehiclePaymentsInPeriod = safeVehiclePayments.filter(p => {
+      if (!p.paid_date || p.status !== 'paid') return false;
+      const paidDate = new Date(p.paid_date);
+      return isWithinInterval(paidDate, { start: startDate, end: endDate });
+    });
+    const totalVehicleReceivedInPeriod = vehiclePaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Contract payments in period
+    const contractPaymentsInPeriod = safeContractPayments.filter(p => {
+      if (!p.paid_date || p.status !== 'paid') return false;
+      const paidDate = new Date(p.paid_date);
+      return isWithinInterval(paidDate, { start: startDate, end: endDate });
+    });
+    const totalContractReceivedInPeriod = contractPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
+
+    // Total received ALL TIME (for balance metrics)
+    const totalLoanReceivedAllTime = activeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
+
+    // Products (for overdue calculation)
     const totalProductSold = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
     const totalProductCost = filteredSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
-    const totalProductReceived = filteredSales.reduce((sum, s) => sum + (s.total_paid || 0), 0);
     const overdueProducts = filteredSales.filter(s => {
       return safeProductPayments.some(p => 
         p.product_sale_id === s.id && 
@@ -284,11 +337,6 @@ export default function Reports() {
     // Total a receber = soma de todos os pagamentos pendentes + pagos
     const totalContractReceivable = receivableContractPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    // Total recebido = soma apenas dos pagamentos com status 'paid'
-    const totalContractReceived = receivableContractPayments
-      .filter(p => p.status === 'paid')
-      .reduce((sum, p) => sum + p.amount, 0);
-    
     // Total em atraso = soma dos pagamentos pendentes com data de vencimento no passado
     const today = new Date();
     const overdueContractPayments = receivableContractPayments.filter(p => 
@@ -303,7 +351,6 @@ export default function Reports() {
     // Vehicles
     const totalVehicleSold = filteredVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
     const totalVehicleCost = filteredVehicles.reduce((sum, v) => sum + ((v as any).cost_value || 0), 0);
-    const totalVehicleReceived = filteredVehicles.reduce((sum, v) => sum + (v.total_paid || 0), 0);
     const overdueVehiclesList = filteredVehicles.filter(v => {
       return safeVehiclePayments.some(p => 
         p.vehicle_id === v.id && 
@@ -320,19 +367,25 @@ export default function Reports() {
 
     // Grand totals - usando métricas de SALDO para "falta receber"
     const totalToReceive = faltaReceber + totalLoanInterest + totalProductSold + totalContractReceivable + totalVehicleSold;
-    const totalReceived = totalLoanReceived + totalProductReceived + totalContractReceived + totalVehicleReceived;
-    const totalProfit = (totalLoanReceived - capitalNaRua) + totalProductProfit + totalVehicleProfit;
+    
+    // TOTAL RECEBIDO NO PERÍODO (filtrado por paid_date)
+    const totalReceivedInPeriod = totalLoanReceivedInPeriod + totalProductReceivedInPeriod + 
+                                   totalContractReceivedInPeriod + totalVehicleReceivedInPeriod;
+    
+    // LUCRO NO PERÍODO = recebido no período - custos dos itens vendidos no período
+    const profitInPeriod = totalReceivedInPeriod - totalLoanedInPeriod - totalProductCost - totalVehicleCost;
+    
     const totalOverdue = totalLoanOverdue + totalProductOverdue + totalContractOverdue + totalVehicleOverdue;
 
     // Health score calculation - usando empréstimos ativos
-    const receiptRate = totalToReceive > 0 ? (totalReceived / totalToReceive) * 100 : 100;
+    const receiptRate = totalToReceive > 0 ? (totalReceivedInPeriod / totalToReceive) * 100 : 100;
     const delinquencyRate = activeLoans.length > 0 ? (overdueLoans.length / activeLoans.length) * 100 : 0;
-    const profitMargin = totalToReceive > 0 ? (totalProfit / totalToReceive) * 100 : 0;
+    const profitMargin = totalReceivedInPeriod > 0 ? (profitInPeriod / totalReceivedInPeriod) * 100 : 0;
     
     let healthScore = 100;
     healthScore -= Math.max(0, (100 - receiptRate) * 0.4);
     healthScore -= Math.min(30, delinquencyRate * 0.3);
-    if (totalProfit < 0) healthScore -= 10;
+    if (profitInPeriod < 0) healthScore -= 10;
     healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
 
     // Alerts data - usando empréstimos ativos para alertas
@@ -357,8 +410,8 @@ export default function Reports() {
 
     return {
       totalToReceive,
-      totalReceived,
-      totalProfit,
+      totalReceived: totalReceivedInPeriod,
+      totalProfit: profitInPeriod,
       totalOverdue,
       receiptRate,
       delinquencyRate,
@@ -369,15 +422,15 @@ export default function Reports() {
       vehiclesOverdue: { count: overdueVehiclesList.length, amount: totalVehicleOverdue },
       productsOverdue: { count: overdueProducts.length, amount: totalProductOverdue },
       // Category breakdown - usando métricas de saldo para empréstimos
-      loans: { total: faltaReceber + totalLoanInterest, received: totalLoanReceived, overdue: totalLoanOverdue },
-      products: { total: totalProductSold, received: totalProductReceived, overdue: totalProductOverdue },
-      contracts: { total: totalContractReceivable, received: totalContractReceived, overdue: totalContractOverdue },
-      vehicles: { total: totalVehicleSold, received: totalVehicleReceived, overdue: totalVehicleOverdue },
+      loans: { total: faltaReceber + totalLoanInterest, received: totalLoanReceivedInPeriod, overdue: totalLoanOverdue },
+      products: { total: totalProductSold, received: totalProductReceivedInPeriod, overdue: totalProductOverdue },
+      contracts: { total: totalContractReceivable, received: totalContractReceivedInPeriod, overdue: totalContractOverdue },
+      vehicles: { total: totalVehicleSold, received: totalVehicleReceivedInPeriod, overdue: totalVehicleOverdue },
       // Loan specific - métricas de saldo
       capitalNaRua,
       faltaReceber,
       totalLoanedInPeriod,
-      totalLoanReceived,
+      totalLoanReceived: totalLoanReceivedInPeriod,
       totalLoanInterest,
       totalLoanOverdue,
       overdueLoansCount: overdueLoans.length,
@@ -387,7 +440,7 @@ export default function Reports() {
       // Product specific
       totalProductSold,
       totalProductCost,
-      totalProductReceived,
+      totalProductReceived: totalProductReceivedInPeriod,
       totalProductOverdue,
       totalProductProfit,
       productSoldVariation,
@@ -397,7 +450,7 @@ export default function Reports() {
       // Vehicle specific
       totalVehicleSold,
       totalVehicleCost,
-      totalVehicleReceived,
+      totalVehicleReceived: totalVehicleReceivedInPeriod,
       totalVehicleOverdue,
       totalVehicleProfit,
       vehicleSoldVariation,
@@ -409,9 +462,9 @@ export default function Reports() {
       overdueProducts,
       overdueVehiclesList,
     };
-  }, [activeLoans, filteredLoans, filteredSales, filteredVehicles, filteredContracts, safeLoans, safeProductPayments, safeContractPayments, safeVehiclePayments, prevPeriodLoans, prevPeriodSales, prevPeriodVehicles]);
+  }, [activeLoans, filteredLoans, filteredSales, filteredVehicles, filteredContracts, safeLoans, safeProductPayments, safeContractPayments, safeVehiclePayments, prevPeriodLoans, prevPeriodSales, prevPeriodVehicles, loanPayments, startDate, endDate]);
 
-  // Monthly evolution data for charts
+  // Monthly evolution data for charts - usando pagamentos reais por mês
   const monthlyEvolutionData = useMemo(() => {
     const months: { month: string; received: number; loaned: number; profit: number; overdue: number }[] = [];
     
@@ -421,20 +474,32 @@ export default function Reports() {
       const monthEnd = endOfMonth(monthDate);
       const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
 
-      let monthReceived = 0;
       let monthLoaned = 0;
       let monthOverdue = 0;
 
+      // Empréstimos criados no mês
       safeLoans.forEach(loan => {
         const loanDate = new Date(loan.start_date);
         if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
           monthLoaned += loan.principal_amount;
-          monthReceived += loan.total_paid || 0;
-          if (loan.status === 'overdue') {
+        }
+        // Overdues são calculados de empréstimos que ficaram em atraso
+        if (loan.status === 'overdue') {
+          const dueDate = new Date(loan.due_date);
+          if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
             monthOverdue += loan.remaining_balance;
           }
         }
       });
+
+      // Pagamentos RECEBIDOS no mês (pela data do pagamento)
+      const monthReceived = loanPayments
+        .filter(p => {
+          if (!p.payment_date) return false;
+          const paidDate = new Date(p.payment_date);
+          return isWithinInterval(paidDate, { start: monthStart, end: monthEnd });
+        })
+        .reduce((sum, p) => sum + p.amount, 0);
 
       months.push({
         month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
@@ -446,7 +511,7 @@ export default function Reports() {
     }
 
     return months;
-  }, [safeLoans]);
+  }, [safeLoans, loanPayments]);
 
   // Loan chart data
   const loanChartData = useMemo(() => {
