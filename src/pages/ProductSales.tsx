@@ -57,6 +57,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
+import MessagePreviewDialog from '@/components/MessagePreviewDialog';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -247,6 +248,13 @@ export default function ProductSales() {
   const [subscriptionPaymentDate, setSubscriptionPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<'all' | 'active' | 'pending' | 'overdue'>('all');
   const [isSendingCharge, setIsSendingCharge] = useState<Record<string, boolean>>({});
+  const [showChargePreview, setShowChargePreview] = useState(false);
+  const [chargePreviewData, setChargePreviewData] = useState<{
+    feeId: string;
+    clientName: string;
+    clientPhone: string;
+    message: string;
+  } | null>(null);
   const { user } = useAuth();
 
   // Receipt preview states
@@ -854,6 +862,77 @@ export default function ProductSales() {
 
   const formatCurrency = (value: number) => {
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  };
+
+  const getPixKeyTypeLabel = (type: string | null): string => {
+    switch (type) {
+      case 'cpf': return 'Chave PIX CPF';
+      case 'cnpj': return 'Chave PIX CNPJ';
+      case 'telefone': return 'Chave PIX Telefone';
+      case 'email': return 'Chave PIX Email';
+      case 'aleatoria': return 'Chave PIX Aleatória';
+      default: return 'Chave PIX';
+    }
+  };
+
+  const generateIPTVChargeMessage = (
+    fee: MonthlyFee,
+    currentPayment: ReturnType<typeof useMonthlyFeePayments>['payments'][number] | undefined,
+    status: string,
+    amountWithInterest: number
+  ): string => {
+    const companyName = profile?.company_name || 'Empresa';
+    const signatureName = profile?.billing_signature_name || companyName;
+    const dueDate = currentPayment 
+      ? format(parseISO(currentPayment.due_date), 'dd/MM/yyyy') 
+      : `dia ${fee.due_day}`;
+
+    let message = `⚠️ *Atenção ${fee.client?.full_name}*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *Serviço:* ${fee.description || 'IPTV'}\n\n`;
+
+    if (status === 'overdue' && currentPayment) {
+      const daysLate = Math.floor((new Date().getTime() - new Date(currentPayment.due_date).getTime()) / (1000 * 60 * 60 * 24));
+      message += `🚨 *MENSALIDADE EM ATRASO*\n\n`;
+      message += `💰 *Valor Original:* ${formatCurrency(fee.amount)}\n`;
+      message += `📅 *Vencimento:* ${dueDate}\n`;
+      message += `⏰ *Dias em atraso:* ${daysLate}\n\n`;
+      
+      if (amountWithInterest > fee.amount) {
+        message += `⚠️ *Multa:* +${formatCurrency(amountWithInterest - fee.amount)}\n`;
+        message += `💵 *TOTAL A PAGAR:* ${formatCurrency(amountWithInterest)}\n\n`;
+      }
+      
+      message += `Por favor, regularize para continuar utilizando o serviço.\n`;
+    } else if (status === 'due_today') {
+      message += `⏰ *VENCE HOJE!*\n\n`;
+      message += `💰 *Valor:* ${formatCurrency(fee.amount)}\n`;
+      message += `📅 *Vencimento:* ${dueDate}\n\n`;
+      message += `Faça o pagamento para manter seu serviço ativo.\n`;
+    } else {
+      message += `📅 *Vencimento:* ${dueDate}\n`;
+      message += `💰 *Valor:* ${formatCurrency(fee.amount)}\n\n`;
+      message += `Fique atento ao vencimento!\n`;
+    }
+
+    // Adicionar Chave PIX
+    if (profile?.pix_key) {
+      message += `\n━━━━━━━━━━━━━━━━\n`;
+      message += `💳 *${getPixKeyTypeLabel(profile.pix_key_type)}:*\n`;
+      message += `${profile.pix_key}\n`;
+    }
+
+    // Adicionar Link de Pagamento
+    if (profile?.payment_link) {
+      message += `\n🔗 *Link de Pagamento:*\n`;
+      message += `${profile.payment_link}\n`;
+    }
+
+    // Assinatura
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_${signatureName}_`;
+
+    return message;
   };
 
   const getContractTypeLabel = (type: string) => {
@@ -1973,7 +2052,7 @@ export default function ProductSales() {
                                   size="sm"
                                   className="h-8 text-xs gap-1"
                                   disabled={!profile?.whatsapp_instance_id || isSendingCharge[fee.id] || status === 'paid'}
-                                  onClick={async () => {
+                                  onClick={() => {
                                     const phoneDigits = fee.client?.phone?.replace(/\D/g, '') || '';
                                     if (!user?.id) return;
                                     if (!phoneDigits || phoneDigits.length < 10) {
@@ -1981,41 +2060,15 @@ export default function ProductSales() {
                                       return;
                                     }
                                     
-                                    setIsSendingCharge(prev => ({ ...prev, [fee.id]: true }));
-                                    
-                                    try {
-                                      const companyName = profile?.company_name || 'Empresa';
-                                      const dueDate = currentPayment 
-                                        ? format(parseISO(currentPayment.due_date), 'dd/MM/yyyy') 
-                                        : `dia ${fee.due_day}`;
-                                      
-                                      let message = '';
-                                      
-                                      if (status === 'overdue' && currentPayment) {
-                                        const daysLate = Math.floor((new Date().getTime() - new Date(currentPayment.due_date).getTime()) / (1000 * 60 * 60 * 24));
-                                        message = `Olá ${fee.client.full_name}! 👋\n\nSua mensalidade de *${fee.description || 'IPTV'}* está em *atraso* há ${daysLate} dia(s).\n\n💰 Valor original: ${formatCurrency(fee.amount)}\n📅 Vencimento: ${dueDate}\n💵 Valor com juros: *${formatCurrency(amountWithInterest)}*\n\nPor favor, regularize sua situação para continuar utilizando o serviço.\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
-                                      } else if (status === 'due_today') {
-                                        message = `Olá ${fee.client.full_name}! 👋\n\nLembrete: sua mensalidade de *${fee.description || 'IPTV'}* vence *hoje*!\n\n💰 Valor: *${formatCurrency(fee.amount)}*\n\nFaça o pagamento para manter seu serviço ativo.\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
-                                      } else {
-                                        message = `Olá ${fee.client.full_name}! 👋\n\nLembrete: sua mensalidade de *${fee.description || 'IPTV'}* vence em *${dueDate}*.\n\n💰 Valor: *${formatCurrency(fee.amount)}*\n\nFique atento ao vencimento!\n\nQualquer dúvida, estou à disposição!\n${companyName}`;
-                                      }
-
-                                      const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
-                                        body: {
-                                          userId: user.id,
-                                          clientPhone: phoneDigits,
-                                          message,
-                                        },
-                                      });
-
-                                      if (error) throw error;
-                                      toast.success('Cobrança enviada com sucesso!');
-                                    } catch (error: any) {
-                                      console.error('Error sending charge:', error);
-                                      toast.error(error?.message || 'Erro ao enviar cobrança');
-                                    } finally {
-                                      setIsSendingCharge(prev => ({ ...prev, [fee.id]: false }));
-                                    }
+                                    // Gerar mensagem e abrir preview
+                                    const message = generateIPTVChargeMessage(fee, currentPayment, status, amountWithInterest);
+                                    setChargePreviewData({
+                                      feeId: fee.id,
+                                      clientName: fee.client?.full_name || 'Cliente',
+                                      clientPhone: phoneDigits,
+                                      message,
+                                    });
+                                    setShowChargePreview(true);
                                   }}
                                 >
                                   {isSendingCharge[fee.id] ? (
@@ -2506,6 +2559,40 @@ export default function ProductSales() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* IPTV Charge Preview Dialog */}
+        <MessagePreviewDialog
+          open={showChargePreview}
+          onOpenChange={setShowChargePreview}
+          initialMessage={chargePreviewData?.message || ''}
+          recipientName={chargePreviewData?.clientName || 'Cliente'}
+          recipientType="client"
+          onConfirm={async (editedMessage) => {
+            if (!chargePreviewData || !user?.id) return;
+            
+            setIsSendingCharge(prev => ({ ...prev, [chargePreviewData.feeId]: true }));
+            
+            try {
+              const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
+                body: {
+                  userId: user.id,
+                  clientPhone: chargePreviewData.clientPhone,
+                  message: editedMessage,
+                },
+              });
+
+              if (error) throw error;
+              toast.success('Cobrança enviada com sucesso!');
+              setShowChargePreview(false);
+            } catch (error: any) {
+              console.error('Error sending charge:', error);
+              toast.error(error?.message || 'Erro ao enviar cobrança');
+            } finally {
+              setIsSendingCharge(prev => ({ ...prev, [chargePreviewData.feeId]: false }));
+            }
+          }}
+          isSending={chargePreviewData ? isSendingCharge[chargePreviewData.feeId] : false}
+        />
       </div>
     </DashboardLayout>
   );
