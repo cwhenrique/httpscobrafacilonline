@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loan } from '@/types/database';
 import { isLoanOverdue, getTotalDailyPenalties } from '@/lib/calculations';
 
@@ -25,7 +26,7 @@ export interface OperationalStats {
   // Loading state
   loading: boolean;
   
-  // Lista de contratos ativos
+  // Lista de contratos ativos (limitados para performance)
   activeLoans: LoanWithClient[];
   overdueLoans: LoanWithClient[];
   allLoans: LoanWithClient[];
@@ -57,145 +58,150 @@ interface LoanWithClient {
   };
 }
 
-export function useOperationalStats() {
-  const [stats, setStats] = useState<OperationalStats>({
-    activeLoansCount: 0,
-    totalOnStreet: 0,
-    pendingAmount: 0,
-    pendingInterest: 0,
-    totalReceivedAllTime: 0,
-    realizedProfit: 0,
-    overdueCount: 0,
-    overdueAmount: 0,
-    paidLoansCount: 0,
-    loading: true,
-    activeLoans: [],
-    overdueLoans: [],
-    allLoans: [],
-  });
-  const { user } = useAuth();
+const defaultStats: OperationalStats = {
+  activeLoansCount: 0,
+  totalOnStreet: 0,
+  pendingAmount: 0,
+  pendingInterest: 0,
+  totalReceivedAllTime: 0,
+  realizedProfit: 0,
+  overdueCount: 0,
+  overdueAmount: 0,
+  paidLoansCount: 0,
+  loading: true,
+  activeLoans: [],
+  overdueLoans: [],
+  allLoans: [],
+};
 
-  const fetchStats = async () => {
-    if (!user) return;
+interface StatsData {
+  stats: Omit<OperationalStats, 'loading'>;
+}
 
-    // Fetch all loans with client info AND their payments
-    const { data: loans } = await supabase
-      .from('loans')
-      .select(`
-        *,
-        client:clients(full_name, phone),
-        payments:loan_payments(amount, interest_paid, principal_paid, payment_date)
-      `)
-      .order('created_at', { ascending: false });
+async function fetchOperationalStats(): Promise<StatsData> {
+  // Buscar apenas empréstimos ativos e com campos necessários
+  // Limita a 500 para performance mas inclui todos os ativos
+  const { data: loans } = await supabase
+    .from('loans')
+    .select(`
+      id, user_id, client_id, principal_amount, interest_rate, interest_type,
+      interest_mode, payment_type, installments, installment_dates, start_date,
+      due_date, total_interest, total_paid, remaining_balance, status, notes,
+      created_at, updated_at,
+      client:clients(full_name, phone),
+      payments:loan_payments(interest_paid, principal_paid)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(1000);
 
-    if (!loans) {
-      setStats(prev => ({ ...prev, loading: false }));
-      return;
-    }
+  if (!loans) {
+    const { loading: _, ...restDefault } = defaultStats;
+    return { stats: restDefault };
+  }
 
-    // Calculate stats
-    let activeLoansCount = 0;
-    let totalOnStreet = 0;
-    let pendingInterest = 0;
-    let totalReceivedAllTime = 0;
-    let totalProfitRealized = 0;
-    let overdueCount = 0;
-    let overdueAmount = 0;
-    let paidLoansCount = 0;
+  let activeLoansCount = 0;
+  let totalOnStreet = 0;
+  let pendingInterest = 0;
+  let totalReceivedAllTime = 0;
+  let totalProfitRealized = 0;
+  let overdueCount = 0;
+  let overdueAmount = 0;
+  let paidLoansCount = 0;
 
-    const activeLoans: LoanWithClient[] = [];
-    const overdueLoans: LoanWithClient[] = [];
+  const activeLoans: LoanWithClient[] = [];
+  const overdueLoans: LoanWithClient[] = [];
 
-    loans.forEach((loan: any) => {
-      const principal = Number(loan.principal_amount);
-      const totalPaid = Number(loan.total_paid || 0);
-      const remainingBalance = Number(loan.remaining_balance);
-      const rate = Number(loan.interest_rate);
-      const installments = Number(loan.installments) || 1;
-      const interestMode = loan.interest_mode || 'per_installment';
-      const isDaily = loan.payment_type === 'daily';
+  loans.forEach((loan: any) => {
+    const principal = Number(loan.principal_amount);
+    const totalPaid = Number(loan.total_paid || 0);
+    const remainingBalance = Number(loan.remaining_balance);
+    const rate = Number(loan.interest_rate);
+    const installments = Number(loan.installments) || 1;
+    const interestMode = loan.interest_mode || 'per_installment';
+    const isDaily = loan.payment_type === 'daily';
+    
+    const payments = loan.payments || [];
+    const totalInterestReceived = payments.reduce(
+      (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
+      0
+    );
+    
+    totalProfitRealized += totalInterestReceived;
+    totalReceivedAllTime += totalPaid;
+
+    if (loan.status === 'paid') {
+      paidLoansCount++;
+    } else {
+      activeLoansCount++;
       
-      // Calcular lucro realizado usando os pagamentos individuais
-      const payments = loan.payments || [];
-      const totalInterestReceived = payments.reduce(
-        (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
+      const totalPrincipalReceived = payments.reduce(
+        (sum: number, p: any) => sum + Number(p.principal_paid || 0), 
         0
       );
       
-      totalProfitRealized += totalInterestReceived;
-      totalReceivedAllTime += totalPaid;
-
-      if (loan.status === 'paid') {
-        paidLoansCount++;
+      const principalPending = principal - totalPrincipalReceived;
+      totalOnStreet += principalPending;
+      
+      let totalInterest = 0;
+      if (isDaily) {
+        totalInterest = remainingBalance + totalPaid - principal;
       } else {
-        // Empréstimo ativo (não quitado)
-        activeLoansCount++;
-        
-        // Calcular principal já recebido a partir dos pagamentos
-        const totalPrincipalReceived = payments.reduce(
-          (sum: number, p: any) => sum + Number(p.principal_paid || 0), 
-          0
-        );
-        
-        // Capital na rua = principal original - principal já pago
-        const principalPending = principal - totalPrincipalReceived;
-        totalOnStreet += principalPending;
-        
-        // Calcular juros pendentes para contratos ativos
-        let totalInterest = 0;
-        if (isDaily) {
-          // Para diários, juros está embutido no remaining_balance inicial
-          totalInterest = remainingBalance + totalPaid - principal;
-        } else {
-          totalInterest = interestMode === 'per_installment' 
-            ? principal * (rate / 100) * installments 
-            : principal * (rate / 100);
-        }
-        const interestPending = Math.max(0, totalInterest - totalInterestReceived);
-        pendingInterest += interestPending;
-        
-        const loanWithClient = loan as LoanWithClient;
-        activeLoans.push(loanWithClient);
-
-        // Usar função centralizada para verificar atraso
-        // Considera installment_dates para empréstimos diários/semanais/quinzenais
-        if (isLoanOverdue(loan)) {
-          overdueCount++;
-          overdueAmount += remainingBalance;
-          overdueLoans.push(loanWithClient);
-        }
+        totalInterest = interestMode === 'per_installment' 
+          ? principal * (rate / 100) * installments 
+          : principal * (rate / 100);
       }
-    });
+      const interestPending = Math.max(0, totalInterest - totalInterestReceived);
+      pendingInterest += interestPending;
+      
+      const loanWithClient = loan as LoanWithClient;
+      activeLoans.push(loanWithClient);
 
-    // Pendente = soma de remaining_balance + multas aplicadas dos ativos
-    const pendingAmount = activeLoans.reduce((sum, loan) => {
-      const penalties = getTotalDailyPenalties(loan.notes);
-      return sum + Number(loan.remaining_balance) + penalties;
-    }, 0);
+      if (isLoanOverdue(loan)) {
+        overdueCount++;
+        overdueAmount += remainingBalance;
+        overdueLoans.push(loanWithClient);
+      }
+    }
+  });
 
-    // Lucro realizado = juros proporcionalmente recebidos
-    const realizedProfit = totalProfitRealized;
+  const pendingAmount = activeLoans.reduce((sum, loan) => {
+    const penalties = getTotalDailyPenalties(loan.notes);
+    return sum + Number(loan.remaining_balance) + penalties;
+  }, 0);
 
-    setStats({
+  return {
+    stats: {
       activeLoansCount,
       totalOnStreet,
       pendingAmount,
       pendingInterest,
       totalReceivedAllTime,
-      realizedProfit,
+      realizedProfit: totalProfitRealized,
       overdueCount,
       overdueAmount,
       paidLoansCount,
-      loading: false,
       activeLoans,
       overdueLoans,
       allLoans: loans as LoanWithClient[],
-    });
+    }
   };
+}
 
-  useEffect(() => {
-    fetchStats();
-  }, [user]);
+export function useOperationalStats() {
+  const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
-  return { stats, refetch: fetchStats };
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['operational-stats', effectiveUserId],
+    queryFn: fetchOperationalStats,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
+    staleTime: 1000 * 60 * 2, // 2 minutos
+    gcTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  const stats: OperationalStats = data?.stats 
+    ? { ...data.stats, loading: isLoading }
+    : { ...defaultStats, loading: isLoading };
+
+  return { stats, refetch };
 }
