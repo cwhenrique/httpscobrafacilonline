@@ -486,8 +486,9 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
             <Copy className="w-4 h-4 mr-2" />
             Copiar Texto
           </Button>
-          {/* Botão Enviar para Mim - só se WhatsApp conectado */}
-          {profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && (
+          
+          {/* Botões de WhatsApp - condicionais */}
+          {profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone ? (
             <Button 
               variant="outline" 
               onClick={handleSendWhatsApp} 
@@ -501,7 +502,17 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
               )}
               {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
             </Button>
+          ) : (
+            <Button 
+              variant="outline" 
+              onClick={() => setShowWhatsAppNotConnected(true)}
+              className="w-full sm:w-auto border-green-600 text-green-600 hover:bg-green-50"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Conecte o WhatsApp
+            </Button>
           )}
+          
           <Button onClick={handleDownload} disabled={isGenerating} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             {isGenerating ? 'Gerando...' : 'Baixar PDF'}

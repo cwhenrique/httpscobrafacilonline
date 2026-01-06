@@ -381,35 +381,46 @@ export default function SaleCreatedReceiptPrompt({
               Copiar Texto
             </Button>
 
-            {/* Botão Enviar para Mim - só se WhatsApp conectado */}
-            {hasWhatsAppConnected && (
-              <Button 
-                onClick={handleSendToSelfClick} 
-                disabled={isSending || !userPhone}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-              >
-                {isSending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                )}
-                {isSending ? 'Enviando...' : 'Enviar para Mim'}
-              </Button>
-            )}
+            {/* Botões de WhatsApp - condicionais */}
+            {hasWhatsAppConnected ? (
+              <>
+                <Button 
+                  onClick={handleSendToSelfClick} 
+                  disabled={isSending || !userPhone}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                  )}
+                  {isSending ? 'Enviando...' : 'Enviar para Mim'}
+                </Button>
 
-            {canSendToClient && (
+                {canSendToClient && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleClientButtonClick} 
+                    disabled={isSendingToClient}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                  >
+                    {isSendingToClient ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Users className="w-4 h-4 mr-2" />
+                    )}
+                    {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+                  </Button>
+                )}
+              </>
+            ) : (
               <Button 
                 variant="outline"
-                onClick={handleClientButtonClick} 
-                disabled={isSendingToClient}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                onClick={() => setShowWhatsAppNotConnected(true)}
+                className="w-full border-green-600 text-green-600 hover:bg-green-50"
               >
-                {isSendingToClient ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Users className="w-4 h-4 mr-2" />
-                )}
-                {isSendingToClient ? 'Enviando...' : 'Enviar para o Cliente'}
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Conecte o WhatsApp
               </Button>
             )}
             
