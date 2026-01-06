@@ -292,7 +292,7 @@ export function useMonthlyFeePayments(feeId?: string) {
     enabled: !!userId,
   });
 
-  // Mark as paid
+  // Mark as paid and auto-generate next month
   const markAsPaid = useMutation({
     mutationFn: async ({ paymentId, paidDate, paidAmount }: { paymentId: string; paidDate: string; paidAmount?: number }) => {
       const payment = payments.find(p => p.id === paymentId);
@@ -313,10 +313,46 @@ export function useMonthlyFeePayments(feeId?: string) {
         .eq('id', paymentId);
 
       if (error) throw error;
+
+      // Auto-generate next month payment
+      const currentRefMonth = new Date(payment.reference_month);
+      const nextMonth = addMonths(currentRefMonth, 1);
+      const nextReferenceMonth = format(nextMonth, 'yyyy-MM-01');
+
+      // Check if payment for next month already exists
+      const { data: existingNext } = await supabase
+        .from('monthly_fee_payments')
+        .select('id')
+        .eq('monthly_fee_id', payment.monthly_fee_id)
+        .eq('reference_month', nextReferenceMonth)
+        .maybeSingle();
+
+      if (!existingNext) {
+        // Get fee info for due_day and amount
+        const { data: fee } = await supabase
+          .from('monthly_fees')
+          .select('due_day, amount, is_active')
+          .eq('id', payment.monthly_fee_id)
+          .single();
+
+        // Only generate if subscription is active
+        if (fee?.is_active) {
+          const nextDueDate = setDate(nextMonth, fee.due_day);
+          
+          await supabase.from('monthly_fee_payments').insert({
+            user_id: payment.user_id,
+            monthly_fee_id: payment.monthly_fee_id,
+            reference_month: nextReferenceMonth,
+            amount: fee.amount,
+            due_date: format(nextDueDate, 'yyyy-MM-dd'),
+            status: 'pending',
+          });
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-fee-payments'] });
-      toast.success('Pagamento registrado!');
+      toast.success('Pagamento registrado! Próximo mês gerado.');
     },
     onError: (error: Error) => {
       console.error('Error marking payment as paid:', error);
