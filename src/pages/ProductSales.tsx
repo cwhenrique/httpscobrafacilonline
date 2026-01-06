@@ -36,9 +36,11 @@ import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
 import { Client } from '@/types/database';
 
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
+import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
+import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -51,6 +53,8 @@ import ProductInstallmentsDialog from '@/components/ProductInstallmentsDialog';
 import SaleCreatedReceiptPrompt from '@/components/SaleCreatedReceiptPrompt';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -170,10 +174,15 @@ export default function ProductSales() {
   // Contracts hooks
   const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
   
+  // Monthly Fees (Subscriptions) hooks
+  const { fees: monthlyFees, isLoading: feesLoading, createFee, updateFee, deleteFee, toggleActive, generatePayment } = useMonthlyFees();
+  const { payments: feePayments, isLoading: feePaymentsLoading, markAsPaid: markFeePaymentAsPaid, calculateWithInterest } = useMonthlyFeePayments();
+  const { clients } = useClients();
+  
   const { profile } = useProfile();
 
   // Main tab state
-  const [mainTab, setMainTab] = useState<'products' | 'contracts'>('products');
+  const [mainTab, setMainTab] = useState<'products' | 'contracts' | 'subscriptions'>('products');
   
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -219,6 +228,22 @@ export default function ProductSales() {
   // Contract payment due date edit states
   const [editingPaymentDueDateId, setEditingPaymentDueDateId] = useState<string | null>(null);
   const [newPaymentDueDate, setNewPaymentDueDate] = useState<Date | undefined>(undefined);
+
+  // Subscription states
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
+  const [subscriptionForm, setSubscriptionForm] = useState<CreateMonthlyFeeData>({
+    client_id: '',
+    amount: 0,
+    description: 'IPTV',
+    due_day: 10,
+    interest_rate: 1,
+    generate_current_month: true,
+  });
+  const [deleteSubscriptionId, setDeleteSubscriptionId] = useState<string | null>(null);
+  const [subscriptionPaymentDialogOpen, setSubscriptionPaymentDialogOpen] = useState(false);
+  const [selectedSubscriptionPayment, setSelectedSubscriptionPayment] = useState<{ paymentId: string; amount: number; feeId: string } | null>(null);
+  const [subscriptionPaymentDate, setSubscriptionPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<'all' | 'active' | 'pending' | 'overdue'>('all');
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -859,7 +884,83 @@ export default function ProductSales() {
     pending: filteredSales.reduce((acc, s) => acc + s.remaining_balance, 0),
   };
 
-  const isLoading = salesLoading || contractsLoading;
+  // Subscription helpers
+  const getCurrentMonthPayment = (feeId: string) => {
+    const currentMonth = format(new Date(), 'yyyy-MM-01');
+    return feePayments.find(p => p.monthly_fee_id === feeId && p.reference_month === currentMonth);
+  };
+
+  const getSubscriptionStatus = (fee: MonthlyFee) => {
+    if (!fee.is_active) return 'inactive';
+    const currentPayment = getCurrentMonthPayment(fee.id);
+    if (!currentPayment) return 'no_charge';
+    if (currentPayment.status === 'paid') return 'paid';
+    if (isPast(parseISO(currentPayment.due_date)) && !isToday(parseISO(currentPayment.due_date))) return 'overdue';
+    if (isToday(parseISO(currentPayment.due_date))) return 'due_today';
+    return 'pending';
+  };
+
+  const filteredSubscriptions = monthlyFees.filter(fee => {
+    if (subscriptionStatusFilter === 'all') return true;
+    if (subscriptionStatusFilter === 'active') return fee.is_active;
+    const status = getSubscriptionStatus(fee);
+    if (subscriptionStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+    if (subscriptionStatusFilter === 'overdue') return status === 'overdue';
+    return true;
+  });
+
+  const subscriptionStats = {
+    total: monthlyFees.length,
+    active: monthlyFees.filter(f => f.is_active).length,
+    pending: monthlyFees.filter(f => {
+      const status = getSubscriptionStatus(f);
+      return status === 'pending' || status === 'due_today';
+    }).length,
+    overdue: monthlyFees.filter(f => getSubscriptionStatus(f) === 'overdue').length,
+    mrr: monthlyFees.filter(f => f.is_active).reduce((acc, f) => acc + f.amount, 0),
+  };
+
+  const handleCreateSubscription = async () => {
+    if (!subscriptionForm.client_id || !subscriptionForm.amount) return;
+    await createFee.mutateAsync(subscriptionForm);
+    setIsSubscriptionOpen(false);
+    setSubscriptionForm({
+      client_id: '',
+      amount: 0,
+      description: 'IPTV',
+      due_day: 10,
+      interest_rate: 1,
+      generate_current_month: true,
+    });
+  };
+
+  const handleDeleteSubscription = async () => {
+    if (!deleteSubscriptionId) return;
+    await deleteFee.mutateAsync(deleteSubscriptionId);
+    setDeleteSubscriptionId(null);
+  };
+
+  const handleMarkSubscriptionPaymentAsPaid = async () => {
+    if (!selectedSubscriptionPayment) return;
+    await markFeePaymentAsPaid.mutateAsync({
+      paymentId: selectedSubscriptionPayment.paymentId,
+      paidDate: subscriptionPaymentDate,
+    });
+    setSubscriptionPaymentDialogOpen(false);
+    setSelectedSubscriptionPayment(null);
+  };
+
+  const openSubscriptionPaymentDialog = (paymentId: string, amount: number, feeId: string) => {
+    setSelectedSubscriptionPayment({ paymentId, amount, feeId });
+    setSubscriptionPaymentDate(format(new Date(), 'yyyy-MM-dd'));
+    setSubscriptionPaymentDialogOpen(true);
+  };
+
+  const getClientInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const isLoading = salesLoading || contractsLoading || feesLoading;
 
   if (isLoading) {
     return (
@@ -876,11 +977,11 @@ export default function ProductSales() {
       <div className="space-y-4 sm:space-y-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-display font-bold">Vendas e Gestão Financeira</h1>
-          <p className="text-sm text-muted-foreground">Gerencie vendas de produtos e contratos</p>
+          <p className="text-sm text-muted-foreground">Gerencie vendas de produtos, contratos e assinaturas</p>
         </div>
 
         <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="products" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <ShoppingBag className="w-4 h-4" />
               <span>Produtos</span>
@@ -888,6 +989,10 @@ export default function ProductSales() {
             <TabsTrigger value="contracts" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
               <FileSignature className="w-4 h-4" />
               <span>Contratos</span>
+            </TabsTrigger>
+            <TabsTrigger value="subscriptions" className="flex flex-col sm:flex-row gap-0.5 sm:gap-1.5 px-1 sm:px-2 py-2 text-[10px] sm:text-sm">
+              <Tv className="w-4 h-4" />
+              <span>Assinaturas</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1537,6 +1642,345 @@ export default function ProductSales() {
               </div>
             )}
           </TabsContent>
+
+          {/* ASSINATURAS TAB */}
+          <TabsContent value="subscriptions" className="mt-4 space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Tv className="w-4 h-4 text-purple-500" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{subscriptionStats.active}</p>
+                      <p className="text-xs text-muted-foreground">Ativas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <DollarSign className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-500 truncate">{formatCurrency(subscriptionStats.mrr)}</p>
+                      <p className="text-xs text-muted-foreground">Mensal</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-yellow-500" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-yellow-500">{subscriptionStats.pending}</p>
+                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center">
+                      <AlertTriangle className="w-4 h-4 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-destructive">{subscriptionStats.overdue}</p>
+                      <p className="text-xs text-muted-foreground">Atrasados</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Search and Actions */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Buscar assinatura..." 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                  className="pl-9" 
+                />
+              </div>
+              <Dialog open={isSubscriptionOpen} onOpenChange={setIsSubscriptionOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Nova Assinatura
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Nova Assinatura</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Cliente *</Label>
+                      <Select
+                        value={subscriptionForm.client_id}
+                        onValueChange={(value) => setSubscriptionForm({ ...subscriptionForm, client_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clients?.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição *</Label>
+                      <Input
+                        value={subscriptionForm.description}
+                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, description: e.target.value })}
+                        placeholder="Ex: IPTV Premium, Streaming HD..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor Mensal (R$) *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={subscriptionForm.amount || ''}
+                          onChange={(e) => setSubscriptionForm({ ...subscriptionForm, amount: parseFloat(e.target.value) || 0 })}
+                          placeholder="50,00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Dia Vencimento</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={subscriptionForm.due_day}
+                          onChange={(e) => setSubscriptionForm({ ...subscriptionForm, due_day: parseInt(e.target.value) || 10 })}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Taxa de Juros por Atraso (%)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={subscriptionForm.interest_rate || ''}
+                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, interest_rate: parseFloat(e.target.value) || 0 })}
+                        placeholder="1,0"
+                      />
+                      <p className="text-xs text-muted-foreground">Juros mensais aplicados em caso de atraso</p>
+                    </div>
+                    <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+                      <input
+                        type="checkbox"
+                        id="generate_current_month"
+                        checked={subscriptionForm.generate_current_month}
+                        onChange={(e) => setSubscriptionForm({ ...subscriptionForm, generate_current_month: e.target.checked })}
+                        className="rounded border-input"
+                      />
+                      <label htmlFor="generate_current_month" className="text-sm cursor-pointer">
+                        Gerar cobrança do mês atual automaticamente
+                      </label>
+                    </div>
+                    <Button
+                      onClick={handleCreateSubscription}
+                      disabled={!subscriptionForm.client_id || !subscriptionForm.amount || createFee.isPending}
+                      className="w-full"
+                    >
+                      {createFee.isPending ? 'Salvando...' : 'Cadastrar Assinatura'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Status Filters */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={subscriptionStatusFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSubscriptionStatusFilter('all')}
+              >
+                Todas ({subscriptionStats.total})
+              </Button>
+              <Button
+                variant={subscriptionStatusFilter === 'active' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSubscriptionStatusFilter('active')}
+              >
+                Ativas ({subscriptionStats.active})
+              </Button>
+              <Button
+                variant={subscriptionStatusFilter === 'pending' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSubscriptionStatusFilter('pending')}
+              >
+                Pendentes ({subscriptionStats.pending})
+              </Button>
+              <Button
+                variant={subscriptionStatusFilter === 'overdue' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSubscriptionStatusFilter('overdue')}
+                className={subscriptionStatusFilter === 'overdue' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              >
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                Atrasados ({subscriptionStats.overdue})
+              </Button>
+            </div>
+
+            {/* Subscriptions List */}
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+              {filteredSubscriptions.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="p-8 text-center">
+                    <Tv className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Nenhuma assinatura encontrada</h3>
+                    <p className="text-muted-foreground">Cadastre sua primeira assinatura IPTV ou mensalidade.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredSubscriptions.map((fee) => {
+                  const status = getSubscriptionStatus(fee);
+                  const currentPayment = getCurrentMonthPayment(fee.id);
+                  const amountWithInterest = currentPayment && fee.interest_rate 
+                    ? calculateWithInterest(currentPayment, fee.interest_rate)
+                    : currentPayment?.amount || fee.amount;
+
+                  return (
+                    <Card 
+                      key={fee.id}
+                      className={cn(
+                        "transition-all",
+                        !fee.is_active && "opacity-60",
+                        status === 'overdue' && "bg-destructive/5 border-destructive/40",
+                        status === 'due_today' && "bg-yellow-500/5 border-yellow-500/40",
+                        status === 'paid' && "bg-primary/5 border-primary/40"
+                      )}
+                    >
+                      <CardContent className="p-4 space-y-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback className="bg-purple-500/20 text-purple-500 text-sm font-medium">
+                                {fee.client ? getClientInitials(fee.client.full_name) : '??'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="font-semibold">{fee.client?.full_name || 'Cliente'}</h3>
+                              <p className="text-sm text-muted-foreground">{fee.description || 'Assinatura'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={fee.is_active ? "default" : "secondary"} className={fee.is_active ? "bg-primary/20 text-primary border-primary/30" : ""}>
+                              {fee.is_active ? 'Ativa' : 'Inativa'}
+                            </Badge>
+                            {status === 'overdue' && <Badge variant="destructive">Atrasado</Badge>}
+                            {status === 'due_today' && <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">Vence Hoje</Badge>}
+                            {status === 'paid' && <Badge className="bg-primary/20 text-primary border-primary/30">Pago</Badge>}
+                          </div>
+                        </div>
+
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div className="p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">Mensalidade</p>
+                            <p className="font-bold text-primary">{formatCurrency(fee.amount)}</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">Vencimento</p>
+                            <p className="font-semibold">Dia {fee.due_day}</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">Juros/mês</p>
+                            <p className="font-semibold">{(fee.interest_rate || 0).toFixed(1)}%</p>
+                          </div>
+                        </div>
+
+                        {/* Current Month Status */}
+                        {currentPayment && status !== 'paid' && (
+                          <div className={cn(
+                            "p-3 rounded-lg border",
+                            status === 'overdue' ? "bg-destructive/10 border-destructive/30" : "bg-muted/30 border-border"
+                          )}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseISO(currentPayment.reference_month), 'MMMM/yyyy', { locale: ptBR })}
+                                </p>
+                                <p className="font-semibold">
+                                  Vence {format(parseISO(currentPayment.due_date), 'dd/MM')}
+                                  {status === 'overdue' && (
+                                    <span className="text-destructive ml-2">
+                                      ({Math.floor((new Date().getTime() - new Date(currentPayment.due_date).getTime()) / (1000 * 60 * 60 * 24))} dias)
+                                    </span>
+                                  )}
+                                </p>
+                                {status === 'overdue' && amountWithInterest > currentPayment.amount && (
+                                  <p className="text-xs text-destructive mt-1">
+                                    Com juros: {formatCurrency(amountWithInterest)}
+                                  </p>
+                                )}
+                              </div>
+                              <Button 
+                                size="sm" 
+                                className="gap-1"
+                                onClick={() => openSubscriptionPaymentDialog(currentPayment.id, amountWithInterest, fee.id)}
+                              >
+                                <Check className="w-3 h-3" />
+                                Pagar
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <div className="flex items-center gap-2">
+                            {fee.client?.phone && (
+                              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" asChild>
+                                <a href={`https://wa.me/55${fee.client.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                                  <MessageCircle className="w-3 h-3" />
+                                  WhatsApp
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={fee.is_active}
+                                onCheckedChange={(checked) => toggleActive.mutate({ id: fee.id, is_active: checked })}
+                              />
+                              <span className="text-xs text-muted-foreground">{fee.is_active ? 'Ativa' : 'Inativa'}</span>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => setDeleteSubscriptionId(fee.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Edit Sale Dialog */}
@@ -1930,6 +2374,65 @@ export default function ProductSales() {
                   </Button>
                   <Button onClick={confirmContractPayment} disabled={markPaymentAsPaid.isPending}>
                     {markPaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar Pagamento'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Subscription Delete Confirmation */}
+        <AlertDialog open={!!deleteSubscriptionId} onOpenChange={() => setDeleteSubscriptionId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Assinatura</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta assinatura? Todas as cobranças relacionadas também serão excluídas. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Subscription Payment Dialog */}
+        <Dialog open={subscriptionPaymentDialogOpen} onOpenChange={(open) => {
+          setSubscriptionPaymentDialogOpen(open);
+          if (!open) setSelectedSubscriptionPayment(null);
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Registrar Pagamento</DialogTitle>
+            </DialogHeader>
+            {selectedSubscriptionPayment && (
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Valor:</span>
+                    <span className="font-semibold text-primary">{formatCurrency(selectedSubscriptionPayment.amount)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subscriptionPaymentDate">Data do Pagamento</Label>
+                  <Input
+                    id="subscriptionPaymentDate"
+                    type="date"
+                    value={subscriptionPaymentDate}
+                    onChange={(e) => setSubscriptionPaymentDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setSubscriptionPaymentDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleMarkSubscriptionPaymentAsPaid} disabled={markFeePaymentAsPaid.isPending}>
+                    {markFeePaymentAsPaid.isPending ? 'Salvando...' : 'Confirmar Pagamento'}
                   </Button>
                 </div>
               </div>
