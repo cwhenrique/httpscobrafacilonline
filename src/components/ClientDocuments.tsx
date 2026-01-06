@@ -157,6 +157,7 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
                 id="doc-upload-input"
                 type="file"
                 multiple
+                onClick={() => toast.info('Abrindo seletor de arquivos...')}
                 onChange={handleFileSelect}
                 disabled={isUploadDisabled}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
@@ -224,11 +225,9 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
             Erro ao carregar documentos: {lastFetchError}
           </p>
         )}
-        {(lastUploadError || lastUploadStage) && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Upload (debug): {lastUploadStage || '—'}{lastUploadError ? ` • ${lastUploadError}` : ''}
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground mb-2">
+          Upload (debug): {lastUploadStage || '—'}{lastUploadError ? ` • ${lastUploadError}` : ''}
+        </p>
         
         {loading ? (
           <div className="space-y-2">
