@@ -339,17 +339,28 @@ export default function Clients() {
 
   const currentClientForDocs = editingClient || (createdClientId ? { id: createdClientId, full_name: createdClientName } : null);
 
+  // No iOS PWA, inputs de arquivo dentro de Dialog podem falhar; no desktop use o input interno normal.
+  const useExternalDocInput = (() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isStandalone =
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      (navigator as any).standalone === true;
+    return isIOS && isStandalone;
+  })();
+
   // Handler quando arquivos são selecionados no input externo
   const handleDocFilesFromExternal = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     console.log('[Docs] Files selected from external input:', files?.length, 'contextLoading:', employeeLoading);
-    
+
     if (employeeLoading) {
       toast.warning('Aguarde o carregamento... Tente novamente em instantes.');
       e.target.value = '';
       return;
     }
-    
+
     if (files && files.length > 0) {
       // CRÍTICO: Converter FileList para Array ANTES de resetar o input
       // FileList é invalidado quando o input é resetado
@@ -364,17 +375,19 @@ export default function Clients() {
 
   return (
     <DashboardLayout>
-      {/* Input de documentos FORA do Dialog para funcionar no iOS PWA - usa id fixo para label nativo */}
-      <input
-        id="doc-upload-external"
-        type="file"
-        multiple
-        accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-        onChange={handleDocFilesFromExternal}
-        className="sr-only"
-        aria-hidden="true"
-      />
-      
+      {/* Input externo só no iOS PWA (workaround). */}
+      {useExternalDocInput && (
+        <input
+          id="doc-upload-external"
+          type="file"
+          multiple
+          accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+          onChange={handleDocFilesFromExternal}
+          className="sr-only"
+          aria-hidden="true"
+        />
+      )}
+
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -736,7 +749,7 @@ export default function Clients() {
                       <ClientDocuments 
                         clientId={currentClientForDocs.id} 
                         clientName={currentClientForDocs.full_name}
-                        useExternalInput={true}
+                        useExternalInput={useExternalDocInput}
                         pendingFiles={pendingDocFiles}
                         onPendingFilesProcessed={() => setPendingDocFiles(null)}
                       />
