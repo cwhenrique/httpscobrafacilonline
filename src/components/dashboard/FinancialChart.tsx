@@ -105,6 +105,7 @@ export function FinancialChart({ loans, payments }: FinancialChartProps) {
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
+                itemStyle={{ color: 'hsl(var(--foreground))' }}
               />
               <Legend />
               <Bar 
@@ -200,6 +201,7 @@ export function InterestChart({ payments }: { payments: LoanPayment[] }) {
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
+                itemStyle={{ color: 'hsl(var(--foreground))' }}
               />
               <Legend />
               <Line 
