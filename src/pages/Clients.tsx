@@ -408,7 +408,12 @@ export default function Clients() {
                     <span className="hidden sm:inline">Endereço</span>
                     <span className="sm:hidden">End.</span>
                   </TabsTrigger>
-                  <TabsTrigger value="documentos" className="gap-2">
+                  <TabsTrigger 
+                    value="documentos" 
+                    className="gap-2"
+                    disabled={!currentClientForDocs}
+                    title={!currentClientForDocs ? 'Salve o cliente primeiro para anexar documentos' : undefined}
+                  >
                     <FileText className="w-4 h-4" />
                     <span className="hidden sm:inline">Documentos</span>
                     <span className="sm:hidden">Docs</span>
