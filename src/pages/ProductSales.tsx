@@ -1852,7 +1852,8 @@ export default function ProductSales() {
         <ReceiptPreviewDialog 
           open={isReceiptPreviewOpen} 
           onOpenChange={setIsReceiptPreviewOpen} 
-          data={receiptPreviewData} 
+          data={receiptPreviewData}
+          clientPhone={receiptPreviewData?.client?.phone || undefined}
         />
 
         {/* Payment Receipt Prompt */}

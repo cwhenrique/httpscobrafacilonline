@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, MessageCircle, Loader2, Copy } from 'lucide-react';
+import { Download, MessageCircle, Loader2, Copy, Send } from 'lucide-react';
 import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import WhatsAppNotConnectedDialog from './WhatsAppNotConnectedDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import SpamWarningDialog from './SpamWarningDialog';
 
 interface ListRow {
   title: string;
@@ -34,6 +35,7 @@ interface ReceiptPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: ContractReceiptData | null;
+  clientPhone?: string;
 }
 
 const formatCurrency = (value: number): string => {
@@ -202,15 +204,21 @@ const generateListData = (data: ContractReceiptData): ListData => {
 };
 
 
-export default function ReceiptPreviewDialog({ open, onOpenChange, data }: ReceiptPreviewDialogProps) {
+export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientPhone }: ReceiptPreviewDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isSendingToClient, setIsSendingToClient] = useState(false);
   const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
   const [showCopyPreview, setShowCopyPreview] = useState(false);
+  const [showSpamWarning, setShowSpamWarning] = useState(false);
+  const [showClientPreview, setShowClientPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
   if (!data) return null;
+
+  const hasWhatsAppConnected = !!(profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone);
+  const canSendToClient = hasWhatsAppConnected && !!clientPhone && profile?.whatsapp_to_clients_enabled;
 
   const handleSendWhatsApp = async () => {
     if (!profile?.phone) {
@@ -268,6 +276,49 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
       toast.error('Erro ao gerar comprovante');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Handle client button click - shows spam warning first
+  const handleClientButtonClick = () => {
+    setShowSpamWarning(true);
+  };
+
+  // After spam warning is confirmed
+  const handleConfirmSpamWarning = () => {
+    setShowSpamWarning(false);
+    setShowClientPreview(true);
+  };
+
+  // Send to client via WhatsApp
+  const handleConfirmSendToClient = async (message: string) => {
+    if (!clientPhone || !user?.id) return;
+
+    setIsSendingToClient(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
+        body: {
+          userId: user.id,
+          clientPhone,
+          message,
+        },
+      });
+
+      if (error) throw error;
+
+      if (result?.success) {
+        toast.success('Comprovante enviado para o cliente!');
+        setShowClientPreview(false);
+      } else if (result?.error === 'whatsapp_not_connected') {
+        setShowWhatsAppNotConnected(true);
+      } else {
+        throw new Error(result?.error || 'Erro ao enviar');
+      }
+    } catch (error: any) {
+      console.error('Error sending to client:', error);
+      toast.error('Erro ao enviar: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsSendingToClient(false);
     }
   };
 
@@ -488,20 +539,39 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
           </Button>
           
           {/* Botões de WhatsApp - condicionais */}
-          {profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone ? (
-            <Button 
-              variant="outline" 
-              onClick={handleSendWhatsApp} 
-              disabled={isSendingWhatsApp}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
-            >
-              {isSendingWhatsApp ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <MessageCircle className="w-4 h-4 mr-2" />
+          {hasWhatsAppConnected ? (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={handleSendWhatsApp} 
+                disabled={isSendingWhatsApp}
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                {isSendingWhatsApp ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                )}
+                {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ Mim'}
+              </Button>
+              
+              {/* Botão Enviar para o Cliente */}
+              {canSendToClient && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleClientButtonClick}
+                  disabled={isSendingToClient}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                >
+                  {isSendingToClient ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  {isSendingToClient ? 'Enviando...' : 'Enviar p/ Cliente'}
+                </Button>
               )}
-              {isSendingWhatsApp ? 'Enviando...' : 'Enviar p/ meu WhatsApp'}
-            </Button>
+            </>
           ) : (
             <Button 
               variant="outline" 
@@ -537,6 +607,25 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
       onConfirm={() => setShowCopyPreview(false)}
       isSending={false}
       mode="copy"
+    />
+
+    {/* Spam warning dialog */}
+    <SpamWarningDialog
+      open={showSpamWarning}
+      onOpenChange={setShowSpamWarning}
+      onConfirm={handleConfirmSpamWarning}
+    />
+
+    {/* Client message preview dialog */}
+    <MessagePreviewDialog
+      open={showClientPreview}
+      onOpenChange={setShowClientPreview}
+      initialMessage={generateWhatsAppMessage(data)}
+      recipientName={data.client.name}
+      recipientType="client"
+      onConfirm={handleConfirmSendToClient}
+      isSending={isSendingToClient}
+      mode="send"
     />
     </>
   );
