@@ -1,33 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Client, ClientType } from '@/types/database';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 
+async function fetchClientsFromDB(): Promise<Client[]> {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .order('full_name');
+
+  if (error) {
+    console.error('Error fetching clients:', error);
+    throw error;
+  }
+  
+  return (data || []) as Client[];
+}
+
 export function useClients() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
+  const queryClient = useQueryClient();
 
-  const fetchClients = async () => {
-    if (!user || employeeLoading || !effectiveUserId) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .order('full_name');
+  const { data: clients = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['clients', effectiveUserId],
+    queryFn: fetchClientsFromDB,
+    enabled: !!user && !employeeLoading && !!effectiveUserId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    gcTime: 1000 * 60 * 10, // 10 minutos
+  });
 
-    if (error) {
-      toast.error('Erro ao carregar clientes');
-      console.error(error);
-    } else {
-      setClients(data as Client[]);
-    }
-    setLoading(false);
-  };
+  const fetchClients = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  const invalidateClients = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['clients'] });
+  }, [queryClient]);
 
   const createClient = async (client: {
     full_name: string;
@@ -66,7 +78,7 @@ export function useClients() {
     }
 
     toast.success('Cliente criado com sucesso!');
-    await fetchClients();
+    invalidateClients();
     return { data: data as Client };
   };
 
@@ -85,7 +97,6 @@ export function useClients() {
 
     try {
       const fileExt = file.name.split('.').pop();
-      // Use simpler path: clientId.ext (consistent with other uploads)
       const filePath = `${clientId}.${fileExt}`;
 
       console.log('[Avatar] Uploading to path:', filePath);
@@ -108,7 +119,7 @@ export function useClients() {
 
       const { error: updateError } = await supabase
         .from('clients')
-        .update({ avatar_url: publicUrl + '?v=' + Date.now() }) // Cache bust
+        .update({ avatar_url: publicUrl + '?v=' + Date.now() })
         .eq('id', clientId);
 
       if (updateError) {
@@ -118,7 +129,7 @@ export function useClients() {
       }
 
       toast.success('Foto enviada com sucesso!');
-      await fetchClients();
+      invalidateClients();
       return { url: publicUrl };
     } catch (error) {
       console.error('[Avatar] Error uploading:', error);
@@ -139,7 +150,7 @@ export function useClients() {
     }
 
     toast.success('Cliente atualizado com sucesso!');
-    await fetchClients();
+    invalidateClients();
     return { success: true };
   };
 
@@ -155,13 +166,9 @@ export function useClients() {
     }
 
     toast.success('Cliente excluído com sucesso!');
-    await fetchClients();
+    invalidateClients();
     return { success: true };
   };
-
-  useEffect(() => {
-    fetchClients();
-  }, [user, effectiveUserId, employeeLoading]);
 
   return {
     clients,
@@ -171,5 +178,6 @@ export function useClients() {
     updateClient,
     deleteClient,
     uploadAvatar,
+    invalidateClients,
   };
 }

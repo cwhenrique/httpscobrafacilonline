@@ -1198,6 +1198,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_dashboard_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          active_clients: number
+          active_loans_count: number
+          due_today_count: number
+          loans_this_week: number
+          overdue_amount: number
+          overdue_count: number
+          overdue_this_week: number
+          paid_loans_count: number
+          pending_interest: number
+          received_this_week: number
+          total_loaned: number
+          total_pending: number
+          total_received: number
+        }[]
+      }
       get_employee_context: {
         Args: { _user_id: string }
         Returns: {

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { isLoanOverdue, getTotalDailyPenalties } from '@/lib/calculations';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 
 export interface DashboardStats {
   totalLoaned: number;
@@ -26,228 +26,126 @@ export interface DashboardStats {
   contractsThisWeekCount: number;
 }
 
-export function useDashboardStats() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalLoaned: 0,
-    totalReceived: 0,
-    totalPending: 0,
-    totalToReceive: 0,
-    overdueCount: 0,
-    upcomingDue: 0,
-    activeClients: 0,
-    contractsThisWeek: 0,
-    receivedThisWeek: 0,
-    dueToday: 0,
-    loanCount: 0,
-    loansThisWeek: 0,
-    productSalesCount: 0,
-    productSalesThisWeek: 0,
-    vehiclesCount: 0,
-    vehiclesThisWeek: 0,
-    contractsCount: 0,
-    contractsThisWeekCount: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+const defaultStats: DashboardStats = {
+  totalLoaned: 0,
+  totalReceived: 0,
+  totalPending: 0,
+  totalToReceive: 0,
+  overdueCount: 0,
+  upcomingDue: 0,
+  activeClients: 0,
+  contractsThisWeek: 0,
+  receivedThisWeek: 0,
+  dueToday: 0,
+  loanCount: 0,
+  loansThisWeek: 0,
+  productSalesCount: 0,
+  productSalesThisWeek: 0,
+  vehiclesCount: 0,
+  vehiclesThisWeek: 0,
+  contractsCount: 0,
+  contractsThisWeekCount: 0,
+};
 
-  const fetchStats = async () => {
-    if (!user) return;
+async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
 
-    setLoading(true);
+  // Usar função RPC otimizada para estatísticas de empréstimos
+  const [
+    { data: loanStats, error: loanStatsError },
+    { count: loanCount },
+    { count: loansThisWeek },
+    { count: productSalesCount },
+    { count: productSalesThisWeek },
+    { count: vehiclesCount },
+    { count: vehiclesThisWeek },
+    { count: contractsCount },
+    { count: contractsThisWeek },
+    { data: productPaymentsThisWeek },
+    { data: vehiclePaymentsThisWeek },
+    { data: contractPaymentsThisWeek },
+  ] = await Promise.all([
+    // Função RPC para estatísticas principais (otimizada no banco)
+    supabase.rpc('get_dashboard_stats', { p_user_id: userId }),
+    // Counts simples (muito rápidos com índices)
+    supabase.from('loans').select('id', { count: 'exact', head: true }),
+    supabase.from('loans').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+    supabase.from('product_sales').select('id', { count: 'exact', head: true }),
+    supabase.from('product_sales').select('id', { count: 'exact', head: true }).gte('sale_date', weekAgoStr),
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }),
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }).gte('purchase_date', weekAgoStr),
+    supabase.from('contracts').select('id', { count: 'exact', head: true }),
+    supabase.from('contracts').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+    // Pagamentos desta semana (com limite e campos mínimos)
+    supabase.from('product_sale_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+    supabase.from('vehicle_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+    supabase.from('contract_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+  ]);
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const weekAgoStr = weekAgo.toISOString().split('T')[0];
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  if (loanStatsError) {
+    console.error('Error fetching dashboard stats:', loanStatsError);
+  }
 
-    // Fetch all data in parallel
-    const [
-      { data: loans },
-      { data: loansThisWeek },
-      { data: monthlyPayments },
-      { count: clientsCount },
-      { data: productSales },
-      { data: productSalesThisWeek },
-      { data: vehicles },
-      { data: vehiclesThisWeek },
-      { data: contracts },
-      { data: contractsThisWeek },
-      { data: loanPaymentsThisWeek },
-      { data: productPaymentsThisWeek },
-      { data: vehiclePaymentsThisWeek },
-      { data: contractPaymentsThisWeek },
-      { data: allLoanPayments },
-    ] = await Promise.all([
-      supabase.from('loans').select('id, principal_amount, total_paid, remaining_balance, status, due_date, interest_rate, installments, interest_mode, payment_type, total_interest, installment_dates, start_date, contract_date, notes'),
-      supabase.from('loans').select('id, created_at').gte('created_at', weekAgo.toISOString()),
-      supabase.from('monthly_fee_payments').select('amount, status, due_date'),
-      supabase.from('clients').select('*', { count: 'exact', head: true }),
-      supabase.from('product_sales').select('id, status, sale_date'),
-      supabase.from('product_sales').select('id, sale_date').gte('sale_date', weekAgoStr),
-      supabase.from('vehicles').select('id, status, purchase_date'),
-      supabase.from('vehicles').select('id, purchase_date').gte('purchase_date', weekAgoStr),
-      supabase.from('contracts').select('id, status, contract_date, created_at'),
-      supabase.from('contracts').select('id, contract_date, created_at').gte('created_at', weekAgo.toISOString()),
-      supabase.from('loan_payments').select('amount, payment_date').gte('payment_date', weekAgoStr).lte('payment_date', todayStr),
-      supabase.from('product_sale_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
-      supabase.from('vehicle_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
-      supabase.from('contract_payments').select('amount, paid_date').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
-      supabase.from('loan_payments').select('loan_id, principal_paid'),
-    ]);
+  // Extrair dados da função RPC (retorna array com 1 row)
+  const rpcData = Array.isArray(loanStats) ? loanStats[0] : loanStats;
+  
+  // Calcular recebido esta semana (já inclui empréstimos via RPC)
+  let receivedThisWeek = Number(rpcData?.received_this_week || 0);
+  if (productPaymentsThisWeek) {
+    receivedThisWeek += productPaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
+  }
+  if (vehiclePaymentsThisWeek) {
+    receivedThisWeek += vehiclePaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
+  }
+  if (contractPaymentsThisWeek) {
+    receivedThisWeek += contractPaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
+  }
 
-    let totalLoaned = 0; // Capital na Rua - apenas empréstimos ATIVOS
-    let totalReceived = 0; // Total recebido de todos os empréstimos
-    let totalPending = 0; // Pendente - remaining_balance do banco (ativos)
-    let totalToReceive = 0; // Total a receber (principal + juros de ativos)
-    let overdueCount = 0;
-    let upcomingDue = 0;
-    let dueToday = 0;
+  // Total de contratos esta semana
+  const contractsThisWeekTotal = 
+    (loansThisWeek || 0) + 
+    (productSalesThisWeek || 0) + 
+    (vehiclesThisWeek || 0) + 
+    (contractsThisWeek || 0);
 
-    if (loans) {
-      loans.forEach(loan => {
-        const principal = Number(loan.principal_amount);
-        const totalPaid = Number(loan.total_paid || 0);
-        const remainingBalance = Number(loan.remaining_balance);
-        const penalties = getTotalDailyPenalties((loan as any).notes);
-        
-        // Calcular principal já pago para este empréstimo
-        const loanPayments = allLoanPayments?.filter(p => p.loan_id === loan.id) || [];
-        const totalPrincipalPaid = loanPayments.reduce((sum, p) => sum + Number(p.principal_paid || 0), 0);
-        const capitalNaRua = principal - totalPrincipalPaid;
-        
-        // Total recebido de TODOS os empréstimos (histórico)
-        totalReceived += totalPaid;
-        
-        // Apenas empréstimos ATIVOS contam para "Na Rua" e "Pendente"
-        if (loan.status !== 'paid') {
-          totalLoaned += capitalNaRua; // Na Rua = principal - principal já pago
-          totalPending += remainingBalance + penalties; // Pendente = remaining_balance + multas aplicadas
-          
-          // Total a receber (principal + juros + multas) apenas de ativos
-          if (loan.payment_type === 'daily') {
-            totalToReceive += remainingBalance + totalPaid + penalties;
-          } else {
-            const rate = Number(loan.interest_rate);
-            const numInstallments = Number(loan.installments) || 1;
-            const interestMode = loan.interest_mode || 'per_installment';
-            
-            let totalInterest = 0;
-            if (interestMode === 'per_installment') {
-              totalInterest = principal * (rate / 100) * numInstallments;
-            } else {
-              totalInterest = principal * (rate / 100);
-            }
-            
-            totalToReceive += principal + totalInterest + penalties;
-          }
-        }
-        
-        // Usar função centralizada para verificar atraso
-        if (isLoanOverdue(loan)) {
-          overdueCount++;
-        }
-
-        // Check due dates - Adiciona T12:00:00 para evitar problemas de timezone
-        // Conta apenas uma vez por empréstimo para evitar duplicação
-        const installmentDates = (loan.installment_dates as string[]) || [];
-        let hasDueToday = false;
-        let hasUpcomingDue = false;
-        
-        if (installmentDates.length > 0) {
-          installmentDates.forEach(dateStr => {
-            const dueDate = new Date(dateStr + 'T12:00:00');
-            if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
-              hasDueToday = true;
-            }
-            if (dueDate >= today && dueDate <= nextWeek && loan.status !== 'paid') {
-              hasUpcomingDue = true;
-            }
-          });
-        } else {
-          const dueDate = new Date(loan.due_date + 'T12:00:00');
-          if (dueDate.toISOString().split('T')[0] === todayStr && loan.status !== 'paid') {
-            hasDueToday = true;
-          }
-          if (dueDate >= today && dueDate <= nextWeek && loan.status !== 'paid') {
-            hasUpcomingDue = true;
-          }
-        }
-        
-        if (hasDueToday) dueToday++;
-        if (hasUpcomingDue) upcomingDue++;
-      });
-    }
-
-    if (monthlyPayments) {
-      monthlyPayments.forEach(payment => {
-        if (payment.status === 'paid') {
-          totalReceived += Number(payment.amount);
-        } else {
-          if (payment.status === 'overdue') {
-            overdueCount++;
-          }
-        }
-
-        const dueDate = new Date(payment.due_date + 'T12:00:00');
-        if (dueDate.toISOString().split('T')[0] === todayStr && payment.status !== 'paid') {
-          dueToday++;
-        }
-        if (dueDate >= today && dueDate <= nextWeek && payment.status !== 'paid') {
-          upcomingDue++;
-        }
-      });
-    }
-
-    // Calculate received this week
-    let receivedThisWeek = 0;
-    if (loanPaymentsThisWeek) {
-      receivedThisWeek += loanPaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
-    }
-    if (productPaymentsThisWeek) {
-      receivedThisWeek += productPaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
-    }
-    if (vehiclePaymentsThisWeek) {
-      receivedThisWeek += vehiclePaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
-    }
-    if (contractPaymentsThisWeek) {
-      receivedThisWeek += contractPaymentsThisWeek.reduce((sum, p) => sum + Number(p.amount), 0);
-    }
-
-    // Total contracts this week
-    const contractsThisWeekTotal = 
-      (loansThisWeek?.length || 0) + 
-      (productSalesThisWeek?.length || 0) + 
-      (vehiclesThisWeek?.length || 0) + 
-      (contractsThisWeek?.length || 0);
-
-    setStats({
-      totalLoaned,
-      totalReceived,
-      totalPending: Math.max(0, totalPending),
-      totalToReceive,
-      overdueCount,
-      upcomingDue,
-      activeClients: clientsCount || 0,
-      contractsThisWeek: contractsThisWeekTotal,
-      receivedThisWeek,
-      dueToday,
-      loanCount: loans?.length || 0,
-      loansThisWeek: loansThisWeek?.length || 0,
-      productSalesCount: productSales?.length || 0,
-      productSalesThisWeek: productSalesThisWeek?.length || 0,
-      vehiclesCount: vehicles?.length || 0,
-      vehiclesThisWeek: vehiclesThisWeek?.length || 0,
-      contractsCount: contracts?.length || 0,
-      contractsThisWeekCount: contractsThisWeek?.length || 0,
-    });
-
-    setLoading(false);
+  return {
+    totalLoaned: Number(rpcData?.total_loaned || 0),
+    totalReceived: Number(rpcData?.total_received || 0),
+    totalPending: Math.max(0, Number(rpcData?.total_pending || 0)),
+    totalToReceive: Number(rpcData?.total_pending || 0) + Number(rpcData?.pending_interest || 0),
+    overdueCount: Number(rpcData?.overdue_count || 0),
+    upcomingDue: 0, // Removido para performance - pode ser adicionado depois se necessário
+    activeClients: Number(rpcData?.active_clients || 0),
+    contractsThisWeek: contractsThisWeekTotal,
+    receivedThisWeek,
+    dueToday: Number(rpcData?.due_today_count || 0),
+    loanCount: loanCount || 0,
+    loansThisWeek: loansThisWeek || 0,
+    productSalesCount: productSalesCount || 0,
+    productSalesThisWeek: productSalesThisWeek || 0,
+    vehiclesCount: vehiclesCount || 0,
+    vehiclesThisWeek: vehiclesThisWeek || 0,
+    contractsCount: contractsCount || 0,
+    contractsThisWeekCount: contractsThisWeek || 0,
   };
+}
 
-  useEffect(() => {
-    fetchStats();
-  }, [user]);
+export function useDashboardStats() {
+  const { user } = useAuth();
+  const { effectiveUserId, loading: employeeLoading } = useEmployeeContext();
 
-  return { stats, loading, refetch: fetchStats };
+  const userId = effectiveUserId || user?.id;
+
+  const { data: stats = defaultStats, isLoading: loading, refetch } = useQuery({
+    queryKey: ['dashboard-stats', userId],
+    queryFn: () => fetchDashboardStats(userId!),
+    enabled: !!userId && !employeeLoading,
+    staleTime: 1000 * 60 * 2, // 2 minutos
+    gcTime: 1000 * 60 * 5, // 5 minutos (anteriormente cacheTime)
+  });
+
+  return { stats, loading, refetch };
 }
