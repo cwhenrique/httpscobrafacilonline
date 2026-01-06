@@ -52,10 +52,14 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [contextReady, setContextReady] = useState(false);
 
-  const fetchEmployeeContext = useCallback(async (userId: string) => {
-    console.log('[EmployeeContext] Buscando contexto para:', userId);
-    setLoading(true);
-    
+  const fetchEmployeeContext = useCallback(async (userId: string, opts?: { silent?: boolean }) => {
+    console.log('[EmployeeContext] Buscando contexto para:', userId, opts?.silent ? '(silent)' : '');
+
+    // Em refresh por foco/retorno do seletor de arquivos, não bloquear a UI
+    if (!opts?.silent) {
+      setLoading(true);
+    }
+
     try {
       const { data, error } = await supabase.rpc('get_employee_context', { _user_id: userId });
 
@@ -71,7 +75,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       }
 
       const result = Array.isArray(data) ? data[0] : data;
-      
+
       if (!result || !result.is_employee) {
         // Não é funcionário = é DONO
         console.log('[EmployeeContext] ✓ Usuário é DONO (não é funcionário)');
@@ -85,12 +89,12 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
         const ctx = result as EmployeeContextResult;
         console.log('[EmployeeContext] ✓ FUNCIONÁRIO detectado:', ctx.employee_name);
         console.log('[EmployeeContext] Permissões:', ctx.permissions);
-        
+
         setIsEmployee(true);
         setIsOwner(false);
         setOwnerId(ctx.owner_id);
         setEmployeeName(ctx.employee_name);
-        
+
         if (!ctx.is_active) {
           console.warn('[EmployeeContext] Funcionário INATIVO');
           setPermissions([]);
@@ -104,7 +108,9 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       setIsEmployee(false);
       setIsOwner(true);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) {
+        setLoading(false);
+      }
       setContextReady(true);
     }
   }, []);
@@ -137,8 +143,8 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleFocus = () => {
       if (user?.id && contextReady) {
-        console.log('[EmployeeContext] Window focus - revalidando...');
-        fetchEmployeeContext(user.id);
+        console.log('[EmployeeContext] Window focus - revalidando (silent)...');
+        fetchEmployeeContext(user.id, { silent: true });
       }
     };
 
