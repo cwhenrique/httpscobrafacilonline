@@ -180,26 +180,9 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
-          </p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={isUploadDisabled}
-            onClick={async () => {
-              // Teste de upload sem depender do seletor de arquivos (diagnóstico)
-              const content = `teste_upload_${Date.now()}`;
-              const testFile = new window.File([content], `teste-${Date.now()}.txt`, { type: 'text/plain' });
-              toast.info('Enviando arquivo de teste...');
-              await uploadMultipleDocuments([testFile], 'teste');
-            }}
-          >
-            Testar upload
-          </Button>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Aceita: imagens, PDF, Word, Excel. Você pode selecionar múltiplos arquivos.
+        </p>
 
         {!useExternalInput && (
           <div className="rounded-md border border-dashed border-input p-3 text-xs text-muted-foreground">
@@ -262,9 +245,6 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
             Erro ao carregar documentos: {lastFetchError}
           </p>
         )}
-        <p className="text-xs text-muted-foreground mb-2">
-          Upload (debug): {lastUploadStage || '—'}{lastUploadError ? ` • ${lastUploadError}` : ''}
-        </p>
         
         {loading ? (
           <div className="space-y-2">
