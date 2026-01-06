@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MessageCircle, Loader2, Eye, User } from 'lucide-react';
+import { MessageCircle, Loader2, Eye, User, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface MessagePreviewDialogProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface MessagePreviewDialogProps {
   recipientType: 'self' | 'client';
   onConfirm: (editedMessage: string) => void;
   isSending?: boolean;
+  mode?: 'send' | 'copy';
 }
 
 export default function MessagePreviewDialog({
@@ -29,18 +31,32 @@ export default function MessagePreviewDialog({
   recipientType,
   onConfirm,
   isSending = false,
+  mode = 'send',
 }: MessagePreviewDialogProps) {
   const [editedMessage, setEditedMessage] = useState(initialMessage);
+  const [copied, setCopied] = useState(false);
 
   // Reset message when dialog opens with new initial message
   useEffect(() => {
     if (open) {
       setEditedMessage(initialMessage);
+      setCopied(false);
     }
   }, [open, initialMessage]);
 
   const handleConfirm = () => {
     onConfirm(editedMessage);
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(editedMessage);
+      setCopied(true);
+      toast.success('Texto copiado! Cole no WhatsApp');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Erro ao copiar texto');
+    }
   };
 
   return (
@@ -68,7 +84,7 @@ export default function MessagePreviewDialog({
             placeholder="Digite a mensagem..."
           />
           <p className="text-xs text-muted-foreground">
-            💡 Você pode editar a mensagem antes de enviar
+            💡 Você pode editar a mensagem antes de {mode === 'copy' ? 'copiar' : 'enviar'}
           </p>
         </div>
 
@@ -80,23 +96,43 @@ export default function MessagePreviewDialog({
           >
             Cancelar
           </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={isSending || !editedMessage.trim()}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            {isSending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Enviar Mensagem
-              </>
-            )}
-          </Button>
+          {mode === 'copy' ? (
+            <Button
+              onClick={handleCopy}
+              disabled={!editedMessage.trim()}
+              className="bg-amber-500 hover:bg-amber-600"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Copiado!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copiar Texto
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleConfirm}
+              disabled={isSending || !editedMessage.trim()}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Enviar Mensagem
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

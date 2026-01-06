@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign, Users, Loader2 } from 'lucide-react';
+import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign, Users, Loader2, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,8 +45,11 @@ export default function SaleCreatedReceiptPrompt({
   const [showPreviewForSelf, setShowPreviewForSelf] = useState(false);
   const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
+  const [showCopyPreview, setShowCopyPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
+
+  const hasWhatsAppConnected = profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone;
 
   if (!sale) return null;
 
@@ -368,18 +371,28 @@ export default function SaleCreatedReceiptPrompt({
           </Card>
 
           <div className="flex flex-col gap-3 mt-4">
-            <Button 
-              onClick={handleSendToSelfClick} 
-              disabled={isSending || !userPhone}
-              className="w-full"
-            >
-              {isSending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <MessageCircle className="w-4 h-4 mr-2" />
-              )}
-              {isSending ? 'Enviando...' : 'Enviar para Mim'}
-            </Button>
+            {hasWhatsAppConnected ? (
+              <Button 
+                onClick={handleSendToSelfClick} 
+                disabled={isSending || !userPhone}
+                className="w-full"
+              >
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                )}
+                {isSending ? 'Enviando...' : 'Enviar para Mim'}
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => setShowCopyPreview(true)} 
+                className="w-full bg-amber-500 hover:bg-amber-600"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar Texto (Sem WhatsApp)
+              </Button>
+            )}
 
             {canSendToClient && (
               <Button 
@@ -451,6 +464,17 @@ export default function SaleCreatedReceiptPrompt({
       <WhatsAppNotConnectedDialog
         open={showWhatsAppNotConnected}
         onOpenChange={setShowWhatsAppNotConnected}
+      />
+
+      {/* Copy preview for users without WhatsApp */}
+      <MessagePreviewDialog
+        open={showCopyPreview}
+        onOpenChange={setShowCopyPreview}
+        initialMessage={generateSelfMessage()}
+        recipientName="Você"
+        recipientType="self"
+        onConfirm={() => setShowCopyPreview(false)}
+        mode="copy"
       />
     </>
   );
