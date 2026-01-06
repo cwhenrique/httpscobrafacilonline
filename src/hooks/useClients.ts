@@ -71,18 +71,33 @@ export function useClients() {
   };
 
   const uploadAvatar = async (clientId: string, file: File) => {
-    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+    console.log('Avatar upload attempt:', { user: !!user, effectiveUserId, clientId, employeeLoading });
+    
+    if (!user) {
+      toast.error('Você precisa estar logado para enviar fotos');
+      return { error: new Error('Usuário não autenticado') };
+    }
+    
+    if (employeeLoading || !effectiveUserId) {
+      toast.error('Aguarde o carregamento da sessão e tente novamente');
+      return { error: new Error('Sessão ainda carregando') };
+    }
 
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${clientId}-${Date.now()}.${fileExt}`;
       const filePath = `${clientId}/${fileName}`;
 
+      console.log('Uploading avatar to path:', filePath);
+
       const { error: uploadError } = await supabase.storage
         .from('client-avatars')
         .upload(filePath, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('client-avatars')
@@ -98,7 +113,8 @@ export function useClients() {
       await fetchClients();
       return { url: publicUrl };
     } catch (error) {
-      toast.error('Erro ao enviar foto');
+      console.error('Error uploading avatar:', error);
+      toast.error('Erro ao enviar foto: ' + (error as Error).message);
       return { error };
     }
   };

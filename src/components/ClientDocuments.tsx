@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
+import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,9 +25,12 @@ interface ClientDocumentsProps {
 
 export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) {
   const { documents, loading, uploading, uploadDocument, deleteDocument, downloadDocument } = useClientDocuments(clientId);
+  const { loading: contextLoading } = useEmployeeContext();
   const [deleteDoc, setDeleteDoc] = useState<{ id: string; path: string } | null>(null);
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const isUploadDisabled = uploading || contextLoading;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -95,15 +99,15 @@ export function ClientDocuments({ clientId, clientName }: ClientDocumentsProps) 
             type="button"
             variant="outline"
             className="gap-2 flex-1"
-            disabled={uploading}
+            disabled={isUploadDisabled}
             onClick={() => fileInputRef.current?.click()}
           >
-            {uploading ? (
+            {isUploadDisabled ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Upload className="w-4 h-4" />
             )}
-            {uploading ? 'Enviando...' : 'Selecionar Arquivos'}
+            {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
