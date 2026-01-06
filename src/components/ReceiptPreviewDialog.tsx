@@ -137,11 +137,26 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   if (data.dueDates.length > 0) {
     message += `\n📅 *VENCIMENTOS*\n`;
     message += `━━━━━━━━━━━━━━━━\n`;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     data.dueDates.forEach((item, index) => {
       const date = typeof item === 'string' ? item : item.date;
       const isPaid = typeof item === 'object' && item.isPaid;
-      const checkmark = isPaid ? '✅ ' : '';
-      message += `${checkmark}${index + 1}ª parcela: ${formatDate(date)}\n`;
+      const isOverdue = typeof item === 'object' && (item as any).isOverdue;
+      
+      let emoji = '⏳'; // Em aberto (futuro)
+      if (isPaid) {
+        emoji = '✅';
+      } else {
+        const dueDate = new Date(date + 'T12:00:00');
+        if (dueDate < today || isOverdue) {
+          emoji = '❌';
+        }
+      }
+      
+      message += `${emoji} ${index + 1}ª parcela: ${formatDate(date)}\n`;
     });
   }
   
@@ -421,9 +436,17 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
                   {data.dueDates.map((item, index) => {
                     const date = typeof item === 'string' ? item : item.date;
                     const isPaid = typeof item === 'object' && item.isPaid;
+                    const isOverdue = typeof item === 'object' && (item as any).isOverdue;
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const dueDate = new Date(date + 'T12:00:00');
+                    const isOverdueCalc = !isPaid && dueDate < today;
+                    const showOverdue = isOverdue || isOverdueCalc;
                     return (
-                      <div key={index} className={`rounded p-1 text-center ${isPaid ? 'bg-green-500/20' : 'bg-background'}`}>
+                      <div key={index} className={`rounded p-1 text-center ${isPaid ? 'bg-green-500/20' : showOverdue ? 'bg-red-500/20' : 'bg-background'}`}>
                         {isPaid && <span className="text-green-500">✅ </span>}
+                        {!isPaid && showOverdue && <span className="text-red-500">❌ </span>}
+                        {!isPaid && !showOverdue && <span className="text-muted-foreground">⏳ </span>}
                         <span className="font-medium">{index + 1}ª:</span> {formatDate(date)}
                       </div>
                     );
