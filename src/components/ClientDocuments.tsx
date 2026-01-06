@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useClientDocuments } from '@/hooks/useClientDocuments';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ interface ClientDocumentsProps {
 }
 
 export function ClientDocuments({ clientId, clientName, useExternalInput, pendingFiles, onPendingFilesProcessed }: ClientDocumentsProps) {
+  const internalInputRef = useRef<HTMLInputElement | null>(null);
   const { 
     documents, 
     loading, 
@@ -53,7 +54,8 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
+    toast.info(`${files.length} arquivo(s) selecionado(s)`);
     await uploadMultipleDocuments(Array.from(files), description || undefined);
     setDescription('');
     e.target.value = '';
@@ -133,9 +135,10 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
               </span>
             </label>
           ) : (
-            // Fallback: input interno (para uso fora de Dialog)
+            // Desktop/normal: usar button com .click() no input (mais compatível)
             <>
               <input
+                ref={internalInputRef}
                 id="doc-upload-input"
                 type="file"
                 multiple
@@ -143,19 +146,20 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
                 className="sr-only"
                 accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
               />
-              <label 
-                htmlFor="doc-upload-input" 
-                className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 gap-2"
+                disabled={isUploadDisabled}
+                onClick={() => internalInputRef.current?.click()}
               >
-                <span className="inline-flex items-center justify-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
-                  {isUploadDisabled ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
-                  )}
-                  {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-                </span>
-              </label>
+                {isUploadDisabled ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+              </Button>
             </>
           )}
         </div>
