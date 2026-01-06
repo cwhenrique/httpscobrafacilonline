@@ -109,64 +109,56 @@ export default function SaleCreatedReceiptPrompt({
     return message;
   };
 
-  // Generate list data for COLLECTOR (full details)
-  const generateCollectorListData = (): ListData => {
+  // Generate complete message for SELF (direct send, no OK confirmation)
+  const generateSelfMessage = (): string => {
     const contractId = `PRD-${sale.id.substring(0, 4).toUpperCase()}`;
     const downPayment = sale.down_payment || 0;
     const costValue = sale.cost_value || 0;
     const profit = sale.total_amount - costValue;
     
-    let description = `📋 *Contrato:* ${contractId}\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
-    description += `👤 *Cliente:* ${sale.client_name}\n`;
+    let message = `📦 *VENDA REGISTRADA*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *Contrato:* ${contractId}\n`;
+    message += `📅 *Data:* ${formatDate(sale.sale_date)}\n\n`;
+    message += `👤 *Cliente:* ${sale.client_name}\n`;
     if (sale.client_phone) {
-      description += `📱 *Telefone:* ${sale.client_phone}\n`;
+      message += `📱 *Telefone:* ${sale.client_phone}\n`;
     }
-    description += `\n📦 *Produto:* ${sale.product_name}\n`;
+    
+    message += `\n📦 *Produto:* ${sale.product_name}\n`;
     if (sale.product_description) {
-      description += `   ${sale.product_description}\n`;
+      message += `   ${sale.product_description}\n`;
     }
-    description += `\n💰 *VALORES*\n`;
-    description += `• Valor Total: ${formatCurrency(sale.total_amount)}\n`;
+    
+    message += `\n💰 *VALORES*\n`;
+    message += `• Valor Total: ${formatCurrency(sale.total_amount)}\n`;
     if (costValue > 0) {
-      description += `• Custo: ${formatCurrency(costValue)}\n`;
-      description += `• Lucro: ${formatCurrency(profit)}\n`;
+      message += `• Custo: ${formatCurrency(costValue)}\n`;
+      message += `• Lucro: ${formatCurrency(profit)}\n`;
     }
     if (downPayment > 0) {
-      description += `• Entrada: ${formatCurrency(downPayment)}\n`;
+      message += `• Entrada: ${formatCurrency(downPayment)}\n`;
     }
-    description += `• Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
+    message += `• Parcelas: ${sale.installments}x de ${formatCurrency(sale.installment_value)}\n`;
     
-    description += `\n━━━━━━━━━━━━━━━━\n`;
-    description += `📲 Responda OK para continuar recebendo.`;
-
-    const sections: ListSection[] = [
-      {
-        title: "💰 Valores",
-        rows: [
-          { title: "Total", description: formatCurrency(sale.total_amount), rowId: "total" },
-          { title: "Parcelas", description: `${sale.installments}x ${formatCurrency(sale.installment_value)}`, rowId: "inst" },
-        ]
-      }
-    ];
+    message += `\n📅 *1º Vencimento:* ${formatDate(sale.first_due_date)}\n`;
     
-    if (costValue > 0) {
-      sections.push({
-        title: "📊 Financeiro",
-        rows: [
-          { title: "Custo", description: formatCurrency(costValue), rowId: "cost" },
-          { title: "Lucro", description: formatCurrency(profit), rowId: "profit" },
-        ]
+    // Add installment status with emojis
+    if (installmentDates && installmentDates.length > 0) {
+      message += `\n📊 *STATUS DAS PARCELAS:*\n`;
+      installmentDates.forEach((item, index) => {
+        const date = item.date;
+        const isPaid = item.isPaid || false;
+        const emoji = isPaid ? '✅' : '⏳';
+        const status = isPaid ? 'Paga' : 'Em Aberto';
+        message += `${index + 1}️⃣ ${emoji} ${formatDate(date)} - ${status}\n`;
       });
     }
-
-    return {
-      title: "📦 Venda Registrada",
-      description,
-      buttonText: "📋 Ver Detalhes",
-      footerText: "CobraFácil",
-      sections,
-    };
+    
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_CobraFácil_`;
+    
+    return message;
   };
 
   // Open preview for self
@@ -183,17 +175,7 @@ export default function SaleCreatedReceiptPrompt({
     setShowPreviewForSelf(true);
   };
 
-  // Generate warning message for self (anti-spam)
-  const generateWarningMessageForSelf = (): string => {
-    let message = `📋 *COMPROVANTE DISPONÍVEL*\n\n`;
-    message += `Você tem um comprovante de venda pronto.\n\n`;
-    message += `📌 Responda *OK* para receber.\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `_CobraFácil_`;
-    return message;
-  };
-
-  // Send to collector - USES CONFIRMATION FLOW (anti-spam)
+  // Send complete message directly to self (no OK confirmation needed)
   const handleConfirmSendToSelf = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -207,56 +189,21 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const warningMessage = generateWarningMessageForSelf();
-      const fullMessage = generateCollectorListData().description;
+      const message = generateSelfMessage();
       
-      // 1. Save the full message in pending_messages table
-      const { error: pendingError } = await supabase
-        .from('pending_messages')
-        .insert({
-          user_id: user.id,
-          client_phone: userPhone,
-          client_name: 'Você',
-          message_type: 'self_sale_receipt',
-          contract_id: sale.id,
-          contract_type: 'product',
-          message_content: fullMessage,
-          status: 'pending',
-        });
-
-      if (pendingError) {
-        console.error('Error saving pending message:', pendingError);
-        throw pendingError;
-      }
-
-      // 2. Send only the warning message via user's own WhatsApp
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message: warningMessage },
+        body: { userId: user.id, message },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
+        toast.success('Comprovante enviado para você!');
         setShowPreviewForSelf(false);
         onOpenChange(false);
       } else if (result?.error === 'whatsapp_not_connected') {
-        // WhatsApp not connected - show dialog
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', sale.id)
-          .eq('client_phone', userPhone)
-          .eq('status', 'pending');
         setShowWhatsAppNotConnected(true);
       } else {
-        // If sending failed, remove the pending message
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', sale.id)
-          .eq('client_phone', userPhone)
-          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error) {
@@ -482,7 +429,7 @@ export default function SaleCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateCollectorListData().description}
+        initialMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}

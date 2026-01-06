@@ -132,74 +132,102 @@ const generateClientMessage = (data: PaymentReceiptData, installmentDates?: stri
   return message;
 };
 
-// Generate list data for COLLECTOR (full details)
-const generateCollectorListData = (data: PaymentReceiptData, clientPhone?: string): ListData => {
+// Generate complete message for SELF (direct send, with progress bar and emojis)
+const generateSelfMessage = (
+  data: PaymentReceiptData, 
+  clientPhone?: string, 
+  installmentDates?: string[], 
+  paidCount?: number
+): string => {
   const prefix = getContractPrefix(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
   const isFullyPaid = data.remainingBalance <= 0;
   
-  let description = `📋 *Contrato:* ${contractNumber}\n`;
-  description += `━━━━━━━━━━━━━━━━\n\n`;
-  description += `👤 *Cliente:* ${data.clientName}\n`;
-  if (clientPhone) {
-    description += `📱 *Telefone:* ${clientPhone}\n`;
+  const maxPaidInstallment = Array.isArray(data.installmentNumber) 
+    ? Math.max(...data.installmentNumber) 
+    : data.installmentNumber;
+  
+  // Calculate progress
+  let progressPercent: number;
+  if (isFullyPaid) {
+    progressPercent = 100;
+  } else if (data.totalContract && data.totalPaid) {
+    progressPercent = Math.min(100, Math.round((data.totalPaid / data.totalContract) * 100));
+  } else {
+    progressPercent = Math.round((maxPaidInstallment / data.totalInstallments) * 100);
   }
-  description += `\n💰 *PAGAMENTO*\n`;
-  description += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
+  
+  let message = `✅ *PAGAMENTO REGISTRADO*\n`;
+  message += `━━━━━━━━━━━━━━━━\n\n`;
+  message += `📋 *Contrato:* ${contractNumber}\n`;
+  message += `👤 *Cliente:* ${data.clientName}\n`;
+  if (clientPhone) {
+    message += `📱 *Telefone:* ${clientPhone}\n`;
+  }
+  
+  message += `\n💰 *PAGAMENTO*\n`;
+  message += `• Valor Pago: ${formatCurrency(data.amountPaid)}\n`;
   if (data.penaltyAmount && data.penaltyAmount > 0) {
-    description += `• Multa: ${formatCurrency(data.penaltyAmount)}\n`;
+    message += `• Multa: ${formatCurrency(data.penaltyAmount)}\n`;
   }
   if (data.discountAmount && data.discountAmount > 0) {
-    description += `• Desconto: ${formatCurrency(data.discountAmount)}\n`;
+    message += `• Desconto: ${formatCurrency(data.discountAmount)}\n`;
   }
   if (Array.isArray(data.installmentNumber)) {
-    description += `• Parcelas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
+    message += `• Parcelas Pagas: ${data.installmentNumber.join(', ')} de ${data.totalInstallments}\n`;
   } else {
-    description += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
+    message += `• Parcela: ${data.installmentNumber}/${data.totalInstallments}\n`;
   }
-  description += `• Data: ${formatDate(data.paymentDate)}\n\n`;
+  message += `• Data: ${formatDate(data.paymentDate)}\n`;
   
-  description += `📊 *SITUAÇÃO*\n`;
-  if (data.totalContract) {
-    description += `• Total Contrato: ${formatCurrency(data.totalContract)}\n`;
-  }
-  if (data.totalPaid) {
-    description += `• Total Pago: ${formatCurrency(data.totalPaid)}\n`;
+  // Progress bar
+  const filledBlocks = Math.round(progressPercent / 10);
+  const emptyBlocks = 10 - filledBlocks;
+  message += `\n📈 *Progresso:* ${'▓'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} ${progressPercent}%\n`;
+  
+  // Installment status with emojis
+  if (installmentDates && installmentDates.length > 0) {
+    const actualPaidCount = paidCount ?? maxPaidInstallment;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    message += `\n📊 *STATUS DAS PARCELAS:*\n`;
+    installmentDates.forEach((dateStr, index) => {
+      const installmentNum = index + 1;
+      const dueDate = new Date(dateStr + 'T12:00:00');
+      
+      let emoji: string;
+      let status: string;
+      
+      if (installmentNum <= actualPaidCount) {
+        emoji = '✅';
+        status = 'Paga';
+      } else if (dueDate < today) {
+        emoji = '🔴';
+        status = 'Em Atraso';
+      } else {
+        emoji = '⏳';
+        status = 'Em Aberto';
+      }
+      
+      message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+    });
   }
   
+  message += `\n`;
   if (isFullyPaid) {
-    description += `\n🎉 *CONTRATO QUITADO!*\n`;
+    message += `🎉 *CONTRATO QUITADO!*\n`;
   } else {
-    description += `• Saldo: ${formatCurrency(data.remainingBalance)}\n`;
+    message += `📊 *Saldo Restante:* ${formatCurrency(data.remainingBalance)}\n`;
+    if (data.nextDueDate) {
+      message += `📅 *Próximo Vencimento:* ${formatDate(data.nextDueDate)}\n`;
+    }
   }
   
-  description += `\n━━━━━━━━━━━━━━━━\n`;
-  description += `📲 Responda OK para continuar recebendo.`;
-
-  const sections: ListSection[] = [
-    {
-      title: "💰 Pagamento",
-      rows: [
-        { title: "Valor Pago", description: formatCurrency(data.amountPaid), rowId: "amount" },
-        { title: "Parcela", description: Array.isArray(data.installmentNumber) ? `${data.installmentNumber.join(', ')}/${data.totalInstallments}` : `${data.installmentNumber}/${data.totalInstallments}`, rowId: "inst" },
-        { title: "Data", description: formatDate(data.paymentDate), rowId: "date" },
-      ]
-    },
-    {
-      title: "📊 Situação",
-      rows: [
-        { title: isFullyPaid ? "✅ Quitado" : "Saldo Restante", description: isFullyPaid ? "Contrato finalizado" : formatCurrency(data.remainingBalance), rowId: "balance" },
-      ]
-    }
-  ];
-
-  return {
-    title: "✅ Pagamento Registrado",
-    description,
-    buttonText: "📋 Ver Detalhes",
-    footerText: "CobraFácil",
-    sections,
-  };
+  message += `\n━━━━━━━━━━━━━━━━\n`;
+  message += `_CobraFácil_`;
+  
+  return message;
 };
 
 export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone, installmentDates, paidCount }: PaymentReceiptPromptProps) {
@@ -229,17 +257,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     setShowPreviewForSelf(true);
   };
 
-  // Generate warning message for self (anti-spam)
-  const generateWarningMessageForSelf = (): string => {
-    let message = `📋 *COMPROVANTE DISPONÍVEL*\n\n`;
-    message += `Você tem um comprovante de pagamento pronto.\n\n`;
-    message += `📌 Responda *OK* para receber.\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `_CobraFácil_`;
-    return message;
-  };
-
-  // Send to collector (after preview confirmation) - USES CONFIRMATION FLOW (anti-spam)
+  // Send complete message directly to self (no OK confirmation needed)
   const handleConfirmSendToSelf = async () => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
@@ -253,55 +271,20 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
-      const warningMessage = generateWarningMessageForSelf();
-      const fullMessage = generateCollectorListData(data, clientPhone).description;
+      const message = generateSelfMessage(data, clientPhone, installmentDates, paidCount);
       
-      // 1. Save the full message in pending_messages table
-      const { error: pendingError } = await supabase
-        .from('pending_messages')
-        .insert({
-          user_id: user.id,
-          client_phone: profile.phone,
-          client_name: 'Você',
-          message_type: 'self_payment_receipt',
-          contract_id: data.contractId,
-          contract_type: data.type,
-          message_content: fullMessage,
-          status: 'pending',
-        });
-
-      if (pendingError) {
-        console.error('Error saving pending message:', pendingError);
-        throw pendingError;
-      }
-
-      // 2. Send only the warning message via user's own WhatsApp
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message: warningMessage },
+        body: { userId: user.id, message },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
+        toast.success('Comprovante enviado para você!');
         setShowPreviewForSelf(false);
       } else if (result?.error === 'whatsapp_not_connected') {
-        // WhatsApp not connected - show dialog
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', data.contractId)
-          .eq('client_phone', profile.phone)
-          .eq('status', 'pending');
         setShowWhatsAppNotConnected(true);
       } else {
-        // If sending failed, remove the pending message
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', data.contractId)
-          .eq('client_phone', profile.phone)
-          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {
@@ -504,11 +487,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         onConfirm={handleConfirmSpamWarning}
       />
 
-      {/* Preview for self - show list preview */}
+      {/* Preview for self - show complete message */}
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateCollectorListData(data, clientPhone).description}
+        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount)}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}

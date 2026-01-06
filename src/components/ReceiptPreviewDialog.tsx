@@ -185,15 +185,6 @@ const generateListData = (data: ContractReceiptData): ListData => {
   };
 };
 
-// Generate warning message for self (anti-spam)
-const generateWarningMessageForSelf = (): string => {
-  let message = `📋 *COMPROVANTE DISPONÍVEL*\n\n`;
-  message += `Você tem um comprovante de contrato pronto.\n\n`;
-  message += `📌 Responda *OK* para receber.\n`;
-  message += `━━━━━━━━━━━━━━━━\n`;
-  message += `_CobraFácil_`;
-  return message;
-};
 
 export default function ReceiptPreviewDialog({ open, onOpenChange, data }: ReceiptPreviewDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -223,54 +214,19 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data }: Recei
     
     setIsSendingWhatsApp(true);
     try {
-      const warningMessage = generateWarningMessageForSelf();
-      const fullMessage = generateWhatsAppMessage(data);
+      const message = generateWhatsAppMessage(data);
       
-      // 1. Save the full message in pending_messages table
-      const { error: pendingError } = await supabase
-        .from('pending_messages')
-        .insert({
-          user_id: user.id,
-          client_phone: profile.phone,
-          client_name: 'Você',
-          message_type: 'self_contract_receipt',
-          contract_id: data.contractId,
-          contract_type: data.type,
-          message_content: fullMessage,
-          status: 'pending',
-        });
-
-      if (pendingError) {
-        console.error('Error saving pending message:', pendingError);
-        throw pendingError;
-      }
-
-      // 2. Send only the warning message via user's own WhatsApp
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message: warningMessage },
+        body: { userId: user.id, message },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
+        toast.success('Comprovante enviado para você!');
       } else if (result?.error === 'whatsapp_not_connected') {
-        // WhatsApp not connected - show dialog
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', data.contractId)
-          .eq('client_phone', profile.phone)
-          .eq('status', 'pending');
         setShowWhatsAppNotConnected(true);
       } else {
-        // If sending failed, remove the pending message
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', data.contractId)
-          .eq('client_phone', profile.phone)
-          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error: any) {

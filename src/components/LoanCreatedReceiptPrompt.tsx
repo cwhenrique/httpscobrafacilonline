@@ -133,56 +133,44 @@ export default function LoanCreatedReceiptPrompt({
     return message;
   };
 
-  // Generate list data for COLLECTOR (full details)
-  const generateCollectorListData = (): ListData => {
+  // Generate complete message for SELF (direct send, no OK confirmation)
+  const generateSelfMessage = (): string => {
     const contractId = `EMP-${loan.id.substring(0, 4).toUpperCase()}`;
     
-    let description = `📋 *Contrato:* ${contractId}\n`;
-    description += `📅 *Data do Contrato:* ${formatDate(loan.contractDate)}\n`;
-    description += `━━━━━━━━━━━━━━━━\n\n`;
-    description += `👤 *Cliente:* ${loan.clientName}\n`;
+    let message = `📄 *EMPRÉSTIMO REGISTRADO*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *Contrato:* ${contractId}\n`;
+    message += `📅 *Data:* ${formatDate(loan.contractDate)}\n\n`;
+    message += `👤 *Cliente:* ${loan.clientName}\n`;
     if (loan.clientPhone) {
-      description += `📱 *Telefone:* ${loan.clientPhone}\n`;
+      message += `📱 *Telefone:* ${loan.clientPhone}\n`;
     }
-    description += `\n💰 *VALORES*\n`;
-    description += `• Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
-    description += `• Juros: ${loan.interestRate}%\n`;
-    description += `• Total Juros: ${formatCurrency(loan.totalInterest)}\n`;
-    description += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
+    
+    message += `\n💰 *VALORES*\n`;
+    message += `• Emprestado: ${formatCurrency(loan.principalAmount)}\n`;
+    message += `• Juros: ${loan.interestRate}%\n`;
+    message += `• Total Juros: ${formatCurrency(loan.totalInterest)}\n`;
+    message += `• Total a Receber: ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      description += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += `• Parcelas: ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
-    description += `\n📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
-    description += `\n━━━━━━━━━━━━━━━━\n`;
-    description += `📲 Responda OK para continuar recebendo.`;
-
-    const sections: ListSection[] = [
-      {
-        title: "💰 Valores",
-        rows: [
-          { title: "Emprestado", description: formatCurrency(loan.principalAmount), rowId: "principal" },
-          { title: "Juros", description: `${loan.interestRate}%`, rowId: "rate" },
-          { title: "Total", description: formatCurrency(loan.totalToReceive), rowId: "total" },
-        ]
-      },
-      {
-        title: "📊 Parcelas",
-        rows: [
-          { title: "Quantidade", description: `${loan.installments}x`, rowId: "qty" },
-          { title: "Valor", description: formatCurrency(loan.installmentValue), rowId: "value" },
-        ]
-      }
-    ];
-
-    return {
-      title: "📄 Empréstimo Registrado",
-      description,
-      buttonText: "📋 Ver Detalhes",
-      footerText: "CobraFácil",
-      sections,
-    };
+    message += `\n📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
+    
+    // Add installment status with emojis
+    if (installmentDates && installmentDates.length > 0) {
+      message += `\n📊 *STATUS DAS PARCELAS:*\n`;
+      installmentDates.forEach((date, index) => {
+        const emoji = '⏳'; // All are open when loan is just created
+        message += `${index + 1}️⃣ ${emoji} ${formatDate(date)} - Em Aberto\n`;
+      });
+    }
+    
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_CobraFácil_`;
+    
+    return message;
   };
 
   // Open preview for self
@@ -199,17 +187,7 @@ export default function LoanCreatedReceiptPrompt({
     setShowPreviewForSelf(true);
   };
 
-  // Generate warning message for self (anti-spam)
-  const generateWarningMessageForSelf = (): string => {
-    let message = `📋 *COMPROVANTE DISPONÍVEL*\n\n`;
-    message += `Você tem um comprovante de empréstimo pronto.\n\n`;
-    message += `📌 Responda *OK* para receber.\n`;
-    message += `━━━━━━━━━━━━━━━━\n`;
-    message += `_CobraFácil_`;
-    return message;
-  };
-
-  // Send to collector - USES CONFIRMATION FLOW (anti-spam)
+  // Send complete message directly to self (no OK confirmation needed)
   const handleConfirmSendToSelf = async () => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
@@ -223,56 +201,21 @@ export default function LoanCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const warningMessage = generateWarningMessageForSelf();
-      const fullMessage = generateCollectorListData().description;
+      const message = generateSelfMessage();
       
-      // 1. Save the full message in pending_messages table
-      const { error: pendingError } = await supabase
-        .from('pending_messages')
-        .insert({
-          user_id: user.id,
-          client_phone: userPhone,
-          client_name: 'Você',
-          message_type: 'self_receipt',
-          contract_id: loan.id,
-          contract_type: 'loan',
-          message_content: fullMessage,
-          status: 'pending',
-        });
-
-      if (pendingError) {
-        console.error('Error saving pending message:', pendingError);
-        throw pendingError;
-      }
-
-      // 2. Send only the warning message via user's own WhatsApp
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message: warningMessage },
+        body: { userId: user.id, message },
       });
       
       if (error) throw error;
       
       if (result?.success) {
-        toast.success('Aviso enviado! Responda OK no WhatsApp para receber o comprovante.');
+        toast.success('Comprovante enviado para você!');
         setShowPreviewForSelf(false);
         onOpenChange(false);
       } else if (result?.error === 'whatsapp_not_connected') {
-        // WhatsApp not connected - show dialog
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', loan.id)
-          .eq('client_phone', userPhone)
-          .eq('status', 'pending');
         setShowWhatsAppNotConnected(true);
       } else {
-        // If sending failed, remove the pending message
-        await supabase
-          .from('pending_messages')
-          .delete()
-          .eq('contract_id', loan.id)
-          .eq('client_phone', userPhone)
-          .eq('status', 'pending');
         throw new Error(result?.error || 'Erro ao enviar');
       }
     } catch (error) {
@@ -503,7 +446,7 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateCollectorListData().description}
+        initialMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
