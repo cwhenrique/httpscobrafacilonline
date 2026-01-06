@@ -30,60 +30,47 @@ const cleanApiUrl = (url: string): string => {
   return cleaned;
 };
 
-interface ListRow {
-  title: string;
-  description: string;
-  rowId: string;
+interface ProfileWithWhatsApp {
+  id: string;
+  phone: string;
+  full_name: string | null;
+  subscription_plan: string | null;
+  whatsapp_instance_id: string | null;
+  whatsapp_connected_phone: string | null;
+  evolution_api_url: string | null;
+  evolution_api_key: string | null;
 }
 
-interface ListSection {
-  title: string;
-  rows: ListRow[];
-}
-
-interface ListData {
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  sections: ListSection[];
-}
-
-// Helper to truncate strings for API limits
-const truncate = (str: string, max: number): string => 
-  str.length > max ? str.substring(0, max - 3) + '...' : str;
-
-const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
-  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = "notficacao";
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error("Missing Evolution API configuration");
+// Send WhatsApp message to user's own instance (self-message)
+const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string): Promise<boolean> => {
+  // Check if user has WhatsApp connected
+  if (!profile.whatsapp_instance_id || !profile.whatsapp_connected_phone) {
+    console.log(`User ${profile.id} has no WhatsApp connected, skipping`);
     return false;
   }
-  
-  console.log("Using fixed system instance: notficacao");
+
+  // Use user's credentials or fallback to global
+  const evolutionApiUrlRaw = profile.evolution_api_url || Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiKey = profile.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY");
+  const instanceName = profile.whatsapp_instance_id;
+
+  if (!evolutionApiUrlRaw || !evolutionApiKey) {
+    console.error(`Missing Evolution API configuration for user ${profile.id}`);
+    return false;
+  }
+
+  console.log(`Using user's own instance: ${instanceName}`);
 
   const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
-  let cleaned = phone.replace(/\D/g, '');
+  // Clean the connected phone number
+  let cleaned = profile.whatsapp_connected_phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
-  // Prepare sections with truncated values
-  const preparedSections = listData.sections.slice(0, 10).map(section => ({
-    title: truncate(section.title, 24),
-    rows: section.rows.slice(0, 10).map(row => ({
-      title: truncate(row.title, 24),
-      description: truncate(row.description, 72),
-      rowId: row.rowId,
-    })),
-  }));
-
   try {
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendList/${instanceName}`,
+      `${evolutionApiUrl}/message/sendText/${instanceName}`,
       {
         method: "POST",
         headers: {
@@ -92,40 +79,15 @@ const sendWhatsAppList = async (phone: string, listData: ListData): Promise<bool
         },
         body: JSON.stringify({
           number: cleaned,
-          title: truncate(listData.title, 60),
-          description: truncate(listData.description, 1024),
-          buttonText: truncate(listData.buttonText, 20),
-          footerText: truncate(listData.footerText, 60),
-          sections: preparedSections,
+          text: message,
         }),
       }
     );
 
     const data = await response.json();
-    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
+    console.log(`WhatsApp sent to ${cleaned}:`, data);
     
-    if (!response.ok) {
-      console.error("sendList failed, trying fallback text");
-      // Fallback to text
-      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
-      const textResponse = await fetch(
-        `${evolutionApiUrl}/message/sendText/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: cleaned,
-            text: fallbackMessage,
-          }),
-        }
-      );
-      return textResponse.ok;
-    }
-    
-    return true;
+    return response.ok;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -183,17 +145,18 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE PAYING users with phone configured - with pagination for batching
-    // Excludes trial users - only sends to paying customers
+    // Get all ACTIVE PAYING users with WhatsApp connected
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key')
       .eq('is_active', true)
       .not('phone', 'is', null)
-      .not('subscription_plan', 'eq', 'trial') // Apenas usuários pagantes
-      .order('id'); // Consistent ordering for batching
+      .not('whatsapp_instance_id', 'is', null) // Only users with WhatsApp connected
+      .not('whatsapp_connected_phone', 'is', null)
+      .not('subscription_plan', 'eq', 'trial') // Only paying customers
+      .order('id');
     
-    console.log("Querying PAYING users only (excluding trial)");
+    console.log("Querying PAYING users with WhatsApp connected only");
 
     // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
@@ -218,7 +181,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     let sentCount = 0;
 
-    for (const profile of profiles || []) {
+    for (const profile of (profiles || []) as ProfileWithWhatsApp[]) {
       if (!profile.phone) continue;
 
       // ============= QUERIES PARALELAS PARA PERFORMANCE =============
@@ -400,8 +363,19 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       // Categorize vehicles
-      const dueTodayVehicles: any[] = [];
-      const overdueVehicles: any[] = [];
+      interface VehicleInfo {
+        id: string;
+        vehicleName: string;
+        buyerName: string;
+        clientName: string;
+        amount: number;
+        installment: number;
+        totalInstallments: number;
+        daysOverdue?: number;
+      }
+      
+      const dueTodayVehicles: VehicleInfo[] = [];
+      const overdueVehicles: VehicleInfo[] = [];
       let vehicleTotalToday = 0;
       let vehicleTotalOverdue = 0;
 
@@ -410,10 +384,11 @@ const handler = async (req: Request): Promise<Response> => {
         const paymentDueDate = new Date(payment.due_date);
         paymentDueDate.setHours(0, 0, 0, 0);
 
-        const paymentInfo = {
+        const paymentInfo: VehicleInfo = {
           id: payment.id,
           vehicleName: `${vehicle.brand} ${vehicle.model} ${vehicle.year}`,
           buyerName: vehicle.buyer_name || vehicle.seller_name,
+          clientName: vehicle.buyer_name || vehicle.seller_name,
           amount: payment.amount,
           installment: payment.installment_number,
           totalInstallments: vehicle.installments,
@@ -430,8 +405,18 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       // Categorize products
-      const dueTodayProducts: any[] = [];
-      const overdueProducts: any[] = [];
+      interface ProductInfo {
+        id: string;
+        productName: string;
+        clientName: string;
+        amount: number;
+        installment: number;
+        totalInstallments: number;
+        daysOverdue?: number;
+      }
+      
+      const dueTodayProducts: ProductInfo[] = [];
+      const overdueProducts: ProductInfo[] = [];
       let productTotalToday = 0;
       let productTotalOverdue = 0;
 
@@ -440,7 +425,7 @@ const handler = async (req: Request): Promise<Response> => {
         const paymentDueDate = new Date(payment.due_date);
         paymentDueDate.setHours(0, 0, 0, 0);
 
-        const paymentInfo = {
+        const paymentInfo: ProductInfo = {
           id: payment.id,
           productName: sale.product_name,
           clientName: sale.client_name,
@@ -461,8 +446,8 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Sort overdue by days (most overdue first)
       overdueLoans.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
-      overdueVehicles.sort((a, b) => b.daysOverdue - a.daysOverdue);
-      overdueProducts.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      overdueVehicles.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+      overdueProducts.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
 
       const totalDueToday = totalToReceiveToday + vehicleTotalToday + productTotalToday;
       const grandTotalOverdue = totalOverdue + vehicleTotalOverdue + productTotalOverdue;
@@ -474,14 +459,21 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Build list sections for interactive message
-      const sections: ListSection[] = [];
-
-      // VENCE HOJE section
+      // Build text message with ALL clients (no limits)
+      const titleText = isReminder 
+        ? `🔔 *Lembrete de Cobranças*`
+        : `📋 *Relatório do Dia*`;
+      
+      let messageText = `${titleText}\n\n`;
+      messageText += `📅 ${formatDate(today)}\n`;
+      messageText += `━━━━━━━━━━━━━━━━\n\n`;
+      
+      // VENCE HOJE - List ALL clients
       if (hasDueToday) {
-        const dueTodayRows: ListRow[] = [];
+        messageText += `⏰ *VENCE HOJE*\n`;
+        messageText += `💵 Total: ${formatCurrency(totalDueToday)}\n\n`;
         
-        // Separate loans by type
+        // List ALL loans due today by type
         const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
         const dueTodayWeeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'weekly');
         const dueTodayBiweeklyLoans = dueTodayLoans.filter(l => l.paymentType === 'biweekly');
@@ -489,188 +481,91 @@ const handler = async (req: Request): Promise<Response> => {
           l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
         );
 
-        // Add daily loans
-        dueTodayDailyLoans.slice(0, 3).forEach((l, idx) => {
-          dueTodayRows.push({
-            title: `📅 ${l.clientName}`,
-            description: `Diário - ${formatCurrency(l.amount)}`,
-            rowId: `due_daily_${idx}`,
-          });
+        // Daily loans
+        dueTodayDailyLoans.forEach(l => {
+          messageText += `📅 ${l.clientName}: ${formatCurrency(l.amount)}\n`;
         });
-        if (dueTodayDailyLoans.length > 3) {
-          dueTodayRows.push({
-            title: `📅 +${dueTodayDailyLoans.length - 3} diários`,
-            description: `Ver mais no app`,
-            rowId: `due_daily_more`,
-          });
-        }
-
-        // Add weekly loans
-        dueTodayWeeklyLoans.slice(0, 2).forEach((l, idx) => {
-          dueTodayRows.push({
-            title: `📆 ${l.clientName}`,
-            description: `Semanal - ${formatCurrency(l.amount)}`,
-            rowId: `due_weekly_${idx}`,
-          });
+        
+        // Weekly loans
+        dueTodayWeeklyLoans.forEach(l => {
+          messageText += `📆 ${l.clientName}: ${formatCurrency(l.amount)}\n`;
         });
-
-        // Add monthly loans
-        dueTodayMonthlyLoans.slice(0, 3).forEach((l, idx) => {
-          dueTodayRows.push({
-            title: `💰 ${l.clientName}`,
-            description: `Mensal - ${formatCurrency(l.amount)}`,
-            rowId: `due_monthly_${idx}`,
-          });
+        
+        // Biweekly loans
+        dueTodayBiweeklyLoans.forEach(l => {
+          messageText += `📆 ${l.clientName}: ${formatCurrency(l.amount)}\n`;
         });
-
-        // Add vehicles
-        dueTodayVehicles.slice(0, 2).forEach((v, idx) => {
-          dueTodayRows.push({
-            title: `🚗 ${v.buyerName}`,
-            description: `${v.vehicleName} - ${formatCurrency(v.amount)}`,
-            rowId: `due_vehicle_${idx}`,
-          });
+        
+        // Monthly/other loans
+        dueTodayMonthlyLoans.forEach(l => {
+          messageText += `💰 ${l.clientName}: ${formatCurrency(l.amount)}\n`;
         });
-
-        // Add products
-        dueTodayProducts.slice(0, 2).forEach((p, idx) => {
-          dueTodayRows.push({
-            title: `📦 ${p.clientName}`,
-            description: `${p.productName} - ${formatCurrency(p.amount)}`,
-            rowId: `due_product_${idx}`,
-          });
+        
+        // Vehicles
+        dueTodayVehicles.forEach(v => {
+          messageText += `🚗 ${v.buyerName}: ${formatCurrency(v.amount)}\n`;
         });
-
-        if (dueTodayRows.length > 0) {
-          sections.push({
-            title: `⏰ Vence Hoje (${formatCurrency(totalDueToday)})`,
-            rows: dueTodayRows.slice(0, 10),
-          });
-        }
+        
+        // Products
+        dueTodayProducts.forEach(p => {
+          messageText += `📦 ${p.clientName}: ${formatCurrency(p.amount)}\n`;
+        });
+        
+        messageText += `\n`;
       }
-
-      // EM ATRASO section
+      
+      // EM ATRASO - List ALL clients
       if (hasOverdue) {
-        const overdueRows: ListRow[] = [];
+        messageText += `🚨 *EM ATRASO*\n`;
+        messageText += `💸 Total: ${formatCurrency(grandTotalOverdue)}\n\n`;
         
         // Separate loans by type
         const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
+        const overdueWeeklyLoans = overdueLoans.filter(l => l.paymentType === 'weekly');
+        const overdueBiweeklyLoans = overdueLoans.filter(l => l.paymentType === 'biweekly');
         const overdueMonthlyLoans = overdueLoans.filter(l => 
           l.paymentType !== 'daily' && l.paymentType !== 'weekly' && l.paymentType !== 'biweekly'
         );
 
-        // Add daily overdue (most critical)
-        overdueDailyLoans.slice(0, 3).forEach((l, idx) => {
-          overdueRows.push({
-            title: `📅 ${l.clientName}`,
-            description: `${l.daysOverdue}d atraso - ${formatCurrency(l.amount)}`,
-            rowId: `overdue_daily_${idx}`,
-          });
+        // Daily overdue
+        overdueDailyLoans.forEach(l => {
+          messageText += `📅 ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
         });
-        if (overdueDailyLoans.length > 3) {
-          overdueRows.push({
-            title: `📅 +${overdueDailyLoans.length - 3} diários`,
-            description: `Atrasados - ver no app`,
-            rowId: `overdue_daily_more`,
-          });
-        }
-
-        // Add monthly overdue
-        overdueMonthlyLoans.slice(0, 3).forEach((l, idx) => {
-          overdueRows.push({
-            title: `💰 ${l.clientName}`,
-            description: `${l.daysOverdue}d - ${formatCurrency(l.amount)}`,
-            rowId: `overdue_monthly_${idx}`,
-          });
-        });
-
-        // Add vehicles
-        overdueVehicles.slice(0, 2).forEach((v, idx) => {
-          overdueRows.push({
-            title: `🚗 ${v.buyerName}`,
-            description: `${v.daysOverdue}d - ${formatCurrency(v.amount)}`,
-            rowId: `overdue_vehicle_${idx}`,
-          });
-        });
-
-        // Add products
-        overdueProducts.slice(0, 2).forEach((p, idx) => {
-          overdueRows.push({
-            title: `📦 ${p.clientName}`,
-            description: `${p.daysOverdue}d - ${formatCurrency(p.amount)}`,
-            rowId: `overdue_product_${idx}`,
-          });
-        });
-
-        if (overdueRows.length > 0) {
-          sections.push({
-            title: `🚨 Em Atraso (${formatCurrency(grandTotalOverdue)})`,
-            rows: overdueRows.slice(0, 10),
-          });
-        }
-      }
-
-      // Build list data with DETAILED description
-      const titleText = isReminder 
-        ? `🔔 Lembrete de Cobranças`
-        : `📋 Relatório do Dia`;
-      
-      // Build a rich description with all the important info upfront
-      let descriptionText = `📅 ${formatDate(today)}\n`;
-      descriptionText += `━━━━━━━━━━━━━━━━\n\n`;
-      
-      if (hasDueToday) {
-        descriptionText += `⏰ *VENCE HOJE*\n`;
-        descriptionText += `💵 Total: ${formatCurrency(totalDueToday)}\n`;
-        descriptionText += `📊 ${dueTodayLoans.length} empréstimo${dueTodayLoans.length !== 1 ? 's' : ''}`;
-        if (dueTodayVehicles.length > 0) descriptionText += `, ${dueTodayVehicles.length} veículo${dueTodayVehicles.length !== 1 ? 's' : ''}`;
-        if (dueTodayProducts.length > 0) descriptionText += `, ${dueTodayProducts.length} produto${dueTodayProducts.length !== 1 ? 's' : ''}`;
-        descriptionText += `\n\n`;
         
-        // List top 3 clients with amounts
-        const topDueToday = [...dueTodayLoans, ...dueTodayVehicles.map(v => ({clientName: v.buyerName, amount: v.amount})), ...dueTodayProducts].slice(0, 3);
-        topDueToday.forEach(item => {
-          descriptionText += `• ${item.clientName}: ${formatCurrency(item.amount)}\n`;
+        // Weekly overdue
+        overdueWeeklyLoans.forEach(l => {
+          messageText += `📆 ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
         });
-        if (dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length > 3) {
-          descriptionText += `  (+${dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length - 3} mais)\n`;
-        }
-        descriptionText += `\n`;
-      }
-      
-      if (hasOverdue) {
-        descriptionText += `🚨 *EM ATRASO*\n`;
-        descriptionText += `💸 Total: ${formatCurrency(grandTotalOverdue)}\n`;
-        descriptionText += `📊 ${overdueLoans.length} empréstimo${overdueLoans.length !== 1 ? 's' : ''}`;
-        if (overdueVehicles.length > 0) descriptionText += `, ${overdueVehicles.length} veículo${overdueVehicles.length !== 1 ? 's' : ''}`;
-        if (overdueProducts.length > 0) descriptionText += `, ${overdueProducts.length} produto${overdueProducts.length !== 1 ? 's' : ''}`;
-        descriptionText += `\n\n`;
         
-        // List top 3 overdue with days
-        const topOverdue = [...overdueLoans, ...overdueVehicles, ...overdueProducts].slice(0, 3);
-        topOverdue.forEach(item => {
-          descriptionText += `• ${item.clientName}: ${formatCurrency(item.amount)} (${item.daysOverdue}d)\n`;
+        // Biweekly overdue
+        overdueBiweeklyLoans.forEach(l => {
+          messageText += `📆 ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
         });
-        if (overdueLoans.length + overdueVehicles.length + overdueProducts.length > 3) {
-          descriptionText += `  (+${overdueLoans.length + overdueVehicles.length + overdueProducts.length - 3} mais)\n`;
-        }
-        descriptionText += `\n`;
+        
+        // Monthly overdue
+        overdueMonthlyLoans.forEach(l => {
+          messageText += `💰 ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
+        });
+        
+        // Vehicles overdue
+        overdueVehicles.forEach(v => {
+          messageText += `🚗 ${v.buyerName}: ${formatCurrency(v.amount)} (${v.daysOverdue}d)\n`;
+        });
+        
+        // Products overdue
+        overdueProducts.forEach(p => {
+          messageText += `📦 ${p.clientName}: ${formatCurrency(p.amount)} (${p.daysOverdue}d)\n`;
+        });
+        
+        messageText += `\n`;
       }
       
-      descriptionText += `━━━━━━━━━━━━━━━━\n`;
-      descriptionText += `Clique no botão abaixo para ver a lista completa de clientes.`;
+      messageText += `━━━━━━━━━━━━━━━━\n`;
+      messageText += isReminder ? `CobraFácil - 12h` : `CobraFácil - 8h`;
 
-      const listData: ListData = {
-        title: titleText,
-        description: descriptionText,
-        buttonText: "📋 Ver Clientes",
-        footerText: isReminder ? "CobraFácil - 12h" : "CobraFácil",
-        sections: sections,
-      };
-
-      console.log(`Sending ${isReminder ? 'reminder' : 'report'} LIST to user ${profile.id}`);
+      console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
       
-      const sent = await sendWhatsAppList(profile.phone, listData);
+      const sent = await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
       }
