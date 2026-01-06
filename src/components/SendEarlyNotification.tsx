@@ -76,12 +76,12 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
   const getPixKeyTypeLabel = (type: string | null): string => {
     switch (type) {
-      case 'cpf': return 'CPF';
-      case 'cnpj': return 'CNPJ';
-      case 'telefone': return 'Telefone';
-      case 'email': return 'Email';
-      case 'aleatoria': return 'Chave Aleatória';
-      default: return 'PIX';
+      case 'cpf': return 'Chave PIX CPF';
+      case 'cnpj': return 'Chave PIX CNPJ';
+      case 'telefone': return 'Chave PIX Telefone';
+      case 'email': return 'Chave PIX Email';
+      case 'aleatoria': return 'Chave PIX Aleatória';
+      default: return 'Chave PIX';
     }
   };
 
