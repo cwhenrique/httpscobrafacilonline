@@ -139,32 +139,46 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Input real por cima do botão (clique direto do usuário => abre no mobile/desktop) */}
-          <div className={`relative flex-1 ${isUploadDisabled ? 'opacity-50' : ''}`}>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full gap-2 pointer-events-none"
+          {useExternalInput ? (
+            // iOS PWA workaround: clicar em label que aponta para input fora do Dialog
+            <label
+              htmlFor="doc-upload-external"
+              className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
             >
-              {isUploadDisabled ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-            </Button>
+              <span className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+                {isUploadDisabled ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+              </span>
+            </label>
+          ) : (
+            // Desktop/Android: input real por cima do botão (clique direto do usuário)
+            <div className={`relative flex-1 ${isUploadDisabled ? 'opacity-50' : ''}`}>
+              <Button type="button" variant="outline" className="w-full gap-2 pointer-events-none">
+                {isUploadDisabled ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
+              </Button>
 
-            <input
-              ref={internalInputRef}
-              id={useExternalInput ? 'doc-upload-external' : 'doc-upload-internal'}
-              type="file"
-              multiple
-              onChange={handleFileSelect}
-              disabled={isUploadDisabled}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-            />
-          </div>
+              <input
+                ref={internalInputRef}
+                id={`doc-upload-internal-${clientId}`}
+                type="file"
+                multiple
+                onClick={() => console.log('[Docs] input click')}
+                onChange={handleFileSelect}
+                disabled={isUploadDisabled}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+              />
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
