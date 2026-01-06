@@ -139,30 +139,32 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Input sempre usa label nativo (mais compatível em todos os browsers/mobile) */}
-          <input
-            ref={internalInputRef}
-            id={useExternalInput ? 'doc-upload-external' : 'doc-upload-internal'}
-            type="file"
-            multiple
-            onChange={handleFileSelect}
-            disabled={isUploadDisabled}
-            className="sr-only"
-            accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-          />
-          <label 
-            htmlFor={useExternalInput ? 'doc-upload-external' : 'doc-upload-internal'}
-            className={`flex-1 ${isUploadDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
-          >
-            <span className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors w-full">
+          {/* Input real por cima do botão (clique direto do usuário => abre no mobile/desktop) */}
+          <div className={`relative flex-1 ${isUploadDisabled ? 'opacity-50' : ''}`}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 pointer-events-none"
+            >
               {isUploadDisabled ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Upload className="w-4 h-4" />
               )}
               {uploading ? 'Enviando...' : contextLoading ? 'Carregando...' : 'Selecionar Arquivos'}
-            </span>
-          </label>
+            </Button>
+
+            <input
+              ref={internalInputRef}
+              id={useExternalInput ? 'doc-upload-external' : 'doc-upload-internal'}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              disabled={isUploadDisabled}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+            />
+          </div>
         </div>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
