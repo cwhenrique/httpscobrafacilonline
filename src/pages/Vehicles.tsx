@@ -687,7 +687,8 @@ export default function Vehicles() {
         <ReceiptPreviewDialog 
           open={isReceiptPreviewOpen} 
           onOpenChange={setIsReceiptPreviewOpen} 
-          data={receiptPreviewData} 
+          data={receiptPreviewData}
+          clientPhone={receiptPreviewData?.client?.phone || undefined}
         />
 
         {/* Payment Receipt Prompt */}
