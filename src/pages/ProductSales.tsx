@@ -496,13 +496,23 @@ export default function ProductSales() {
     resetForm();
   };
 
-  const openEditSaleDialog = (sale: ProductSale) => {
+  const openEditSaleDialog = async (sale: ProductSale) => {
     setEditingSale(sale);
     
-    // Load existing payments for this sale
-    const salePayments = allSalePayments?.filter(p => p.product_sale_id === sale.id) || [];
-    const existingInstallments: InstallmentDate[] = salePayments
-      .sort((a, b) => a.installment_number - b.installment_number)
+    // Fetch payments directly from DB for this specific sale to avoid limit issues
+    const { data: salePayments, error } = await supabase
+      .from('product_sale_payments')
+      .select('*')
+      .eq('product_sale_id', sale.id)
+      .order('installment_number', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching sale payments:', error);
+      toast.error('Erro ao carregar parcelas');
+      return;
+    }
+    
+    const existingInstallments: InstallmentDate[] = (salePayments || [])
       .map(p => ({
         number: p.installment_number,
         date: p.due_date,
