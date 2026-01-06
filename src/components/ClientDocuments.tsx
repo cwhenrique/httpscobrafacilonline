@@ -53,13 +53,20 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   
   const isUploadDisabled = uploading || contextLoading;
 
+  const handleDropFiles = async (files: FileList | File[]) => {
+    if (isUploadDisabled) return;
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    toast.info(`${arr.length} arquivo(s) selecionado(s)`);
+    await uploadMultipleDocuments(arr, description || undefined);
+    setDescription('');
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    toast.info(`${files.length} arquivo(s) selecionado(s)`);
-    await uploadMultipleDocuments(Array.from(files), description || undefined);
-    setDescription('');
+    await handleDropFiles(files);
     e.target.value = '';
   };
 
@@ -108,7 +115,18 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
   };
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      onDragOver={(e) => {
+        if (useExternalInput) return;
+        e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (useExternalInput) return;
+        e.preventDefault();
+        void handleDropFiles(e.dataTransfer.files);
+      }}
+    >
       <div className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="doc-description">Descrição do Documento (opcional)</Label>
@@ -186,6 +204,12 @@ export function ClientDocuments({ clientId, clientName, useExternalInput, pendin
             Testar upload
           </Button>
         </div>
+
+        {!useExternalInput && (
+          <div className="rounded-md border border-dashed border-input p-3 text-xs text-muted-foreground">
+            Dica (PC): você também pode arrastar e soltar arquivos aqui dentro para anexar.
+          </div>
+        )}
       </div>
 
       {/* Barra de Progresso */}
