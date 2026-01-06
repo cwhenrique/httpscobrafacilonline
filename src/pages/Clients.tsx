@@ -105,7 +105,7 @@ const initialFormData: FormData = {
 
 export default function Clients() {
   const { clients, loading, createClient, updateClient, deleteClient, uploadAvatar } = useClients();
-  const { hasPermission } = useEmployeeContext();
+  const { hasPermission, loading: employeeLoading } = useEmployeeContext();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = usePersistedState('client_dialog_open', false);
   const [editingClient, setEditingClient] = usePersistedState<Client | null>('client_editing', null);
@@ -216,6 +216,11 @@ export default function Clients() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (employeeLoading) {
+      toast.error('Aguarde o carregamento da sessão');
+      return;
+    }
     
     const fullAddress = buildFullAddress();
     

@@ -42,7 +42,22 @@ export function useClientDocuments(clientId: string | null) {
   };
 
   const uploadDocument = async (file: File, description?: string) => {
-    if (!user || !clientId || !effectiveUserId) return { error: new Error('Não autenticado') };
+    console.log('Upload attempt:', { user: !!user, clientId, effectiveUserId, employeeLoading });
+    
+    if (!user) {
+      toast.error('Você precisa estar logado para enviar documentos');
+      return { error: new Error('Não autenticado') };
+    }
+    
+    if (!clientId) {
+      toast.error('Erro: Cliente não identificado');
+      return { error: new Error('Cliente não identificado') };
+    }
+    
+    if (employeeLoading || !effectiveUserId) {
+      toast.error('Aguarde o carregamento da sessão e tente novamente');
+      return { error: new Error('Sessão ainda carregando') };
+    }
 
     setUploading(true);
     
