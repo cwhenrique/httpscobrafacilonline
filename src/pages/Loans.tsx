@@ -3691,10 +3691,15 @@ export default function Loans() {
       dueDates: (() => {
         const dates = (loan.installment_dates as string[]) || [loan.due_date];
         const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
         return dates.map((date, index) => {
           const paidAmount = partialPayments[index] || 0;
           const isPaid = paidAmount >= installmentValue * 0.99;
-          return { date, isPaid };
+          const dueDate = new Date(date + 'T12:00:00');
+          const isOverdue = !isPaid && dueDate < today;
+          return { date, isPaid, isOverdue };
         });
       })(),
       interestOnlyPayment: interestOnlyPayment ? {
