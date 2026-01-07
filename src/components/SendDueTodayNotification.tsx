@@ -141,7 +141,7 @@ export default function SendDueTodayNotification({
     return message;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (editedMessage: string) => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
@@ -165,13 +165,11 @@ export default function SendDueTodayNotification({
 
     setIsSending(true);
     try {
-      const message = generateDueTodayMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message 
+          message: editedMessage
         },
       });
       
