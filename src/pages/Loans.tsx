@@ -887,12 +887,11 @@ export default function Loans() {
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
   const [editingInstallmentIndex, setEditingInstallmentIndex] = useState<number | null>(null);
   
-  // Manual penalty dialog state
+  // Manual penalty dialog state (multa manual por parcela)
   const [manualPenaltyDialog, setManualPenaltyDialog] = useState<{
     isOpen: boolean;
     loanId: string;
     currentNotes: string | null;
-    penaltyMode: 'percentage' | 'fixed' | 'manual';
     overdueInstallments: Array<{
       index: number;
       dueDate: string;
@@ -901,6 +900,21 @@ export default function Loans() {
     }>;
   } | null>(null);
   const [manualPenaltyValues, setManualPenaltyValues] = useState<Record<number | string, string>>({});
+  
+  // Overdue interest dialog state (juros por atraso automático)
+  const [overdueInterestDialog, setOverdueInterestDialog] = useState<{
+    isOpen: boolean;
+    loanId: string;
+    currentNotes: string | null;
+    interestMode: 'percentage' | 'fixed';
+    overdueInstallments: Array<{
+      index: number;
+      dueDate: string;
+      daysOverdue: number;
+      installmentValue: number;
+    }>;
+  } | null>(null);
+  const [overdueInterestValue, setOverdueInterestValue] = useState('');
   
   // Discount settlement state
   const [discountSettlementData, setDiscountSettlementData] = useState({
@@ -1106,7 +1120,7 @@ export default function Loans() {
     }
   };
   
-  // Function to save manual penalties
+  // Function to save manual penalties (multa manual fixa por parcela)
   const handleSaveManualPenalties = async () => {
     if (!manualPenaltyDialog) return;
     
@@ -1115,44 +1129,22 @@ export default function Loans() {
       const oldPenalties = getDailyPenaltiesFromNotes(manualPenaltyDialog.currentNotes);
       const oldTotalPenalty = Object.values(oldPenalties).reduce((sum, val) => sum + val, 0);
       
-      let cleanNotes = (manualPenaltyDialog.currentNotes || '')
-        .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
-        .trim();
+      let cleanNotes = (manualPenaltyDialog.currentNotes || '').trim();
       
-      // Se for modo dinâmico (% por dia ou R$/dia), salva a configuração no campo de config
-      if (manualPenaltyDialog.penaltyMode === 'percentage' || manualPenaltyDialog.penaltyMode === 'fixed') {
-        const dynamicValue = parseFloat(manualPenaltyValues['dynamic'] || '0');
+      // Modo manual: aplica multa fixa por parcela
+      for (const inst of manualPenaltyDialog.overdueInstallments) {
+        const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
         
-        if (dynamicValue > 0) {
-          // Remove multas manuais antigas
-          for (const inst of manualPenaltyDialog.overdueInstallments) {
-            cleanNotes = cleanNotes.replace(
-              new RegExp(`\\[DAILY_PENALTY:${inst.index}:[0-9.]+\\]\\n?`, 'g'), 
-              ''
-            );
-          }
-          cleanNotes = cleanNotes.trim();
-          
-          // Adiciona configuração de multa dinâmica
-          const configTag = `[OVERDUE_CONFIG:${manualPenaltyDialog.penaltyMode}:${dynamicValue}]`;
-          cleanNotes = `${configTag}\n${cleanNotes}`.trim();
-        }
-      } else {
-        // Modo manual: aplica multa por parcela
-        for (const inst of manualPenaltyDialog.overdueInstallments) {
-          const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
-          
-          // Remove old penalty for this installment
-          cleanNotes = cleanNotes.replace(
-            new RegExp(`\\[DAILY_PENALTY:${inst.index}:[0-9.]+\\]\\n?`, 'g'), 
-            ''
-          );
-          
-          if (enteredValue > 0) {
-            // Add new FIXED penalty
-            const penaltyTag = `[DAILY_PENALTY:${inst.index}:${enteredValue.toFixed(2)}]`;
-            cleanNotes = `${penaltyTag}\n${cleanNotes}`.trim();
-          }
+        // Remove old penalty for this installment
+        cleanNotes = cleanNotes.replace(
+          new RegExp(`\\[DAILY_PENALTY:${inst.index}:[0-9.]+\\]\\n?`, 'g'), 
+          ''
+        );
+        
+        if (enteredValue > 0) {
+          // Add new FIXED penalty
+          const penaltyTag = `[DAILY_PENALTY:${inst.index}:${enteredValue.toFixed(2)}]`;
+          cleanNotes = `${penaltyTag}\n${cleanNotes}`.trim();
         }
       }
       
@@ -1179,14 +1171,49 @@ export default function Loans() {
       setManualPenaltyDialog(null);
       setManualPenaltyValues({});
       fetchLoans();
-      toast.success('Multas aplicadas com sucesso!');
+      toast.success('Multa aplicada com sucesso!');
     } catch (error) {
       console.error('Error saving manual penalties:', error);
-      toast.error('Erro ao aplicar multas');
+      toast.error('Erro ao aplicar multa');
     }
   };
 
-  // Function to open manual penalty dialog
+  // Function to save overdue interest configuration (juros por atraso automático)
+  const handleSaveOverdueInterest = async () => {
+    if (!overdueInterestDialog) return;
+    
+    try {
+      const interestValue = parseFloat(overdueInterestValue || '0');
+      
+      let cleanNotes = (overdueInterestDialog.currentNotes || '')
+        .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+        .trim();
+      
+      if (interestValue > 0) {
+        // Adiciona configuração de juros por atraso
+        const configTag = `[OVERDUE_CONFIG:${overdueInterestDialog.interestMode}:${interestValue}]`;
+        cleanNotes = `${configTag}\n${cleanNotes}`.trim();
+      }
+      
+      // Save to database
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', overdueInterestDialog.loanId);
+      
+      if (error) throw error;
+      
+      setOverdueInterestDialog(null);
+      setOverdueInterestValue('');
+      fetchLoans();
+      toast.success('Juros por atraso configurado com sucesso!');
+    } catch (error) {
+      console.error('Error saving overdue interest:', error);
+      toast.error('Erro ao configurar juros por atraso');
+    }
+  };
+
+  // Function to open manual penalty dialog (multa manual)
   const openManualPenaltyDialog = (
     loan: any, 
     overdueInstallments: Array<{ index: number; dueDate: string; daysOverdue: number }>,
@@ -1199,7 +1226,6 @@ export default function Loans() {
       isOpen: true,
       loanId: loan.id,
       currentNotes: loan.notes,
-      penaltyMode: 'manual', // Padrão é modo manual (por parcela)
       overdueInstallments: overdueInstallments.map(inst => ({
         ...inst,
         installmentValue
@@ -1212,6 +1238,32 @@ export default function Loans() {
       initialValues[parseInt(idx)] = value.toString();
     });
     setManualPenaltyValues(initialValues);
+    setConfiguringPenaltyLoanId(null);
+  };
+
+  // Function to open overdue interest dialog (juros por atraso)
+  const openOverdueInterestDialog = (
+    loan: any, 
+    overdueInstallments: Array<{ index: number; dueDate: string; daysOverdue: number }>,
+    installmentValue: number
+  ) => {
+    // Buscar configuração existente de juros por atraso
+    const existingConfig = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const existingMode = existingConfig ? existingConfig[1] as 'percentage' | 'fixed' : 'percentage';
+    const existingValue = existingConfig ? existingConfig[2] : '';
+    
+    setOverdueInterestDialog({
+      isOpen: true,
+      loanId: loan.id,
+      currentNotes: loan.notes,
+      interestMode: existingMode,
+      overdueInstallments: overdueInstallments.map(inst => ({
+        ...inst,
+        installmentValue
+      }))
+    });
+    
+    setOverdueInterestValue(existingValue);
     setConfiguringPenaltyLoanId(null);
   };
   
@@ -7057,41 +7109,50 @@ export default function Loans() {
                             </>
                           )}
                           
-                          {/* Inline penalty configuration */}
+                          {/* Botões para configurar juros e multas - separados */}
                           {!hasOverdueConfig && configuringPenaltyLoanId !== loan.id && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setConfiguringPenaltyLoanId(loan.id);
-                                setInlinePenaltyType('percentage');
-                                setInlinePenaltyValue('');
-                              }}
-                              className="w-full mt-3 border-red-400/50 text-red-300 hover:bg-red-500/20"
-                            >
-                              <Percent className="w-4 h-4 mr-2" />
-                              Aplicar Multa
-                            </Button>
+                            <div className="flex gap-2 mt-3">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  openOverdueInterestDialog(
+                                    loan,
+                                    [{ index: paidCount, dueDate: loan.due_date, daysOverdue }],
+                                    totalPerInstallment
+                                  );
+                                }}
+                                className="flex-1 border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
+                              >
+                                <Percent className="w-4 h-4 mr-2" />
+                                Juros por Atraso
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  openManualPenaltyDialog(
+                                    loan,
+                                    [{ index: paidCount, dueDate: loan.due_date, daysOverdue }],
+                                    totalPerInstallment
+                                  );
+                                }}
+                                className="flex-1 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                              >
+                                <DollarSign className="w-4 h-4 mr-2" />
+                                Aplicar Multa
+                              </Button>
+                            </div>
                           )}
                           
                           {configuringPenaltyLoanId === loan.id && (
                             <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
-                              <Label className="text-xs text-red-300">Tipo de multa</Label>
+                              <Label className="text-xs text-red-300">Configurar Juros por Atraso</Label>
                               <Select 
                                 value={inlinePenaltyType} 
-                                onValueChange={(v) => {
-                                  if (v === 'manual') {
-                                    // Open manual penalty dialog for monthly loans
-                                    const paidCount = getPaidInstallmentsCount(loan);
-                                    openManualPenaltyDialog(
-                                      loan,
-                                      [{ index: paidCount, dueDate: loan.due_date, daysOverdue }],
-                                      totalPerInstallment
-                                    );
-                                  } else {
-                                    setInlinePenaltyType(v as 'percentage' | 'fixed');
-                                  }
-                                }}
+                                onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}
                               >
                                 <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                   <SelectValue />
@@ -7099,7 +7160,6 @@ export default function Loans() {
                                 <SelectContent>
                                   <SelectItem value="percentage">% do valor total/dia</SelectItem>
                                   <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
-                                  <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                 </SelectContent>
                               </Select>
                               
@@ -7149,19 +7209,37 @@ export default function Loans() {
                           )}
                           
                           {hasOverdueConfig && configuringPenaltyLoanId !== loan.id && (
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              onClick={() => {
-                                setConfiguringPenaltyLoanId(loan.id);
-                                setInlinePenaltyType(overdueConfigType || 'percentage');
-                                setInlinePenaltyValue(overdueConfigValue.toString());
-                              }}
-                              className="w-full mt-2 text-red-300/70 hover:text-red-300 hover:bg-red-500/10"
-                            >
-                              <Pencil className="w-3 h-3 mr-1" />
-                              Editar multa
-                            </Button>
+                            <div className="flex gap-2 mt-2">
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => {
+                                  setConfiguringPenaltyLoanId(loan.id);
+                                  setInlinePenaltyType(overdueConfigType || 'percentage');
+                                  setInlinePenaltyValue(overdueConfigValue.toString());
+                                }}
+                                className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                              >
+                                <Pencil className="w-3 h-3 mr-1" />
+                                Editar Juros
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => {
+                                  const paidCount = getPaidInstallmentsCount(loan);
+                                  openManualPenaltyDialog(
+                                    loan,
+                                    [{ index: paidCount, dueDate: loan.due_date, daysOverdue }],
+                                    totalPerInstallment
+                                  );
+                                }}
+                                className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                              >
+                                <DollarSign className="w-3 h-3 mr-1" />
+                                Aplicar Multa
+                              </Button>
+                            </div>
                           )}
                           
                           <p className="text-[10px] text-red-300/60 mt-2">
@@ -8811,60 +8889,84 @@ export default function Loans() {
                               </div>
                             )}
                             
-                            {/* Inline penalty configuration for daily loans */}
-                            {/* Botão Aplicar Multa - só aparece se NÃO tem multas dinâmicas E NÃO tem multas manuais */}
+                            {/* Botões para configurar juros e multas - separados */}
                             {overdueConfigValue <= 0 && totalAppliedPenaltiesDaily === 0 && configuringPenaltyLoanId !== loan.id && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => {
-                                  setConfiguringPenaltyLoanId(loan.id);
-                                  setInlinePenaltyType('percentage');
-                                  setInlinePenaltyValue('');
-                                }}
-                                className="w-full mt-3 border-red-400/50 text-red-300 hover:bg-red-500/20"
-                              >
-                                <Percent className="w-4 h-4 mr-2" />
-                                Aplicar Multa
-                              </Button>
+                              <div className="flex gap-2 mt-3">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    openOverdueInterestDialog(
+                                      loan,
+                                      overdueInstallmentsDetails,
+                                      totalPerInstallmentDisplay
+                                    );
+                                  }}
+                                  className="flex-1 border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
+                                >
+                                  <Percent className="w-4 h-4 mr-2" />
+                                  Juros por Atraso
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    openManualPenaltyDialog(
+                                      loan,
+                                      overdueInstallmentsDetails,
+                                      totalPerInstallmentDisplay
+                                    );
+                                  }}
+                                  className="flex-1 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                                >
+                                  <DollarSign className="w-4 h-4 mr-2" />
+                                  Aplicar Multa
+                                </Button>
+                              </div>
                             )}
                             
-                            {/* Botão Editar Minhas Multas - aparece quando TEM multas manuais aplicadas E NÃO há multa dinâmica */}
+                            {/* Botão Editar Minhas Multas - aparece quando TEM multas manuais aplicadas E NÃO há juros dinâmicos */}
                             {totalAppliedPenaltiesDaily > 0 && overdueConfigValue === 0 && configuringPenaltyLoanId !== loan.id && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => {
-                                  openManualPenaltyDialog(
-                                    loan,
-                                    overdueInstallmentsDetails,
-                                    totalPerInstallmentDisplay
-                                  );
-                                }}
-                                className="w-full mt-3 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
-                              >
-                                <Pencil className="w-4 h-4 mr-2" />
-                                Editar Minhas Multas
-                              </Button>
+                              <div className="flex gap-2 mt-3">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    openOverdueInterestDialog(
+                                      loan,
+                                      overdueInstallmentsDetails,
+                                      totalPerInstallmentDisplay
+                                    );
+                                  }}
+                                  className="flex-1 border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
+                                >
+                                  <Percent className="w-4 h-4 mr-2" />
+                                  Juros por Atraso
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    openManualPenaltyDialog(
+                                      loan,
+                                      overdueInstallmentsDetails,
+                                      totalPerInstallmentDisplay
+                                    );
+                                  }}
+                                  className="flex-1 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                                >
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Editar Multas
+                                </Button>
+                              </div>
                             )}
                             
                             {configuringPenaltyLoanId === loan.id && (
                               <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
-                                <Label className="text-xs text-red-300">Tipo de multa</Label>
+                                <Label className="text-xs text-blue-300">Configurar Juros por Atraso</Label>
                                 <Select 
                                   value={inlinePenaltyType} 
-                                  onValueChange={(v) => {
-                                    if (v === 'manual') {
-                                      // Open manual penalty dialog for daily loans
-                                      openManualPenaltyDialog(
-                                        loan,
-                                        overdueInstallmentsDetails,
-                                        totalPerInstallmentDisplay
-                                      );
-                                    } else {
-                                      setInlinePenaltyType(v as 'percentage' | 'fixed');
-                                    }
-                                  }}
+                                  onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}
                                 >
                                   <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
                                     <SelectValue />
@@ -8872,7 +8974,6 @@ export default function Loans() {
                                   <SelectContent>
                                     <SelectItem value="percentage">% do valor total/dia</SelectItem>
                                     <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
-                                    <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 
@@ -8886,8 +8987,8 @@ export default function Loans() {
                                 />
                                 
                                 {parseFloat(inlinePenaltyValue) > 0 && overdueInstallmentsDetails.length > 0 && (
-                                  <div className="text-xs text-red-300/80 p-2 bg-red-500/10 rounded space-y-1">
-                                    <p className="font-medium">Prévia da multa ({overdueInstallmentsDetails.length} parcelas):</p>
+                                  <div className="text-xs text-blue-300/80 p-2 bg-blue-500/10 rounded space-y-1">
+                                    <p className="font-medium">Prévia dos juros ({overdueInstallmentsDetails.length} parcelas):</p>
                                     {overdueInstallmentsDetails.slice(0, 3).map((detail, idx) => {
                                       const penaltyVal = parseFloat(inlinePenaltyValue);
                                       const penalty = inlinePenaltyType === 'percentage' 
@@ -8900,9 +9001,9 @@ export default function Loans() {
                                       );
                                     })}
                                     {overdueInstallmentsDetails.length > 3 && (
-                                      <p className="text-[10px] text-red-300/60">...e mais {overdueInstallmentsDetails.length - 3} parcelas</p>
+                                      <p className="text-[10px] text-blue-300/60">...e mais {overdueInstallmentsDetails.length - 3} parcelas</p>
                                     )}
-                                    <p className="font-medium border-t border-red-400/30 pt-1 mt-1">
+                                    <p className="font-medium border-t border-blue-400/30 pt-1 mt-1">
                                       Total: {formatCurrency((() => {
                                         const penaltyVal = parseFloat(inlinePenaltyValue);
                                         return overdueInstallmentsDetails.reduce((sum, detail) => {
@@ -8923,11 +9024,11 @@ export default function Loans() {
                                       loan.id, 
                                       loan.notes, 
                                       getPaidInstallmentsCount(loan), 
-                                      overdueInstallmentsDetails.length, // Passa quantidade de parcelas em atraso
+                                      overdueInstallmentsDetails.length,
                                       totalPerInstallmentDisplay,
-                                      true // isDaily = true
+                                      true
                                     )}
-                                    className="flex-1 bg-red-600 hover:bg-red-700"
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700"
                                   >
                                     Salvar
                                   </Button>
@@ -8935,7 +9036,7 @@ export default function Loans() {
                                     size="sm" 
                                     variant="outline" 
                                     onClick={() => setConfiguringPenaltyLoanId(null)}
-                                    className="border-red-400/50 text-red-300"
+                                    className="border-blue-400/50 text-blue-300"
                                   >
                                     Cancelar
                                   </Button>
@@ -8944,19 +9045,36 @@ export default function Loans() {
                             )}
                             
                             {overdueConfigValue > 0 && configuringPenaltyLoanId !== loan.id && (
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                onClick={() => {
-                                  setConfiguringPenaltyLoanId(loan.id);
-                                  setInlinePenaltyType(overdueConfigType || 'percentage');
-                                  setInlinePenaltyValue(overdueConfigValue.toString());
-                                }}
-                                className="w-full mt-2 text-red-300/70 hover:text-red-300 hover:bg-red-500/10"
-                              >
-                                <Pencil className="w-3 h-3 mr-1" />
-                                Editar multa
-                              </Button>
+                              <div className="flex gap-2 mt-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={() => {
+                                    setConfiguringPenaltyLoanId(loan.id);
+                                    setInlinePenaltyType(overdueConfigType || 'percentage');
+                                    setInlinePenaltyValue(overdueConfigValue.toString());
+                                  }}
+                                  className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                                >
+                                  <Pencil className="w-3 h-3 mr-1" />
+                                  Editar Juros
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={() => {
+                                    openManualPenaltyDialog(
+                                      loan,
+                                      overdueInstallmentsDetails,
+                                      totalPerInstallmentDisplay
+                                    );
+                                  }}
+                                  className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                                >
+                                  <DollarSign className="w-3 h-3 mr-1" />
+                                  Aplicar Multa
+                                </Button>
+                              </div>
                             )}
                             
                             <p className="text-[10px] text-red-300/60 mt-2">
@@ -12012,107 +12130,57 @@ export default function Loans() {
           </DialogContent>
         </Dialog>
         
-        {/* Dialog para aplicar multa manualmente */}
+        {/* Dialog para aplicar multa manualmente (valor fixo por parcela) */}
         <Dialog open={!!manualPenaltyDialog} onOpenChange={() => setManualPenaltyDialog(null)}>
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Configurar Multa por Atraso</DialogTitle>
+              <DialogTitle>Aplicar Multa Manual</DialogTitle>
               <DialogDescription>
-                Escolha como calcular a multa: automática (% ou R$/dia) ou manualmente por parcela.
+                Aplique uma multa fixa por parcela em atraso.
               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4">
-              {/* Escolha: % ou R$ ou por parcela (manual) */}
+              {/* Lista de parcelas em atraso */}
               <div className="space-y-2">
-                <Label>Tipo de valor</Label>
-                <Select 
-                  value={manualPenaltyDialog?.penaltyMode} 
-                  onValueChange={(v) => {
-                    setManualPenaltyDialog(prev => prev ? {...prev, penaltyMode: v as 'percentage' | 'fixed' | 'manual'} : null);
-                    // Limpa os valores quando muda o tipo
-                    if (v !== 'manual') {
-                      setManualPenaltyValues({});
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Porcentagem (% por dia)</SelectItem>
-                    <SelectItem value="fixed">Valor fixo (R$ por dia)</SelectItem>
-                    <SelectItem value="manual">Manualmente (por parcela)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Parcelas em atraso ({manualPenaltyDialog?.overdueInstallments.length})</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {manualPenaltyDialog?.overdueInstallments.map((inst) => {
+                    const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+                    
+                    return (
+                      <div key={inst.index} className="flex items-center gap-2 p-2 bg-muted rounded">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Parcela {inst.index + 1}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Venc: {format(new Date(inst.dueDate + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })} • {inst.daysOverdue} dias atraso
+                          </p>
+                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24 h-8"
+                          placeholder="R$ 0,00"
+                          value={manualPenaltyValues[inst.index] || ''}
+                          onChange={(e) => setManualPenaltyValues(prev => ({
+                            ...prev,
+                            [inst.index]: e.target.value
+                          }))}
+                        />
+                        {enteredValue > 0 && (
+                          <span className="text-xs text-orange-500 w-20 text-right">
+                            +{formatCurrency(enteredValue)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               
-              {/* Input único para multa dinâmica (% ou R$/dia) */}
-              {(manualPenaltyDialog?.penaltyMode === 'percentage' || manualPenaltyDialog?.penaltyMode === 'fixed') && (
-                <div className="space-y-2">
-                  <Label>
-                    {manualPenaltyDialog.penaltyMode === 'percentage' 
-                      ? 'Porcentagem por dia de atraso (%)' 
-                      : 'Valor fixo por dia de atraso (R$)'}
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder={manualPenaltyDialog.penaltyMode === 'percentage' ? 'Ex: 1.5' : 'Ex: 5.00'}
-                    value={manualPenaltyValues['dynamic'] || ''}
-                    onChange={(e) => setManualPenaltyValues({ dynamic: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {manualPenaltyDialog.penaltyMode === 'percentage' 
-                      ? 'A multa será calculada automaticamente: % × valor × dias em atraso' 
-                      : 'A multa será calculada automaticamente: R$/dia × dias em atraso'}
-                  </p>
-                </div>
-              )}
-              
-              {/* Lista de parcelas em atraso - só mostra para modo manual */}
-              {manualPenaltyDialog?.penaltyMode === 'manual' && (
-                <div className="space-y-2">
-                  <Label>Parcelas em atraso ({manualPenaltyDialog?.overdueInstallments.length})</Label>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {manualPenaltyDialog?.overdueInstallments.map((inst) => {
-                      const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
-                      
-                      return (
-                        <div key={inst.index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Parcela {inst.index + 1}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              Venc: {format(new Date(inst.dueDate + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })} • {inst.daysOverdue} dias atraso
-                            </p>
-                          </div>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-20 h-8"
-                            placeholder="R$"
-                            value={manualPenaltyValues[inst.index] || ''}
-                            onChange={(e) => setManualPenaltyValues(prev => ({
-                              ...prev,
-                              [inst.index]: e.target.value
-                            }))}
-                          />
-                          {enteredValue > 0 && (
-                            <span className="text-xs text-orange-500 w-20 text-right">
-                              +{formatCurrency(enteredValue)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {/* Total preview para modo manual */}
-              {manualPenaltyDialog?.penaltyMode === 'manual' && Object.keys(manualPenaltyValues).some(k => parseFloat(manualPenaltyValues[parseInt(k)] || '0') > 0) && (
+              {/* Total preview */}
+              {Object.keys(manualPenaltyValues).some(k => parseFloat(manualPenaltyValues[parseInt(k)] || '0') > 0) && (
                 <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
                   <p className="text-sm font-medium text-orange-600">
                     Total de multas: {formatCurrency(
@@ -12125,24 +12193,111 @@ export default function Loans() {
                 </div>
               )}
               
-              {/* Preview para multa dinâmica */}
-              {(manualPenaltyDialog?.penaltyMode === 'percentage' || manualPenaltyDialog?.penaltyMode === 'fixed') && parseFloat(manualPenaltyValues['dynamic'] || '0') > 0 && (
-                <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
-                  <p className="text-sm font-medium text-orange-600">
-                    Multa configurada: {manualPenaltyDialog.penaltyMode === 'percentage' 
-                      ? `${manualPenaltyValues['dynamic']}% por dia de atraso`
-                      : `R$ ${parseFloat(manualPenaltyValues['dynamic'] || '0').toFixed(2)} por dia de atraso`}
-                  </p>
-                </div>
-              )}
-              
               {/* Botões */}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setManualPenaltyDialog(null)} className="flex-1">
                   Cancelar
                 </Button>
                 <Button onClick={handleSaveManualPenalties} className="flex-1">
-                  Aplicar Multas
+                  Aplicar Multa
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog para configurar juros por atraso (automático) */}
+        <Dialog open={!!overdueInterestDialog} onOpenChange={() => setOverdueInterestDialog(null)}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Configurar Juros por Atraso</DialogTitle>
+              <DialogDescription>
+                Configure o cálculo automático de juros por dia de atraso.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Tipo de cálculo */}
+              <div className="space-y-2">
+                <Label>Tipo de cálculo</Label>
+                <Select 
+                  value={overdueInterestDialog?.interestMode} 
+                  onValueChange={(v) => {
+                    setOverdueInterestDialog(prev => prev ? {...prev, interestMode: v as 'percentage' | 'fixed'} : null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Porcentagem (% por dia)</SelectItem>
+                    <SelectItem value="fixed">Valor fixo (R$ por dia)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Valor */}
+              <div className="space-y-2">
+                <Label>
+                  {overdueInterestDialog?.interestMode === 'percentage' 
+                    ? 'Porcentagem por dia de atraso (%)' 
+                    : 'Valor fixo por dia de atraso (R$)'}
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={overdueInterestDialog?.interestMode === 'percentage' ? 'Ex: 1.5' : 'Ex: 5.00'}
+                  value={overdueInterestValue}
+                  onChange={(e) => setOverdueInterestValue(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {overdueInterestDialog?.interestMode === 'percentage' 
+                    ? 'Os juros serão calculados: % × valor da parcela × dias em atraso' 
+                    : 'Os juros serão calculados: R$/dia × dias em atraso'}
+                </p>
+              </div>
+              
+              {/* Preview */}
+              {parseFloat(overdueInterestValue || '0') > 0 && overdueInterestDialog && (
+                <div className="p-3 bg-blue-500/10 rounded border border-blue-500/30 space-y-2">
+                  <p className="text-sm font-medium text-blue-600">
+                    Juros configurado: {overdueInterestDialog.interestMode === 'percentage' 
+                      ? `${overdueInterestValue}% por dia`
+                      : `R$ ${parseFloat(overdueInterestValue || '0').toFixed(2)} por dia`}
+                  </p>
+                  {overdueInterestDialog.overdueInstallments.length > 0 && (
+                    <div className="text-xs text-blue-600/80">
+                      <p className="font-medium mb-1">Prévia para parcelas em atraso:</p>
+                      {overdueInterestDialog.overdueInstallments.slice(0, 3).map((inst) => {
+                        const interestAmount = overdueInterestDialog.interestMode === 'percentage'
+                          ? inst.installmentValue * (parseFloat(overdueInterestValue) / 100) * inst.daysOverdue
+                          : parseFloat(overdueInterestValue) * inst.daysOverdue;
+                        return (
+                          <p key={inst.index}>
+                            Parcela {inst.index + 1}: {inst.daysOverdue} dias × {
+                              overdueInterestDialog.interestMode === 'percentage' 
+                                ? `${overdueInterestValue}%` 
+                                : `R$ ${parseFloat(overdueInterestValue).toFixed(2)}`
+                            } = {formatCurrency(interestAmount)}
+                          </p>
+                        );
+                      })}
+                      {overdueInterestDialog.overdueInstallments.length > 3 && (
+                        <p>... e mais {overdueInterestDialog.overdueInstallments.length - 3} parcelas</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Botões */}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setOverdueInterestDialog(null)} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveOverdueInterest} className="flex-1">
+                  Salvar Juros
                 </Button>
               </div>
             </div>
