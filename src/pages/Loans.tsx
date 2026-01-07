@@ -1622,6 +1622,9 @@ export default function Loans() {
     daily_interest_rate: '', // Taxa de juros para empréstimo diário
     is_historical_contract: false, // Contract being registered retroactively
     send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
+    overdue_penalty_enabled: false, // Juros por atraso automático
+    overdue_penalty_type: 'percentage' as 'percentage' | 'fixed',
+    overdue_penalty_value: '', // Valor da multa (% ou fixo)
   });
   
   // Handlers para sincronização bidirecional do empréstimo diário
@@ -2788,6 +2791,12 @@ export default function Loans() {
       notes = `[HISTORICAL_CONTRACT]\n${notes}`.trim();
     }
     
+    // Add overdue penalty configuration if enabled
+    if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
+      const penaltyConfig = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]`;
+      notes = `${penaltyConfig}\n${notes}`.trim();
+    }
+    
     // Calculate total_interest based on interest_mode e valor da parcela (quando informado)
     const principal = parseFloat(formData.principal_amount) || 0;
     let rate = parseFloat(String(formData.interest_rate)) || 0;
@@ -3615,6 +3624,7 @@ export default function Loans() {
       contract_date: format(new Date(), 'yyyy-MM-dd'),
       start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
       daily_amount: '', daily_period: '15', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
+      overdue_penalty_enabled: false, overdue_penalty_type: 'percentage', overdue_penalty_value: '',
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -5009,6 +5019,78 @@ export default function Loans() {
                     <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
                   </div>
                   
+                  {/* Opção de Juros por Atraso - Daily loans */}
+                  <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="overdue_penalty_enabled_daily"
+                        checked={formData.overdue_penalty_enabled}
+                        onCheckedChange={(checked) => setFormData(prev => ({ 
+                          ...prev, 
+                          overdue_penalty_enabled: !!checked 
+                        }))}
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="overdue_penalty_enabled_daily" className="text-sm font-medium cursor-pointer">
+                          📈 Aplicar juros diários em caso de atraso
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se marcado, juros serão aplicados automaticamente por dia de atraso
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {formData.overdue_penalty_enabled && (
+                      <div className="grid grid-cols-2 gap-3 pl-6">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Tipo de Juros</Label>
+                          <Select 
+                            value={formData.overdue_penalty_type}
+                            onValueChange={(val) => setFormData(prev => ({ 
+                              ...prev, 
+                              overdue_penalty_type: val as 'percentage' | 'fixed' 
+                            }))}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="percentage">% do valor da parcela</SelectItem>
+                              <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">
+                            {formData.overdue_penalty_type === 'percentage' ? 'Taxa (%)' : 'Valor (R$)'}
+                          </Label>
+                          <Input
+                            type="number"
+                            step={formData.overdue_penalty_type === 'percentage' ? '0.5' : '0.01'}
+                            min="0"
+                            placeholder={formData.overdue_penalty_type === 'percentage' ? 'Ex: 1, 2' : 'Ex: 5.00'}
+                            value={formData.overdue_penalty_value}
+                            onChange={(e) => setFormData(prev => ({ 
+                              ...prev, 
+                              overdue_penalty_value: e.target.value 
+                            }))}
+                            className="h-9"
+                          />
+                        </div>
+                        {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
+                          <p className="col-span-2 text-xs text-amber-500">
+                            ⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela
+                          </p>
+                        )}
+                        {formData.overdue_penalty_type === 'fixed' && formData.overdue_penalty_value && (
+                          <p className="col-span-2 text-xs text-amber-500">
+                            ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
                   {/* Historical contract option when dates are in the past - Daily loans */}
                   {hasPastDates && (
                     <div className="p-3 rounded-lg bg-yellow-500/20 border border-yellow-400/30 space-y-2">
@@ -5535,6 +5617,78 @@ export default function Loans() {
                 <div className="space-y-1 sm:space-y-2 tutorial-form-notes">
                   <Label className="text-xs sm:text-sm">Observações</Label>
                   <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} className="text-sm" />
+                </div>
+                
+                {/* Opção de Juros por Atraso - Installment loans */}
+                <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="overdue_penalty_enabled"
+                      checked={formData.overdue_penalty_enabled}
+                      onCheckedChange={(checked) => setFormData(prev => ({ 
+                        ...prev, 
+                        overdue_penalty_enabled: !!checked 
+                      }))}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="overdue_penalty_enabled" className="text-sm font-medium cursor-pointer">
+                        📈 Aplicar juros diários em caso de atraso
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Se marcado, juros serão aplicados automaticamente por dia de atraso
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {formData.overdue_penalty_enabled && (
+                    <div className="grid grid-cols-2 gap-3 pl-6">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tipo de Juros</Label>
+                        <Select 
+                          value={formData.overdue_penalty_type}
+                          onValueChange={(val) => setFormData(prev => ({ 
+                            ...prev, 
+                            overdue_penalty_type: val as 'percentage' | 'fixed' 
+                          }))}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percentage">% do valor da parcela</SelectItem>
+                            <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">
+                          {formData.overdue_penalty_type === 'percentage' ? 'Taxa (%)' : 'Valor (R$)'}
+                        </Label>
+                        <Input
+                          type="number"
+                          step={formData.overdue_penalty_type === 'percentage' ? '0.5' : '0.01'}
+                          min="0"
+                          placeholder={formData.overdue_penalty_type === 'percentage' ? 'Ex: 1, 2' : 'Ex: 5.00'}
+                          value={formData.overdue_penalty_value}
+                          onChange={(e) => setFormData(prev => ({ 
+                            ...prev, 
+                            overdue_penalty_value: e.target.value 
+                          }))}
+                          className="h-9"
+                        />
+                      </div>
+                      {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
+                        <p className="col-span-2 text-xs text-amber-500">
+                          ⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela
+                        </p>
+                      )}
+                      {formData.overdue_penalty_type === 'fixed' && formData.overdue_penalty_value && (
+                        <p className="col-span-2 text-xs text-amber-500">
+                          ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Historical contract option when dates are in the past */}
