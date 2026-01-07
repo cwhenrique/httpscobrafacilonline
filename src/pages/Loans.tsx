@@ -3781,6 +3781,9 @@ export default function Loans() {
       }
     }
     
+    // Calcular multas aplicadas (DAILY_PENALTY)
+    const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
+    
     // CORREÇÃO: Usar remaining_balance como fonte de verdade (já inclui amortizações)
     // O remaining_balance é atualizado automaticamente quando há amortização
     const actualRemaining = loan.remaining_balance > 0 ? loan.remaining_balance : (loan.principal_amount + totalInterest - (loan.total_paid || 0));
@@ -3802,8 +3805,8 @@ export default function Loans() {
     // Para renegociação normal - usar remaining_balance real
     const remainingForRenegotiation = actualRemaining;
     
-    // Calcular valor de juros com juros dinâmicos incluídos
-    const interestWithDynamic = interestPerInstallment + dynamicInterest;
+    // Calcular valor de juros com juros dinâmicos E multas aplicadas incluídos
+    const interestWithDynamic = interestPerInstallment + dynamicInterest + totalAppliedPenalties;
     
     setSelectedLoanId(loanId);
     const today = new Date();
