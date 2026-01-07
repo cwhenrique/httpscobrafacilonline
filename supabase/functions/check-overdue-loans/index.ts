@@ -330,10 +330,10 @@ const handler = async (req: Request): Promise<Response> => {
               daysToApply = daysOverdue; // Primeira detecção: aplica todos os dias
             }
             
-            // Calcular valor da multa
+            // Calcular valor da multa (% sobre valor total do empréstimo)
             let dailyPenalty = 0;
             if (overdueConfig.type === 'percentage') {
-              dailyPenalty = installmentValue * (overdueConfig.value / 100);
+              dailyPenalty = totalToReceive * (overdueConfig.value / 100);
             } else {
               dailyPenalty = overdueConfig.value;
             }

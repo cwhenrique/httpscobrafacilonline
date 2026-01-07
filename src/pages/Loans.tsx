@@ -5055,7 +5055,7 @@ export default function Loans() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="percentage">% do valor da parcela</SelectItem>
+                              <SelectItem value="percentage">% do valor total</SelectItem>
                               <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                             </SelectContent>
                           </Select>
@@ -5655,7 +5655,7 @@ export default function Loans() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="percentage">% do valor da parcela</SelectItem>
+                            <SelectItem value="percentage">% do valor total</SelectItem>
                             <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                           </SelectContent>
                         </Select>
@@ -7079,7 +7079,7 @@ export default function Loans() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
+                                  <SelectItem value="percentage">% do valor total/dia</SelectItem>
                                   <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
                                   <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                 </SelectContent>
@@ -8852,7 +8852,7 @@ export default function Loans() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="percentage">% do valor da parcela/dia</SelectItem>
+                                    <SelectItem value="percentage">% do valor total/dia</SelectItem>
                                     <SelectItem value="fixed">R$ valor fixo/dia</SelectItem>
                                     <SelectItem value="manual">📝 Aplicar manualmente (valor fixo)</SelectItem>
                                   </SelectContent>
