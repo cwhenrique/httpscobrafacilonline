@@ -393,7 +393,8 @@ export function useLoans() {
     // Limpar tags de multa ao renegociar (reset do contrato)
     const cleanedNotes = (data.notes || '')
       .replace(/\[DAILY_PENALTY:\d+:[0-9.]+\]\n?/g, '')  // Remove multas diárias
-      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')      // Remove config de multa
+      .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')      // Remove config de juros por atraso
+      .replace(/\[FIXED_PENALTY:[^\]]+\]\n?/g, '')       // Remove config de multa fixa
       .replace(/\n{2,}/g, '\n')  // Limpa linhas vazias extras
       .trim();
 

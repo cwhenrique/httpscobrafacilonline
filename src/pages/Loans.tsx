@@ -934,15 +934,15 @@ export default function Loans() {
     isDaily?: boolean
   ) => {
     try {
-      // Clean old OVERDUE_CONFIG
+      // Clean old FIXED_PENALTY (for multas fixas aplicadas), NOT OVERDUE_CONFIG (for juros dinâmicos)
       let cleanNotes = (currentNotes || '')
-        .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+        .replace(/\[FIXED_PENALTY:[^\]]+\]/g, '')
         .trim();
       
-      // Add new config
+      // Add new fixed penalty config (separate from OVERDUE_CONFIG which is for dynamic interest)
       const penaltyValue = parseFloat(inlinePenaltyValue) || 0;
       if (penaltyValue > 0) {
-        const newConfig = `[OVERDUE_CONFIG:${inlinePenaltyType}:${penaltyValue}]`;
+        const newConfig = `[FIXED_PENALTY:${inlinePenaltyType}:${penaltyValue}]`;
         cleanNotes = `${newConfig}\n${cleanNotes}`.trim();
         
         if (startInstallmentIndex !== undefined && daysOverdue && daysOverdue > 0) {
@@ -2372,6 +2372,7 @@ export default function Loans() {
     // Limpar notas de tags internas para exibição
     const cleanNotes = (loan.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[FIXED_PENALTY:[^\]]+\]\n?/g, '')
       .replace(/\[SKIP_SATURDAY\]\n?/g, '')
       .replace(/\[SKIP_SUNDAY\]\n?/g, '')
       .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
@@ -4181,6 +4182,7 @@ export default function Loans() {
     // Clean notes for display (remove internal tags)
     let cleanNotes = (loan.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[FIXED_PENALTY:[^\]]+\]\n?/g, '')
       .replace(/\[RENEGOTIATED\]\n?/g, '')
       .replace(/\[ORIGINAL_PRINCIPAL:[^\]]+\]\n?/g, '')
       .replace(/\[ORIGINAL_RATE:[^\]]+\]\n?/g, '')
@@ -4339,6 +4341,7 @@ export default function Loans() {
     // Clean notes for display
     let cleanNotes = (loan.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+      .replace(/\[FIXED_PENALTY:[^\]]+\]\n?/g, '')
       .replace(/\[RENEGOTIATED\]\n?/g, '')
       .replace(/\[ORIGINAL_PRINCIPAL:[^\]]+\]\n?/g, '')
       .replace(/\[ORIGINAL_RATE:[^\]]+\]\n?/g, '')
@@ -4442,6 +4445,7 @@ export default function Loans() {
     // Remove any existing skip tags from notes (overdue config is now managed via card)
     let cleanNotes = (editFormData.notes || '')
       .replace(/\[OVERDUE_CONFIG:[^\]]+\]/g, '')
+      .replace(/\[FIXED_PENALTY:[^\]]+\]/g, '')
       .replace(/\[SKIP_SATURDAY\]\n?/g, '')
       .replace(/\[SKIP_SUNDAY\]\n?/g, '')
       .replace(/\[SKIP_HOLIDAYS\]\n?/g, '')
