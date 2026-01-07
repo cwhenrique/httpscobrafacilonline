@@ -183,6 +183,13 @@ const getTotalDailyPenalties = (notes: string | null): number => {
   return Object.values(penalties).reduce((sum, val) => sum + val, 0);
 };
 
+// Helper para calcular o remaining_balance SEM multas aplicadas (backward compatibility)
+// Multas são extras e NÃO devem ser consideradas como saldo devedor do contrato
+const getRemainingWithoutPenalties = (loan: { remaining_balance: number; notes: string | null }): number => {
+  const totalPenalties = getTotalDailyPenalties(loan.notes);
+  return Math.max(0, loan.remaining_balance - totalPenalties);
+};
+
 // Helper para calcular multas cumulativas para TODAS as parcelas em atraso
 interface OverdueInstallmentDetail {
   index: number;
@@ -1013,13 +1020,11 @@ export default function Loans() {
       const loan = loans.find(l => l.id === loanId);
       const currentBalance = loan?.remaining_balance || 0;
       
-      // Update in database - also adjust remaining_balance
+      // Update in database - ONLY update notes, NOT remaining_balance
+      // Multas são extras e não alteram o saldo devedor do contrato
       const { error } = await supabase
         .from('loans')
-        .update({ 
-          notes: cleanNotes,
-          remaining_balance: currentBalance + penaltyDifference 
-        })
+        .update({ notes: cleanNotes })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -1055,16 +1060,11 @@ export default function Loans() {
       const regex = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]\\n?`, 'g');
       const cleanNotes = (currentNotes || '').replace(regex, '').trim();
       
-      // Get current remaining_balance
-      const loan = loans.find(l => l.id === loanId);
-      const currentBalance = loan?.remaining_balance || 0;
-      
+      // Update in database - ONLY update notes, NOT remaining_balance
+      // Multas são extras e não alteram o saldo devedor do contrato
       const { error } = await supabase
         .from('loans')
-        .update({ 
-          notes: cleanNotes,
-          remaining_balance: currentBalance - penaltyBeingRemoved
-        })
+        .update({ notes: cleanNotes })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -1100,16 +1100,11 @@ export default function Loans() {
         cleanNotes = `${dailyPenaltyTag}\n${cleanNotes}`.trim();
       }
       
-      // Get current remaining_balance
-      const loan = loans.find(l => l.id === loanId);
-      const currentBalance = loan?.remaining_balance || 0;
-      
+      // Update in database - ONLY update notes, NOT remaining_balance
+      // Multas são extras e não alteram o saldo devedor do contrato
       const { error } = await supabase
         .from('loans')
-        .update({ 
-          notes: cleanNotes,
-          remaining_balance: currentBalance + penaltyDifference
-        })
+        .update({ notes: cleanNotes })
         .eq('id', loanId);
       
       if (error) throw error;
@@ -1167,17 +1162,11 @@ export default function Loans() {
       const newTotalPenalty = Object.values(newPenalties).reduce((sum, val) => sum + val, 0);
       const penaltyDifference = newTotalPenalty - oldTotalPenalty;
       
-      // Get current remaining_balance
-      const loan = loans.find(l => l.id === manualPenaltyDialog.loanId);
-      const currentBalance = loan?.remaining_balance || 0;
-      
-      // Save to database with updated remaining_balance
+      // Save to database - ONLY update notes, NOT remaining_balance
+      // Multas são extras e não alteram o saldo devedor do contrato
       const { error } = await supabase
         .from('loans')
-        .update({ 
-          notes: cleanNotes,
-          remaining_balance: currentBalance + penaltyDifference
-        })
+        .update({ notes: cleanNotes })
         .eq('id', manualPenaltyDialog.loanId);
       
       if (error) throw error;
@@ -3791,14 +3780,18 @@ export default function Loans() {
       totalInterestOnlyPaid += parseFloat(match[1]);
     }
     
-    // CORREÇÃO: O remaining_balance não deve considerar pagamentos de "só juros"
+    // CORREÇÃO: O remaining_balance não deve considerar pagamentos de "só juros" NEM multas aplicadas
     // Pagamentos de juros/multa são extras e não reduzem o saldo devedor original
     const normalPaymentsPaid = (loan.total_paid || 0) - totalInterestOnlyPaid;
-    const actualRemaining = loan.remaining_balance > 0 
-      ? loan.remaining_balance 
+    
+    // Usar helper para obter remaining SEM multas (backward compatibility para empréstimos antigos)
+    const remainingWithoutPenalties = getRemainingWithoutPenalties(loan);
+    
+    const actualRemaining = remainingWithoutPenalties > 0 
+      ? remainingWithoutPenalties 
       : (loan.principal_amount + totalInterest - Math.max(0, normalPaymentsPaid));
     
-    // Para "só juros": usar o valor original do contrato (não afetado por pagamentos de juros)
+    // Para "só juros": usar o valor original do contrato (não afetado por pagamentos de juros nem multas)
     let remainingForInterestOnly = actualRemaining;
     
     if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
@@ -3811,7 +3804,7 @@ export default function Loans() {
       }
     }
     
-    // Para renegociação normal - usar remaining_balance real
+    // Para renegociação normal - usar remaining sem multas
     const remainingForRenegotiation = actualRemaining;
     
     // Calcular valor de juros com juros dinâmicos E multas aplicadas incluídos
