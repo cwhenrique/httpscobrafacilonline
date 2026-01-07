@@ -3723,6 +3723,7 @@ export default function Loans() {
     
     // CORREÇÃO: Usar total_interest do banco como fonte de verdade
     const numInstallments = loan.installments || 1;
+    const isDaily = loan.payment_type === 'daily';
     
     let totalInterest = 0;
     if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
@@ -3737,6 +3738,47 @@ export default function Loans() {
     
     // Interest per installment for auto-fill
     const interestPerInstallment = totalInterest / numInstallments;
+    
+    // Calcular juros dinâmicos de atraso
+    const overdueMatch = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const overdueConfigType = overdueMatch?.[1] as 'percentage' | 'fixed' | null;
+    const overdueConfigValue = overdueMatch ? parseFloat(overdueMatch[2]) : 0;
+    
+    // Calcular dias de atraso
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const paidCount = getPaidInstallmentsCount(loan);
+    const dates = (loan.installment_dates as string[]) || [];
+    let daysOverdue = 0;
+    
+    if (dates.length > 0 && paidCount < dates.length) {
+      const nextDueDate = new Date(dates[paidCount] + 'T12:00:00');
+      nextDueDate.setHours(0, 0, 0, 0);
+      if (todayDate > nextDueDate) {
+        daysOverdue = Math.floor((todayDate.getTime() - nextDueDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    } else {
+      const dueDate = new Date(loan.due_date + 'T12:00:00');
+      dueDate.setHours(0, 0, 0, 0);
+      if (todayDate > dueDate) {
+        daysOverdue = Math.floor((todayDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    }
+    
+    // Calcular juros dinâmicos
+    let dynamicInterest = 0;
+    if (daysOverdue > 0 && overdueConfigType && overdueConfigValue > 0) {
+      const dailyAmount = isDaily ? (loan.total_interest || 0) : 0;
+      const installmentValue = isDaily 
+        ? dailyAmount 
+        : (loan.principal_amount + totalInterest) / numInstallments;
+      
+      if (overdueConfigType === 'percentage') {
+        dynamicInterest = (installmentValue * (overdueConfigValue / 100)) * daysOverdue;
+      } else {
+        dynamicInterest = overdueConfigValue * daysOverdue;
+      }
+    }
     
     // CORREÇÃO: Usar remaining_balance como fonte de verdade (já inclui amortizações)
     // O remaining_balance é atualizado automaticamente quando há amortização
@@ -3759,6 +3801,9 @@ export default function Loans() {
     // Para renegociação normal - usar remaining_balance real
     const remainingForRenegotiation = actualRemaining;
     
+    // Calcular valor de juros com juros dinâmicos incluídos
+    const interestWithDynamic = interestPerInstallment + dynamicInterest;
+    
     setSelectedLoanId(loanId);
     const today = new Date();
     // Default to 7 days for weekly, 15 days for biweekly, 30 days for others
@@ -3771,7 +3816,7 @@ export default function Loans() {
       remaining_amount: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
       notes: loan.notes || '',
       interest_only_paid: false,
-      interest_amount_paid: interestPerInstallment.toFixed(2), // Pre-fill with calculated interest
+      interest_amount_paid: interestWithDynamic.toFixed(2), // Pre-fill with calculated interest + dynamic
       interest_payment_date: format(new Date(), 'yyyy-MM-dd'), // Data do pagamento de juros
       send_interest_notification: false,
       renewal_fee_enabled: false,
@@ -6752,11 +6797,13 @@ export default function Loans() {
                           </div>
                           
                           {/* LINHA 3: Valor em destaque */}
-                          <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                          <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
                             restante a receber
-                            {totalAppliedPenalties > 0 && (
-                              <span className="ml-1 text-red-400 font-medium">(+{formatCurrency(totalAppliedPenalties)} multas)</span>
+                            {(totalAppliedPenalties > 0 || dynamicPenaltyAmount > 0) && (
+                              <span className="ml-1 text-red-400 font-medium">
+                                (+{formatCurrency(totalAppliedPenalties + dynamicPenaltyAmount)} juros atraso)
+                              </span>
                             )}
                           </p>
                         </div>
@@ -6770,7 +6817,7 @@ export default function Loans() {
                         </div>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive)}</p>
+                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
                         </div>
                       </div>
                       
@@ -8501,11 +8548,13 @@ export default function Loans() {
                             </div>
                             
                             {/* LINHA 3: Valor em destaque */}
-                            <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive)}</p>
+                            <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
                             <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
                               restante a receber
-                              {totalAppliedPenaltiesDaily > 0 && (
-                                <span className="ml-1 text-red-400 font-medium">(+{formatCurrency(totalAppliedPenaltiesDaily)} multas)</span>
+                              {(totalAppliedPenaltiesDaily > 0 || dynamicPenaltyAmount > 0) && (
+                                <span className="ml-1 text-red-400 font-medium">
+                                  (+{formatCurrency(totalAppliedPenaltiesDaily + dynamicPenaltyAmount)} juros atraso)
+                                </span>
                               )}
                             </p>
                           </div>
@@ -8519,7 +8568,7 @@ export default function Loans() {
                           </div>
                           <div>
                             <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                            <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive)}</p>
+                            <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
                           </div>
                         </div>
                         
