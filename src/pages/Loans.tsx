@@ -900,6 +900,8 @@ export default function Loans() {
     }>;
   } | null>(null);
   const [manualPenaltyValues, setManualPenaltyValues] = useState<Record<number | string, string>>({});
+  const [penaltyMode, setPenaltyMode] = useState<'percentage' | 'fixed' | 'manual'>('manual');
+  const [penaltyUnifiedValue, setPenaltyUnifiedValue] = useState('');
   
   // Overdue interest dialog state (juros por atraso automático)
   const [overdueInterestDialog, setOverdueInterestDialog] = useState<{
@@ -1130,10 +1132,22 @@ export default function Loans() {
       const oldTotalPenalty = Object.values(oldPenalties).reduce((sum, val) => sum + val, 0);
       
       let cleanNotes = (manualPenaltyDialog.currentNotes || '').trim();
+      const unifiedValue = parseFloat(penaltyUnifiedValue || '0');
       
-      // Modo manual: aplica multa fixa por parcela
+      // Calcula e aplica multa para cada parcela baseado no modo
       for (const inst of manualPenaltyDialog.overdueInstallments) {
-        const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+        let penaltyAmount = 0;
+        
+        if (penaltyMode === 'percentage') {
+          // % do valor da parcela por dia
+          penaltyAmount = (inst.installmentValue * (unifiedValue / 100)) * inst.daysOverdue;
+        } else if (penaltyMode === 'fixed') {
+          // Valor fixo por dia
+          penaltyAmount = unifiedValue * inst.daysOverdue;
+        } else {
+          // Modo manual: valor fixo por parcela
+          penaltyAmount = parseFloat(manualPenaltyValues[inst.index] || '0');
+        }
         
         // Remove old penalty for this installment
         cleanNotes = cleanNotes.replace(
@@ -1141,9 +1155,9 @@ export default function Loans() {
           ''
         );
         
-        if (enteredValue > 0) {
-          // Add new FIXED penalty
-          const penaltyTag = `[DAILY_PENALTY:${inst.index}:${enteredValue.toFixed(2)}]`;
+        if (penaltyAmount > 0) {
+          // Add new penalty
+          const penaltyTag = `[DAILY_PENALTY:${inst.index}:${penaltyAmount.toFixed(2)}]`;
           cleanNotes = `${penaltyTag}\n${cleanNotes}`.trim();
         }
       }
@@ -1170,6 +1184,8 @@ export default function Loans() {
       
       setManualPenaltyDialog(null);
       setManualPenaltyValues({});
+      setPenaltyUnifiedValue('');
+      setPenaltyMode('manual');
       fetchLoans();
       toast.success('Multa aplicada com sucesso!');
     } catch (error) {
@@ -12130,72 +12146,162 @@ export default function Loans() {
           </DialogContent>
         </Dialog>
         
-        {/* Dialog para aplicar multa manualmente (valor fixo por parcela) */}
-        <Dialog open={!!manualPenaltyDialog} onOpenChange={() => setManualPenaltyDialog(null)}>
+        {/* Dialog para aplicar multa manualmente (3 opções) */}
+        <Dialog open={!!manualPenaltyDialog} onOpenChange={() => {
+          setManualPenaltyDialog(null);
+          setPenaltyMode('manual');
+          setPenaltyUnifiedValue('');
+          setManualPenaltyValues({});
+        }}>
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Aplicar Multa Manual</DialogTitle>
+              <DialogTitle>Aplicar Multa</DialogTitle>
               <DialogDescription>
-                Aplique uma multa fixa por parcela em atraso.
+                Escolha o tipo de cálculo da multa e aplique às parcelas em atraso.
               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4">
-              {/* Lista de parcelas em atraso */}
+              {/* Tipo de cálculo */}
               <div className="space-y-2">
-                <Label>Parcelas em atraso ({manualPenaltyDialog?.overdueInstallments.length})</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {manualPenaltyDialog?.overdueInstallments.map((inst) => {
-                    const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
-                    
-                    return (
-                      <div key={inst.index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">Parcela {inst.index + 1}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            Venc: {format(new Date(inst.dueDate + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })} • {inst.daysOverdue} dias atraso
-                          </p>
-                        </div>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-24 h-8"
-                          placeholder="R$ 0,00"
-                          value={manualPenaltyValues[inst.index] || ''}
-                          onChange={(e) => setManualPenaltyValues(prev => ({
-                            ...prev,
-                            [inst.index]: e.target.value
-                          }))}
-                        />
-                        {enteredValue > 0 && (
-                          <span className="text-xs text-orange-500 w-20 text-right">
-                            +{formatCurrency(enteredValue)}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <Label>Tipo de cálculo</Label>
+                <Select value={penaltyMode} onValueChange={(v) => setPenaltyMode(v as 'percentage' | 'fixed' | 'manual')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">% do valor da parcela por dia</SelectItem>
+                    <SelectItem value="fixed">Valor fixo (R$) por dia</SelectItem>
+                    <SelectItem value="manual">Valor fixo único por parcela</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
-              {/* Total preview */}
-              {Object.keys(manualPenaltyValues).some(k => parseFloat(manualPenaltyValues[parseInt(k)] || '0') > 0) && (
-                <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
-                  <p className="text-sm font-medium text-orange-600">
-                    Total de multas: {formatCurrency(
-                      manualPenaltyDialog?.overdueInstallments.reduce((sum, inst) => {
-                        const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
-                        return sum + enteredValue;
-                      }, 0) || 0
-                    )}
-                  </p>
+              {/* Campo de valor unificado para percentage e fixed */}
+              {penaltyMode !== 'manual' && (
+                <div className="space-y-2">
+                  <Label>
+                    {penaltyMode === 'percentage' 
+                      ? 'Porcentagem por dia (%)' 
+                      : 'Valor por dia (R$)'}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={penaltyMode === 'percentage' ? 'Ex: 1.5' : 'Ex: 5.00'}
+                    value={penaltyUnifiedValue}
+                    onChange={(e) => setPenaltyUnifiedValue(e.target.value)}
+                  />
+                </div>
+              )}
+              
+              {/* Preview de cálculo para percentage e fixed */}
+              {penaltyMode !== 'manual' && parseFloat(penaltyUnifiedValue || '0') > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground text-xs">Prévia do cálculo</Label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto p-2 bg-muted rounded">
+                    {manualPenaltyDialog?.overdueInstallments.map((inst) => {
+                      const unifiedValue = parseFloat(penaltyUnifiedValue || '0');
+                      let penaltyAmount = 0;
+                      let calculation = '';
+                      
+                      if (penaltyMode === 'percentage') {
+                        penaltyAmount = (inst.installmentValue * (unifiedValue / 100)) * inst.daysOverdue;
+                        calculation = `${unifiedValue}% × ${formatCurrency(inst.installmentValue)} × ${inst.daysOverdue} dias`;
+                      } else {
+                        penaltyAmount = unifiedValue * inst.daysOverdue;
+                        calculation = `${formatCurrency(unifiedValue)} × ${inst.daysOverdue} dias`;
+                      }
+                      
+                      return (
+                        <div key={inst.index} className="text-xs">
+                          <span className="font-medium">Parcela {inst.index + 1}:</span>{' '}
+                          <span className="text-muted-foreground">{calculation}</span>{' '}
+                          <span className="text-orange-500 font-medium">= {formatCurrency(penaltyAmount)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
+                    <p className="text-sm font-medium text-orange-600">
+                      Total de multas: {formatCurrency(
+                        manualPenaltyDialog?.overdueInstallments.reduce((sum, inst) => {
+                          const unifiedValue = parseFloat(penaltyUnifiedValue || '0');
+                          if (penaltyMode === 'percentage') {
+                            return sum + (inst.installmentValue * (unifiedValue / 100)) * inst.daysOverdue;
+                          } else {
+                            return sum + unifiedValue * inst.daysOverdue;
+                          }
+                        }, 0) || 0
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Lista de parcelas em atraso para modo manual */}
+              {penaltyMode === 'manual' && (
+                <div className="space-y-2">
+                  <Label>Parcelas em atraso ({manualPenaltyDialog?.overdueInstallments.length})</Label>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {manualPenaltyDialog?.overdueInstallments.map((inst) => {
+                      const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+                      
+                      return (
+                        <div key={inst.index} className="flex items-center gap-2 p-2 bg-muted rounded">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">Parcela {inst.index + 1}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              Venc: {format(new Date(inst.dueDate + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })} • {inst.daysOverdue} dias atraso
+                            </p>
+                          </div>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-24 h-8"
+                            placeholder="R$ 0,00"
+                            value={manualPenaltyValues[inst.index] || ''}
+                            onChange={(e) => setManualPenaltyValues(prev => ({
+                              ...prev,
+                              [inst.index]: e.target.value
+                            }))}
+                          />
+                          {enteredValue > 0 && (
+                            <span className="text-xs text-orange-500 w-20 text-right">
+                              +{formatCurrency(enteredValue)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Total preview for manual mode */}
+                  {Object.keys(manualPenaltyValues).some(k => parseFloat(manualPenaltyValues[k] || '0') > 0) && (
+                    <div className="p-2 bg-orange-500/10 rounded border border-orange-500/30">
+                      <p className="text-sm font-medium text-orange-600">
+                        Total de multas: {formatCurrency(
+                          manualPenaltyDialog?.overdueInstallments.reduce((sum, inst) => {
+                            const enteredValue = parseFloat(manualPenaltyValues[inst.index] || '0');
+                            return sum + enteredValue;
+                          }, 0) || 0
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
               
               {/* Botões */}
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setManualPenaltyDialog(null)} className="flex-1">
+                <Button variant="outline" onClick={() => {
+                  setManualPenaltyDialog(null);
+                  setPenaltyMode('manual');
+                  setPenaltyUnifiedValue('');
+                  setManualPenaltyValues({});
+                }} className="flex-1">
                   Cancelar
                 </Button>
                 <Button onClick={handleSaveManualPenalties} className="flex-1">
