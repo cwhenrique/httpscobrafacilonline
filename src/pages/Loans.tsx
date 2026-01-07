@@ -5078,13 +5078,22 @@ export default function Loans() {
                           />
                         </div>
                         {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
-                          <p className="col-span-2 text-xs text-amber-500">
-                            ⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela
-                          </p>
+                          <div className="col-span-2 text-xs text-amber-500 space-y-1">
+                            <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor total</p>
+                            {formData.daily_amount && installmentDates.length > 0 && (() => {
+                              const totalValue = parseFloat(formData.daily_amount) * installmentDates.length;
+                              const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100);
+                              return (
+                                <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
+                                  📊 Prévia: {formData.overdue_penalty_value}% de R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = R$ {dailyPenalty.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+                                </p>
+                              );
+                            })()}
+                          </div>
                         )}
                         {formData.overdue_penalty_type === 'fixed' && formData.overdue_penalty_value && (
                           <p className="col-span-2 text-xs text-amber-500">
-                            ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}
+                            ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}/dia
                           </p>
                         )}
                       </div>
@@ -5678,13 +5687,22 @@ export default function Loans() {
                         />
                       </div>
                       {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
-                        <p className="col-span-2 text-xs text-amber-500">
-                          ⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela
-                        </p>
+                        <div className="col-span-2 text-xs text-amber-500 space-y-1">
+                          <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor total</p>
+                          {installmentValue && formData.installments && (() => {
+                            const totalValue = parseFloat(installmentValue) * parseInt(formData.installments);
+                            const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100);
+                            return (
+                              <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
+                                📊 Prévia: {formData.overdue_penalty_value}% de R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = R$ {dailyPenalty.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+                              </p>
+                            );
+                          })()}
+                        </div>
                       )}
                       {formData.overdue_penalty_type === 'fixed' && formData.overdue_penalty_value && (
                         <p className="col-span-2 text-xs text-amber-500">
-                          ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}
+                          ⚠️ A cada dia de atraso, será aplicado R$ {parseFloat(formData.overdue_penalty_value).toFixed(2)}/dia
                         </p>
                       )}
                     </div>
