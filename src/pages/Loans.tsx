@@ -7155,22 +7155,42 @@ export default function Loans() {
                               <span>Valor: {formatCurrency(totalPerInstallment)}</span>
                             </div>
                           </div>
-                          {dynamicPenaltyAmount > 0 && totalAppliedPenalties === 0 && (
+                          {/* Seção de Penalidades - exibe juros E multas separadamente */}
+                          {(dynamicPenaltyAmount > 0 || totalAppliedPenalties > 0) && (
                             <>
-                              <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                <span className="text-red-300">
-                                  {overdueConfigType === 'percentage' 
-                                    ? `Multa (${overdueConfigValue}%/dia de ${formatCurrency(totalPerInstallment)})`
-                                    : `Multa (${formatCurrency(overdueConfigValue)}/dia)`}
-                                </span>
-                                <span className="font-bold text-red-200">
-                                  +{formatCurrency(dynamicPenaltyAmount)}
-                                </span>
-                              </div>
+                              {/* Juros por Atraso (dinâmicos - [OVERDUE_CONFIG]) */}
+                              {dynamicPenaltyAmount > 0 && (
+                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                  <span className="text-blue-300">
+                                    <Percent className="w-3 h-3 inline mr-1" />
+                                    Juros ({overdueConfigType === 'percentage' 
+                                      ? `${overdueConfigValue}%/dia`
+                                      : `${formatCurrency(overdueConfigValue)}/dia`})
+                                  </span>
+                                  <span className="font-bold text-blue-200">
+                                    +{formatCurrency(dynamicPenaltyAmount)}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
+                              {totalAppliedPenalties > 0 && (
+                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                  <span className="text-orange-300">
+                                    <DollarSign className="w-3 h-3 inline mr-1" />
+                                    Multa Aplicada
+                                  </span>
+                                  <span className="font-bold text-orange-200">
+                                    +{formatCurrency(totalAppliedPenalties)}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Total com Atraso (soma de ambos) */}
                               <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
                                 <span className="text-red-300/80">Total com Atraso:</span>
                                 <span className="font-bold text-white">
-                                  {formatCurrency(remainingToReceive + dynamicPenaltyAmount)}
+                                  {formatCurrency(remainingToReceive + dynamicPenaltyAmount + totalAppliedPenalties)}
                                 </span>
                               </div>
                             </>
@@ -8922,15 +8942,15 @@ export default function Loans() {
                               )}
                             </div>
                             
-                            {/* Seção de multas MANUAIS aplicadas */}
-                            {totalAppliedPenaltiesDaily > 0 && overdueConfigValue === 0 && (
+                            {/* Seção de multas MANUAIS aplicadas - exibe mesmo se há juros dinâmicos */}
+                            {totalAppliedPenaltiesDaily > 0 && (
                               <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-3">
                                 {/* Cabeçalho */}
                                 <div className="flex items-center justify-between">
-                                  <span className="text-amber-400 font-semibold flex items-center gap-1.5 text-sm">
-                                    <span>📝</span> Multas aplicadas (manual)
+                                  <span className="text-orange-400 font-semibold flex items-center gap-1.5 text-sm">
+                                    <DollarSign className="w-4 h-4" /> Multa Aplicada
                                   </span>
-                                  <span className="font-bold text-amber-300">
+                                  <span className="font-bold text-orange-300">
                                     +{formatCurrency(totalAppliedPenaltiesDaily)}
                                   </span>
                                 </div>
@@ -8942,17 +8962,17 @@ export default function Loans() {
                                     return Object.entries(manualPenalties).map(([idx, penalty]) => (
                                       <div key={idx} className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1">
                                         <span className="text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
-                                        <span className="font-medium text-amber-400">+{formatCurrency(penalty)}</span>
+                                        <span className="font-medium text-orange-400">+{formatCurrency(penalty)}</span>
                                       </div>
                                     ));
                                   })()}
                                 </div>
                                 
-                                {/* Total a Pagar */}
-                                <div className="flex items-center justify-between bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg px-3 py-2">
+                                {/* Total a Pagar (inclui juros dinâmicos se houver) */}
+                                <div className="flex items-center justify-between bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg px-3 py-2">
                                   <span className="text-white font-medium">Total a Pagar:</span>
-                                  <span className="font-bold text-amber-400 text-lg">
-                                    {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
+                                  <span className="font-bold text-orange-400 text-lg">
+                                    {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily + dynamicPenaltyAmount)}
                                   </span>
                                 </div>
                               </div>
