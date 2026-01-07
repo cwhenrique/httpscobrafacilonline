@@ -141,6 +141,40 @@ export default function SendDueTodayNotification({
     return message;
   };
 
+  // Mensagem simples: apenas parcela atual, sem lista de todas
+  const generateSimpleDueTodayMessage = (): string => {
+    const installmentInfo = data.installmentNumber && data.totalInstallments 
+      ? `${data.installmentNumber}/${data.totalInstallments}` 
+      : 'Única';
+    
+    const paidCount = data.paidCount || 0;
+    const totalInstallments = data.totalInstallments || 1;
+    const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+
+    let message = `Olá *${data.clientName}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📅 *VENCIMENTO HOJE*\n\n`;
+    
+    // Barra de progresso
+    message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
+    
+    // Informações da parcela atual
+    message += `📌 *Parcela:* ${installmentInfo}\n`;
+    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
+    message += `\nEvite juros e multas pagando em dia!`;
+    
+    // Assinatura
+    const signatureName = profile?.billing_signature_name || profile?.company_name;
+    message += generateSignature(signatureName);
+
+    return message;
+  };
+
   const handleSend = async (editedMessage: string) => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
@@ -258,7 +292,8 @@ export default function SendDueTodayNotification({
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateDueTodayMessage()}
+        simpleMessage={generateSimpleDueTodayMessage()}
+        completeMessage={generateDueTodayMessage()}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}

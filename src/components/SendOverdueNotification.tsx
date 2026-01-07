@@ -132,7 +132,6 @@ export default function SendOverdueNotification({
   const generateOverdueMessage = (): string => {
     const typeLabel = getContractTypeLabel(data.contractType);
     const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
-    const hasPenalty = data.penaltyAmount && data.penaltyAmount > 0;
     const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
     
     let message = `⚠️ *Atenção ${data.clientName}*\n`;
@@ -145,7 +144,13 @@ export default function SendOverdueNotification({
       const totalAmount = (data.totalOverdueAmount || 0) + effectivePenalty;
       
       message += `🚨 *${data.overdueInstallmentsCount} PARCELAS EM ATRASO*\n\n`;
-      message += `📋 *Tipo:* ${typeLabel} Diário\n\n`;
+      message += `📋 *Tipo:* ${typeLabel} Diário\n`;
+      
+      // Barra de progresso
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || 1;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+      message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
       
       for (const item of data.overdueInstallmentsDetails!) {
         const manualPenalty = data.manualPenaltiesBreakdown?.[item.installmentNumber - 1] || 0;
@@ -217,6 +222,58 @@ export default function SendOverdueNotification({
         overdueInterest
       );
     }
+    
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
+    // Assinatura
+    const signatureName = profile?.billing_signature_name || profile?.company_name;
+    message += generateSignature(signatureName);
+
+    return message;
+  };
+
+  // Mensagem simples: apenas parcela atual, sem lista de todas
+  const generateSimpleOverdueMessage = (): string => {
+    const typeLabel = getContractTypeLabel(data.contractType);
+    const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
+    
+    let message = `⚠️ *Atenção ${data.clientName}*\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `🚨 *PARCELA EM ATRASO*\n\n`;
+    
+    message += `📋 *Tipo:* ${typeLabel}${data.isDaily ? ' Diário' : ''}\n`;
+    
+    // Barra de progresso
+    const paidCount = data.paidCount || 0;
+    const totalInstallments = data.totalInstallments || 1;
+    const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+    message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
+    
+    // Informações da parcela atual
+    const installmentInfo = data.installmentNumber && data.totalInstallments 
+      ? `${data.installmentNumber}/${data.totalInstallments}` 
+      : 'Única';
+    
+    message += `📌 *Parcela:* ${installmentInfo}\n`;
+    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
+    message += `⏰ *Dias em Atraso:* ${data.daysOverdue}\n`;
+    
+    // Multa/juros
+    const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
+    const overdueInterest = data.overdueInterestAmount || 0;
+    const totalExtras = appliedPenalty + overdueInterest;
+    const totalAmount = data.amount + totalExtras;
+    
+    if (overdueInterest > 0) {
+      message += `📈 *Juros:* +${formatCurrency(overdueInterest)}\n`;
+    }
+    if (appliedPenalty > 0) {
+      message += `⚠️ *Multa:* +${formatCurrency(appliedPenalty)}\n`;
+    }
+    
+    message += `\n💵 *Total:* ${formatCurrency(totalAmount)}\n`;
     
     // PIX
     message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
@@ -360,7 +417,8 @@ export default function SendOverdueNotification({
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateOverdueMessage()}
+        simpleMessage={generateSimpleOverdueMessage()}
+        completeMessage={generateOverdueMessage()}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}
