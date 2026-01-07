@@ -144,6 +144,35 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
+// Helper para extrair configuração de multa por atraso das notas
+// Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
+const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+  if (!match) return null;
+  return {
+    type: match[1] as 'percentage' | 'fixed',
+    value: parseFloat(match[2])
+  };
+};
+
+// Helper para extrair multas já aplicadas por parcela
+// Formato: [DAILY_PENALTY:índice:valor]
+const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number> => {
+  const penalties: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    penalties[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return penalties;
+};
+
+// Helper para extrair a última data de aplicação de multa
+// Formato: [PENALTY_LAST_APPLIED:YYYY-MM-DD]
+const getLastPenaltyDateFromNotes = (notes: string | null): string | null => {
+  const match = (notes || '').match(/\[PENALTY_LAST_APPLIED:([0-9-]+)\]/);
+  return match ? match[1] : null;
+};
+
 const ALERT_DAYS = [1, 7, 15, 30];
 
 const getAlertEmoji = (daysOverdue: number): string => {
@@ -195,6 +224,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const userAlertMap: Map<string, Map<number, any[]>> = new Map();
     const overdueUpdates: string[] = [];
+    let penaltiesApplied = 0;
 
     for (const loan of loans || []) {
       if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) {
@@ -238,6 +268,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       let nextDueDate: string | null = null;
       let foundUnpaidOverdue = false;
+      let overdueInstallmentIndex: number | null = null;
 
       if (installmentDates.length > 0) {
         for (let i = 0; i < installmentDates.length; i++) {
@@ -250,6 +281,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             if (installmentDate < today) {
               nextDueDate = installmentDates[i];
+              overdueInstallmentIndex = i;
               foundUnpaidOverdue = true;
               break;
             }
@@ -263,6 +295,7 @@ const handler = async (req: Request): Promise<Response> => {
           mainDueDate.setHours(0, 0, 0, 0);
           if (mainDueDate < today) {
             nextDueDate = loan.due_date;
+            overdueInstallmentIndex = 0;
           }
         }
       }
@@ -279,6 +312,66 @@ const handler = async (req: Request): Promise<Response> => {
         
         if (isFirstOverdueDetection) {
           overdueUpdates.push(loan.id);
+        }
+
+        // ========== APLICAR MULTA DIÁRIA AUTOMÁTICA ==========
+        const overdueConfig = getOverdueConfigFromNotes(loan.notes);
+        if (overdueConfig && overdueInstallmentIndex !== null) {
+          const lastPenaltyDate = getLastPenaltyDateFromNotes(loan.notes);
+          const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
+          
+          // Só aplicar se não aplicou hoje ainda
+          if (lastPenaltyDate !== todayStr) {
+            // Calcular quantos dias de multa aplicar
+            // Se é a primeira vez, aplicar para todos os dias de atraso
+            // Se já tem multa, aplicar só mais 1 dia
+            let daysToApply = 1;
+            if (!lastPenaltyDate) {
+              daysToApply = daysOverdue; // Primeira detecção: aplica todos os dias
+            }
+            
+            // Calcular valor da multa
+            let dailyPenalty = 0;
+            if (overdueConfig.type === 'percentage') {
+              dailyPenalty = installmentValue * (overdueConfig.value / 100);
+            } else {
+              dailyPenalty = overdueConfig.value;
+            }
+            
+            const penaltyToAdd = dailyPenalty * daysToApply;
+            const currentPenalty = existingPenalties[overdueInstallmentIndex] || 0;
+            const newTotalPenalty = currentPenalty + penaltyToAdd;
+            
+            // Atualizar notas com nova multa
+            let updatedNotes = loan.notes || '';
+            
+            // Remover tag antiga de multa para esta parcela
+            updatedNotes = updatedNotes.replace(new RegExp(`\\[DAILY_PENALTY:${overdueInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
+            
+            // Remover tag de última aplicação
+            updatedNotes = updatedNotes.replace(/\[PENALTY_LAST_APPLIED:[0-9-]+\]/g, '');
+            
+            // Adicionar novas tags
+            updatedNotes = `[DAILY_PENALTY:${overdueInstallmentIndex}:${newTotalPenalty.toFixed(2)}] [PENALTY_LAST_APPLIED:${todayStr}] ${updatedNotes}`.trim();
+            
+            // Atualizar empréstimo
+            const newBalance = loan.remaining_balance + penaltyToAdd;
+            
+            const { error: updateError } = await supabase
+              .from('loans')
+              .update({
+                notes: updatedNotes,
+                remaining_balance: newBalance
+              })
+              .eq('id', loan.id);
+            
+            if (updateError) {
+              console.error(`Error applying penalty to loan ${loan.id}:`, updateError);
+            } else {
+              console.log(`Applied penalty of ${formatCurrency(penaltyToAdd)} to loan ${loan.id} (${daysToApply} days @ ${overdueConfig.type === 'percentage' ? overdueConfig.value + '%' : formatCurrency(overdueConfig.value)}/day)`);
+              penaltiesApplied++;
+            }
+          }
         }
 
         if (!isFirstOverdueDetection && !ALERT_DAYS.includes(daysOverdue)) continue;
@@ -471,13 +564,14 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(`Sent ${sentCount} overdue alerts`);
+    console.log(`Sent ${sentCount} overdue alerts, applied ${penaltiesApplied} penalties`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         sentCount,
         overdueLoans: overdueUpdates.length,
+        penaltiesApplied,
         checkedLoans: loans?.length || 0 
       }),
       {
