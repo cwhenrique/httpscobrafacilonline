@@ -10142,10 +10142,52 @@ export default function Loans() {
                     // Obter multa para uma parcela específica
                     const getPenaltyForInstallment = (index: number) => dailyPenalties[index] || 0;
                     
+                    // Ler configuração de juros de atraso [OVERDUE_CONFIG]
+                    const overdueConfigMatch = (selectedLoan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                    const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                    const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+                    
+                    // Função para calcular juros de atraso dinâmico para uma parcela específica
+                    const getOverdueInterestForInstallment = (index: number): { amount: number; daysOverdue: number } => {
+                      if (!overdueConfigValue || overdueConfigValue <= 0) return { amount: 0, daysOverdue: 0 };
+                      
+                      const dates = (selectedLoan.installment_dates as string[]) || [];
+                      const dueDate = dates[index];
+                      if (!dueDate) return { amount: 0, daysOverdue: 0 };
+                      
+                      const dueDateObj = new Date(dueDate + 'T12:00:00');
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      // Só calcular se estiver em atraso
+                      if (dueDateObj >= today) return { amount: 0, daysOverdue: 0 };
+                      
+                      // Verificar se já está paga (via PARTIAL_PAID)
+                      const installmentValue = getInstallmentBaseValue(index) + getPenaltyForInstallment(index);
+                      const paidAmount = partialPayments[index] || 0;
+                      if (paidAmount >= installmentValue * 0.99) return { amount: 0, daysOverdue: 0 };
+                      
+                      // Calcular dias de atraso
+                      const diffTime = today.getTime() - dueDateObj.getTime();
+                      const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      
+                      const baseValue = getInstallmentBaseValue(index);
+                      
+                      let overdueAmount = 0;
+                      if (overdueConfigType === 'percentage') {
+                        overdueAmount = (baseValue * (overdueConfigValue / 100)) * daysOverdue;
+                      } else {
+                        overdueAmount = overdueConfigValue * daysOverdue;
+                      }
+                      
+                      return { amount: overdueAmount, daysOverdue };
+                    };
+                    
                     const getInstallmentValue = (index: number) => {
                       const baseValue = getInstallmentBaseValue(index);
                       const penalty = getPenaltyForInstallment(index);
-                      return baseValue + penalty;
+                      const overdueInterest = getOverdueInterestForInstallment(index).amount;
+                      return baseValue + penalty + overdueInterest;
                     };
                     
                     // Verificar se parcela está paga (totalmente ou parcialmente)
@@ -10344,6 +10386,18 @@ export default function Loans() {
                                     </span>
                                     <span className="flex flex-col items-end gap-0.5">
                                       <span className="text-xs opacity-70">{formatDate(date)}</span>
+                                      {/* Mostrar juros de atraso dinâmico se existir */}
+                                      {(() => {
+                                        const overdueInfo = getOverdueInterestForInstallment(index);
+                                        if (overdueInfo.amount > 0 && !status.isPaid) {
+                                          return (
+                                            <span className="text-xs text-blue-500 font-medium">
+                                              +{formatCurrency(overdueInfo.amount)} juros ({overdueInfo.daysOverdue}d)
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                       {/* Mostrar multa se existir */}
                                       {getPenaltyForInstallment(index) > 0 && !status.isPaid && (
                                         <span className="text-xs text-red-500 font-medium">
@@ -10478,24 +10532,69 @@ export default function Loans() {
                     const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
                     const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
                     
-                    const getInstallmentValuePartial = (index: number) => {
-                      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
-                        return renewalFeeValue;
+                    // Ler multas diárias aplicadas
+                    const dailyPenaltiesPartial = getDailyPenaltiesFromNotes(selectedLoan.notes);
+                    
+                    // Ler configuração de juros de atraso [OVERDUE_CONFIG]
+                    const overdueConfigMatchPartial = (selectedLoan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                    const overdueConfigTypePartial = overdueConfigMatchPartial?.[1] as 'percentage' | 'fixed' | undefined;
+                    const overdueConfigValuePartial = overdueConfigMatchPartial ? parseFloat(overdueConfigMatchPartial[2]) : 0;
+                    
+                    // Função para calcular juros de atraso para pagamento parcial
+                    const getOverdueInterestForInstallmentPartial = (index: number): { amount: number; daysOverdue: number } => {
+                      if (!overdueConfigValuePartial || overdueConfigValuePartial <= 0) return { amount: 0, daysOverdue: 0 };
+                      
+                      const dueDate = dates[index];
+                      if (!dueDate) return { amount: 0, daysOverdue: 0 };
+                      
+                      const dueDateObj = new Date(dueDate + 'T12:00:00');
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      if (dueDateObj >= today) return { amount: 0, daysOverdue: 0 };
+                      
+                      // Verificar se já está paga
+                      const baseValue = renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex 
+                        ? renewalFeeValue 
+                        : totalPerInstallment;
+                      const paidAmount = partialPayments[index] || 0;
+                      if (paidAmount >= baseValue * 0.99) return { amount: 0, daysOverdue: 0 };
+                      
+                      const diffTime = today.getTime() - dueDateObj.getTime();
+                      const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      
+                      let overdueAmount = 0;
+                      if (overdueConfigTypePartial === 'percentage') {
+                        overdueAmount = (baseValue * (overdueConfigValuePartial / 100)) * daysOverdue;
+                      } else {
+                        overdueAmount = overdueConfigValuePartial * daysOverdue;
                       }
-                      return totalPerInstallment;
+                      
+                      return { amount: overdueAmount, daysOverdue };
+                    };
+                    
+                    const getInstallmentValuePartial = (index: number) => {
+                      let baseValue = totalPerInstallment;
+                      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+                        baseValue = renewalFeeValue;
+                      }
+                      const penalty = dailyPenaltiesPartial[index] || 0;
+                      const overdueInterest = getOverdueInterestForInstallmentPartial(index).amount;
+                      return baseValue + penalty + overdueInterest;
                     };
                     
                     const getInstallmentStatusPartial = (index: number) => {
                       const installmentValue = getInstallmentValuePartial(index);
                       const paidAmount = partialPayments[index] || 0;
                       const remaining = installmentValue - paidAmount;
+                      const overdueInfo = getOverdueInterestForInstallmentPartial(index);
                       
                       if (paidAmount >= installmentValue * 0.99) {
-                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0 };
+                        return { isPaid: true, isPartial: false, paidAmount, remaining: 0, overdueInfo };
                       } else if (paidAmount > 0) {
-                        return { isPaid: false, isPartial: true, paidAmount, remaining };
+                        return { isPaid: false, isPartial: true, paidAmount, remaining, overdueInfo };
                       }
-                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue };
+                      return { isPaid: false, isPartial: false, paidAmount: 0, remaining: installmentValue, overdueInfo };
                     };
                     
                     // Encontrar parcelas não pagas
@@ -10576,13 +10675,42 @@ export default function Loans() {
                                 </>
                               ) : (
                                 <>
-                                  <div className="flex justify-between">
-                                    <span>Valor da parcela:</span>
-                                    <span className="font-medium">{formatCurrency(getInstallmentValuePartial(selectedPartialIndex ?? 0))}</span>
-                                  </div>
+                                  {(() => {
+                                    const overdueInfo = getOverdueInterestForInstallmentPartial(selectedPartialIndex ?? 0);
+                                    const baseValue = renewalFeeInstallmentIndex !== null && (selectedPartialIndex ?? 0) === renewalFeeInstallmentIndex 
+                                      ? renewalFeeValue 
+                                      : totalPerInstallment;
+                                    const penalty = dailyPenaltiesPartial[selectedPartialIndex ?? 0] || 0;
+                                    const totalValue = getInstallmentValuePartial(selectedPartialIndex ?? 0);
+                                    
+                                    return (
+                                      <>
+                                        <div className="flex justify-between">
+                                          <span>Valor base:</span>
+                                          <span>{formatCurrency(baseValue)}</span>
+                                        </div>
+                                        {penalty > 0 && (
+                                          <div className="flex justify-between text-red-500">
+                                            <span>Multa:</span>
+                                            <span>+{formatCurrency(penalty)}</span>
+                                          </div>
+                                        )}
+                                        {overdueInfo.amount > 0 && (
+                                          <div className="flex justify-between text-blue-500">
+                                            <span>Juros atraso ({overdueInfo.daysOverdue} dias):</span>
+                                            <span>+{formatCurrency(overdueInfo.amount)}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                                          <span>Total da parcela:</span>
+                                          <span>{formatCurrency(totalValue)}</span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                   {selectedStatus.isPartial && (
                                     <>
-                                      <div className="flex justify-between text-yellow-600">
+                                      <div className="flex justify-between text-yellow-600 mt-2">
                                         <span>Já pago:</span>
                                         <span>{formatCurrency(selectedStatus.paidAmount)}</span>
                                       </div>
