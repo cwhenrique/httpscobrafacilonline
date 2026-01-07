@@ -761,12 +761,18 @@ export function useLoans() {
     }
     
     // Se era pagamento de parcela específica (sem ser adiantamento)
-    const parcelaMatch = paymentNotes.match(/Parcela (\d+) de \d+/);
-    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch) {
+    // Suportar múltiplos formatos: "Parcela 5 de 10" ou "Parcela 5/10"
+    const parcelaMatch = paymentNotes.match(/Parcela (\d+)(?:\/| de )\d+/);
+    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch && !paymentNotes.includes('[AMORTIZATION]')) {
       const installmentIndex = parseInt(parcelaMatch[1]) - 1;
       // Remover a tag PARTIAL_PAID desta parcela
-      const newNotes = updatedLoanNotes.replace(
+      let newNotes = updatedLoanNotes.replace(
         new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), 
+        ''
+      );
+      // Também remover tag de juros de atraso pagos se existir
+      newNotes = newNotes.replace(
+        new RegExp(`\\[OVERDUE_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'),
         ''
       );
       if (newNotes !== updatedLoanNotes) {
@@ -856,13 +862,23 @@ export function useLoans() {
       }
     }
     
-    // Salvar notas atualizadas se mudaram
+    // Salvar notas atualizadas se mudaram e recalcular status
     if (notesChanged) {
       // Limpar linhas vazias extras
       updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      // Recalcular status baseado na data de vencimento
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDateObj = new Date(loanData.due_date + 'T12:00:00');
+      const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+      
       await supabase
         .from('loans')
-        .update({ notes: updatedLoanNotes || null })
+        .update({ 
+          notes: updatedLoanNotes || null,
+          status: newStatus
+        })
         .eq('id', loanId);
     }
 
