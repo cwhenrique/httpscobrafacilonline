@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { updateClientScore } from '@/lib/updateClientScore';
+import { format, subMonths, subWeeks, subDays } from 'date-fns';
 
 // Helper to create notification
 const createNotificationRecord = async (
@@ -770,6 +771,87 @@ export function useLoans() {
       if (newNotes !== updatedLoanNotes) {
         updatedLoanNotes = newNotes;
         notesChanged = true;
+      }
+    }
+    
+    // 🆕 Se era pagamento de só juros (INTEREST_ONLY_PAYMENT) - reverter datas
+    const isInterestOnlyPayment = paymentNotes.includes('[INTEREST_ONLY_PAYMENT]');
+    if (isInterestOnlyPayment) {
+      // 1. Remover a tag [INTEREST_ONLY_PAYMENT] das notas do empréstimo
+      let newNotes = updatedLoanNotes.replace(/\[INTEREST_ONLY_PAYMENT\]\n?/g, '');
+      
+      // 2. Remover a última tag [INTEREST_ONLY_PAID:X:valor:data]
+      const interestOnlyTags = newNotes.match(/\[INTEREST_ONLY_PAID:\d+:[0-9.]+:[^\]]+\]/g) || [];
+      if (interestOnlyTags.length > 0) {
+        const lastTag = interestOnlyTags[interestOnlyTags.length - 1];
+        newNotes = newNotes.replace(lastTag, '');
+      }
+      
+      // 3. Remover textos descritivos do pagamento de juros
+      newNotes = newNotes.replace(/\nPagamento de juros: R\$ [0-9.,]+ em \d{2}\/\d{2}\/\d{4}/g, '');
+      newNotes = newNotes.replace(/\nValor que falta: R\$ [0-9.,]+/g, '');
+      newNotes = newNotes.replace(/\nTaxa de renovação: [0-9.]+% \(R\$ [0-9.,]+\)/g, '');
+      newNotes = newNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+:[0-9.]+\]\n?/g, '');
+      
+      // Limpar linhas vazias
+      newNotes = newNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      // 4. Reverter datas de vencimento (rolar para trás)
+      const currentDates = (loanData.installment_dates as string[]) || [];
+      if (currentDates.length > 0) {
+        const paymentType = loanData.payment_type;
+        const revertedDates = currentDates.map(dateStr => {
+          const date = new Date(dateStr + 'T12:00:00');
+          let newDate: Date;
+          if (paymentType === 'weekly') {
+            newDate = subWeeks(date, 1);
+          } else if (paymentType === 'biweekly') {
+            newDate = subDays(date, 15);
+          } else if (paymentType === 'daily') {
+            newDate = subDays(date, 1);
+          } else {
+            newDate = subMonths(date, 1);
+          }
+          return format(newDate, 'yyyy-MM-dd');
+        });
+        
+        // Determinar a nova data de vencimento (primeira parcela não paga)
+        const paidCount = (loanData as any).paid_installments || 0;
+        const newDueDate = paidCount < revertedDates.length 
+          ? revertedDates[paidCount] 
+          : revertedDates[0];
+        
+        // Verificar se a nova data de vencimento está no passado
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDateObj = new Date(newDueDate + 'T12:00:00');
+        const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+        
+        // Atualizar empréstimo com datas revertidas e status
+        await supabase.from('loans').update({
+          installment_dates: revertedDates,
+          due_date: newDueDate,
+          status: newStatus,
+          notes: newNotes || null
+        }).eq('id', loanId);
+        
+        // Marcar que já salvou para não salvar novamente
+        notesChanged = false;
+        updatedLoanNotes = newNotes;
+      } else {
+        // Se não tem installment_dates, apenas atualizar status baseado em due_date atual
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDateObj = new Date(loanData.due_date + 'T12:00:00');
+        const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+        
+        await supabase.from('loans').update({
+          status: newStatus,
+          notes: newNotes || null
+        }).eq('id', loanId);
+        
+        notesChanged = false;
+        updatedLoanNotes = newNotes;
       }
     }
     
