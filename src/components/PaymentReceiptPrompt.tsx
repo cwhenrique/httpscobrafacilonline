@@ -487,7 +487,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -498,7 +499,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
+        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -515,7 +517,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        initialMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}

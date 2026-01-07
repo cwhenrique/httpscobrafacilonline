@@ -448,7 +448,8 @@ export default function SaleCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateSelfMessage()}
+        simpleMessage={generateSelfMessage()}
+        completeMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -459,7 +460,8 @@ export default function SaleCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage()}
+        simpleMessage={generateClientMessage()}
+        completeMessage={generateClientMessage()}
         recipientName={sale.client_name}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -476,7 +478,8 @@ export default function SaleCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        initialMessage={generateSelfMessage()}
+        simpleMessage={generateSelfMessage()}
+        completeMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}

@@ -2643,7 +2643,8 @@ export default function ProductSales() {
         <MessagePreviewDialog
           open={showChargePreview}
           onOpenChange={setShowChargePreview}
-          initialMessage={chargePreviewData?.message || ''}
+          simpleMessage={chargePreviewData?.message || ''}
+          completeMessage={chargePreviewData?.message || ''}
           recipientName={chargePreviewData?.clientName || 'Cliente'}
           recipientType="client"
           onConfirm={async (editedMessage) => {

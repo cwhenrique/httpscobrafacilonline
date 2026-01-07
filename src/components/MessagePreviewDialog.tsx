@@ -9,13 +9,15 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MessageCircle, Loader2, Eye, User, Copy, Check } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MessageCircle, Loader2, Eye, User, Copy, Check, FileText, FileCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MessagePreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialMessage: string;
+  simpleMessage: string;
+  completeMessage: string;
   recipientName: string;
   recipientType: 'self' | 'client';
   onConfirm: (editedMessage: string) => void;
@@ -26,23 +28,35 @@ interface MessagePreviewDialogProps {
 export default function MessagePreviewDialog({
   open,
   onOpenChange,
-  initialMessage,
+  simpleMessage,
+  completeMessage,
   recipientName,
   recipientType,
   onConfirm,
   isSending = false,
   mode = 'send',
 }: MessagePreviewDialogProps) {
-  const [editedMessage, setEditedMessage] = useState(initialMessage);
+  const [messageType, setMessageType] = useState<'complete' | 'simple'>('complete');
+  const [editedMessage, setEditedMessage] = useState(completeMessage);
   const [copied, setCopied] = useState(false);
 
-  // Reset message when dialog opens with new initial message
+  // Reset message when dialog opens or message type changes
   useEffect(() => {
     if (open) {
-      setEditedMessage(initialMessage);
+      setMessageType('complete');
+      setEditedMessage(completeMessage);
       setCopied(false);
     }
-  }, [open, initialMessage]);
+  }, [open, completeMessage]);
+
+  // Update message when switching tabs
+  useEffect(() => {
+    if (messageType === 'complete') {
+      setEditedMessage(completeMessage);
+    } else {
+      setEditedMessage(simpleMessage);
+    }
+  }, [messageType, completeMessage, simpleMessage]);
 
   const handleConfirm = () => {
     onConfirm(editedMessage);
@@ -77,6 +91,20 @@ export default function MessagePreviewDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Tabs para alternar entre Completa e Simples */}
+          <Tabs value={messageType} onValueChange={(v) => setMessageType(v as 'complete' | 'simple')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="complete" className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4" />
+                Completa
+              </TabsTrigger>
+              <TabsTrigger value="simple" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Simples
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <Textarea
             value={editedMessage}
             onChange={(e) => setEditedMessage(e.target.value)}

@@ -601,7 +601,8 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
     <MessagePreviewDialog
       open={showCopyPreview}
       onOpenChange={setShowCopyPreview}
-      initialMessage={generateWhatsAppMessage(data)}
+      simpleMessage={generateWhatsAppMessage(data)}
+      completeMessage={generateWhatsAppMessage(data)}
       recipientName="Copiar"
       recipientType="self"
       onConfirm={() => setShowCopyPreview(false)}
@@ -620,7 +621,8 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
     <MessagePreviewDialog
       open={showClientPreview}
       onOpenChange={setShowClientPreview}
-      initialMessage={generateWhatsAppMessage(data)}
+      simpleMessage={generateWhatsAppMessage(data)}
+      completeMessage={generateWhatsAppMessage(data)}
       recipientName={data.client.name}
       recipientType="client"
       onConfirm={handleConfirmSendToClient}

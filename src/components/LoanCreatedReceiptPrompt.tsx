@@ -452,7 +452,8 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        initialMessage={generateSelfMessage()}
+        simpleMessage={generateSelfMessage()}
+        completeMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -463,7 +464,8 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        initialMessage={generateClientMessage()}
+        simpleMessage={generateClientMessage()}
+        completeMessage={generateClientMessage()}
         recipientName={loan.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -480,7 +482,8 @@ export default function LoanCreatedReceiptPrompt({
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        initialMessage={generateSelfMessage()}
+        simpleMessage={generateSelfMessage()}
+        completeMessage={generateSelfMessage()}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}

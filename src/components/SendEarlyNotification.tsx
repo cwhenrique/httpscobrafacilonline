@@ -109,6 +109,45 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     return message;
   };
 
+  // Mensagem simples: apenas parcela atual, sem lista de todas
+  const generateSimpleEarlyMessage = (): string => {
+    const installmentInfo =
+      data.installmentNumber && data.totalInstallments
+        ? `${data.installmentNumber}/${data.totalInstallments}`
+        : 'Única';
+    
+    const paidCount = data.paidCount || 0;
+    const totalInstallments = data.totalInstallments || 1;
+    const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+
+    let message = `Olá *${data.clientName}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
+    
+    // Barra de progresso
+    message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
+    
+    // Informações da parcela atual
+    message += `📌 *Parcela:* ${installmentInfo}\n`;
+    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+    message += `📅 *Vencimento:* ${formatDate(data.dueDate)}`;
+    if (data.daysUntilDue > 0) {
+      message += ` (em ${data.daysUntilDue} dia${data.daysUntilDue > 1 ? 's' : ''})`;
+    }
+    message += `\n`;
+    
+    // PIX
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    
+    message += `\nQualquer dúvida, estou à disposição! 😊`;
+    
+    // Assinatura
+    const signatureName = profile?.billing_signature_name || profile?.company_name;
+    message += generateSignature(signatureName);
+
+    return message;
+  };
+
   const handleSend = async (editedMessage: string) => {
     if (!user) {
       toast.error('Você precisa estar logado para enviar mensagens');
@@ -194,7 +233,8 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       <MessagePreviewDialog
         open={showPreview}
         onOpenChange={setShowPreview}
-        initialMessage={generateEarlyMessage()}
+        simpleMessage={generateSimpleEarlyMessage()}
+        completeMessage={generateEarlyMessage()}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleSend}
