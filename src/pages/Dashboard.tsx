@@ -6,7 +6,7 @@ import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, isLoanOverdue, getDaysOverdue } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FinancialChart, InterestChart } from '@/components/dashboard/FinancialChart';
@@ -51,8 +51,50 @@ export default function Dashboard() {
 
   const recentLoans = loans.slice(0, 5);
   
-  // Filter overdue loans using centralized function
-  const overdueLoans = loans.filter((loan) => isLoanOverdue(loan));
+  // Calculate average ticket for active loans
+  const averageTicket = (() => {
+    const activeLoans = loans.filter(l => l.status !== 'paid');
+    if (activeLoans.length === 0) return 0;
+    const total = activeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
+    return total / activeLoans.length;
+  })();
+  
+  // Calculate upcoming payments for next 7 days
+  const upcomingPayments = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    
+    const upcoming: Array<{loan: typeof loans[0], dueDate: Date, amount: number}> = [];
+    
+    loans.forEach(loan => {
+      if (loan.status === 'paid') return;
+      
+      const dates = (loan.installment_dates as string[] | null) || [];
+      const installmentValue = (loan.principal_amount + (loan.total_interest || 0)) / (dates.length || 1);
+      // Estimate paid installments based on total_paid
+      const paidCount = installmentValue > 0 ? Math.floor((loan.total_paid || 0) / installmentValue) : 0;
+      
+      dates.forEach((dateStr, index) => {
+        if (index < paidCount) return;
+        const dueDate = new Date(dateStr);
+        if (dueDate >= today && dueDate <= nextWeek) {
+          upcoming.push({ loan, dueDate, amount: installmentValue });
+        }
+      });
+      
+      // Para empréstimos de parcela única
+      if (dates.length === 0) {
+        const dueDate = new Date(loan.due_date);
+        if (dueDate >= today && dueDate <= nextWeek) {
+          upcoming.push({ loan, dueDate, amount: loan.remaining_balance || 0 });
+        }
+      }
+    });
+    
+    return upcoming.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  })();
 
   const businessTypeCards = [
     {
@@ -119,12 +161,12 @@ export default function Dashboard() {
       bg: 'bg-warning/10',
     },
     {
-      title: 'Atrasados',
-      value: stats.overdueCount.toString(),
-      subtitle: 'contratos',
-      icon: AlertTriangle,
-      color: 'text-destructive',
-      bg: 'bg-destructive/10',
+      title: 'Ticket Médio',
+      value: formatCurrency(averageTicket),
+      subtitle: 'empréstimos ativos',
+      icon: TrendingUp,
+      color: 'text-purple-500',
+      bg: 'bg-purple-500/10',
     },
     {
       title: 'Clientes',
@@ -244,7 +286,7 @@ export default function Dashboard() {
                   <Calendar className="w-5 h-5 text-primary" />
                   <h2 className="font-display font-semibold text-lg">Resumo da Semana</h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-3 gap-3 sm:gap-4">
                   <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-primary/20">
                     <div className="flex items-center gap-2 mb-1">
                       <FileText className="w-4 h-4 text-primary" />
@@ -268,14 +310,6 @@ export default function Dashboard() {
                     </div>
                     <p className="text-lg sm:text-2xl font-bold text-warning">{stats.dueToday}</p>
                     <p className="text-xs text-muted-foreground">cobranças</p>
-                  </div>
-                  <div className="bg-background/60 rounded-lg p-3 sm:p-4 border border-destructive/20">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className="w-4 h-4 text-destructive" />
-                      <span className="text-xs text-muted-foreground">Em Atraso</span>
-                    </div>
-                    <p className="text-lg sm:text-2xl font-bold text-destructive">{stats.overdueCount}</p>
-                    <p className="text-xs text-muted-foreground">total</p>
                   </div>
                 </div>
               </>
@@ -315,7 +349,7 @@ export default function Dashboard() {
         </div>
 
         {/* Financial Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {financialCards.map((stat, index) => (
             <Card key={index} className="shadow-soft">
               <CardContent className="p-4">
@@ -349,55 +383,46 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Overdue Loans Alert */}
-        {!loansLoading && overdueLoans.length > 0 && (
-          <Card className="shadow-soft border-destructive bg-destructive/5">
+        {/* Upcoming Payments */}
+        {!loansLoading && upcomingPayments.length > 0 && (
+          <Card className="shadow-soft border-blue-500/30 bg-blue-500/5">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-destructive/10">
-                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <CalendarCheck className="w-5 h-5 text-blue-500" />
                 </div>
-                <CardTitle className="text-lg font-display text-destructive">
-                  Em Atraso ({overdueLoans.length})
+                <CardTitle className="text-lg font-display text-blue-500">
+                  Próximos Vencimentos ({upcomingPayments.length})
                 </CardTitle>
               </div>
-              <Link to="/loans">
-                <Button variant="outline" size="sm" className="gap-1 border-destructive text-destructive hover:bg-destructive/10">
-                  Ver todos
+              <Link to="/calendar">
+                <Button variant="outline" size="sm" className="gap-1 border-blue-500 text-blue-500 hover:bg-blue-500/10">
+                  Ver calendário
                   <ArrowUpRight className="w-4 h-4" />
                 </Button>
               </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {overdueLoans.slice(0, 5).map((loan) => {
-                  const totalInterest = loan.total_interest || 0;
-                  const totalToReceive = loan.principal_amount + totalInterest;
-                  const remainingToReceive = totalToReceive - (loan.total_paid || 0);
-                  
-                  // Usar função centralizada para calcular dias em atraso
-                  const daysOverdueCount = getDaysOverdue(loan);
-                  
-                  return (
-                    <div
-                      key={loan.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-                    >
-                      <div>
-                        <p className="font-medium">{loan.client?.full_name}</p>
-                        <p className="text-sm text-destructive">
-                          {daysOverdueCount} {daysOverdueCount === 1 ? 'dia' : 'dias'} em atraso
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-destructive">{formatCurrency(remainingToReceive)}</p>
-                        <Badge className="bg-destructive text-white">
-                          Em Atraso
-                        </Badge>
-                      </div>
+                {upcomingPayments.slice(0, 5).map((item, index) => (
+                  <div
+                    key={`${item.loan.id}-${index}`}
+                    className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"
+                  >
+                    <div>
+                      <p className="font-medium">{item.loan.client?.full_name}</p>
+                      <p className="text-sm text-blue-500">
+                        Vence em {formatDate(item.dueDate.toISOString())}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      <p className="font-semibold text-blue-500">{formatCurrency(item.amount)}</p>
+                      <Badge className="bg-blue-500 text-white">
+                        A Vencer
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
