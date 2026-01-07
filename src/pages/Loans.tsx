@@ -1218,6 +1218,28 @@ export default function Loans() {
     }
   };
 
+  // Function to remove overdue interest configuration
+  const handleRemoveOverdueInterest = async (loanId: string, currentNotes: string | null) => {
+    try {
+      const cleanNotes = (currentNotes || '')
+        .replace(/\[OVERDUE_CONFIG:[^\]]+\]\n?/g, '')
+        .trim();
+      
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', loanId);
+      
+      if (error) throw error;
+      
+      fetchLoans();
+      toast.success('Juros por atraso removido com sucesso!');
+    } catch (error) {
+      console.error('Error removing overdue interest:', error);
+      toast.error('Erro ao remover juros por atraso');
+    }
+  };
+
   // Function to open manual penalty dialog (multa manual)
   const openManualPenaltyDialog = (
     loan: any, 
@@ -7200,11 +7222,11 @@ export default function Loans() {
                                 </div>
                               )}
                               
-                              {/* Total com Atraso (soma de ambos) */}
+                              {/* Total com Atraso - parcela em atraso + juros + multas */}
                               <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
                                 <span className="text-red-300/80">Total com Atraso:</span>
                                 <span className="font-bold text-white">
-                                  {formatCurrency(remainingToReceive + dynamicPenaltyAmount + totalAppliedPenalties)}
+                                  {formatCurrency(totalPerInstallment + dynamicPenaltyAmount + totalAppliedPenalties)}
                                 </span>
                               </div>
                             </>
@@ -7340,9 +7362,17 @@ export default function Loans() {
                                 <DollarSign className="w-3 h-3 mr-1" />
                                 Aplicar Multa
                               </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => handleRemoveOverdueInterest(loan.id, loan.notes)}
+                                className="text-red-400/70 hover:text-red-400 hover:bg-red-500/10"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             </div>
                           )}
-                          
+
                           <p className="text-[10px] text-red-300/60 mt-2">
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
