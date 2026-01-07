@@ -139,7 +139,7 @@ export default function Dashboard() {
     {
       title: 'A Receber',
       value: formatCurrency(stats.totalToReceive),
-      subtitle: 'com juros',
+      subtitle: 'com juros de atraso',
       icon: TrendingUp,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',

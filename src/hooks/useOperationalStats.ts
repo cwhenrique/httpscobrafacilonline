@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loan } from '@/types/database';
-import { isLoanOverdue, getTotalDailyPenalties } from '@/lib/calculations';
+import { isLoanOverdue, getTotalDailyPenalties, getDaysOverdue, calculateDynamicOverdueInterest } from '@/lib/calculations';
 
 export interface OperationalStats {
   // Empréstimos Ativos (Na Rua)
@@ -158,7 +158,9 @@ async function fetchOperationalStats(): Promise<StatsData> {
 
       if (isLoanOverdue(loan)) {
         overdueCount++;
-        overdueAmount += remainingBalance;
+        const daysOver = getDaysOverdue(loan);
+        const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
+        overdueAmount += remainingBalance + dynamicInterest;
         overdueLoans.push(loanWithClient);
       }
     }
@@ -166,7 +168,9 @@ async function fetchOperationalStats(): Promise<StatsData> {
 
   const pendingAmount = activeLoans.reduce((sum, loan) => {
     const penalties = getTotalDailyPenalties(loan.notes);
-    return sum + Number(loan.remaining_balance) + penalties;
+    const daysOver = getDaysOverdue(loan);
+    const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
+    return sum + Number(loan.remaining_balance) + penalties + dynamicInterest;
   }, 0);
 
   return {
