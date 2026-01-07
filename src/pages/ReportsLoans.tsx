@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { formatCurrency, formatDate, isLoanOverdue } from '@/lib/calculations';
+import { formatCurrency, formatDate, isLoanOverdue, getDaysOverdue, calculateDynamicOverdueInterest } from '@/lib/calculations';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -337,8 +337,12 @@ export default function ReportsLoans() {
       }
     }, 0);
     
-    // Em Atraso - CURRENT STATE
-    const overdueAmount = allOverdueLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
+    // Em Atraso - CURRENT STATE (inclui juros por atraso dinâmicos)
+    const overdueAmount = allOverdueLoans.reduce((sum, loan) => {
+      const daysOver = getDaysOverdue(loan);
+      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
+      return sum + Number(loan.remaining_balance || 0) + dynamicInterest;
+    }, 0);
     
     // Total Recebido - PAYMENTS IN PERIOD
     const totalReceivedInPeriod = paymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);

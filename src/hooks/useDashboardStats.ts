@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
+import { getDaysOverdue, calculateDynamicOverdueInterest, getOverdueConfigFromNotes } from '@/lib/calculations';
 
 export interface DashboardStats {
   totalLoaned: number;
@@ -92,6 +93,24 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
   // Extrair dados da função RPC (retorna array com 1 row)
   const rpcData = Array.isArray(loanStats) ? loanStats[0] : loanStats;
   
+  // Calcular juros dinâmicos por atraso (OVERDUE_CONFIG)
+  // Buscar empréstimos em atraso para calcular juros dinâmicos
+  const { data: overdueLoans } = await supabase
+    .from('loans')
+    .select('id, notes, remaining_balance, due_date, installments, total_interest, principal_amount, interest_rate, interest_mode, payment_type, installment_dates, total_paid, status')
+    .neq('status', 'paid')
+    .lt('due_date', todayStr);
+
+  let totalOverdueInterest = 0;
+  overdueLoans?.forEach(loan => {
+    // Verificar se tem configuração de juros por atraso
+    const config = getOverdueConfigFromNotes(loan.notes);
+    if (config.type && config.value > 0) {
+      const daysOver = getDaysOverdue(loan as any);
+      totalOverdueInterest += calculateDynamicOverdueInterest(loan as any, daysOver);
+    }
+  });
+  
   // Calcular recebido esta semana (já inclui empréstimos via RPC)
   let receivedThisWeek = Number(rpcData?.received_this_week || 0);
   if (productPaymentsThisWeek) {
@@ -115,7 +134,7 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
     totalLoaned: Number(rpcData?.total_loaned || 0),
     totalReceived: Number(rpcData?.total_received || 0),
     totalPending: Math.max(0, Number(rpcData?.total_pending || 0)),
-    totalToReceive: Number(rpcData?.total_pending || 0) + Number(rpcData?.pending_interest || 0),
+    totalToReceive: Number(rpcData?.total_pending || 0) + Number(rpcData?.pending_interest || 0) + totalOverdueInterest,
     overdueCount: Number(rpcData?.overdue_count || 0),
     upcomingDue: 0, // Removido para performance - pode ser adicionado depois se necessário
     activeClients: Number(rpcData?.active_clients || 0),

@@ -537,3 +537,74 @@ export function generatePriceTable(
     totalInterest,
   };
 }
+
+/**
+ * Extrai configuração de juros por atraso do campo notes
+ * @param notes - Campo notes do empréstimo
+ * @returns Configuração de tipo e valor do juros por atraso
+ */
+export function getOverdueConfigFromNotes(notes: string | null): {
+  type: 'percentage' | 'fixed' | null;
+  value: number;
+} {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+  if (match) {
+    return {
+      type: match[1] as 'percentage' | 'fixed',
+      value: parseFloat(match[2])
+    };
+  }
+  return { type: null, value: 0 };
+}
+
+/**
+ * Calcula o valor da parcela de um empréstimo
+ */
+export function calculateInstallmentValue(loan: LoanForCalculation): number {
+  const numInstallments = loan.installments || 1;
+  const isDaily = loan.payment_type === 'daily';
+  
+  if (isDaily && loan.total_interest) {
+    // Para diários, total_interest já é o valor da parcela diária
+    return loan.total_interest;
+  }
+  
+  let totalInterest = 0;
+  if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+    totalInterest = loan.total_interest;
+  } else if (loan.interest_mode === 'on_total') {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else if (loan.interest_mode === 'compound') {
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+  }
+  
+  return (loan.principal_amount + totalInterest) / numInstallments;
+}
+
+/**
+ * Calcula juros dinâmicos por atraso baseado na configuração do empréstimo
+ * @param loan - Empréstimo
+ * @param daysOverdue - Dias em atraso
+ * @returns Valor total de juros por atraso
+ */
+export function calculateDynamicOverdueInterest(
+  loan: LoanForCalculation,
+  daysOverdue: number
+): number {
+  if (daysOverdue <= 0) return 0;
+  
+  const config = getOverdueConfigFromNotes(loan.notes || null);
+  if (!config.type || config.value === 0) return 0;
+  
+  const installmentValue = calculateInstallmentValue(loan);
+  
+  if (config.type === 'percentage') {
+    // % do valor da parcela por dia
+    return (installmentValue * (config.value / 100)) * daysOverdue;
+  } else {
+    // Valor fixo por dia
+    return config.value * daysOverdue;
+  }
+}
