@@ -178,24 +178,35 @@ export const generateSignature = (signatureName: string | null | undefined): str
 
 /**
  * Gera seção de opções de pagamento (para empréstimos mensais/semanais)
+ * @param totalAmount - Valor total a pagar (parcela + juros + multa + juros por atraso)
+ * @param interestAmount - Juros do contrato (tradicional, embutido na parcela)
+ * @param principalAmount - Valor principal (sem juros)
+ * @param isDaily - Se é empréstimo diário (não mostra opção de pagar só juros)
+ * @param penaltyAmount - Multa aplicada (manual)
+ * @param overdueInterestAmount - Juros por atraso (calculado por dia)
  */
 export const generatePaymentOptions = (
   totalAmount: number,
   interestAmount: number | undefined,
   principalAmount: number | undefined,
   isDaily: boolean | undefined,
-  penaltyAmount?: number
+  penaltyAmount?: number,
+  overdueInterestAmount?: number
 ): string => {
   if (!interestAmount || interestAmount <= 0 || isDaily || !principalAmount || principalAmount <= 0) {
     return '';
   }
   
-  const interestPlusPenalty = interestAmount + (penaltyAmount || 0);
+  // "Só juros + multa" = juros do contrato + juros por atraso + multa
+  const totalInterestAndPenalties = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
+  
+  // Valor da parcela original (principal + juros do contrato)
+  const parcelaOriginal = principalAmount + interestAmount;
   
   let message = `💡 *Opções de Pagamento:*\n`;
   message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
-  message += `⚠️ Só juros: ${formatCurrency(interestPlusPenalty)}\n`;
-  message += `   (Parcela de ${formatCurrency(totalAmount)} será adicionada ao próximo mês)\n\n`;
+  message += `⚠️ Só juros + multa: ${formatCurrency(totalInterestAndPenalties)}\n`;
+  message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   
   return message;
 };

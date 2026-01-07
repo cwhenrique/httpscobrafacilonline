@@ -7363,14 +7363,14 @@ export default function Loans() {
                                 dueDate: overdueDate,
                                 daysOverdue: daysOverdue,
                                 loanId: loan.id,
-                                // Multa dinâmica (só passa se não há multa manual aplicada)
-                                penaltyAmount: dynamicPenaltyAmount > 0 && totalAppliedPenalties === 0 ? dynamicPenaltyAmount : undefined,
+                                // Juros por atraso (calculado por dia) - sempre passa separadamente
+                                overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                 penaltyType: overdueConfigType || undefined,
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                 interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                 principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                                 isDaily: loan.payment_type === 'daily',
-                                // Multa manual (usada quando há multa aplicada manualmente)
+                                // Multa manual aplicada
                                 manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                                 hasDynamicPenalty: overdueConfigValue > 0,
                                 // Status das parcelas com emojis
@@ -9198,7 +9198,8 @@ export default function Loans() {
                                   dueDate: overdueDate,
                                   daysOverdue: daysOverdue,
                                   loanId: loan.id,
-                                  penaltyAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                                  // Juros por atraso (calculado por dia) - sempre passa separadamente
+                                  overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                   penaltyType: overdueConfigType || undefined,
                                   penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                   interestAmount: (() => {
@@ -9213,7 +9214,7 @@ export default function Loans() {
                                   overdueInstallmentsDetails: cumulativePenaltyResult.penaltyBreakdown,
                                   totalOverdueAmount: cumulativePenaltyResult.totalOverdueAmount,
                                   totalPenaltyAmount: cumulativePenaltyResult.totalPenalty,
-                                  // Multas manuais aplicadas (só usadas se NÃO houver multa dinâmica)
+                                  // Multas manuais aplicadas
                                   manualPenaltyAmount: totalAppliedPenaltiesDaily > 0 ? totalAppliedPenaltiesDaily : undefined,
                                   // Detalhamento das multas manuais por parcela
                                   manualPenaltiesBreakdown: (() => {
