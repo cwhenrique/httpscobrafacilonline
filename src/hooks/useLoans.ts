@@ -716,34 +716,9 @@ export function useLoans() {
       return { error: deleteError };
     }
 
-    // 🆕 Reverter consolidação de juros/multas de atraso se houver tag
-    const overdueConsolidatedMatch = updatedLoanNotes.match(/\[OVERDUE_CONSOLIDATED:([0-9.]+):([^:]+):(\d+)\]/);
-    if (overdueConsolidatedMatch) {
-      const consolidatedAmount = parseFloat(overdueConsolidatedMatch[1]);
-      
-      // Buscar remaining_balance atual do banco (já foi revertido pelo trigger)
-      const { data: freshLoan } = await supabase
-        .from('loans')
-        .select('remaining_balance')
-        .eq('id', loanId)
-        .single();
-      
-      if (freshLoan) {
-        // Subtrair o valor consolidado (que foi adicionado antes do pagamento)
-        const newRemainingBalance = freshLoan.remaining_balance - consolidatedAmount;
-        
-        // Remover a tag de consolidação
-        updatedLoanNotes = updatedLoanNotes.replace(/\[OVERDUE_CONSOLIDATED:[^\]]+\]\n?/g, '').trim();
-        notesChanged = true;
-        
-        await supabase.from('loans').update({
-          remaining_balance: Math.max(0, newRemainingBalance),
-          notes: updatedLoanNotes || null
-        }).eq('id', loanId);
-        
-        console.log(`[CONSOLIDATION REVERT] Reverted ${consolidatedAmount}. New remaining: ${newRemainingBalance}`);
-      }
-    }
+    // Ao excluir pagamento, NÃO desconsolidar juros/multas de atraso
+    // O trigger do banco já reverte o remaining_balance para o valor consolidado (ex: 1485)
+    // A tag [OVERDUE_CONSOLIDATED] permanece para manter o histórico correto
 
     // 4. Limpar tags relacionadas das notas do empréstimo
 
