@@ -228,7 +228,7 @@ export default function SendOverdueNotification({
     return message;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (editedMessage: string) => {
     if (!canSend) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
@@ -252,13 +252,11 @@ export default function SendOverdueNotification({
 
     setIsSending(true);
     try {
-      const message = generateOverdueMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: data.clientPhone,
-          message
+          message: editedMessage
         },
       });
       

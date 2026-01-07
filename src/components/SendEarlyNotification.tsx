@@ -109,7 +109,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     return message;
   };
 
-  const handleSend = async () => {
+  const handleSend = async (editedMessage: string) => {
     if (!user) {
       toast.error('Você precisa estar logado para enviar mensagens');
       return;
@@ -122,13 +122,11 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
     setIsSending(true);
     try {
-      const message = generateEarlyMessage();
-      
       const { error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: {
           userId: user.id,
           clientPhone: data.clientPhone,
-          message,
+          message: editedMessage,
         },
       });
 
