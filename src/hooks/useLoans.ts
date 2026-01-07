@@ -781,7 +781,57 @@ export function useLoans() {
       }
     }
     
-    // 🆕 Se era pagamento de só juros (INTEREST_ONLY_PAYMENT) - reverter datas
+    // 🆕 Reverter datas de vencimento usando snapshots do pagamento
+    // Suporta dois tipos de snapshot:
+    // 1. Manual: [DUE_DATE_PREV:...][DUE_DATE_NEW:...] + [INSTALLMENT_DATE_CHANGE:index:prev:new]
+    // 2. Auto: [AUTO_DUE_DATE_PREV:...][AUTO_DUE_DATE_NEW:...]
+    const manualDueDatePrevMatch = paymentNotes.match(/\[DUE_DATE_PREV:([^\]]+)\]/);
+    const manualInstallmentChangeMatch = paymentNotes.match(/\[INSTALLMENT_DATE_CHANGE:(\d+):([^:]+):([^\]]+)\]/);
+    const autoDueDatePrevMatch = paymentNotes.match(/\[AUTO_DUE_DATE_PREV:([^\]]+)\]/);
+    
+    let dateReverted = false;
+    
+    if (manualDueDatePrevMatch || autoDueDatePrevMatch) {
+      const prevDueDate = manualDueDatePrevMatch?.[1] || autoDueDatePrevMatch?.[1];
+      
+      if (prevDueDate) {
+        // Reverter due_date
+        let updateData: any = { due_date: prevDueDate };
+        
+        // Se há mudança de installment_dates específica, reverter também
+        if (manualInstallmentChangeMatch) {
+          const installmentIndex = parseInt(manualInstallmentChangeMatch[1]);
+          const prevInstallmentDate = manualInstallmentChangeMatch[2];
+          
+          const currentDates = (loanData.installment_dates as string[]) || [];
+          if (currentDates.length > installmentIndex) {
+            const revertedDates = [...currentDates];
+            revertedDates[installmentIndex] = prevInstallmentDate;
+            updateData.installment_dates = revertedDates;
+          }
+        }
+        
+        // Recalcular status baseado na data restaurada
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDateObj = new Date(prevDueDate + 'T12:00:00');
+        const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+        updateData.status = newStatus;
+        
+        // Limpar notas (remover tags)
+        updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+        updateData.notes = updatedLoanNotes || null;
+        
+        await supabase
+          .from('loans')
+          .update(updateData)
+          .eq('id', loanId);
+        
+        dateReverted = true;
+        notesChanged = false; // Já salvamos
+      }
+    }
+    
     const isInterestOnlyPayment = paymentNotes.includes('[INTEREST_ONLY_PAYMENT]');
     if (isInterestOnlyPayment) {
       // 1. Remover a tag [INTEREST_ONLY_PAYMENT] das notas do empréstimo
@@ -863,14 +913,24 @@ export function useLoans() {
     }
     
     // Salvar notas atualizadas se mudaram e recalcular status
-    if (notesChanged) {
+    // (Apenas se não foi revertido por snapshot - dateReverted controla isso)
+    if (notesChanged && !dateReverted) {
       // Limpar linhas vazias extras
       updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      // Buscar due_date atual do banco (pode ter sido alterado por outro processo)
+      const { data: freshLoan } = await supabase
+        .from('loans')
+        .select('due_date')
+        .eq('id', loanId)
+        .single();
+      
+      const currentDueDate = freshLoan?.due_date || loanData.due_date;
       
       // Recalcular status baseado na data de vencimento
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const dueDateObj = new Date(loanData.due_date + 'T12:00:00');
+      const dueDateObj = new Date(currentDueDate + 'T12:00:00');
       const newStatus = dueDateObj < today ? 'overdue' : 'pending';
       
       await supabase

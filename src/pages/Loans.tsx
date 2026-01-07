@@ -3545,9 +3545,15 @@ export default function Loans() {
     
     // CORREÇÃO: Se o usuário informou uma nova data de vencimento, atualizar ANTES do registerPayment
     // para que o fetchLoans() interno do registerPayment pegue a data correta
+    // 🆕 Salvamos snapshot das datas anteriores nas notas do pagamento para reversão ao excluir
+    let dateSnapshotTag = '';
     if (paymentData.new_due_date) {
       const currentDates = (selectedLoan.installment_dates as string[]) || [];
       let updatedDates = [...currentDates];
+      
+      // Salvar snapshot da data anterior para reversão
+      const prevDueDate = selectedLoan.due_date;
+      dateSnapshotTag = `[DUE_DATE_PREV:${prevDueDate}][DUE_DATE_NEW:${paymentData.new_due_date}]`;
       
       // Se for parcelado, atualizar a próxima parcela em aberto
       if ((selectedLoan.payment_type === 'installment' || selectedLoan.payment_type === 'weekly' || selectedLoan.payment_type === 'biweekly') && currentDates.length > 0) {
@@ -3559,7 +3565,10 @@ export default function Loans() {
         const paidInstallmentsCount = getPaidInstallmentsCount(loanWithUpdatedNotes);
         // Atualiza a data da próxima parcela em aberto
         if (paidInstallmentsCount < currentDates.length) {
+          const prevInstallmentDate = currentDates[paidInstallmentsCount];
           updatedDates[paidInstallmentsCount] = paymentData.new_due_date;
+          // Adicionar snapshot da mudança do installment_date específico
+          dateSnapshotTag += `[INSTALLMENT_DATE_CHANGE:${paidInstallmentsCount}:${prevInstallmentDate}:${paymentData.new_due_date}]`;
         }
       }
       
@@ -3570,13 +3579,18 @@ export default function Loans() {
       }).eq('id', selectedLoanId);
     }
     
+    // 🆕 Incluir snapshot de datas na nota do pagamento (se houver)
+    const paymentNoteWithSnapshot = dateSnapshotTag 
+      ? `${installmentNote} ${dateSnapshotTag}` 
+      : installmentNote;
+    
     await registerPayment({
       loan_id: selectedLoanId,
       amount: amount,
       principal_paid: principal_paid,
       interest_paid: interest_paid,
       payment_date: paymentData.payment_date,
-      notes: installmentNote,
+      notes: paymentNoteWithSnapshot,
       send_notification: paymentData.send_notification,
     });
     
@@ -3598,11 +3612,32 @@ export default function Loans() {
         
         // Se ainda há parcelas em aberto, atualizar due_date para a próxima
         if (newPaidInstallments < dates.length) {
+          const prevDueDate = selectedLoan.due_date;
           const nextDueDate = dates[newPaidInstallments];
           
           await supabase.from('loans').update({ 
             due_date: nextDueDate
           }).eq('id', selectedLoanId);
+          
+          // 🆕 Atualizar a nota do pagamento recém-criado com o snapshot de AUTO_DUE_DATE
+          // Isso permite reverter a mudança ao excluir o pagamento
+          const autoDueDateSnapshot = `[AUTO_DUE_DATE_PREV:${prevDueDate}][AUTO_DUE_DATE_NEW:${nextDueDate}]`;
+          
+          // Buscar o último pagamento registrado para este empréstimo e adicionar o snapshot
+          const { data: lastPayment } = await supabase
+            .from('loan_payments')
+            .select('id, notes')
+            .eq('loan_id', selectedLoanId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (lastPayment) {
+            await supabase
+              .from('loan_payments')
+              .update({ notes: `${lastPayment.notes || ''} ${autoDueDateSnapshot}`.trim() })
+              .eq('id', lastPayment.id);
+          }
           
           console.log(`[AUTO_DUE_DATE] Atualizado due_date para próxima parcela: ${nextDueDate} (parcela ${newPaidInstallments + 1})`);
         }
@@ -7186,51 +7221,73 @@ export default function Loans() {
                               </span>
                               <span className="text-red-200 font-bold">{daysOverdue} dias</span>
                             </div>
-                            <div className="flex items-center justify-between mt-1 text-red-300/70">
-                              <span>Vencimento: {formatDate(overdueDate)}</span>
-                              <span>Valor: {formatCurrency(totalPerInstallment)}</span>
-                            </div>
+                            {/* Calcular valor base restante (descontando pagamentos parciais) */}
+                            {(() => {
+                              const paidCount = getPaidInstallmentsCount(loan);
+                              const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+                              const partialPaid = partialPayments[paidCount] || 0;
+                              const remainingBaseOverdue = Math.max(0, totalPerInstallment - partialPaid);
+                              const hasPartialPaid = partialPaid > 0;
+                              
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between mt-1 text-red-300/70">
+                                    <span>Vencimento: {formatDate(overdueDate)}</span>
+                                    <span>
+                                      {hasPartialPaid ? (
+                                        <span>
+                                          <span className="line-through opacity-60">{formatCurrency(totalPerInstallment)}</span>
+                                          <span className="ml-1 text-white font-medium">{formatCurrency(remainingBaseOverdue)}</span>
+                                        </span>
+                                      ) : (
+                                        `Valor: ${formatCurrency(totalPerInstallment)}`
+                                      )}
+                                    </span>
+                                  </div>
+                                  {/* Seção de Penalidades - exibe juros E multas separadamente */}
+                                  {(dynamicPenaltyAmount > 0 || totalAppliedPenalties > 0) && (
+                                    <>
+                                      {/* Juros por Atraso (dinâmicos - [OVERDUE_CONFIG]) */}
+                                      {dynamicPenaltyAmount > 0 && (
+                                        <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                          <span className="text-blue-300">
+                                            <Percent className="w-3 h-3 inline mr-1" />
+                                            Juros ({overdueConfigType === 'percentage' 
+                                              ? `${overdueConfigValue}%/dia`
+                                              : `${formatCurrency(overdueConfigValue)}/dia`})
+                                          </span>
+                                          <span className="font-bold text-blue-200">
+                                            +{formatCurrency(dynamicPenaltyAmount)}
+                                          </span>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
+                                      {totalAppliedPenalties > 0 && (
+                                        <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                          <span className="text-orange-300">
+                                            <DollarSign className="w-3 h-3 inline mr-1" />
+                                            Multa Aplicada
+                                          </span>
+                                          <span className="font-bold text-orange-200">
+                                            +{formatCurrency(totalAppliedPenalties)}
+                                          </span>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Total com Atraso - valor restante + juros + multas */}
+                                      <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
+                                        <span className="text-red-300/80">Total com Atraso:</span>
+                                        <span className="font-bold text-white">
+                                          {formatCurrency(remainingBaseOverdue + dynamicPenaltyAmount + totalAppliedPenalties)}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
-                          {/* Seção de Penalidades - exibe juros E multas separadamente */}
-                          {(dynamicPenaltyAmount > 0 || totalAppliedPenalties > 0) && (
-                            <>
-                              {/* Juros por Atraso (dinâmicos - [OVERDUE_CONFIG]) */}
-                              {dynamicPenaltyAmount > 0 && (
-                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                  <span className="text-blue-300">
-                                    <Percent className="w-3 h-3 inline mr-1" />
-                                    Juros ({overdueConfigType === 'percentage' 
-                                      ? `${overdueConfigValue}%/dia`
-                                      : `${formatCurrency(overdueConfigValue)}/dia`})
-                                  </span>
-                                  <span className="font-bold text-blue-200">
-                                    +{formatCurrency(dynamicPenaltyAmount)}
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
-                              {totalAppliedPenalties > 0 && (
-                                <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                  <span className="text-orange-300">
-                                    <DollarSign className="w-3 h-3 inline mr-1" />
-                                    Multa Aplicada
-                                  </span>
-                                  <span className="font-bold text-orange-200">
-                                    +{formatCurrency(totalAppliedPenalties)}
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {/* Total com Atraso - parcela em atraso + juros + multas */}
-                              <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
-                                <span className="text-red-300/80">Total com Atraso:</span>
-                                <span className="font-bold text-white">
-                                  {formatCurrency(totalPerInstallment + dynamicPenaltyAmount + totalAppliedPenalties)}
-                                </span>
-                              </div>
-                            </>
-                          )}
                           
                           {/* Botões para configurar juros e multas - separados */}
                           {!hasOverdueConfig && configuringPenaltyLoanId !== loan.id && (
