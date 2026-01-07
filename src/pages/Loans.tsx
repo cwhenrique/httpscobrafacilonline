@@ -7245,45 +7245,41 @@ export default function Loans() {
                                     </span>
                                   </div>
                                   {/* Seção de Penalidades - exibe juros E multas separadamente */}
-                                  {(dynamicPenaltyAmount > 0 || totalAppliedPenalties > 0) && (
-                                    <>
-                                      {/* Juros por Atraso (dinâmicos - [OVERDUE_CONFIG]) */}
-                                      {dynamicPenaltyAmount > 0 && (
-                                        <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                          <span className="text-blue-300">
-                                            <Percent className="w-3 h-3 inline mr-1" />
-                                            Juros ({overdueConfigType === 'percentage' 
-                                              ? `${overdueConfigValue}%/dia`
-                                              : `${formatCurrency(overdueConfigValue)}/dia`})
-                                          </span>
-                                          <span className="font-bold text-blue-200">
-                                            +{formatCurrency(dynamicPenaltyAmount)}
-                                          </span>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
-                                      {totalAppliedPenalties > 0 && (
-                                        <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                          <span className="text-orange-300">
-                                            <DollarSign className="w-3 h-3 inline mr-1" />
-                                            Multa Aplicada
-                                          </span>
-                                          <span className="font-bold text-orange-200">
-                                            +{formatCurrency(totalAppliedPenalties)}
-                                          </span>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Total com Atraso - valor restante + juros + multas */}
-                                      <div className="flex items-center justify-between mt-1 text-xs sm:text-sm border-t border-red-400/30 pt-2">
-                                        <span className="text-red-300/80">Total com Atraso:</span>
-                                        <span className="font-bold text-white">
-                                          {formatCurrency(remainingBaseOverdue + dynamicPenaltyAmount + totalAppliedPenalties)}
-                                        </span>
-                                      </div>
-                                    </>
+                                  {/* Juros por Atraso (dinâmicos - [OVERDUE_CONFIG]) */}
+                                  {dynamicPenaltyAmount > 0 && (
+                                    <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                      <span className="text-blue-300">
+                                        <Percent className="w-3 h-3 inline mr-1" />
+                                        Juros ({overdueConfigType === 'percentage' 
+                                          ? `${overdueConfigValue}%/dia`
+                                          : `${formatCurrency(overdueConfigValue)}/dia`})
+                                      </span>
+                                      <span className="font-bold text-blue-200">
+                                        +{formatCurrency(dynamicPenaltyAmount)}
+                                      </span>
+                                    </div>
                                   )}
+                                  
+                                  {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
+                                  {totalAppliedPenalties > 0 && (
+                                    <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
+                                      <span className="text-orange-300">
+                                        <DollarSign className="w-3 h-3 inline mr-1" />
+                                        Multa Aplicada
+                                      </span>
+                                      <span className="font-bold text-orange-200">
+                                        +{formatCurrency(totalAppliedPenalties)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Total com Atraso - SEMPRE mostra (valor restante + juros + multas) */}
+                                  <div className="flex items-center justify-between mt-2 text-xs sm:text-sm border-t border-red-400/30 pt-2">
+                                    <span className="text-red-300/80">Total com Atraso:</span>
+                                    <span className="font-bold text-white">
+                                      {formatCurrency(remainingBaseOverdue + dynamicPenaltyAmount + totalAppliedPenalties)}
+                                    </span>
+                                  </div>
                                 </>
                               );
                             })()}
