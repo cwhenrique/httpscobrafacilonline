@@ -8570,8 +8570,16 @@ export default function Loans() {
                             
                             {/* LINHA 2: Badges de status e tipo */}
                             <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
-                              <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
-                                {getPaymentStatusLabel(loan.status)}
+                              <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
+                                isPaid 
+                                  ? 'bg-white/20 text-white border-white/30' 
+                                  : isOverdue 
+                                    ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                                    : isDueToday 
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                                      : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                              }`}>
+                                {isPaid ? 'Pago' : isOverdue ? 'Atrasado' : isDueToday ? 'Vence Hoje' : 'Pendente'}
                               </Badge>
                               <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
