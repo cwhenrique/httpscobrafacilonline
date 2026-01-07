@@ -49,6 +49,8 @@ interface OverdueData {
   // NOVO: Campos para status das parcelas com emojis
   installmentDates?: string[];
   paidCount?: number;
+  // NOVO: Juros por atraso (calculado por dia - separado da multa)
+  overdueInterestAmount?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -162,18 +164,31 @@ export default function SendOverdueNotification({
       const installmentInfo = data.installmentNumber && data.totalInstallments 
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
         : 'Pagamento';
-      const effectivePenalty = hasPenalty ? data.penaltyAmount! : (hasManualPenalty ? data.manualPenaltyAmount! : 0);
-      const totalAmount = data.amount + effectivePenalty;
+      
+      // Separar: multa aplicada vs juros por atraso
+      const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
+      const overdueInterest = data.overdueInterestAmount || 0;
+      const totalExtras = appliedPenalty + overdueInterest;
+      const totalAmount = data.amount + totalExtras;
 
       // Informações principais
-      message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+      message += `💵 *Valor da Parcela:* ${formatCurrency(data.amount)}\n`;
       message += `📊 *${installmentInfo}*\n`;
       message += `📅 *Vencimento:* ${formatDate(data.dueDate)}\n`;
       message += `⏰ *Dias em Atraso:* ${data.daysOverdue}\n`;
       
-      // Multa
-      if (effectivePenalty > 0) {
-        message += `⚠️ *Multa:* ${formatCurrency(effectivePenalty)}\n`;
+      // Juros por atraso (se houver)
+      if (overdueInterest > 0) {
+        message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
+      }
+      
+      // Multa aplicada (se houver)
+      if (appliedPenalty > 0) {
+        message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
+      }
+      
+      // Total a pagar
+      if (totalExtras > 0) {
         message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
       }
       
@@ -192,13 +207,14 @@ export default function SendOverdueNotification({
         });
       }
       
-      // Opções de pagamento
+      // Opções de pagamento (só juros + multa)
       message += generatePaymentOptions(
         totalAmount,
         data.interestAmount,
         data.principalAmount,
         data.isDaily,
-        effectivePenalty
+        appliedPenalty,
+        overdueInterest
       );
     }
     
