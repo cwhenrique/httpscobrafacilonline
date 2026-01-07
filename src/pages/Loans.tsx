@@ -3784,18 +3784,27 @@ export default function Loans() {
     // Calcular multas aplicadas (DAILY_PENALTY)
     const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
     
-    // CORREÇÃO: Usar remaining_balance como fonte de verdade (já inclui amortizações)
-    // O remaining_balance é atualizado automaticamente quando há amortização
-    const actualRemaining = loan.remaining_balance > 0 ? loan.remaining_balance : (loan.principal_amount + totalInterest - (loan.total_paid || 0));
+    // Calcular pagamentos "só juros" anteriores para excluí-los do remaining
+    const interestOnlyPaymentsMatch = (loan.notes || '').matchAll(/\[INTEREST_ONLY_PAID:\d+:([0-9.]+):[^\]]+\]/g);
+    let totalInterestOnlyPaid = 0;
+    for (const match of interestOnlyPaymentsMatch) {
+      totalInterestOnlyPaid += parseFloat(match[1]);
+    }
     
-    // Para "só juros": se já houve pagamento anterior de "só juros", usar o valor salvo
-    // Caso contrário, usar o remaining atual (que já considera amortizações)
+    // CORREÇÃO: O remaining_balance não deve considerar pagamentos de "só juros"
+    // Pagamentos de juros/multa são extras e não reduzem o saldo devedor original
+    const normalPaymentsPaid = (loan.total_paid || 0) - totalInterestOnlyPaid;
+    const actualRemaining = loan.remaining_balance > 0 
+      ? loan.remaining_balance 
+      : (loan.principal_amount + totalInterest - Math.max(0, normalPaymentsPaid));
+    
+    // Para "só juros": usar o valor original do contrato (não afetado por pagamentos de juros)
     let remainingForInterestOnly = actualRemaining;
     
     if (loan.notes?.includes('[INTEREST_ONLY_PAYMENT]')) {
-      const match = loan.notes.match(/Valor que falta: R\$ ([0-9.,]+)/);
+      const match = loan.notes.match(/Valor restante: R\$ ([0-9.,]+)/);
       if (match) {
-        const storedRemaining = parseFloat(match[1].replace(',', '.'));
+        const storedRemaining = parseFloat(match[1].replace('.', '').replace(',', '.'));
         if (!isNaN(storedRemaining) && storedRemaining > 0) {
           remainingForInterestOnly = storedRemaining;
         }
@@ -3933,11 +3942,20 @@ export default function Loans() {
       }
       const totalToReceive = loan.principal_amount + baseTotalInterest;
       const totalPaidBefore = loan.total_paid || 0;
-      const originalRemaining = totalToReceive - totalPaidBefore;
+      
+      // Calcular pagamentos "só juros" anteriores para excluí-los do cálculo
+      const interestOnlyPaymentsMatch = (loan.notes || '').matchAll(/\[INTEREST_ONLY_PAID:\d+:([0-9.]+):[^\]]+\]/g);
+      let totalInterestOnlyPaid = 0;
+      for (const match of interestOnlyPaymentsMatch) {
+        totalInterestOnlyPaid += parseFloat(match[1]);
+      }
+      
+      // O remaining correto = total - (pagamentos normais, excluindo pagamentos de "só juros")
+      const normalPaymentsPaid = totalPaidBefore - totalInterestOnlyPaid;
+      const originalRemaining = totalToReceive - Math.max(0, normalPaymentsPaid);
 
       // O valor que falta NUNCA deve descer automaticamente em pagamento só de juros.
       // Se taxa de renovação estiver habilitada, o remaining_balance deve AUMENTAR pelo valor da taxa
-      // (não substituir pelo valor da parcela única)
       let safeRemaining: number;
       if (renegotiateData.renewal_fee_enabled) {
         // Quando há taxa de renovação, o remaining_balance = original + taxa
