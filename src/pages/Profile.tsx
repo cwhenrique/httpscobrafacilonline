@@ -10,6 +10,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+const RENEWAL_LINKS = {
+  monthly: "https://pay.cakto.com.br/35qwwgz",
+  quarterly: "https://pay.cakto.com.br/eb6ern9",
+  annual: "https://pay.cakto.com.br/fhwfptb",
+};
 import { 
   User, 
   Mail, 
@@ -81,6 +93,12 @@ export default function Profile() {
   const [savingPix, setSavingPix] = useState(false);
   const [savingBillingName, setSavingBillingName] = useState(false);
   const [savingPaymentLink, setSavingPaymentLink] = useState(false);
+  const [isRenewalDialogOpen, setIsRenewalDialogOpen] = useState(false);
+
+  const handleSelectPlan = (link: string) => {
+    window.open(link, '_blank');
+    setIsRenewalDialogOpen(false);
+  };
 
   useEffect(() => {
     if (user) {
@@ -659,18 +677,103 @@ export default function Profile() {
                   Sua assinatura expirou. Renove para continuar usando o sistema.
                 </p>
                 <Button 
-                  asChild
+                  onClick={() => setIsRenewalDialogOpen(true)}
                   className="gap-2 bg-amber-500 hover:bg-amber-600"
                 >
-                  <a href="https://pay.cakto.com.br/fhwfptb" target="_blank" rel="noopener noreferrer">
-                    <Crown className="w-4 h-4" />
-                    Renovar Assinatura
-                  </a>
+                  <Crown className="w-4 h-4" />
+                  Renovar Assinatura
                 </Button>
+              </div>
+            )}
+
+            {/* Botão para renovar a qualquer momento (usuários ativos) */}
+            {profile?.subscription_plan && 
+             profile?.subscription_plan !== 'lifetime' && 
+             profile?.subscription_expires_at && 
+             new Date(profile.subscription_expires_at) >= new Date() && (
+              <div className="pt-2 border-t border-border">
+                <Button 
+                  onClick={() => setIsRenewalDialogOpen(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  Renovar Agora
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Renove antecipadamente e os dias serão acumulados ao seu plano atual.
+                </p>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Renewal Plan Dialog */}
+        <Dialog open={isRenewalDialogOpen} onOpenChange={setIsRenewalDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-500" />
+                Escolha seu plano
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-4">
+              {/* Plano Mensal */}
+              <button
+                onClick={() => handleSelectPlan(RENEWAL_LINKS.monthly)}
+                className="w-full p-4 border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Mensal</p>
+                    <p className="text-sm text-muted-foreground">Renovação mês a mês</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg">R$ 55,90</p>
+                    <p className="text-xs text-muted-foreground">/mês</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Plano Trimestral */}
+              <button
+                onClick={() => handleSelectPlan(RENEWAL_LINKS.quarterly)}
+                className="w-full p-4 border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Trimestral</p>
+                    <p className="text-sm text-muted-foreground">Economia de 11%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg">R$ 149,00</p>
+                    <p className="text-xs text-muted-foreground">/3 meses</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Plano Anual */}
+              <button
+                onClick={() => handleSelectPlan(RENEWAL_LINKS.annual)}
+                className="w-full p-4 border border-amber-500 rounded-lg hover:bg-amber-500/10 transition-all text-left relative"
+              >
+                <Badge className="absolute -top-2 right-2 bg-amber-500 hover:bg-amber-500">
+                  MAIS VENDIDO
+                </Badge>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Anual</p>
+                    <p className="text-sm text-muted-foreground">Economia de R$ 191</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg">R$ 479,00</p>
+                    <p className="text-xs text-muted-foreground">/ano</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* PIX Key Card */}
         <Card className="shadow-soft">
