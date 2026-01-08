@@ -302,7 +302,8 @@ export default function Reports() {
         // Calcular valor por parcela
         let installmentValue: number;
         if (isDaily) {
-          installmentValue = loan.interest_rate || 0;
+          // Para empréstimos diários, total_interest é o valor da parcela diária
+          installmentValue = loan.total_interest || 0;
         } else if (loan.interest_mode === 'on_total') {
           const totalInterest = loan.principal_amount * (loan.interest_rate / 100);
           installmentValue = (loan.principal_amount + totalInterest) / numInstallments;
@@ -508,6 +509,7 @@ export default function Reports() {
       // Loan specific - métricas de saldo
       capitalNaRua,
       faltaReceber,
+      loansDueInPeriod,
       totalLoanedInPeriod,
       totalLoanReceived: totalLoanReceivedInPeriod,
       totalLoanInterest,
@@ -779,7 +781,7 @@ export default function Reports() {
 
           {/* LOANS TAB */}
           <TabsContent value="loans" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3">
               <MetricCard
                 label="Capital na Rua"
                 value={formatCurrency(consolidatedStats.capitalNaRua)}
@@ -787,6 +789,13 @@ export default function Reports() {
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
                 variation={consolidatedStats.loanedVariation}
+              />
+              <MetricCard
+                label="A Receber no Período"
+                value={formatCurrency(consolidatedStats.loansDueInPeriod)}
+                icon={Clock}
+                iconColor="text-amber-500"
+                bgColor="bg-amber-500/10"
               />
               <MetricCard
                 label="Total Recebido"
