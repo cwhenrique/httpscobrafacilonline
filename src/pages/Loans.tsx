@@ -3727,8 +3727,16 @@ export default function Loans() {
       }
     }
     
-    // Calculate new remaining balance after payment - usar remaining_balance do banco
-    const newRemainingBalance = selectedLoan.remaining_balance - amount;
+    // 🆕 CORREÇÃO: Buscar remaining_balance FRESCO do banco após o trigger executar
+    // O trigger recalculate_loan_total_paid já atualizou o valor correto
+    const { data: freshLoanAfterPayment } = await supabase
+      .from('loans')
+      .select('remaining_balance, total_paid, status')
+      .eq('id', selectedLoanId)
+      .single();
+    
+    const newRemainingBalance = freshLoanAfterPayment?.remaining_balance ?? (selectedLoan.remaining_balance - amount);
+    const newTotalPaid = freshLoanAfterPayment?.total_paid ?? ((selectedLoan.total_paid || 0) + amount);
     
     // Calculate total contract value (principal + interest)
     const isDailyForReceipt = selectedLoan.payment_type === 'daily';
@@ -3797,7 +3805,7 @@ export default function Loans() {
       amountPaid: amount,
       paymentDate: paymentData.payment_date,
       remainingBalance: Math.max(0, newRemainingBalance),
-      totalPaid: (selectedLoan.total_paid || 0) + amount,
+      totalPaid: newTotalPaid,
       totalContract: totalContractValue,
       nextDueDate: nextDueDateForReceipt,
       penaltyAmount: totalPenaltyPaid > 0 ? totalPenaltyPaid : undefined,
