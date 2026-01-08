@@ -250,6 +250,13 @@ export function useLoans() {
   }): Promise<{ data?: any; error?: Error; duplicate?: boolean }> => {
     if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
+    // VALIDAÇÃO: Verificar se o valor do pagamento é válido (evita NaN/Infinity)
+    if (!payment.amount || isNaN(payment.amount) || !isFinite(payment.amount)) {
+      console.error('[PAYMENT_ERROR] Valor do pagamento inválido:', payment.amount);
+      toast.error('Valor do pagamento inválido');
+      return { error: new Error('Valor do pagamento inválido') };
+    }
+
     // PROTEÇÃO ANTI-DUPLICAÇÃO: Verificar pagamento idêntico nos últimos 10 segundos
     const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
     
