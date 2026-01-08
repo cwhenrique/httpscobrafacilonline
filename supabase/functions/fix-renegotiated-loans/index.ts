@@ -92,19 +92,28 @@ serve(async (req) => {
       }
 
       // Extract renegotiation date from notes if available
-      // Common patterns: [RENEGOTIATED_FROM:date] or look for contract_date changes
       let renegotiationDateStr: string | null = null;
       
-      // Try to extract from [RENEGOTIATED_FROM:...] tag
-      const renegotiatedFromMatch = loan.notes?.match(/\[RENEGOTIATED_FROM:([^\]]+)\]/);
-      if (renegotiatedFromMatch) {
-        renegotiationDateStr = renegotiatedFromMatch[1];
+      // Try to extract from [RENEGOTIATION_DATE:...] tag (primary format)
+      const renegotiationDateMatch = loan.notes?.match(/\[RENEGOTIATION_DATE:([^\]]+)\]/);
+      if (renegotiationDateMatch) {
+        renegotiationDateStr = renegotiationDateMatch[1];
       }
       
-      // Try to extract from [HISTORICAL_CONTRACT] tag with date
-      const historicalMatch = loan.notes?.match(/\[HISTORICAL_CONTRACT:([^\]]+)\]/);
-      if (historicalMatch) {
-        renegotiationDateStr = historicalMatch[1];
+      // Fallback: Try to extract from [RENEGOTIATED_FROM:...] tag
+      if (!renegotiationDateStr) {
+        const renegotiatedFromMatch = loan.notes?.match(/\[RENEGOTIATED_FROM:([^\]]+)\]/);
+        if (renegotiatedFromMatch) {
+          renegotiationDateStr = renegotiatedFromMatch[1];
+        }
+      }
+      
+      // Fallback: Try to extract from [HISTORICAL_CONTRACT:...] tag
+      if (!renegotiationDateStr) {
+        const historicalMatch = loan.notes?.match(/\[HISTORICAL_CONTRACT:([^\]]+)\]/);
+        if (historicalMatch) {
+          renegotiationDateStr = historicalMatch[1];
+        }
       }
 
       // If no explicit date, use loan created_at as reference
