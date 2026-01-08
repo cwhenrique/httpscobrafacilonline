@@ -480,39 +480,62 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
 
   // === DUE DATES ===
   if (data.dueDates.length > 0) {
-    const datesBoxHeight = Math.min(Math.ceil(data.dueDates.length / 3) * 8 + 15, 50);
+    const datesPerRow = 3;
+    const rowHeight = 7;
+    const headerHeight = 15;
+    const maxRowsPerPage = 8; // 24 parcelas por seção antes de pular página
+    const colWidth = (pageWidth - 2 * margin) / datesPerRow;
     
-    doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
-    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, datesBoxHeight, 2, 2, 'F');
-
-    doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DATAS DE VENCIMENTO', margin + 5, currentY + 8);
-
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-
-    let dateY = currentY + 15;
-    const colWidth = (pageWidth - 2 * margin) / 3;
+    let dateIndex = 0;
+    let isFirstSection = true;
     
-    data.dueDates.slice(0, 15).forEach((item, index) => {
-      const col = index % 3;
-      const row = Math.floor(index / 3);
-      const x = margin + 5 + col * colWidth;
-      const y = dateY + row * 7;
-      const dateStr = typeof item === 'string' ? item : item.date;
-      const isPaid = typeof item === 'object' && item.isPaid;
-      const prefix = isPaid ? '✓ ' : '';
-      doc.text(`${prefix}${index + 1}ª: ${formatDate(dateStr)}`, x, y);
-    });
+    while (dateIndex < data.dueDates.length) {
+      const remainingDates = data.dueDates.length - dateIndex;
+      const datesToShowThisSection = Math.min(remainingDates, maxRowsPerPage * datesPerRow);
+      const rowsToShow = Math.ceil(datesToShowThisSection / datesPerRow);
+      const datesBoxHeight = rowsToShow * rowHeight + headerHeight;
+      
+      // Verificar se precisa nova página
+      if (currentY + datesBoxHeight > 250) {
+        doc.addPage();
+        currentY = 20;
+      }
+      
+      // Desenhar caixa de fundo
+      doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
+      doc.roundedRect(margin, currentY, pageWidth - 2 * margin, datesBoxHeight, 2, 2, 'F');
 
-    if (data.dueDates.length > 15) {
-      doc.text(`... e mais ${data.dueDates.length - 15} parcela(s)`, margin + 5, dateY + Math.ceil(15 / 3) * 7);
+      // Header
+      doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const headerText = isFirstSection ? 'DATAS DE VENCIMENTO' : 'DATAS DE VENCIMENTO (continuação)';
+      doc.text(headerText, margin + 5, currentY + 8);
+
+      // Datas
+      doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+
+      const dateY = currentY + 15;
+      
+      for (let i = 0; i < datesToShowThisSection; i++) {
+        const globalIndex = dateIndex + i;
+        const item = data.dueDates[globalIndex];
+        const col = i % datesPerRow;
+        const row = Math.floor(i / datesPerRow);
+        const x = margin + 5 + col * colWidth;
+        const y = dateY + row * rowHeight;
+        const dateStr = typeof item === 'string' ? item : item.date;
+        const isPaid = typeof item === 'object' && item.isPaid;
+        const prefix = isPaid ? '✓ ' : '';
+        doc.text(`${prefix}${globalIndex + 1}ª: ${formatDate(dateStr)}`, x, y);
+      }
+
+      currentY += datesBoxHeight + 8;
+      dateIndex += datesToShowThisSection;
+      isFirstSection = false;
     }
-
-    currentY += datesBoxHeight + 8;
   }
 
   // === SIGNATURES ===

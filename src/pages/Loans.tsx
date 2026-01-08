@@ -12655,6 +12655,32 @@ export default function Loans() {
               total_interest: loanData.total_interest,
               send_creation_notification: loanData.send_notification,
             });
+            
+            // Abrir prompt de comprovante após criar empréstimo via Tabela Price
+            if (result?.data) {
+              const client = clients.find(c => c.id === loanData.client_id);
+              const installmentValue = (loanData.principal_amount + loanData.total_interest) / loanData.installments;
+              
+              setLoanCreatedData({
+                id: result.data.id,
+                clientName: client?.full_name || 'Cliente',
+                clientPhone: client?.phone || undefined,
+                clientAddress: client ? [client.street, client.number, client.complement, client.neighborhood, client.city, client.state].filter(Boolean).join(', ') || client.address : undefined,
+                principalAmount: loanData.principal_amount,
+                interestRate: loanData.interest_rate,
+                totalInterest: loanData.total_interest,
+                totalToReceive: loanData.principal_amount + loanData.total_interest,
+                installments: loanData.installments,
+                installmentValue: installmentValue,
+                contractDate: loanData.contract_date,
+                startDate: loanData.start_date,
+                dueDate: loanData.due_date,
+                paymentType: 'installment',
+              });
+              setLoanCreatedInstallmentDates(loanData.installment_dates);
+              setIsLoanCreatedOpen(true);
+            }
+            
             return result;
           }}
           onNewClientClick={handleNewClientClick}
