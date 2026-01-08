@@ -27,7 +27,7 @@ serve(async (req) => {
     let query = supabase
       .from('loans')
       .select('id, user_id, notes, principal_amount, total_interest, total_paid, remaining_balance, status, created_at, payment_type, installments, due_date')
-      .or('notes.ilike.%[RENEGOTIATED]%,notes.ilike.%Valor prometido%,notes.ilike.%[HISTORICAL_CONTRACT]%');
+      .or('notes.ilike.%[RENEGOTIATED]%,notes.ilike.%Valor prometido%,notes.ilike.%[RENEGOTIATION_DATE:%');
 
     if (user_id) {
       query = query.eq('user_id', user_id);
@@ -108,13 +108,8 @@ serve(async (req) => {
         }
       }
       
-      // Fallback: Try to extract from [HISTORICAL_CONTRACT:...] tag
-      if (!renegotiationDateStr) {
-        const historicalMatch = loan.notes?.match(/\[HISTORICAL_CONTRACT:([^\]]+)\]/);
-        if (historicalMatch) {
-          renegotiationDateStr = historicalMatch[1];
-        }
-      }
+      // Note: [HISTORICAL_CONTRACT] loans are NOT processed by this function
+      // They should only be processed if they also have [RENEGOTIATION_DATE:] tag
 
       // If no explicit date, use loan created_at as reference
       const renegotiationDate = renegotiationDateStr 
