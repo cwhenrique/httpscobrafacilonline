@@ -234,7 +234,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   };
 
   // Send complete message directly to self (no OK confirmation needed)
-  const handleConfirmSendToSelf = async () => {
+  const handleConfirmSendToSelf = async (editedMessage: string) => {
     if (!profile?.phone) {
       toast.error('Configure seu telefone no perfil para receber comprovantes');
       return;
@@ -247,10 +247,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingWhatsApp(true);
     try {
-      const message = generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type);
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message },
+        body: { userId: user.id, message: editedMessage },
       });
       
       if (error) throw error;
@@ -283,7 +281,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   };
 
   // Send to client (after preview confirmation) - USES PLAIN TEXT
-  const handleConfirmSendToClient = async () => {
+  const handleConfirmSendToClient = async (editedMessage: string) => {
     if (!clientPhone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -306,13 +304,11 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type);
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: clientPhone,
-          message 
+          message: editedMessage 
         },
       });
       

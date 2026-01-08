@@ -179,7 +179,7 @@ export default function SaleCreatedReceiptPrompt({
   };
 
   // Send complete message directly to self (no OK confirmation needed)
-  const handleConfirmSendToSelf = async () => {
+  const handleConfirmSendToSelf = async (editedMessage: string) => {
     if (!userPhone) {
       toast.error('Telefone não configurado no perfil');
       return;
@@ -192,10 +192,8 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSending(true);
     try {
-      const message = generateSelfMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: { userId: user.id, message },
+        body: { userId: user.id, message: editedMessage },
       });
       
       if (error) throw error;
@@ -229,7 +227,7 @@ export default function SaleCreatedReceiptPrompt({
   };
 
   // Send to client - USES PLAIN TEXT
-  const handleConfirmSendToClient = async () => {
+  const handleConfirmSendToClient = async (editedMessage: string) => {
     if (!sale.client_phone) {
       toast.error('Cliente não possui telefone cadastrado');
       return;
@@ -252,13 +250,11 @@ export default function SaleCreatedReceiptPrompt({
 
     setIsSendingToClient(true);
     try {
-      const message = generateClientMessage();
-      
       const { data: result, error } = await supabase.functions.invoke('send-whatsapp-to-client', {
         body: { 
           userId: user.id,
           clientPhone: sale.client_phone,
-          message 
+          message: editedMessage 
         },
       });
       
