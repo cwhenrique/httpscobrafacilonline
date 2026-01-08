@@ -585,7 +585,33 @@ export default function Loans() {
     });
 
     if (result.data) {
+      const client = clients.find(c => c.id === priceFormData.client_id);
+      const installmentValue = priceTablePreview.pmt;
+      
+      // Configurar dados do comprovante
+      setLoanCreatedData({
+        id: result.data.id,
+        clientName: client?.full_name || 'Cliente',
+        clientPhone: client?.phone || undefined,
+        clientAddress: client ? [client.street, client.number, client.complement, client.neighborhood, client.city, client.state].filter(Boolean).join(', ') || client.address : undefined,
+        principalAmount: principal,
+        interestRate: rate,
+        totalInterest: priceTablePreview.totalInterest,
+        totalToReceive: priceTablePreview.totalPayment,
+        installments: installments,
+        installmentValue: installmentValue,
+        contractDate: priceFormData.contract_date,
+        startDate: priceFormData.start_date,
+        dueDate: priceInstallmentDates[priceInstallmentDates.length - 1] || priceFormData.start_date,
+        paymentType: 'installment',
+      });
+      setLoanCreatedInstallmentDates(priceInstallmentDates);
+      
+      // Abrir o prompt de comprovante
+      setIsLoanCreatedOpen(true);
+      
       toast.success('Empréstimo Tabela Price criado com sucesso!');
+      
       setPriceFormData({
         client_id: '',
         principal_amount: '',
