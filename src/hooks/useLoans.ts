@@ -100,6 +100,7 @@ const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
       client:clients(*),
       loan_payments(interest_paid)
     `)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {

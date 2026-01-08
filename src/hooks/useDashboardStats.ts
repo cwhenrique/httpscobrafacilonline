@@ -72,14 +72,14 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
     // Função RPC para estatísticas principais (otimizada no banco)
     supabase.rpc('get_dashboard_stats', { p_user_id: userId }),
     // Counts simples (muito rápidos com índices)
-    supabase.from('loans').select('id', { count: 'exact', head: true }),
-    supabase.from('loans').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
-    supabase.from('product_sales').select('id', { count: 'exact', head: true }),
-    supabase.from('product_sales').select('id', { count: 'exact', head: true }).gte('sale_date', weekAgoStr),
-    supabase.from('vehicles').select('id', { count: 'exact', head: true }),
-    supabase.from('vehicles').select('id', { count: 'exact', head: true }).gte('purchase_date', weekAgoStr),
-    supabase.from('contracts').select('id', { count: 'exact', head: true }),
-    supabase.from('contracts').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+    supabase.from('loans').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    supabase.from('loans').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', weekAgo.toISOString()),
+    supabase.from('product_sales').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    supabase.from('product_sales').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('sale_date', weekAgoStr),
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('purchase_date', weekAgoStr),
+    supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', weekAgo.toISOString()),
     // Pagamentos desta semana (com limite e campos mínimos)
     supabase.from('product_sale_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
     supabase.from('vehicle_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
@@ -98,6 +98,7 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
   const { data: overdueLoans } = await supabase
     .from('loans')
     .select('id, notes, remaining_balance, due_date, installments, total_interest, principal_amount, interest_rate, interest_mode, payment_type, installment_dates, total_paid, status')
+    .eq('user_id', userId)
     .neq('status', 'paid')
     .lt('due_date', todayStr);
 
