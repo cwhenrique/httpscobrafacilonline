@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, Car, ChevronDown, Filter, Users, CheckCircle, Clock, Percent, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getTotalDailyPenalties } from '@/lib/calculations';
@@ -125,8 +125,8 @@ export default function Reports() {
 
   // Period filter state
   const [period, setPeriod] = useState<PeriodType>('custom');
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [startDate, setStartDate] = useState<Date>(startOfDay(startOfMonth(new Date())));
+  const [endDate, setEndDate] = useState<Date>(endOfDay(endOfMonth(new Date())));
   const [lastUpdated] = useState<Date>(new Date());
 
   // Expand/collapse states for each tab
@@ -156,8 +156,8 @@ export default function Reports() {
 
   const handlePeriodChange = (newPeriod: PeriodType, newStartDate: Date, newEndDate: Date) => {
     setPeriod(newPeriod);
-    setStartDate(newStartDate);
-    setEndDate(newEndDate);
+    setStartDate(startOfDay(newStartDate));
+    setEndDate(endOfDay(newEndDate));
   };
 
   const handleExport = () => {
