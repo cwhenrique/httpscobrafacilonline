@@ -93,8 +93,51 @@ function isEmployeeSlotPurchase(payload: any): boolean {
   return false;
 }
 
-// Determine subscription plan from Cakto payload
-function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | null } {
+// Get plan days for accumulation
+function getPlanDays(plan: string): number {
+  switch (plan) {
+    case 'monthly': return 30;
+    case 'quarterly': return 90;
+    case 'annual': return 365;
+    case 'lifetime': return 0; // No expiration
+    default: return 365;
+  }
+}
+
+// Calculate new expiration date considering existing subscription
+function calculateExpirationDate(plan: string, currentExpiresAt: string | null): string | null {
+  if (plan === 'lifetime') {
+    return null;
+  }
+  
+  const planDays = getPlanDays(plan);
+  const now = new Date();
+  
+  // Determine base date: use current expiration if still valid, otherwise use today
+  let baseDate: Date;
+  
+  if (currentExpiresAt) {
+    const currentExpiration = new Date(currentExpiresAt);
+    // If subscription hasn't expired yet, add days to current expiration
+    baseDate = currentExpiration > now ? currentExpiration : now;
+    console.log('Base date for expiration calculation:', baseDate.toISOString());
+    console.log('Current expiration:', currentExpiresAt);
+    console.log('Is still valid:', currentExpiration > now);
+  } else {
+    baseDate = now;
+    console.log('No current expiration, using today as base');
+  }
+  
+  // Add plan days to base date
+  const newExpiresAt = new Date(baseDate.getTime() + planDays * 24 * 60 * 60 * 1000);
+  console.log('New expiration date:', newExpiresAt.toISOString());
+  console.log('Days added:', planDays);
+  
+  return newExpiresAt.toISOString();
+}
+
+// Determine subscription plan from Cakto payload (returns plan type only, not expiration)
+function getSubscriptionPlan(payload: any): string {
   // Log full payload for debugging
   console.log('FULL CAKTO PAYLOAD FOR PLAN DETECTION:', JSON.stringify(payload, null, 2));
   
@@ -139,8 +182,6 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
 
   console.log('Product detection:', { productName, productId, price });
 
-  const now = new Date();
-
   // Check for lifetime/vitalício by name
   if (
     productName.includes('vitalício') ||
@@ -158,7 +199,7 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('vitalicio')
   ) {
     console.log('Matched: LIFETIME by name');
-    return { plan: 'lifetime', expiresAt: null };
+    return 'lifetime';
   }
 
   // Check for annual/anual by name
@@ -171,9 +212,7 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('anual')
   ) {
     console.log('Matched: ANNUAL by name');
-    const expiresAt = new Date(now);
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+    return 'annual';
   }
 
   // Check for monthly/mensal by name
@@ -186,9 +225,7 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('mensal')
   ) {
     console.log('Matched: MONTHLY by name');
-    const expiresAt = new Date(now);
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-    return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+    return 'monthly';
   }
 
   // Check for quarterly/trimestral by name
@@ -202,9 +239,7 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     productId.includes('trimestral')
   ) {
     console.log('Matched: QUARTERLY by name');
-    const expiresAt = new Date(now);
-    expiresAt.setMonth(expiresAt.getMonth() + 3);
-    return { plan: 'quarterly', expiresAt: expiresAt.toISOString() };
+    return 'quarterly';
   }
 
   // FALLBACK: Use price to detect plan
@@ -212,39 +247,31 @@ function getSubscriptionPlan(payload: any): { plan: string; expiresAt: string | 
     // Lifetime: above R$500
     if (price > 500) {
       console.log('Matched: LIFETIME by price (R$', price, ')');
-      return { plan: 'lifetime', expiresAt: null };
+      return 'lifetime';
     }
     
     // Annual: between R$300 and R$500
     if (price > 300 && price <= 500) {
       console.log('Matched: ANNUAL by price (R$', price, ')');
-      const expiresAt = new Date(now);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+      return 'annual';
     }
     
     // Quarterly: between R$70 and R$300
     if (price >= 70 && price <= 300) {
       console.log('Matched: QUARTERLY by price (R$', price, ')');
-      const expiresAt = new Date(now);
-      expiresAt.setMonth(expiresAt.getMonth() + 3);
-      return { plan: 'quarterly', expiresAt: expiresAt.toISOString() };
+      return 'quarterly';
     }
     
     // Monthly: less than R$70
     if (price < 70) {
       console.log('Matched: MONTHLY by price (R$', price, ')');
-      const expiresAt = new Date(now);
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-      return { plan: 'monthly', expiresAt: expiresAt.toISOString() };
+      return 'monthly';
     }
   }
 
   // SAFE DEFAULT: Annual (middle ground)
   console.log('WARNING: No plan pattern matched! Defaulting to ANNUAL');
-  const expiresAt = new Date(now);
-  expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-  return { plan: 'annual', expiresAt: expiresAt.toISOString() };
+  return 'annual';
 }
 
 // Send WhatsApp message via Evolution API
@@ -525,8 +552,8 @@ Obrigado pela confiança! 💚`;
 
     // Regular subscription purchase flow
     // Determine subscription plan
-    const { plan, expiresAt } = getSubscriptionPlan(payload);
-    console.log('Subscription plan determined:', { plan, expiresAt });
+    const plan = getSubscriptionPlan(payload);
+    console.log('Subscription plan determined:', plan);
 
     // Check if user already exists
     const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers();
@@ -560,6 +587,13 @@ Obrigado pela confiança! 💚`;
         is_active: currentProfile?.is_active,
         updated_at: currentProfile?.updated_at
       });
+      
+      // Calculate new expiration date considering existing subscription (ACCUMULATES DAYS!)
+      const expiresAt = calculateExpirationDate(plan, currentProfile?.subscription_expires_at);
+      console.log('=== EXPIRATION CALCULATION ===');
+      console.log('Plan:', plan);
+      console.log('Current subscription_expires_at:', currentProfile?.subscription_expires_at);
+      console.log('New expiresAt (accumulated):', expiresAt);
       
       // Check if this is a TRIAL user converting to paid
       const isTrialUser = currentProfile?.subscription_plan === 'trial' || 
@@ -600,8 +634,9 @@ Obrigado pela confiança! 💚`;
         console.log('New plan:', plan);
         console.log('New expires_at:', expiresAt);
       } else {
-        console.log('=== SUBSCRIPTION RENEWAL ===');
+        console.log('=== SUBSCRIPTION RENEWAL (DAYS ACCUMULATED) ===');
         console.log('Previous plan:', currentProfile?.subscription_plan);
+        console.log('Previous expires_at:', currentProfile?.subscription_expires_at);
         console.log('New plan:', plan);
         console.log('New expires_at:', expiresAt);
       }
@@ -684,6 +719,10 @@ Obrigado por continuar com a gente! 💚`;
 
     // NEW USER - Create account
     const generatedPassword = DEFAULT_PASSWORD;
+    
+    // Calculate expiration for new user (no existing subscription, so use today as base)
+    const newUserExpiresAt = calculateExpirationDate(plan, null);
+    console.log('New user expiration date:', newUserExpiresAt);
 
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
       email: customerEmail,
@@ -710,7 +749,7 @@ Obrigado por continuar com a gente! 💚`;
           phone: customerPhone || null,
           full_name: customerName || null,
           subscription_plan: plan,
-          subscription_expires_at: expiresAt,
+          subscription_expires_at: newUserExpiresAt,
           is_active: true,
         })
         .eq('id', newUser.user.id);
@@ -815,7 +854,7 @@ Qualquer dúvida, estamos à disposição.`;
         userId: newUser.user.id,
         email: customerEmail,
         plan,
-        expiresAt
+        expiresAt: newUserExpiresAt
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
