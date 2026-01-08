@@ -136,10 +136,9 @@ export default function PriceTableDialog({
       send_notification: formData.send_notification,
     });
 
+    // O Loans.tsx controla o fechamento do diálogo e abertura do prompt de comprovante
+    // Reset do formulário após sucesso
     if (result.data) {
-      toast.success('Empréstimo Tabela Price criado com sucesso!');
-      onOpenChange(false);
-      // Reset form
       setFormData({
         client_id: '',
         principal_amount: '',

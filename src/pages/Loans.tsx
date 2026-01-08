@@ -12735,7 +12735,15 @@ export default function Loans() {
                 paymentType: 'installment',
               });
               setLoanCreatedInstallmentDates(loanData.installment_dates);
-              setIsLoanCreatedOpen(true);
+              
+              // Fechar o diálogo Price e mostrar toast
+              setIsPriceTableDialogOpen(false);
+              toast.success('Empréstimo Tabela Price criado com sucesso!');
+              
+              // Pequeno delay para garantir que o diálogo Price feche antes de abrir o prompt
+              setTimeout(() => {
+                setIsLoanCreatedOpen(true);
+              }, 100);
             }
             
             return result;
