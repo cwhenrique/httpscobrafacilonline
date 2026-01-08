@@ -118,43 +118,20 @@ interface GenerateInstallmentListOptions {
  * - Para empréstimos com > 10 parcelas: mostra todas pagas + até 5 próximas em aberto
  */
 export const generateInstallmentStatusList = (options: GenerateInstallmentListOptions): string => {
-  const { installmentDates, paidCount, maxOpenToShow = 5 } = options;
+  const { installmentDates, paidCount } = options;
   
   if (!installmentDates || installmentDates.length === 0) {
     return '';
   }
   
-  const totalInstallments = installmentDates.length;
-  const isHighFrequency = totalInstallments > 10;
-  
   let message = `📊 *STATUS DAS PARCELAS:*\n`;
-  
-  let shownCount = 0;
-  let hiddenCount = 0;
   
   for (let i = 0; i < installmentDates.length; i++) {
     const installmentNum = i + 1;
     const dateStr = installmentDates[i];
     const { emoji, status } = getInstallmentStatus(installmentNum, paidCount, dateStr);
     
-    const isPaid = installmentNum <= paidCount;
-    const isOpen = !isPaid;
-    
-    // Para empréstimos com muitas parcelas, limitar as em aberto
-    if (isHighFrequency && isOpen) {
-      const openIndex = installmentNum - paidCount;
-      if (openIndex > maxOpenToShow) {
-        hiddenCount++;
-        continue;
-      }
-    }
-    
     message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
-    shownCount++;
-  }
-  
-  if (hiddenCount > 0) {
-    message += `   _...e mais ${hiddenCount} parcela${hiddenCount > 1 ? 's' : ''}_\n`;
   }
   
   return message;
