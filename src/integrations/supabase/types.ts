@@ -1347,6 +1347,7 @@ export type Database = {
         Returns: boolean
       }
       is_active_employee: { Args: { _user_id: string }; Returns: boolean }
+      payment_created_second: { Args: { ts: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "user"
