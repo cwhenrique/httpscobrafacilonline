@@ -12736,14 +12736,12 @@ export default function Loans() {
               });
               setLoanCreatedInstallmentDates(loanData.installment_dates);
               
-              // Fechar o diálogo Price e mostrar toast
+              // Abrir o prompt de comprovante PRIMEIRO (mesmo padrão dos outros tipos)
+              setIsLoanCreatedOpen(true);
+              
+              // Depois fechar o diálogo Price e mostrar toast
               setIsPriceTableDialogOpen(false);
               toast.success('Empréstimo Tabela Price criado com sucesso!');
-              
-              // Pequeno delay para garantir que o diálogo Price feche antes de abrir o prompt
-              setTimeout(() => {
-                setIsLoanCreatedOpen(true);
-              }, 100);
             }
             
             return result;
