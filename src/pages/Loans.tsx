@@ -1819,14 +1819,15 @@ export default function Loans() {
       } else if (formData.interest_mode === 'compound') {
         // Juros compostos puros: M = P × (1 + i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
-        const total = principal + totalInterest;
-        setInstallmentValue((total / numInstallments).toFixed(2));
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
       }
       const total = principal + totalInterest;
-      setInstallmentValue((total / numInstallments).toFixed(2));
+      // Validar antes de setar para evitar NaN/Infinity
+      if (isFinite(total) && !isNaN(total) && numInstallments > 0) {
+        setInstallmentValue((total / numInstallments).toFixed(2));
+      }
     }
   }, [formData.principal_amount, formData.installments, formData.interest_rate, formData.interest_mode, formData.payment_type, isManuallyEditingInstallment]);
   
@@ -2767,11 +2768,23 @@ export default function Loans() {
         principalPerInstallment = principal / numInstallments;
         interestPerInstallment = valuePerInstallment - principalPerInstallment;
       } else {
-        // Calculate from interest rate
+        // Calculate from interest rate - supporting all interest modes
         const rate = parseFloat(formData.interest_rate) || 0;
-        interestPerInstallment = formData.interest_mode === 'per_installment'
-          ? principal * (rate / 100)
-          : (principal * (rate / 100)) / numInstallments;
+        let totalInterestCalc: number;
+        if (formData.interest_mode === 'per_installment') {
+          totalInterestCalc = principal * (rate / 100) * numInstallments;
+        } else if (formData.interest_mode === 'compound') {
+          // Juros compostos: M = P × (1 + i)^n - P
+          totalInterestCalc = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        } else {
+          // on_total
+          totalInterestCalc = principal * (rate / 100);
+        }
+        // Validar para evitar NaN/Infinity
+        if (!isFinite(totalInterestCalc) || isNaN(totalInterestCalc)) {
+          totalInterestCalc = 0;
+        }
+        interestPerInstallment = totalInterestCalc / numInstallments;
         principalPerInstallment = principal / numInstallments;
         valuePerInstallment = principalPerInstallment + interestPerInstallment;
       }
@@ -2819,10 +2832,23 @@ export default function Loans() {
           principalPerInstallment = principal / numInstallments;
           interestPerInstallment = valuePerInstallment - principalPerInstallment;
         } else {
+          // Calculate from interest rate - supporting all interest modes
           const rate = parseFloat(formData.interest_rate) || 0;
-          interestPerInstallment = formData.interest_mode === 'per_installment'
-            ? principal * (rate / 100)
-            : (principal * (rate / 100)) / numInstallments;
+          let totalInterestCalc: number;
+          if (formData.interest_mode === 'per_installment') {
+            totalInterestCalc = principal * (rate / 100) * numInstallments;
+          } else if (formData.interest_mode === 'compound') {
+            // Juros compostos: M = P × (1 + i)^n - P
+            totalInterestCalc = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+          } else {
+            // on_total
+            totalInterestCalc = principal * (rate / 100);
+          }
+          // Validar para evitar NaN/Infinity
+          if (!isFinite(totalInterestCalc) || isNaN(totalInterestCalc)) {
+            totalInterestCalc = 0;
+          }
+          interestPerInstallment = totalInterestCalc / numInstallments;
           principalPerInstallment = principal / numInstallments;
           valuePerInstallment = principalPerInstallment + interestPerInstallment;
         }
@@ -2962,6 +2988,14 @@ export default function Loans() {
         // on_total
         totalInterest = principal * (rate / 100);
       }
+    }
+    
+    // VALIDAÇÃO: Verificar se totalInterest é válido antes de criar
+    if (!isFinite(totalInterest) || isNaN(totalInterest)) {
+      console.error('[LOAN_ERROR] Valor de juros inválido:', { totalInterest, principal, rate, numInstallments, interest_mode: formData.interest_mode });
+      toast.error('Erro no cálculo de juros. Verifique a taxa e o número de parcelas.');
+      setIsCreatingLoan(false);
+      return;
     }
     
     const result = await createLoan({
