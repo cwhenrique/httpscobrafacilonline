@@ -32,7 +32,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
 import { motion } from 'framer-motion';
@@ -298,35 +298,65 @@ export default function ReportsLoans() {
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
-    // Falta Receber - INSTALLMENTS DUE IN PERIOD
+    // Helper para extrair pagamentos parciais das notas
+    const getPartialPaymentsFromNotes = (notes: string | null | undefined): Record<number, number> => {
+      if (!notes) return {};
+      const partialPayments: Record<number, number> = {};
+      const regex = /\[PARTIAL_PAID:(\d+):([\d.]+)\]/g;
+      let match;
+      while ((match = regex.exec(notes)) !== null) {
+        const index = parseInt(match[1], 10);
+        const amount = parseFloat(match[2]);
+        partialPayments[index] = (partialPayments[index] || 0) + amount;
+      }
+      return partialPayments;
+    };
+    
+    // Falta Receber - INSTALLMENTS DUE IN PERIOD (lógica corrigida)
     const pendingAmount = allActiveLoans.reduce((sum, loan) => {
+      const isDaily = loan.payment_type === 'daily';
+      const isInstallment = loan.payment_type === 'installment' || 
+                            loan.payment_type === 'weekly' || 
+                            loan.payment_type === 'biweekly';
       const installmentDates = (loan as any).installment_dates || [];
-      const payments = (loan as any).payments || [];
-      const paidCount = payments.length;
       
-      if (installmentDates.length > 0) {
-        // Empréstimos parcelados (diário, semanal, etc)
-        const totalAmount = Number(loan.principal_amount) + Number(loan.total_interest || 0);
-        const installmentValue = totalAmount / installmentDates.length;
+      if ((isDaily || isInstallment) && installmentDates.length > 0) {
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const numInstallments = Number(loan.installments) || installmentDates.length;
+        
+        // Calcular valor por parcela corretamente
+        let installmentValue: number;
+        if (isDaily) {
+          // Para diário, total_interest É o valor da parcela
+          installmentValue = Number(loan.total_interest) || 0;
+        } else if (loan.interest_mode === 'on_total') {
+          const totalInterest = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
+          installmentValue = (Number(loan.principal_amount) + totalInterest) / numInstallments;
+        } else {
+          const totalInterest = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments;
+          installmentValue = (Number(loan.principal_amount) + totalInterest) / numInstallments;
+        }
         
         let pendingInPeriod = 0;
         installmentDates.forEach((dateStr: string, index: number) => {
-          const isPaid = index < paidCount;
-          if (!isPaid) {
-            const dueDate = new Date(dateStr);
+          const dueDate = parseISO(dateStr);
+          const paidAmount = partialPayments[index] || 0;
+          const isInstallmentPaid = paidAmount >= installmentValue * 0.99;
+          
+          if (!isInstallmentPaid) {
             if (dateRange?.from && dateRange?.to) {
               if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
-                pendingInPeriod += installmentValue;
+                pendingInPeriod += Math.max(0, installmentValue - paidAmount);
               }
             } else {
-              pendingInPeriod += installmentValue;
+              pendingInPeriod += Math.max(0, installmentValue - paidAmount);
             }
           }
         });
         return sum + pendingInPeriod;
       } else {
         // Empréstimo com parcela única
-        const dueDate = new Date(loan.due_date);
+        const dueDate = parseISO(loan.due_date);
         if (dateRange?.from && dateRange?.to) {
           if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
             return sum + Number(loan.remaining_balance || 0);
