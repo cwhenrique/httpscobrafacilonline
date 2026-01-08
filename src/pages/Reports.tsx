@@ -237,6 +237,18 @@ export default function Reports() {
     });
   }, [safeContracts, startDate, endDate]);
 
+  // Helper function to get partial payments from notes
+  const getPartialPaymentsFromNotes = (notes: string | null): Record<number, number> => {
+    const payments: Record<number, number> = {};
+    const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+    for (const match of matches) {
+      const index = parseInt(match[1], 10);
+      const amount = parseFloat(match[2]);
+      payments[index] = (payments[index] || 0) + amount;
+    }
+    return payments;
+  };
+
   // CONSOLIDATED STATS
   const consolidatedStats = useMemo(() => {
     // === MÉTRICAS DE SALDO (usando TODOS os empréstimos ativos) ===
@@ -254,7 +266,7 @@ export default function Reports() {
     // === MÉTRICAS DE FLUXO (usando empréstimos do período) ===
     const totalLoanedInPeriod = filteredLoans.reduce((sum, l) => sum + l.principal_amount, 0);
 
-    // Cálculo de juros baseado nos empréstimos ativos (para saldo total)
+    // Cálculo de juros baseado nos empréstimos ativos (para saldo total e breakdown)
     let totalLoanInterest = 0;
     activeLoans.forEach(loan => {
       const isDaily = loan.payment_type === 'daily';
@@ -273,6 +285,51 @@ export default function Reports() {
     const prevTotalLoaned = prevPeriodLoans.reduce((sum, l) => sum + l.principal_amount, 0);
     const loanedVariation = prevTotalLoaned > 0 ? ((totalLoanedInPeriod - prevTotalLoaned) / prevTotalLoaned) * 100 : 0;
 
+    // === TOTAL A RECEBER NO PERÍODO (baseado em vencimentos) ===
+    
+    // Loan installments due in period
+    let loansDueInPeriod = 0;
+    activeLoans.forEach(loan => {
+      const isDaily = loan.payment_type === 'daily';
+      const isInstallment = loan.payment_type === 'installment' || loan.payment_type === 'weekly' || loan.payment_type === 'biweekly';
+      const installmentDates = Array.isArray(loan.installment_dates) ? loan.installment_dates : [];
+      
+      if ((isDaily || isInstallment) && installmentDates.length > 0) {
+        // Empréstimo parcelado - verificar cada parcela
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const numInstallments = loan.installments || 1;
+        
+        // Calcular valor por parcela
+        let installmentValue: number;
+        if (isDaily) {
+          installmentValue = loan.interest_rate || 0;
+        } else if (loan.interest_mode === 'on_total') {
+          const totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+          installmentValue = (loan.principal_amount + totalInterest) / numInstallments;
+        } else {
+          const totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+          installmentValue = (loan.principal_amount + totalInterest) / numInstallments;
+        }
+        
+        installmentDates.forEach((dateStr, index) => {
+          const dueDate = parseISO(dateStr as string);
+          const paidAmount = partialPayments[index] || 0;
+          const isInstallmentPaid = paidAmount >= installmentValue * 0.99;
+          
+          // Se a parcela não está paga e vence no período
+          if (!isInstallmentPaid && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+            loansDueInPeriod += Math.max(0, installmentValue - paidAmount);
+          }
+        });
+      } else {
+        // Empréstimo de pagamento único - verificar due_date
+        const dueDate = parseISO(loan.due_date);
+        if (loan.status !== 'paid' && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+          loansDueInPeriod += loan.remaining_balance;
+        }
+      }
+    });
+
     // === PAGAMENTOS RECEBIDOS NO PERÍODO (filtrados por paid_date) ===
     
     // Loan payments in period
@@ -283,7 +340,7 @@ export default function Reports() {
     });
     const totalLoanReceivedInPeriod = loanPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
     
-    // Product payments in period
+    // Product payments in period (received)
     const productPaymentsInPeriod = safeProductPayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
       const paidDate = parseISO(p.paid_date);
@@ -291,7 +348,15 @@ export default function Reports() {
     });
     const totalProductReceivedInPeriod = productPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
     
-    // Vehicle payments in period
+    // Product payments DUE in period (pending with due_date in period)
+    const productPaymentsDueInPeriod = safeProductPayments.filter(p => {
+      if (p.status !== 'pending') return false;
+      const dueDate = parseISO(p.due_date);
+      return isWithinInterval(dueDate, { start: startDate, end: endDate });
+    });
+    const totalProductDueInPeriod = productPaymentsDueInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Vehicle payments in period (received)
     const vehiclePaymentsInPeriod = safeVehiclePayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
       const paidDate = parseISO(p.paid_date);
@@ -299,13 +364,33 @@ export default function Reports() {
     });
     const totalVehicleReceivedInPeriod = vehiclePaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
     
-    // Contract payments in period
+    // Vehicle payments DUE in period (pending with due_date in period)
+    const vehiclePaymentsDueInPeriod = safeVehiclePayments.filter(p => {
+      if (p.status !== 'pending') return false;
+      const dueDate = parseISO(p.due_date);
+      return isWithinInterval(dueDate, { start: startDate, end: endDate });
+    });
+    const totalVehicleDueInPeriod = vehiclePaymentsDueInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Contract payments in period (received)
     const contractPaymentsInPeriod = safeContractPayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
       const paidDate = parseISO(p.paid_date);
       return isWithinInterval(paidDate, { start: startDate, end: endDate });
     });
     const totalContractReceivedInPeriod = contractPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Contract payments DUE in period (pending with due_date in period - only receivable contracts)
+    const receivableContracts = safeContracts.filter(c => c.bill_type === 'receivable');
+    const receivableContractIds = new Set(receivableContracts.map(c => c.id));
+    
+    const contractPaymentsDueInPeriod = safeContractPayments.filter(p => {
+      if (p.status !== 'pending') return false;
+      if (!receivableContractIds.has(p.contract_id)) return false;
+      const dueDate = parseISO(p.due_date);
+      return isWithinInterval(dueDate, { start: startDate, end: endDate });
+    });
+    const totalContractDueInPeriod = contractPaymentsDueInPeriod.reduce((sum, p) => sum + p.amount, 0);
 
     // Total received ALL TIME (for balance metrics)
     const totalLoanReceivedAllTime = activeLoans.reduce((sum, l) => sum + (l.total_paid || 0), 0);
@@ -313,11 +398,12 @@ export default function Reports() {
     // Products (for overdue calculation)
     const totalProductSold = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
     const totalProductCost = filteredSales.reduce((sum, s) => sum + ((s as any).cost_value || 0), 0);
+    const today = new Date();
     const overdueProducts = filteredSales.filter(s => {
       return safeProductPayments.some(p => 
         p.product_sale_id === s.id && 
         p.status === 'pending' && 
-        new Date(p.due_date) < new Date()
+        new Date(p.due_date) < today
       );
     });
     const totalProductOverdue = overdueProducts.reduce((sum, s) => sum + s.remaining_balance, 0);
@@ -327,18 +413,11 @@ export default function Reports() {
     const prevTotalProductSold = prevPeriodSales.reduce((sum, s) => sum + s.total_amount, 0);
     const productSoldVariation = prevTotalProductSold > 0 ? ((totalProductSold - prevTotalProductSold) / prevTotalProductSold) * 100 : 0;
 
-    // Contracts (receivable only for "to receive") - Agora calculando com base nos pagamentos reais
-    const receivableContracts = filteredContracts.filter(c => c.bill_type === 'receivable');
-    const receivableContractIds = new Set(receivableContracts.map(c => c.id));
-    
-    // Filtrar pagamentos apenas dos contratos a receber
+    // Contracts (for overdue calculation)
     const receivableContractPayments = safeContractPayments.filter(p => receivableContractIds.has(p.contract_id));
-    
-    // Total a receber = soma de todos os pagamentos pendentes + pagos
     const totalContractReceivable = receivableContractPayments.reduce((sum, p) => sum + p.amount, 0);
     
     // Total em atraso = soma dos pagamentos pendentes com data de vencimento no passado
-    const today = new Date();
     const overdueContractPayments = receivableContractPayments.filter(p => 
       p.status === 'pending' && new Date(p.due_date) < today
     );
@@ -355,7 +434,7 @@ export default function Reports() {
       return safeVehiclePayments.some(p => 
         p.vehicle_id === v.id && 
         p.status === 'pending' && 
-        new Date(p.due_date) < new Date()
+        new Date(p.due_date) < today
       );
     });
     const totalVehicleOverdue = overdueVehiclesList.reduce((sum, v) => sum + v.remaining_balance, 0);
@@ -365,8 +444,8 @@ export default function Reports() {
     const prevTotalVehicleSold = prevPeriodVehicles.reduce((sum, v) => sum + v.purchase_value, 0);
     const vehicleSoldVariation = prevTotalVehicleSold > 0 ? ((totalVehicleSold - prevTotalVehicleSold) / prevTotalVehicleSold) * 100 : 0;
 
-    // Grand totals - usando métricas de SALDO para "falta receber"
-    const totalToReceive = faltaReceber + totalLoanInterest + totalProductSold + totalContractReceivable + totalVehicleSold;
+    // Grand totals - TOTAL A RECEBER NO PERÍODO (baseado em vencimentos)
+    const totalToReceive = loansDueInPeriod + totalProductDueInPeriod + totalContractDueInPeriod + totalVehicleDueInPeriod;
     
     // TOTAL RECEBIDO NO PERÍODO (filtrado por paid_date)
     const totalReceivedInPeriod = totalLoanReceivedInPeriod + totalProductReceivedInPeriod + 
