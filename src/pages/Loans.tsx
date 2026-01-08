@@ -457,7 +457,7 @@ export default function Loans() {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [filterByEmployee, setFilterByEmployee] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('active');
   const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
   const [customOverdueDays, setCustomOverdueDays] = useState<string>('');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
@@ -2261,6 +2261,9 @@ export default function Loans() {
     if (statusFilter === 'all') return true;
     
     const { isPaid, isRenegotiated, isOverdue } = getLoanStatus(loan);
+    
+    // Filtro "Em Aberto" - mostra todos EXCETO quitados
+    if (statusFilter === 'active') return !isPaid;
     const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]') && !isPaid;
     
     switch (statusFilter) {
@@ -6294,7 +6297,7 @@ export default function Loans() {
           </TooltipProvider>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('all'); setOverdueDaysFilter(null); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('active'); setOverdueDaysFilter(null); }} className="w-full">
           <TabsList className="mb-4 grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="regular" className="gap-1 sm:gap-2 text-xs sm:text-sm">
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -6361,6 +6364,22 @@ export default function Loans() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
+                        variant={statusFilter === 'active' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => { setStatusFilter('active'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
+                        className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'active' ? 'bg-blue-600' : 'border-blue-600 text-blue-600 hover:bg-blue-600/10'}`}
+                      >
+                        Em Aberto
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Todos os empréstimos exceto os quitados</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
                         variant={statusFilter === 'all' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => { setStatusFilter('all'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
@@ -6370,7 +6389,7 @@ export default function Loans() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                      <p>Exibe todos os empréstimos cadastrados</p>
+                      <p>Exibe todos os empréstimos incluindo quitados</p>
                     </TooltipContent>
                   </Tooltip>
                   
