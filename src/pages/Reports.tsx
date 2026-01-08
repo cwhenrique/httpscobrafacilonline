@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DollarSign, TrendingUp, AlertTriangle, Banknote, Package, Car, ChevronDown, Filter, Users, CheckCircle, Clock, Percent, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, isWithinInterval, differenceInDays, addDays, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getTotalDailyPenalties } from '@/lib/calculations';
@@ -278,7 +278,7 @@ export default function Reports() {
     // Loan payments in period
     const loanPaymentsInPeriod = loanPayments.filter(p => {
       if (!p.payment_date) return false;
-      const paidDate = new Date(p.payment_date);
+      const paidDate = parseISO(p.payment_date);
       return isWithinInterval(paidDate, { start: startDate, end: endDate });
     });
     const totalLoanReceivedInPeriod = loanPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
@@ -286,7 +286,7 @@ export default function Reports() {
     // Product payments in period
     const productPaymentsInPeriod = safeProductPayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
-      const paidDate = new Date(p.paid_date);
+      const paidDate = parseISO(p.paid_date);
       return isWithinInterval(paidDate, { start: startDate, end: endDate });
     });
     const totalProductReceivedInPeriod = productPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
@@ -294,7 +294,7 @@ export default function Reports() {
     // Vehicle payments in period
     const vehiclePaymentsInPeriod = safeVehiclePayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
-      const paidDate = new Date(p.paid_date);
+      const paidDate = parseISO(p.paid_date);
       return isWithinInterval(paidDate, { start: startDate, end: endDate });
     });
     const totalVehicleReceivedInPeriod = vehiclePaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
@@ -302,7 +302,7 @@ export default function Reports() {
     // Contract payments in period
     const contractPaymentsInPeriod = safeContractPayments.filter(p => {
       if (!p.paid_date || p.status !== 'paid') return false;
-      const paidDate = new Date(p.paid_date);
+      const paidDate = parseISO(p.paid_date);
       return isWithinInterval(paidDate, { start: startDate, end: endDate });
     });
     const totalContractReceivedInPeriod = contractPaymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
