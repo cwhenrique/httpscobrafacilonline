@@ -775,6 +775,7 @@ export default function Loans() {
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const paymentLockRef = useRef(false); // Bloqueio instantâneo para prevenir double-click
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClientData, setNewClientData] = useState({
@@ -3122,13 +3123,21 @@ export default function Loans() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLoanId || isPaymentSubmitting) return;
     
+    // PROTEÇÃO ANTI-DUPLICAÇÃO: Bloqueio instantâneo com ref (não espera setState)
+    if (paymentLockRef.current || isPaymentSubmitting) {
+      console.warn('[ANTI-DUPLICATE] Pagamento já em processamento, ignorando clique');
+      return;
+    }
+    if (!selectedLoanId) return;
+    
+    paymentLockRef.current = true;
     setIsPaymentSubmitting(true);
     
     try {
     const selectedLoan = loans.find(l => l.id === selectedLoanId);
     if (!selectedLoan) {
+      paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
       return;
     }
@@ -3142,13 +3151,14 @@ export default function Loans() {
     
     if (freshLoanError || !freshLoanData) {
       toast.error('Erro ao verificar empréstimo');
+      paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
       return;
     }
     
-    // Verificar se empréstimo já está quitado
     if (freshLoanData.status === 'paid' || freshLoanData.remaining_balance <= 0.01) {
       toast.error('Este empréstimo já está quitado');
+      paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
       await fetchLoans();
       setIsPaymentDialogOpen(false);
@@ -3262,6 +3272,7 @@ export default function Loans() {
       
       if (alreadyPaid.length > 0) {
         toast.error(`Parcela(s) ${alreadyPaid.map(i => i + 1).join(', ')} já está(ão) paga(s)`);
+        paymentLockRef.current = false;
         setIsPaymentSubmitting(false);
         await fetchLoans();
         setIsPaymentDialogOpen(false);
@@ -3336,11 +3347,13 @@ export default function Loans() {
       const receivedAmount = parseFloat(discountSettlementData.receivedAmount) || 0;
       if (receivedAmount <= 0) {
         toast.error('Informe o valor recebido');
+        paymentLockRef.current = false;
         setIsPaymentSubmitting(false);
         return;
       }
       if (receivedAmount > selectedLoan.remaining_balance) {
         toast.error('O valor recebido não pode ser maior que o saldo devedor');
+        paymentLockRef.current = false;
         setIsPaymentSubmitting(false);
         return;
       }
@@ -3360,6 +3373,7 @@ export default function Loans() {
       if (discountPaymentResult.error) {
         console.error('[DISCOUNT_PAYMENT_ERROR] Falha ao registrar quitação com desconto:', discountPaymentResult.error);
         toast.error('Erro ao registrar pagamento com desconto');
+        paymentLockRef.current = false;
         setIsPaymentSubmitting(false);
         return;
       }
@@ -3708,6 +3722,7 @@ export default function Loans() {
           notes: selectedLoan.notes || ''
         }).eq('id', selectedLoanId);
         toast.error('Erro ao registrar amortização');
+        paymentLockRef.current = false;
         setIsPaymentSubmitting(false);
         return;
       }
@@ -3793,6 +3808,13 @@ export default function Loans() {
         }).eq('id', selectedLoanId);
       }
       
+      // Se foi duplicata, apenas atualizar dados e fechar (não mostrar erro genérico)
+      if ((paymentResult as any).duplicate) {
+        await fetchLoans();
+        setIsPaymentDialogOpen(false);
+      }
+      
+      paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
       return; // toast.error já foi mostrado no registerPayment
     }
@@ -3939,6 +3961,7 @@ export default function Loans() {
     setSelectedLoanId(null);
     setPaymentData({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), new_due_date: '', payment_type: 'partial', selected_installments: [], partial_installment_index: null, send_notification: false, is_advance_payment: false, recalculate_interest: false });
     } finally {
+      paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
     }
   };

@@ -247,8 +247,30 @@ export function useLoans() {
     payment_date: string;
     notes?: string;
     send_notification?: boolean;
-  }) => {
+  }): Promise<{ data?: any; error?: Error; duplicate?: boolean }> => {
     if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+
+    // PROTEÇÃO ANTI-DUPLICAÇÃO: Verificar pagamento idêntico nos últimos 10 segundos
+    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+    
+    const { data: recentDuplicate } = await supabase
+      .from('loan_payments')
+      .select('id, created_at')
+      .eq('loan_id', payment.loan_id)
+      .eq('amount', payment.amount)
+      .gte('created_at', tenSecondsAgo)
+      .maybeSingle();
+    
+    if (recentDuplicate) {
+      console.warn('[ANTI-DUPLICATE] Pagamento duplicado detectado:', {
+        loan_id: payment.loan_id,
+        amount: payment.amount,
+        existing_payment: recentDuplicate.id,
+        created_at: recentDuplicate.created_at
+      });
+      toast.error('Pagamento já foi registrado. Aguarde alguns segundos.');
+      return { error: new Error('Pagamento duplicado detectado'), duplicate: true };
+    }
 
     // Extract send_notification before inserting (not a DB column)
     const { send_notification, ...paymentData } = payment;
