@@ -6,7 +6,7 @@ import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, getNextUnpaidInstallmentDate } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FinancialChart, InterestChart } from '@/components/dashboard/FinancialChart';
@@ -460,7 +460,7 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{loan.client?.full_name}</p>
                       <p className="text-sm text-muted-foreground">
-                        Vence em {formatDate(loan.due_date)}
+                        Vence em {formatDate(getNextUnpaidInstallmentDate(loan)?.toISOString().split('T')[0] || loan.due_date)}
                       </p>
                     </div>
                     <div className="text-right">
