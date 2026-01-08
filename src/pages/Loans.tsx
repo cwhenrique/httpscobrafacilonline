@@ -2440,11 +2440,23 @@ export default function Loans() {
     setIsDailyDialogOpen(true);
   };
 
+  // 🆕 State para prevenir cliques duplos durante criação de empréstimo
+  const [isCreatingLoan, setIsCreatingLoan] = useState(false);
+
   const handleDailySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO
+    if (isCreatingLoan) {
+      console.log('[ANTI-DUPLICATE] Bloqueando submissão duplicada de empréstimo diário');
+      return;
+    }
+    setIsCreatingLoan(true);
+    
+    try {
     if (!formData.client_id) {
       toast.error('Selecione um cliente');
+      setIsCreatingLoan(false);
       return;
     }
     
@@ -2655,8 +2667,8 @@ export default function Loans() {
           currentNotes += ` [INTEREST_NOTES:${historicalInterestNotes.trim()}]`;
         }
         
-        // Registrar pagamento único de juros históricos
-        await registerPayment({
+        // 🆕 CORREÇÃO: Verificar resultado do registerPayment para juros históricos
+        const histInterestResult = await registerPayment({
           loan_id: loanId,
           amount: parseFloat(historicalInterestReceived),
           principal_paid: 0,
@@ -2664,6 +2676,11 @@ export default function Loans() {
           payment_date: formData.start_date,
           notes: `[JUROS_HISTORICO] Total de juros antigos já recebidos`,
         });
+        
+        if (histInterestResult.error) {
+          console.error('[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros históricos:', histInterestResult.error);
+          toast.error('Erro ao registrar juros históricos');
+        }
         
         // Atualizar notas do empréstimo
         await supabase
@@ -2702,6 +2719,12 @@ export default function Loans() {
     
     setIsDailyDialogOpen(false);
     resetForm();
+    } catch (error) {
+      console.error('[DAILY_LOAN_ERROR] Erro ao criar empréstimo diário:', error);
+      toast.error('Erro ao criar empréstimo');
+    } finally {
+      setIsCreatingLoan(false);
+    }
   };
 
   // Calculate past installments and their value for historical contracts
@@ -2841,9 +2864,18 @@ export default function Loans() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO
+    if (isCreatingLoan) {
+      console.log('[ANTI-DUPLICATE] Bloqueando submissão duplicada de empréstimo');
+      return;
+    }
+    setIsCreatingLoan(true);
+    
+    try {
     // Validação de campos obrigatórios
     if (!formData.client_id) {
       toast.error('Selecione um cliente');
+      setIsCreatingLoan(false);
       return;
     }
     
@@ -3022,8 +3054,8 @@ export default function Loans() {
         currentNotes += ` [INTEREST_NOTES:${historicalInterestNotes.trim()}]`;
       }
       
-      // Registrar pagamento único de juros históricos
-      await registerPayment({
+      // 🆕 CORREÇÃO: Verificar resultado do registerPayment para juros históricos
+      const histInterestResult = await registerPayment({
         loan_id: loanId,
         amount: parseFloat(historicalInterestReceived),
         principal_paid: 0,
@@ -3032,6 +3064,12 @@ export default function Loans() {
         notes: `[JUROS_HISTORICO] Total de juros antigos já recebidos`,
       });
       
+      if (histInterestResult.error) {
+        console.error('[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros históricos:', histInterestResult.error);
+        toast.error('Erro ao registrar juros históricos');
+        // Continua mesmo com erro para salvar as notas
+      }
+      
       // Atualizar notas do empréstimo
       await supabase
         .from('loans')
@@ -3039,7 +3077,9 @@ export default function Loans() {
         .eq('id', loanId);
       
       await fetchLoans();
-      toast.success(`Juros históricos de ${formatCurrency(parseFloat(historicalInterestReceived))} registrados`);
+      if (!histInterestResult.error) {
+        toast.success(`Juros históricos de ${formatCurrency(parseFloat(historicalInterestReceived))} registrados`);
+      }
     }
     
     // Show loan created receipt prompt
@@ -3069,6 +3109,12 @@ export default function Loans() {
     
     setIsDialogOpen(false);
     resetForm();
+    } catch (error) {
+      console.error('[LOAN_ERROR] Erro ao criar empréstimo:', error);
+      toast.error('Erro ao criar empréstimo');
+    } finally {
+      setIsCreatingLoan(false);
+    }
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -3298,8 +3344,8 @@ export default function Loans() {
       
       const discountAmount = selectedLoan.remaining_balance - receivedAmount;
       
-      // Registrar pagamento com o valor recebido
-      await registerPayment({
+      // 🆕 CORREÇÃO: Verificar resultado do registerPayment para pagamento com desconto
+      const discountPaymentResult = await registerPayment({
         loan_id: selectedLoanId,
         amount: receivedAmount,
         principal_paid: receivedAmount,
@@ -3307,6 +3353,13 @@ export default function Loans() {
         payment_date: paymentData.payment_date,
         notes: `Quitação com desconto de ${formatCurrency(discountAmount)} [DISCOUNT_SETTLEMENT:${discountAmount.toFixed(2)}]`,
       });
+      
+      if (discountPaymentResult.error) {
+        console.error('[DISCOUNT_PAYMENT_ERROR] Falha ao registrar quitação com desconto:', discountPaymentResult.error);
+        toast.error('Erro ao registrar pagamento com desconto');
+        setIsPaymentSubmitting(false);
+        return;
+      }
       
       // Forçar remaining_balance = 0 e status = 'paid'
       const existingNotes = selectedLoan.notes || '';
@@ -3632,8 +3685,8 @@ export default function Loans() {
         `Economia: ${formatCurrency(interestSavings)} | ` +
         `[AMORT_REVERSAL:${previousAmortizations.toFixed(2)}:${previousTotalInterest.toFixed(2)}:${previousRemainingBalance.toFixed(2)}]`;
       
-      // Registrar na tabela loan_payments para aparecer no histórico
-      await registerPayment({
+      // 🆕 CORREÇÃO: Verificar resultado do registerPayment para amortização
+      const amortPaymentResult = await registerPayment({
         loan_id: selectedLoanId,
         amount: amount,
         payment_date: paymentData.payment_date,
@@ -3641,6 +3694,20 @@ export default function Loans() {
         principal_paid: amount, // Amortização reduz o principal
         interest_paid: 0
       });
+      
+      if (amortPaymentResult.error) {
+        console.error('[AMORTIZATION_ERROR] Falha ao registrar amortização:', amortPaymentResult.error);
+        // Reverter as alterações feitas no empréstimo
+        await supabase.from('loans').update({ 
+          principal_amount: selectedLoan.principal_amount,
+          total_interest: previousTotalInterest,
+          remaining_balance: previousRemainingBalance,
+          notes: selectedLoan.notes || ''
+        }).eq('id', selectedLoanId);
+        toast.error('Erro ao registrar amortização');
+        setIsPaymentSubmitting(false);
+        return;
+      }
       
       toast.success(
         `Amortização registrada! Economia de ${formatCurrency(interestSavings)} em juros. ` +
@@ -4159,8 +4226,8 @@ export default function Loans() {
         safeRemaining = isNaN(manualRemaining) ? originalRemaining : manualRemaining;
       }
 
-      // Registrar pagamento apenas dos juros (principal_pago continua 0)
-      await registerPayment({
+      // 🆕 CORREÇÃO: Verificar resultado do registerPayment para pagamento de juros
+      const interestPaymentResult = await registerPayment({
         loan_id: selectedLoanId,
         amount: interestPaid,
         principal_paid: 0, // Nunca reduz principal neste fluxo
@@ -4169,6 +4236,12 @@ export default function Loans() {
         notes: `[INTEREST_ONLY_PAYMENT] Pagamento de juros apenas. Valor restante: R$ ${safeRemaining.toFixed(2)}`,
         send_notification: false, // Nunca enviar automaticamente - usar tela de comprovante
       });
+      
+      if (interestPaymentResult.error) {
+        console.error('[INTEREST_ONLY_ERROR] Falha ao registrar pagamento de juros:', interestPaymentResult.error);
+        toast.error('Erro ao registrar pagamento de juros');
+        return;
+      }
       
       // Atualizar notas e nova data de vencimento
       let notesText = loan.notes || '';
