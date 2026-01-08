@@ -2576,12 +2576,14 @@ export default function Loans() {
         const principalPerInstallment = principalAmount / numDays;
         const interestPerInstallment = dailyAmount - principalPerInstallment;
         
-        // Registrar cada parcela selecionada como pagamento
+        // 🆕 CORREÇÃO: Verificar resultado de cada registerPayment antes de adicionar tags
+        const successfulPayments: number[] = [];
+        
         for (const idx of selectedPastInstallments) {
           const installment = installmentsList.find(i => i.index === idx);
           if (!installment) continue;
           
-          await registerPayment({
+          const paymentResult = await registerPayment({
             loan_id: loanId,
             amount: dailyAmount,
             principal_paid: principalPerInstallment,
@@ -2589,16 +2591,21 @@ export default function Loans() {
             payment_date: installment.date,
             notes: `[CONTRATO_ANTIGO] Parcela ${idx + 1} - ${format(new Date(installment.date + 'T12:00:00'), 'dd/MM/yyyy')}`,
           });
+          
+          // Só adicionar à lista de sucesso se o pagamento foi inserido
+          if (!paymentResult.error) {
+            successfulPayments.push(idx);
+          } else {
+            console.error(`[HISTORICAL_PAYMENT_ERROR] Falha ao registrar parcela ${idx + 1}:`, paymentResult.error);
+          }
         }
         
-        // Adicionar tags PARTIAL_PAID nas notas
-        const partialPaidTags = selectedPastInstallments
-          .map(idx => {
-            return `[PARTIAL_PAID:${idx}:${dailyAmount}]`;
-          })
-          .join(' ');
-        
-        if (partialPaidTags) {
+        // 🆕 Só adicionar tags PARTIAL_PAID para pagamentos que foram inseridos com sucesso
+        if (successfulPayments.length > 0) {
+          const partialPaidTags = successfulPayments
+            .map(idx => `[PARTIAL_PAID:${idx}:${dailyAmount}]`)
+            .join(' ');
+          
           const updatedNotes = newLoans[0].notes 
             ? `${newLoans[0].notes} ${partialPaidTags}` 
             : partialPaidTags;
@@ -2611,7 +2618,14 @@ export default function Loans() {
           await fetchLoans();
         }
         
-        toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) como pagas`);
+        // Mostrar resultado
+        if (successfulPayments.length === selectedPastInstallments.length) {
+          toast.success(`${successfulPayments.length} parcela(s) registrada(s) como pagas`);
+        } else if (successfulPayments.length > 0) {
+          toast.warning(`${successfulPayments.length} de ${selectedPastInstallments.length} parcela(s) registrada(s). ${selectedPastInstallments.length - successfulPayments.length} falharam.`);
+        } else {
+          toast.error(`Falha ao registrar as ${selectedPastInstallments.length} parcela(s)`);
+        }
       }
     }
     
@@ -2932,12 +2946,14 @@ export default function Loans() {
       const loanId = result.data.id;
       const installmentsList = pastInstallmentsData.pastInstallmentsList || [];
       
-      // Register each selected installment as a separate payment
+      // 🆕 CORREÇÃO: Verificar resultado de cada registerPayment antes de adicionar tags
+      const successfulPayments: { idx: number; value: number }[] = [];
+      
       for (const idx of selectedPastInstallments) {
         const installment = installmentsList.find(i => i.index === idx);
         if (!installment) continue;
         
-        await registerPayment({
+        const paymentResult = await registerPayment({
           loan_id: loanId,
           amount: installment.value,
           principal_paid: pastInstallmentsData.principalPerInstallment || 0,
@@ -2945,18 +2961,21 @@ export default function Loans() {
           payment_date: installment.date,
           notes: `[CONTRATO_ANTIGO] Parcela ${idx + 1} - ${formatDate(installment.date)}`,
         });
+        
+        // Só adicionar à lista de sucesso se o pagamento foi inserido
+        if (!paymentResult.error) {
+          successfulPayments.push({ idx, value: installment.value });
+        } else {
+          console.error(`[HISTORICAL_PAYMENT_ERROR] Falha ao registrar parcela ${idx + 1}:`, paymentResult.error);
+        }
       }
       
-      // Add PARTIAL_PAID tags to loan notes so getInstallmentStatus recognizes them as paid
-      const partialPaidTags = selectedPastInstallments
-        .map(idx => {
-          const installment = installmentsList.find(i => i.index === idx);
-          return installment ? `[PARTIAL_PAID:${idx}:${installment.value}]` : null;
-        })
-        .filter(Boolean)
-        .join(' ');
-      
-      if (partialPaidTags) {
+      // 🆕 Só adicionar tags PARTIAL_PAID para pagamentos que foram inseridos com sucesso
+      if (successfulPayments.length > 0) {
+        const partialPaidTags = successfulPayments
+          .map(p => `[PARTIAL_PAID:${p.idx}:${p.value}]`)
+          .join(' ');
+        
         const currentNotes = notes || '';
         const updatedNotes = currentNotes ? `${currentNotes} ${partialPaidTags}` : partialPaidTags;
         
@@ -2965,11 +2984,17 @@ export default function Loans() {
           .update({ notes: updatedNotes })
           .eq('id', loanId);
         
-        // Recarregar loans para refletir as notas atualizadas com tags PARTIAL_PAID
         await fetchLoans();
       }
       
-      toast.success(`${selectedPastInstallments.length} parcela(s) registrada(s) individualmente`);
+      // Mostrar resultado
+      if (successfulPayments.length === selectedPastInstallments.length) {
+        toast.success(`${successfulPayments.length} parcela(s) registrada(s) individualmente`);
+      } else if (successfulPayments.length > 0) {
+        toast.warning(`${successfulPayments.length} de ${selectedPastInstallments.length} parcela(s) registrada(s). ${selectedPastInstallments.length - successfulPayments.length} falharam.`);
+      } else {
+        toast.error(`Falha ao registrar as ${selectedPastInstallments.length} parcela(s)`);
+      }
     }
     
     
