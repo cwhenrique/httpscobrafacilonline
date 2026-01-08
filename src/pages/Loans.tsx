@@ -4883,7 +4883,26 @@ export default function Loans() {
       is_renegotiation: editIsRenegotiation,
     });
     
+    // Marcar pagamentos anteriores como PRE_RENEGOTIATION para não serem contados no novo saldo
     if (editIsRenegotiation) {
+      const { data: existingPayments } = await supabase
+        .from('loan_payments')
+        .select('id, notes')
+        .eq('loan_id', editingLoanId);
+      
+      if (existingPayments && existingPayments.length > 0) {
+        for (const payment of existingPayments) {
+          // Só marcar se ainda não estiver marcado
+          if (!payment.notes?.includes('[PRE_RENEGOTIATION]')) {
+            await supabase
+              .from('loan_payments')
+              .update({ 
+                notes: (payment.notes || '') + ' [PRE_RENEGOTIATION]' 
+              })
+              .eq('id', payment.id);
+          }
+        }
+      }
       toast.success('Contrato renegociado com sucesso!');
     } else {
       toast.success('Empréstimo atualizado! As próximas cobranças usarão os novos dados.');

@@ -137,3 +137,12 @@ verify_jwt = false
 
 [functions.send-whatsapp-to-self]
 verify_jwt = false
+
+[functions.fix-renegotiated-loans]
+verify_jwt = false
+
+[functions.fix-duplicate-payments]
+verify_jwt = false
+
+[functions.fix-historical-loans]
+verify_jwt = false
