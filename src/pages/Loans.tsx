@@ -3551,6 +3551,8 @@ export default function Loans() {
     // Atualizar notes do loan com tracking de parcelas ANTES do registerPayment
     // para que as notas já estejam salvas quando o fetchLoans for chamado
     // 🆕 NÃO salvar se for amortização - a amortização salva suas próprias notas abaixo
+    // 🆕 Guardar notas originais para reversão em caso de erro no registerPayment
+    const originalNotesBeforePayment = selectedLoan.notes || '';
     if (updatedNotes !== selectedLoan.notes && !paymentData.recalculate_interest) {
       await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
     }
@@ -3667,7 +3669,8 @@ export default function Loans() {
       ? `${installmentNote} ${dateSnapshotTag}` 
       : installmentNote;
     
-    await registerPayment({
+    // 🆕 CORREÇÃO: Capturar resultado do registerPayment e reverter notas em caso de erro
+    const paymentResult = await registerPayment({
       loan_id: selectedLoanId,
       amount: amount,
       principal_paid: principal_paid,
@@ -3676,6 +3679,28 @@ export default function Loans() {
       notes: paymentNoteWithSnapshot,
       send_notification: paymentData.send_notification,
     });
+    
+    // 🆕 Se o pagamento falhou, reverter as notas para o estado original
+    if (paymentResult.error) {
+      console.error('[PAYMENT ERROR] Falha ao inserir pagamento, revertendo notas:', paymentResult.error);
+      
+      // Reverter as notas para o estado antes da tag PARTIAL_PAID ser adicionada
+      await supabase.from('loans').update({ 
+        notes: originalNotesBeforePayment.trim() || null 
+      }).eq('id', selectedLoanId);
+      
+      // Se houve alteração de due_date, também reverter
+      if (paymentData.new_due_date) {
+        const originalDates = (selectedLoan.installment_dates as string[]) || [];
+        await supabase.from('loans').update({ 
+          due_date: selectedLoan.due_date,
+          installment_dates: originalDates.length > 0 ? originalDates : [selectedLoan.due_date]
+        }).eq('id', selectedLoanId);
+      }
+      
+      setIsPaymentSubmitting(false);
+      return; // toast.error já foi mostrado no registerPayment
+    }
     
     // 🆕 CORREÇÃO: Atualizar due_date automaticamente para a próxima parcela não paga
     // Isso corrige o problema de empréstimos semanais/quinzenais/parcelados ficando "atrasados"
