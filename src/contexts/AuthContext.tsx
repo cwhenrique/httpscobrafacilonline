@@ -20,50 +20,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const validatingRef = useRef(false);
 
   useEffect(() => {
-    const validateCurrentSession = async (currentSession: Session | null) => {
+    let isMounted = true;
+
+    // Apenas valida na inicialização, não em cada mudança de estado
+    const validateOnce = async (currentSession: Session | null) => {
       if (!currentSession?.access_token) return;
       if (validatingRef.current) return;
 
       validatingRef.current = true;
       try {
-        const { error } = await supabase.auth.getUser(currentSession.access_token);
-        if (error) {
-          // Sessão local existe, mas foi invalidada no backend (ex: refresh token revogado)
+        const { error } = await supabase.auth.getUser();
+        if (error && isMounted) {
+          console.warn('Sessão inválida, fazendo logout:', error.message);
           await supabase.auth.signOut();
           setSession(null);
           setUser(null);
         }
+      } catch (err) {
+        console.warn('Erro ao validar sessão:', err);
       } finally {
         validatingRef.current = false;
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!isMounted) return;
+      
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setLoading(false);
 
-      // Nunca chamar supabase diretamente aqui: deferimos.
-      if (newSession) {
-        setTimeout(() => {
-          validateCurrentSession(newSession);
-        }, 0);
+      // Só valida em eventos específicos, não em TOKEN_REFRESHED
+      if (event === 'SIGNED_IN' && newSession) {
+        setTimeout(() => validateOnce(newSession), 100);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!isMounted) return;
+      
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       setLoading(false);
 
+      // Validação única na inicialização
       if (initialSession) {
-        setTimeout(() => {
-          validateCurrentSession(initialSession);
-        }, 0);
+        setTimeout(() => validateOnce(initialSession), 100);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
