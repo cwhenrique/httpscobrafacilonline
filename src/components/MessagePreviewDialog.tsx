@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -40,23 +40,32 @@ export default function MessagePreviewDialog({
   const [editedMessage, setEditedMessage] = useState(completeMessage);
   const [copied, setCopied] = useState(false);
 
-  // Reset message when dialog opens or message type changes
+  // Refs para armazenar as mensagens capturadas na abertura do dialog
+  const capturedCompleteRef = useRef(completeMessage);
+  const capturedSimpleRef = useRef(simpleMessage);
+
+  // Captura as mensagens e reseta estado quando o dialog abre
   useEffect(() => {
     if (open) {
+      capturedCompleteRef.current = completeMessage;
+      capturedSimpleRef.current = simpleMessage;
       setMessageType('complete');
       setEditedMessage(completeMessage);
       setCopied(false);
     }
-  }, [open, completeMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  // Update message when switching tabs
+  // Atualiza mensagem quando troca de aba (usa as mensagens capturadas)
   useEffect(() => {
+    if (!open) return;
+    
     if (messageType === 'complete') {
-      setEditedMessage(completeMessage);
+      setEditedMessage(capturedCompleteRef.current);
     } else {
-      setEditedMessage(simpleMessage);
+      setEditedMessage(capturedSimpleRef.current);
     }
-  }, [messageType, completeMessage, simpleMessage]);
+  }, [messageType, open]);
 
   const handleConfirm = () => {
     onConfirm(editedMessage);
