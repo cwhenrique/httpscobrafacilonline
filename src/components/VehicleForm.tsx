@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateVehicleData, InstallmentDate, Vehicle, VehiclePayment } from '@/hooks/useVehicles';
 import { addMonths, addDays, format, setDate, getDate, parseISO } from 'date-fns';
-import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
 import { Client } from '@/types/database';
@@ -127,7 +127,6 @@ function InstallmentsList({
 }
 
 export function VehicleForm({ billType, onSubmit, isPending, initialData, existingPayments, isEditing }: VehicleFormProps) {
-  const [showInstallments, setShowInstallments] = useState(isEditing || false);
   const [installmentDates, setInstallmentDates] = useState<InstallmentDate[]>([]);
   const [isHistorical, setIsHistorical] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -562,32 +561,21 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
         </div>
       )}
 
-      {/* Installments List */}
+      {/* Installments List - Show automatically when installments exist */}
       {installmentDates.length > 0 && (
-        <div className="border-t pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between"
-            onClick={() => setShowInstallments(!showInstallments)}
-          >
-            <span className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Ver/Editar Parcelas ({installmentDates.length})
-            </span>
-            {showInstallments ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
-          
-          {showInstallments && (
-            <InstallmentsList
-              installmentDates={installmentDates}
-              isHistorical={isHistorical}
-              isEditing={isEditing}
-              today={today}
-              updateInstallmentDate={updateInstallmentDate}
-              toggleInstallmentPaid={toggleInstallmentPaid}
-            />
-          )}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Label>Datas das Parcelas ({installmentDates.length})</Label>
+          </div>
+          <InstallmentsList
+            installmentDates={installmentDates}
+            isHistorical={isHistorical}
+            isEditing={isEditing}
+            today={today}
+            updateInstallmentDate={updateInstallmentDate}
+            toggleInstallmentPaid={toggleInstallmentPaid}
+          />
         </div>
       )}
 
