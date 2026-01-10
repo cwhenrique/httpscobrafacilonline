@@ -31,8 +31,10 @@ import {
   Pencil,
   History,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Search
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/calculations';
 import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,6 +50,7 @@ export default function ClientScores() {
   const [loanPayments, setLoanPayments] = useState<Array<{ loan_id: string; interest_paid: number | null }>>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [search, setSearch] = useState('');
   
   // Estado para edição de score
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -205,7 +208,14 @@ export default function ClientScores() {
   }, [clients, clientProfitMap]);
 
   const sortedClients = useMemo(() => {
-    return [...clients].sort((a, b) => {
+    const searchLower = search.toLowerCase();
+    const filtered = clients.filter(client =>
+      client.full_name.toLowerCase().includes(searchLower) ||
+      client.phone?.toLowerCase().includes(searchLower) ||
+      client.cpf?.toLowerCase().includes(searchLower)
+    );
+    
+    return filtered.sort((a, b) => {
       if (sortBy === 'profit') {
         const profitA = clientProfitMap.get(a.id)?.realizedProfit || 0;
         const profitB = clientProfitMap.get(b.id)?.realizedProfit || 0;
@@ -213,7 +223,7 @@ export default function ClientScores() {
       }
       return (b.score || 100) - (a.score || 100);
     });
-  }, [clients, sortBy, clientProfitMap]);
+  }, [clients, sortBy, clientProfitMap, search]);
 
   const getScoreGradient = (score: number) => {
     if (score >= 120) return 'from-emerald-500 to-green-600';
@@ -240,14 +250,26 @@ export default function ClientScores() {
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <Award className="w-7 h-7 text-primary" />
-            Score de Clientes
-          </h1>
-          <p className="text-muted-foreground">
-            Acompanhe a pontuação de confiabilidade dos seus clientes atualizada automaticamente
-          </p>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+              <Award className="w-7 h-7 text-primary" />
+              Score de Clientes
+            </h1>
+            <p className="text-muted-foreground">
+              Acompanhe a pontuação de confiabilidade dos seus clientes atualizada automaticamente
+            </p>
+          </div>
+          
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar cliente..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
 
         {loading || loadingPayments ? (
