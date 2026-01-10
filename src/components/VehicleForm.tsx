@@ -228,7 +228,7 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
       return;
     }
     
-    if (form.first_due_date && form.installments > 0 && form.installment_value > 0) {
+    if (form.first_due_date && form.installments > 0) {
       const firstDate = parseISO(form.first_due_date);
       const dayOfMonth = getDate(firstDate);
       
