@@ -23,6 +23,68 @@ function cleanApiUrl(url: string): string {
   return cleaned;
 }
 
+// Helper function to find user by email (handles pagination and fallbacks)
+async function findUserByEmail(supabase: any, email: string): Promise<{ id: string; email: string } | null> {
+  console.log('=== SEARCHING FOR USER BY EMAIL ===');
+  console.log('Email to search:', email);
+  
+  // First, try to find user in profiles table (faster and more reliable)
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .eq('email', email)
+    .maybeSingle();
+  
+  if (profileData && profileData.id) {
+    console.log('User found in profiles table:', profileData.id);
+    return { id: profileData.id, email: profileData.email || email };
+  }
+  
+  if (profileError) {
+    console.log('Error searching profiles table:', profileError.message);
+  }
+  
+  // Fallback: search through auth.users with pagination
+  console.log('Searching in auth.users with pagination...');
+  let page = 1;
+  const perPage = 500;
+  
+  while (true) {
+    const { data: usersPage, error: pageError } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    
+    if (pageError) {
+      console.error('Error fetching users page', page, ':', pageError.message);
+      break;
+    }
+    
+    const users = usersPage?.users || [];
+    console.log(`Page ${page}: ${users.length} users`);
+    
+    if (users.length === 0) {
+      break;
+    }
+    
+    const foundUser = users.find((u: any) => u.email === email);
+    if (foundUser) {
+      console.log('User found in auth.users:', foundUser.id);
+      return { id: foundUser.id, email: foundUser.email };
+    }
+    
+    // If we got less than perPage, we've reached the last page
+    if (users.length < perPage) {
+      break;
+    }
+    
+    page++;
+  }
+  
+  console.log('User not found by email:', email);
+  return null;
+}
+
 // Check if this is an employee slot purchase
 function isEmployeeSlotPurchase(payload: any): boolean {
   console.log('=== CHECKING IF EMPLOYEE SLOT PURCHASE ===');
@@ -443,18 +505,8 @@ serve(async (req) => {
     if (isEmployeeSlotPurchase(payload)) {
       console.log('=== EMPLOYEE SLOT PURCHASE DETECTED ===');
       
-      // Find user by email
-      const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers();
-      
-      if (searchError) {
-        console.error('Error searching for user:', searchError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to find user' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      let existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
+      // Find user by email using the improved search function
+      let existingUser = await findUserByEmail(supabase, customerEmail);
       
       // Fallback: try to find user by email from checkoutUrl if not found by customer email
       if (!existingUser) {
@@ -466,7 +518,7 @@ serve(async (req) => {
         console.log('Email extracted from checkoutUrl:', emailFromUrl);
         
         if (emailFromUrl && emailFromUrl !== customerEmail) {
-          existingUser = existingUsers?.users?.find(u => u.email === emailFromUrl);
+          existingUser = await findUserByEmail(supabase, emailFromUrl);
           if (existingUser) {
             console.log('Found user by checkoutUrl email:', existingUser.id, emailFromUrl);
           }
@@ -555,14 +607,8 @@ Obrigado pela confiança! 💚`;
     const plan = getSubscriptionPlan(payload);
     console.log('Subscription plan determined:', plan);
 
-    // Check if user already exists
-    const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers();
-    
-    if (searchError) {
-      console.error('Error searching for existing user:', searchError);
-    }
-
-    const existingUser = existingUsers?.users?.find(u => u.email === customerEmail);
+    // Check if user already exists using the improved search function
+    const existingUser = await findUserByEmail(supabase, customerEmail);
     
     if (existingUser) {
       console.log('=== EXISTING USER FOUND ===');
