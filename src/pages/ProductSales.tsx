@@ -41,7 +41,7 @@ import { Client } from '@/types/database';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useClients } from '@/hooks/useClients';
-import { format, parseISO, isPast, isToday, addMonths, getDate, setDate } from 'date-fns';
+import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -312,6 +312,7 @@ export default function ProductSales() {
     notes: '',
     send_creation_notification: false,
     is_historical: false,
+    payment_frequency: 'monthly' as 'monthly' | 'weekly',
   });
 
   const [contractForm, setContractForm] = useState<CreateContractData>({
@@ -355,6 +356,7 @@ export default function ProductSales() {
       notes: '',
       send_creation_notification: false,
       is_historical: false,
+      payment_frequency: 'monthly',
     });
     setInstallmentDates([]);
     setSelectedClientId(null);
@@ -408,12 +410,21 @@ export default function ProductSales() {
       
       const dates: InstallmentDate[] = [];
       for (let i = 0; i < formData.installments; i++) {
-        let dueDate = addMonths(firstDate, i);
-        try {
-          dueDate = setDate(dueDate, dayOfMonth);
-        } catch {
-          // Handle edge cases
+        let dueDate: Date;
+        
+        if (formData.payment_frequency === 'weekly') {
+          // Add 7 days for each installment (weekly)
+          dueDate = addDays(firstDate, i * 7);
+        } else {
+          // Add 1 month for each installment (monthly)
+          dueDate = addMonths(firstDate, i);
+          try {
+            dueDate = setDate(dueDate, dayOfMonth);
+          } catch {
+            // Handle edge cases
+          }
         }
+        
         dates.push({
           number: i + 1,
           date: format(dueDate, 'yyyy-MM-dd'),
@@ -421,7 +432,7 @@ export default function ProductSales() {
       }
       setInstallmentDates(dates);
     }
-  }, [formData.first_due_date, formData.installments]);
+  }, [formData.first_due_date, formData.installments, formData.payment_frequency]);
 
   const updateInstallmentDate = (index: number, newDate: string) => {
     setInstallmentDates(prev => 
@@ -1362,6 +1373,31 @@ export default function ProductSales() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
+                        <Label>Frequência de Pagamento *</Label>
+                        <Select 
+                          value={formData.payment_frequency || 'monthly'} 
+                          onValueChange={(v) => setFormData({ ...formData, payment_frequency: v as 'monthly' | 'weekly' })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monthly">Mensal</SelectItem>
+                            <SelectItem value="weekly">Semanal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Primeiro Vencimento *</Label>
+                        <Input
+                          type="date"
+                          value={formData.first_due_date}
+                          onChange={(e) => setFormData({ ...formData, first_due_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <Label>Valor da Parcela (R$)</Label>
                         <Input
                           type="number"
@@ -1371,12 +1407,11 @@ export default function ProductSales() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Primeiro Vencimento *</Label>
-                        <Input
-                          type="date"
-                          value={formData.first_due_date}
-                          onChange={(e) => setFormData({ ...formData, first_due_date: e.target.value })}
-                        />
+                        <Label className="text-muted-foreground text-xs">
+                          {formData.payment_frequency === 'weekly' 
+                            ? 'Parcelas geradas a cada 7 dias' 
+                            : 'Parcelas geradas no mesmo dia do mês'}
+                        </Label>
                       </div>
                     </div>
                     {/* Historical Sale Checkbox */}
