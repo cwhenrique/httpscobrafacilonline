@@ -4,8 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateVehicleData, InstallmentDate, Vehicle, VehiclePayment } from '@/hooks/useVehicles';
-import { addMonths, format, setDate, getDate, parseISO } from 'date-fns';
+import { addMonths, addDays, format, setDate, getDate, parseISO } from 'date-fns';
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
@@ -155,6 +156,7 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
     first_due_date: '',
     notes: '',
     send_creation_notification: false,
+    payment_frequency: 'monthly' as 'monthly' | 'weekly',
   });
 
   // Initialize form with existing data when editing
@@ -183,6 +185,7 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
         first_due_date: initialData.first_due_date || '',
         notes: initialData.notes || '',
         send_creation_notification: false,
+        payment_frequency: 'monthly',
       });
 
       // Initialize installment dates from existing payments
@@ -232,13 +235,21 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
       
       const dates: InstallmentDate[] = [];
       for (let i = 0; i < form.installments; i++) {
-        let dueDate = addMonths(firstDate, i);
-        // Keep the same day of month
-        try {
-          dueDate = setDate(dueDate, dayOfMonth);
-        } catch {
-          // If day doesn't exist in month (e.g., 31 in Feb), use last day
+        let dueDate: Date;
+        
+        if (form.payment_frequency === 'weekly') {
+          // Add 7 days for each installment (weekly)
+          dueDate = addDays(firstDate, i * 7);
+        } else {
+          // Add 1 month for each installment (monthly)
           dueDate = addMonths(firstDate, i);
+          // Keep the same day of month
+          try {
+            dueDate = setDate(dueDate, dayOfMonth);
+          } catch {
+            // If day doesn't exist in month (e.g., 31 in Feb), use last day
+            dueDate = addMonths(firstDate, i);
+          }
         }
         
         dates.push({
@@ -249,7 +260,7 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
       }
       setInstallmentDates(dates);
     }
-  }, [form.first_due_date, form.installments, form.installment_value, isEditing, initialized, existingPayments]);
+  }, [form.first_due_date, form.installments, form.installment_value, form.payment_frequency, isEditing, initialized, existingPayments]);
 
   const updateInstallmentDate = (index: number, field: 'due_date' | 'amount', value: string | number) => {
     setInstallmentDates(prev => {
@@ -472,6 +483,24 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
 
       <div className="border-t pt-4">
         <h4 className={cn("font-semibold mb-3", primaryColor)}>Parcelamento</h4>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="space-y-2">
+            <Label>Frequência de Pagamento *</Label>
+            <Select value={form.payment_frequency} onValueChange={(v) => setForm({ ...form, payment_frequency: v as 'monthly' | 'weekly' })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">Mensal</SelectItem>
+                <SelectItem value="weekly">Semanal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Primeiro vencimento *</Label>
+            <Input type="date" value={form.first_due_date} onChange={(e) => setForm({ ...form, first_due_date: e.target.value })} />
+          </div>
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>Entrada (R$)</Label>
@@ -486,11 +515,11 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
             <Input type="number" step="0.01" min="0" value={form.installment_value || ''} onChange={(e) => setForm({ ...form, installment_value: parseFloat(e.target.value) || 0 })} />
           </div>
         </div>
-        <div className="mt-4 space-y-2">
-          <Label>Primeiro vencimento *</Label>
-          <Input type="date" value={form.first_due_date} onChange={(e) => setForm({ ...form, first_due_date: e.target.value })} />
-          <p className="text-xs text-muted-foreground">As demais parcelas serão geradas no mesmo dia do mês</p>
-        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          {form.payment_frequency === 'weekly' 
+            ? 'As demais parcelas serão geradas a cada 7 dias' 
+            : 'As demais parcelas serão geradas no mesmo dia do mês'}
+        </p>
       </div>
 
       {/* Historical Contract Checkbox - only show when creating, not editing */}
