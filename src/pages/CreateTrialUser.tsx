@@ -30,9 +30,14 @@ interface User {
 const ADMIN_USER = 'Clauclau';
 const ADMIN_PASS = '33251675';
 
+// Usuário restrito - apenas cria trials
+const TRIAL_CREATOR_USER = 'diego';
+const TRIAL_CREATOR_PASS = 'diego321';
+
 export default function CreateTrialUser() {
   const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isTrialCreatorOnly, setIsTrialCreatorOnly] = useState(false); // diego user - only trial creation
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -53,8 +58,10 @@ export default function CreateTrialUser() {
 
   useEffect(() => {
     const authStatus = sessionStorage.getItem('trial_admin_auth');
+    const trialCreatorStatus = sessionStorage.getItem('trial_creator_only');
     if (authStatus === 'true') {
       setIsAuthenticated(true);
+      setIsTrialCreatorOnly(trialCreatorStatus === 'true');
     }
   }, []);
 
@@ -63,11 +70,23 @@ export default function CreateTrialUser() {
     setLoginLoading(true);
 
     setTimeout(() => {
+      // Admin full access
       if (loginData.username === ADMIN_USER && loginData.password === ADMIN_PASS) {
         sessionStorage.setItem('trial_admin_auth', 'true');
+        sessionStorage.setItem('trial_creator_only', 'false');
         setIsAuthenticated(true);
+        setIsTrialCreatorOnly(false);
         toast({ title: 'Acesso autorizado!' });
-      } else {
+      } 
+      // Diego - only trial creation
+      else if (loginData.username === TRIAL_CREATOR_USER && loginData.password === TRIAL_CREATOR_PASS) {
+        sessionStorage.setItem('trial_admin_auth', 'true');
+        sessionStorage.setItem('trial_creator_only', 'true');
+        setIsAuthenticated(true);
+        setIsTrialCreatorOnly(true);
+        toast({ title: 'Acesso autorizado!', description: 'Você pode criar apenas usuários de teste (Trial)' });
+      }
+      else {
         toast({
           title: 'Credenciais inválidas',
           description: 'Usuário ou senha incorretos',
@@ -159,13 +178,16 @@ export default function CreateTrialUser() {
     setLoading(true);
 
     try {
+      // Force trial plan for restricted user (diego)
+      const planToUse = isTrialCreatorOnly ? 'trial' : formData.subscription_plan;
+      
       const { data, error } = await supabase.functions.invoke('create-trial-user', {
         body: {
           email: formData.email,
           password: formData.password,
           full_name: formData.full_name,
           phone: formData.phone,
-          subscription_plan: formData.subscription_plan
+          subscription_plan: planToUse
         }
       });
 
@@ -185,7 +207,7 @@ export default function CreateTrialUser() {
 
       toast({
         title: 'Usuário criado com sucesso!',
-        description: `Acesso ${planLabels[formData.subscription_plan]} concedido para ${formData.full_name}`,
+        description: `Acesso ${planLabels[planToUse]} concedido para ${formData.full_name}`,
       });
 
       setFormData({
@@ -458,16 +480,20 @@ export default function CreateTrialUser() {
           <h1 className="text-2xl font-bold">Gerenciamento de Usuários</h1>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className={`grid gap-6 ${isTrialCreatorOnly ? 'max-w-md mx-auto' : 'lg:grid-cols-3'}`}>
           {/* Create Form */}
-          <Card className="border-primary">
+          <Card className={`border-primary ${isTrialCreatorOnly ? '' : ''}`}>
             <CardHeader className="text-center">
               <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
                 <UserPlus className="w-6 h-6 text-primary" />
               </div>
-              <CardTitle className="text-2xl">Criar Novo Usuário</CardTitle>
+              <CardTitle className="text-2xl">
+                {isTrialCreatorOnly ? 'Criar Usuário Trial' : 'Criar Novo Usuário'}
+              </CardTitle>
               <CardDescription>
-                Escolha o tipo de plano abaixo
+                {isTrialCreatorOnly 
+                  ? 'Crie usuários de teste com acesso de 24 horas'
+                  : 'Escolha o tipo de plano abaixo'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -520,27 +546,37 @@ export default function CreateTrialUser() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Tipo de Plano</Label>
-                  <Select
-                    value={formData.subscription_plan}
-                    onValueChange={(value: 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime') => 
-                      setFormData(prev => ({ ...prev, subscription_plan: value }))
-                    }
-                    disabled={loading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o plano" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
-                      <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
-                      <SelectItem value="quarterly">📆 Trimestral (90 dias)</SelectItem>
-                      <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
-                      <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Show plan selector only for admin, force trial for diego */}
+                {isTrialCreatorOnly ? (
+                  <div className="space-y-2">
+                    <Label>Tipo de Plano</Label>
+                    <div className="p-3 bg-muted rounded-md text-sm">
+                      🧪 Trial (24 horas) - <span className="text-muted-foreground">Único plano disponível</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Tipo de Plano</Label>
+                    <Select
+                      value={formData.subscription_plan}
+                      onValueChange={(value: 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime') => 
+                        setFormData(prev => ({ ...prev, subscription_plan: value }))
+                      }
+                      disabled={loading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o plano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="trial">🧪 Trial (24 horas)</SelectItem>
+                        <SelectItem value="monthly">📅 Mensal (30 dias)</SelectItem>
+                        <SelectItem value="quarterly">📆 Trimestral (90 dias)</SelectItem>
+                        <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
+                        <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
@@ -551,29 +587,36 @@ export default function CreateTrialUser() {
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4 mr-2" />
-                      {formData.subscription_plan === 'trial' && 'Criar Usuário Trial'}
-                      {formData.subscription_plan === 'monthly' && 'Criar Usuário Mensal'}
-                      {formData.subscription_plan === 'quarterly' && 'Criar Usuário Trimestral'}
-                      {formData.subscription_plan === 'annual' && 'Criar Usuário Anual'}
-                      {formData.subscription_plan === 'lifetime' && 'Criar Usuário Vitalício'}
+                      {isTrialCreatorOnly ? 'Criar Usuário Trial' : (
+                        <>
+                          {formData.subscription_plan === 'trial' && 'Criar Usuário Trial'}
+                          {formData.subscription_plan === 'monthly' && 'Criar Usuário Mensal'}
+                          {formData.subscription_plan === 'quarterly' && 'Criar Usuário Trimestral'}
+                          {formData.subscription_plan === 'annual' && 'Criar Usuário Anual'}
+                          {formData.subscription_plan === 'lifetime' && 'Criar Usuário Vitalício'}
+                        </>
+                      )}
                     </>
                   )}
                 </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleSendTestWhatsApp}
-                  disabled={loading}
-                >
-                  Enviar mensagem de teste por WhatsApp
-                </Button>
+                {!isTrialCreatorOnly && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleSendTestWhatsApp}
+                    disabled={loading}
+                  >
+                    Enviar mensagem de teste por WhatsApp
+                  </Button>
+                )}
               </form>
             </CardContent>
           </Card>
 
-          {/* Users List */}
+          {/* Users List - hidden for trial creator only */}
+          {!isTrialCreatorOnly && (
           <Card className="border-primary lg:col-span-2">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -758,10 +801,12 @@ export default function CreateTrialUser() {
               )}
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
 
-      {/* Edit Plan Dialog */}
+      {/* Edit Plan Dialog - hidden for trial creator only */}
+      {!isTrialCreatorOnly && (
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
@@ -818,6 +863,7 @@ export default function CreateTrialUser() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }
