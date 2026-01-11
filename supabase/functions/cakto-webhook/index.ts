@@ -305,6 +305,7 @@ function getSubscriptionPlan(payload: any): string {
   }
 
   // FALLBACK: Use price to detect plan
+  // Preços atuais: Mensal R$55,90 | Trimestral R$149,00 | Anual R$479,00
   if (price > 0) {
     // Lifetime: above R$500
     if (price > 500) {
@@ -312,20 +313,20 @@ function getSubscriptionPlan(payload: any): string {
       return 'lifetime';
     }
     
-    // Annual: between R$300 and R$500
-    if (price > 300 && price <= 500) {
+    // Annual: between R$250 and R$500 (preço atual R$479)
+    if (price >= 250 && price <= 500) {
       console.log('Matched: ANNUAL by price (R$', price, ')');
       return 'annual';
     }
     
-    // Quarterly: between R$70 and R$300
-    if (price >= 70 && price <= 300) {
+    // Quarterly: between R$100 and R$250 (preço atual R$149)
+    if (price >= 100 && price < 250) {
       console.log('Matched: QUARTERLY by price (R$', price, ')');
       return 'quarterly';
     }
     
-    // Monthly: less than R$70
-    if (price < 70) {
+    // Monthly: less than R$100 (preço atual R$55,90)
+    if (price < 100) {
       console.log('Matched: MONTHLY by price (R$', price, ')');
       return 'monthly';
     }
