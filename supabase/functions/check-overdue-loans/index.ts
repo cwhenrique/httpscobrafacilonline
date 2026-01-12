@@ -512,13 +512,34 @@ const handler = async (req: Request): Promise<Response> => {
             ],
           });
 
+          // Extrair multas aplicadas e config de juros por atraso
+          const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
+          const totalPenalty = Object.values(existingPenalties).reduce((sum, v) => sum + v, 0);
+          const overdueConfig = getOverdueConfigFromNotes(loan.notes);
+          const originalBalance = loan.remainingBalance - totalPenalty;
+
           // Build rich description with overdue details
           let overdueDescription = `👤 *Cliente:* ${loan.clientName}\n`;
           overdueDescription += `📋 *Contrato:* ${contractId}\n`;
           overdueDescription += `━━━━━━━━━━━━━━━━\n\n`;
           overdueDescription += `🚨 *${alertDay} DIA${alertDay > 1 ? 'S' : ''} EM ATRASO*\n\n`;
           overdueDescription += `📅 *Venceu em:* ${formatDate(new Date(loan.dueDate))}\n`;
-          overdueDescription += `💸 *Saldo Devedor:* ${formatCurrency(loan.remainingBalance)}\n\n`;
+          overdueDescription += `💸 *Saldo Original:* ${formatCurrency(originalBalance)}\n`;
+          
+          // Mostrar multa aplicada se houver
+          if (totalPenalty > 0) {
+            overdueDescription += `⚠️ *Multa Aplicada:* +${formatCurrency(totalPenalty)}\n`;
+          }
+          
+          // Mostrar taxa de juros por atraso se configurada
+          if (overdueConfig) {
+            const taxaInfo = overdueConfig.type === 'percentage' 
+              ? `${overdueConfig.value}% ao dia`
+              : `${formatCurrency(overdueConfig.value)}/dia`;
+            overdueDescription += `📈 *Taxa por Atraso:* ${taxaInfo}\n`;
+          }
+          
+          overdueDescription += `💵 *TOTAL A RECEBER:* ${formatCurrency(loan.remainingBalance)}\n\n`;
           overdueDescription += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
           overdueDescription += `📈 *Juros:* ${loan.interest_rate}%\n`;
           overdueDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;

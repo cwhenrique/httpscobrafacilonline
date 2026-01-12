@@ -78,6 +78,28 @@ const getContractId = (id: string): string => {
   return `VEI-${id.substring(0, 4).toUpperCase()}`;
 };
 
+// Helper para extrair configuração de multa por atraso das notas
+// Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
+const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+  if (!match) return null;
+  return {
+    type: match[1] as 'percentage' | 'fixed',
+    value: parseFloat(match[2])
+  };
+};
+
+// Helper para extrair multas já aplicadas
+// Formato: [DAILY_PENALTY:índice:valor]
+const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number> => {
+  const penalties: Record<number, number> = {};
+  const matches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
+  for (const match of matches) {
+    penalties[parseInt(match[1])] = parseFloat(match[2]);
+  }
+  return penalties;
+};
+
 // Progressive alert days
 const ALERT_DAYS = [1, 3, 7, 15, 30];
 
@@ -209,6 +231,12 @@ const handler = async (req: Request): Promise<Response> => {
           const clientName = vehicle.buyer_name || vehicle.seller_name;
           const progressPercent = Math.round((payment.paidInstallments / vehicle.installments) * 100);
 
+          // Extrair multas e juros das notas do veículo
+          const existingPenalties = getDailyPenaltiesFromNotes(vehicle.notes);
+          const totalPenalty = Object.values(existingPenalties).reduce((sum, v) => sum + v, 0);
+          const overdueConfig = getOverdueConfigFromNotes(vehicle.notes);
+          const originalBalance = (vehicle.remaining_balance || 0) - totalPenalty;
+
           let message = `${emoji} *${title}*\n\n`;
           message += `🚗 *Veículo - ${contractId}*\n\n`;
           message += `👤 Cliente: ${clientName}\n\n`;
@@ -223,16 +251,29 @@ const handler = async (req: Request): Promise<Response> => {
           
           message += `\n📊 *Status das Parcelas:*\n`;
           message += `✅ Pagas: ${payment.paidInstallments} de ${vehicle.installments} (${formatCurrency(vehicle.total_paid || 0)})\n`;
-          message += `❌ Pendentes: ${vehicle.installments - payment.paidInstallments} (${formatCurrency(vehicle.remaining_balance || 0)})\n`;
+          message += `❌ Pendentes: ${vehicle.installments - payment.paidInstallments} (${formatCurrency(originalBalance)})\n`;
           message += `📈 Progresso: ${progressPercent}% concluído\n\n`;
           
           message += `⚠️ *PARCELA EM ATRASO:*\n`;
           message += `• Venceu em: ${formatDate(new Date(payment.due_date))}\n`;
           message += `• Parcela: ${payment.installment_number}/${vehicle.installments}\n`;
           message += `• Dias de atraso: *${alertDay}*\n`;
-          message += `• Valor: ${formatCurrency(payment.amount)}\n\n`;
+          message += `• Valor Original: ${formatCurrency(payment.amount)}\n`;
           
-          message += `💰 Saldo Devedor: ${formatCurrency(vehicle.remaining_balance || 0)}\n\n`;
+          // Mostrar multa aplicada se houver
+          if (totalPenalty > 0) {
+            message += `• ⚠️ Multa Aplicada: +${formatCurrency(totalPenalty)}\n`;
+          }
+          
+          // Mostrar taxa de juros por atraso se configurada
+          if (overdueConfig) {
+            const taxaInfo = overdueConfig.type === 'percentage' 
+              ? `${overdueConfig.value}% ao dia`
+              : `${formatCurrency(overdueConfig.value)}/dia`;
+            message += `• 📈 Taxa por Atraso: ${taxaInfo}\n`;
+          }
+          
+          message += `\n💵 *TOTAL A RECEBER:* ${formatCurrency(vehicle.remaining_balance || 0)}\n\n`;
           message += `━━━━━━━━━━━━━━━━━━━━━\n`;
           message += `_CobraFácil - Entre em contato urgente!_`;
 
