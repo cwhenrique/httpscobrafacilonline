@@ -330,13 +330,13 @@ export default function CreateTrialUser() {
   };
 
   const handleResetPassword = async () => {
-    if (!editingUser || !editingUser.email) return;
+    if (!editingUser) return;
     
     setResettingPassword(true);
     try {
       const { data, error } = await supabase.functions.invoke('admin-reset-password', {
         body: {
-          email: editingUser.email,
+          userId: editingUser.id,
           newPassword: '123456',
         },
       });

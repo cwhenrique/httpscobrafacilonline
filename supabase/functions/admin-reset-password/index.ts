@@ -18,40 +18,52 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { email, newPassword } = await req.json();
+    const { userId, email, newPassword } = await req.json();
 
-    if (!email || !newPassword) {
+    if (!newPassword) {
       return new Response(
-        JSON.stringify({ error: 'Email e nova senha são obrigatórios' }),
+        JSON.stringify({ error: 'Nova senha é obrigatória' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Attempting to reset password for: ${email}`);
+    // Prefer userId if provided, otherwise fallback to email lookup
+    let targetUserId = userId;
 
-    // Buscar usuário por email
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-    
-    if (listError) {
-      console.error('Error listing users:', listError);
-      throw listError;
+    if (!targetUserId && email) {
+      console.log(`Looking up user by email: ${email}`);
+      const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (listError) {
+        console.error('Error listing users:', listError);
+        throw listError;
+      }
+
+      const user = users.users.find(u => u.email === email);
+      
+      if (!user) {
+        console.log(`User not found: ${email}`);
+        return new Response(
+          JSON.stringify({ error: 'Usuário não encontrado' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      targetUserId = user.id;
     }
 
-    const user = users.users.find(u => u.email === email);
-    
-    if (!user) {
-      console.log(`User not found: ${email}`);
+    if (!targetUserId) {
       return new Response(
-        JSON.stringify({ error: 'Usuário não encontrado' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'userId ou email é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found user: ${user.id}`);
+    console.log(`Resetting password for user ID: ${targetUserId}`);
 
-    // Redefinir senha
+    // Reset password using userId directly
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      user.id,
+      targetUserId,
       { password: newPassword }
     );
 
@@ -60,10 +72,10 @@ serve(async (req) => {
       throw updateError;
     }
 
-    console.log(`Password successfully reset for: ${email}`);
+    console.log(`Password successfully reset for user ID: ${targetUserId}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: `Senha redefinida para ${email}` }),
+      JSON.stringify({ success: true, message: `Senha redefinida com sucesso` }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
