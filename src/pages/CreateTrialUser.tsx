@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX, KeyRound } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
@@ -48,6 +48,7 @@ export default function CreateTrialUser() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('trial');
   const [updatingPlan, setUpdatingPlan] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -325,6 +326,37 @@ export default function CreateTrialUser() {
       });
     } finally {
       setUpdatingPlan(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!editingUser || !editingUser.email) return;
+    
+    setResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: {
+          email: editingUser.email,
+          newPassword: '123456',
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: 'Senha resetada!',
+        description: `A senha de ${editingUser.full_name || editingUser.email} foi alterada para: 123456`,
+      });
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast({
+        title: 'Erro ao resetar senha',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -817,6 +849,31 @@ export default function CreateTrialUser() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Resetar Senha */}
+            <div className="p-3 border rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Resetar Senha</p>
+                    <p className="text-xs text-muted-foreground">A nova senha será: 123456</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetPassword}
+                  disabled={resettingPassword}
+                >
+                  {resettingPassword ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Resetar'
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Novo Plano</Label>
               <Select
