@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle, KeyRound } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
 
@@ -61,6 +61,7 @@ export default function EmployeeManagement() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [maxEmployees, setMaxEmployees] = useState(3);
 
   // Form state
@@ -277,6 +278,32 @@ export default function EmployeeManagement() {
     setSelectedEmployee(employee);
     setFormPermissions(employee.permissions);
     setShowEditDialog(true);
+  }
+
+  async function handleResetPassword() {
+    if (!selectedEmployee) return;
+
+    setResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: {
+          email: selectedEmployee.email,
+          newPassword: '123456',
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Senha resetada para 123456', {
+        description: `A senha de ${selectedEmployee.name} foi alterada.`,
+      });
+    } catch (err: any) {
+      console.error('Erro ao resetar senha:', err);
+      toast.error(err.message || 'Erro ao resetar senha');
+    } finally {
+      setResettingPassword(false);
+    }
   }
 
   function togglePermission(permission: EmployeePermission) {
@@ -502,41 +529,70 @@ export default function EmployeeManagement() {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Permissões</DialogTitle>
+            <DialogTitle>Editar Funcionário</DialogTitle>
             <DialogDescription>
               {selectedEmployee?.name} - {selectedEmployee?.email}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => (
-              <div key={group} className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">{group}</p>
-                <div className="grid gap-2">
-                  {perms.map(perm => (
-                    <Button
-                      key={perm.key}
-                      type="button"
-                      variant={formPermissions.includes(perm.key) ? 'default' : 'outline'}
-                      size="sm"
-                      className={`justify-start gap-2 w-full ${
-                        formPermissions.includes(perm.key) 
-                          ? 'bg-green-600 hover:bg-green-700 text-white' 
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => togglePermission(perm.key)}
-                    >
-                      {formPermissions.includes(perm.key) ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Lock className="w-4 h-4" />
-                      )}
-                      {perm.label}
-                    </Button>
-                  ))}
+            {/* Resetar Senha */}
+            <div className="p-3 border rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Resetar Senha</p>
+                    <p className="text-xs text-muted-foreground">A nova senha será: 123456</p>
+                  </div>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleResetPassword}
+                  disabled={resettingPassword}
+                >
+                  {resettingPassword ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Resetar'
+                  )}
+                </Button>
               </div>
-            ))}
+            </div>
+
+            {/* Permissões */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Permissões</p>
+              {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => (
+                <div key={group} className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">{group}</p>
+                  <div className="grid gap-2">
+                    {perms.map(perm => (
+                      <Button
+                        key={perm.key}
+                        type="button"
+                        variant={formPermissions.includes(perm.key) ? 'default' : 'outline'}
+                        size="sm"
+                        className={`justify-start gap-2 w-full ${
+                          formPermissions.includes(perm.key) 
+                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => togglePermission(perm.key)}
+                      >
+                        {formPermissions.includes(perm.key) ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Lock className="w-4 h-4" />
+                        )}
+                        {perm.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <DialogFooter>
