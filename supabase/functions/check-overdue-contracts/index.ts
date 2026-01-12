@@ -88,6 +88,34 @@ const getContractTypeLabel = (type: string): string => {
   return labels[type] || type;
 };
 
+// Helper para extrair configuração de multa por atraso das notas
+// Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
+const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+  if (!match) return null;
+  return {
+    type: match[1] as 'percentage' | 'fixed',
+    value: parseFloat(match[2])
+  };
+};
+
+// Helper para extrair multas já aplicadas
+// Formato: [DAILY_PENALTY:índice:valor] ou [PENALTY:valor]
+const getPenaltyFromNotes = (notes: string | null): number => {
+  let total = 0;
+  // Formato novo: [DAILY_PENALTY:índice:valor]
+  const dailyMatches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
+  for (const match of dailyMatches) {
+    total += parseFloat(match[2]);
+  }
+  // Formato simples: [PENALTY:valor]
+  const simpleMatch = (notes || '').match(/\[PENALTY:([0-9.]+)\]/);
+  if (simpleMatch) {
+    total += parseFloat(simpleMatch[1]);
+  }
+  return total;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("check-overdue-contracts function called at", new Date().toISOString());
   
@@ -196,12 +224,20 @@ const handler = async (req: Request): Promise<Response> => {
         // Filter contract payments by exact overdue days
         for (const cp of contractPayments || []) {
           if (cp.due_date === overdueInfo.date) {
-            const contract = cp.contracts as { client_name: string; contract_type: string; bill_type: string };
+            const contract = cp.contracts as { client_name: string; contract_type: string; bill_type: string; notes?: string };
+            
+            // Extrair multa e config de juros das notas
+            const penalty = getPenaltyFromNotes(cp.notes);
+            const overdueConfig = getOverdueConfigFromNotes(cp.notes);
+            
             const item = {
               type: 'contract',
               name: contract.client_name,
               description: getContractTypeLabel(contract.contract_type),
               amount: cp.amount,
+              originalAmount: cp.amount - penalty,
+              penalty: penalty,
+              overdueConfig: overdueConfig,
               dueDate: cp.due_date,
               installment: cp.installment_number,
             };
@@ -230,15 +266,35 @@ const handler = async (req: Request): Promise<Response> => {
         // Send alerts for receivables
         if (receivables.length > 0 && profile.phone) {
           const totalReceivable = receivables.reduce((sum, r) => sum + Number(r.amount), 0);
-          const itemsList = receivables.map(r => 
-            `• *${r.name}*: ${formatCurrency(r.amount)} (${r.description}${r.installment ? ` - Parcela ${r.installment}` : ''})`
-          ).join('\n');
+          const totalPenalties = receivables.reduce((sum, r) => sum + (r.penalty || 0), 0);
+          
+          const itemsList = receivables.map(r => {
+            let itemLine = `• *${r.name}*: ${formatCurrency(r.amount)} (${r.description}${r.installment ? ` - Parcela ${r.installment}` : ''})`;
+            if (r.penalty > 0) {
+              itemLine += `\n   ⚠️ Multa: +${formatCurrency(r.penalty)}`;
+            }
+            if (r.overdueConfig) {
+              const taxaInfo = r.overdueConfig.type === 'percentage' 
+                ? `${r.overdueConfig.value}% ao dia`
+                : `${formatCurrency(r.overdueConfig.value)}/dia`;
+              itemLine += `\n   📈 Taxa atraso: ${taxaInfo}`;
+            }
+            return itemLine;
+          }).join('\n');
 
           let message: string;
           if (overdueInfo.days === 1) {
-            message = `⚠️ *CONTAS A RECEBER - 1 DIA DE ATRASO*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${receivables.length} cobrança${receivables.length > 1 ? 's' : ''}* com *1 dia de atraso*:\n\n${itemsList}\n\n💵 *Total em atraso: ${formatCurrency(totalReceivable)}*\n\n📲 Entre em contato para cobrar!\n\n_CobraFácil - Alerta de atraso_`;
+            message = `⚠️ *CONTAS A RECEBER - 1 DIA DE ATRASO*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${receivables.length} cobrança${receivables.length > 1 ? 's' : ''}* com *1 dia de atraso*:\n\n${itemsList}\n\n`;
+            if (totalPenalties > 0) {
+              message += `⚠️ *Multas aplicadas: ${formatCurrency(totalPenalties)}*\n`;
+            }
+            message += `💵 *Total em atraso: ${formatCurrency(totalReceivable)}*\n\n📲 Entre em contato para cobrar!\n\n_CobraFácil - Alerta de atraso_`;
           } else {
-            message = `🚨 *CONTAS A RECEBER - 3 DIAS DE ATRASO!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nATENÇÃO! Você tem *${receivables.length} cobrança${receivables.length > 1 ? 's' : ''}* com *3 dias de atraso*:\n\n${itemsList}\n\n💵 *Total em atraso: ${formatCurrency(totalReceivable)}*\n\n📞 Cobre novamente urgentemente!\n\n_CobraFácil - Alerta urgente_`;
+            message = `🚨 *CONTAS A RECEBER - 3 DIAS DE ATRASO!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nATENÇÃO! Você tem *${receivables.length} cobrança${receivables.length > 1 ? 's' : ''}* com *3 dias de atraso*:\n\n${itemsList}\n\n`;
+            if (totalPenalties > 0) {
+              message += `⚠️ *Multas aplicadas: ${formatCurrency(totalPenalties)}*\n`;
+            }
+            message += `💵 *Total em atraso: ${formatCurrency(totalReceivable)}*\n\n📞 Cobre novamente urgentemente!\n\n_CobraFácil - Alerta urgente_`;
           }
 
           console.log(`Sending ${overdueInfo.days}-day receivables overdue alert to user ${profile.id}`);
@@ -249,15 +305,35 @@ const handler = async (req: Request): Promise<Response> => {
         // Send alerts for payables
         if (payables.length > 0 && profile.phone) {
           const totalPayable = payables.reduce((sum, p) => sum + Number(p.amount), 0);
-          const itemsList = payables.map(p => 
-            `• *${p.name}*: ${formatCurrency(p.amount)} (${p.description}${p.installment ? ` - Parcela ${p.installment}` : ''})`
-          ).join('\n');
+          const totalPenalties = payables.reduce((sum, p) => sum + (p.penalty || 0), 0);
+          
+          const itemsList = payables.map(p => {
+            let itemLine = `• *${p.name}*: ${formatCurrency(p.amount)} (${p.description}${p.installment ? ` - Parcela ${p.installment}` : ''})`;
+            if (p.penalty > 0) {
+              itemLine += `\n   ⚠️ Multa: +${formatCurrency(p.penalty)}`;
+            }
+            if (p.overdueConfig) {
+              const taxaInfo = p.overdueConfig.type === 'percentage' 
+                ? `${p.overdueConfig.value}% ao dia`
+                : `${formatCurrency(p.overdueConfig.value)}/dia`;
+              itemLine += `\n   📈 Taxa atraso: ${taxaInfo}`;
+            }
+            return itemLine;
+          }).join('\n');
 
           let message: string;
           if (overdueInfo.days === 1) {
-            message = `⚠️ *CONTAS A PAGAR - 1 DIA DE ATRASO*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${payables.length} conta${payables.length > 1 ? 's' : ''}* com *1 dia de atraso*:\n\n${itemsList}\n\n💳 *Total em atraso: ${formatCurrency(totalPayable)}*\n\n💸 Regularize o quanto antes!\n\n_CobraFácil - Alerta de atraso_`;
+            message = `⚠️ *CONTAS A PAGAR - 1 DIA DE ATRASO*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nVocê tem *${payables.length} conta${payables.length > 1 ? 's' : ''}* com *1 dia de atraso*:\n\n${itemsList}\n\n`;
+            if (totalPenalties > 0) {
+              message += `⚠️ *Multas acumuladas: ${formatCurrency(totalPenalties)}*\n`;
+            }
+            message += `💳 *Total em atraso: ${formatCurrency(totalPayable)}*\n\n💸 Regularize o quanto antes!\n\n_CobraFácil - Alerta de atraso_`;
           } else {
-            message = `🚨 *CONTAS A PAGAR - 3 DIAS DE ATRASO!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nURGENTE! Você tem *${payables.length} conta${payables.length > 1 ? 's' : ''}* com *3 dias de atraso*:\n\n${itemsList}\n\n💳 *Total em atraso: ${formatCurrency(totalPayable)}*\n\n⚠️ Regularize imediatamente para evitar problemas!\n\n_CobraFácil - Alerta urgente_`;
+            message = `🚨 *CONTAS A PAGAR - 3 DIAS DE ATRASO!*\n\nOlá${profile.full_name ? ` ${profile.full_name}` : ''}!\n\nURGENTE! Você tem *${payables.length} conta${payables.length > 1 ? 's' : ''}* com *3 dias de atraso*:\n\n${itemsList}\n\n`;
+            if (totalPenalties > 0) {
+              message += `⚠️ *Multas acumuladas: ${formatCurrency(totalPenalties)}*\n`;
+            }
+            message += `💳 *Total em atraso: ${formatCurrency(totalPayable)}*\n\n⚠️ Regularize imediatamente para evitar problemas!\n\n_CobraFácil - Alerta urgente_`;
           }
 
           console.log(`Sending ${overdueInfo.days}-day payables overdue alert to user ${profile.id}`);
