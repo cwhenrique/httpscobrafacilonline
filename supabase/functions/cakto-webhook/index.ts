@@ -445,6 +445,9 @@ function getSubscriptionPrice(payload: any): string {
   return '';
 }
 
+// Track processed orders to prevent duplicate processing
+const processedOrders = new Map<string, number>();
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -465,6 +468,47 @@ serve(async (req) => {
     }
 
     const payload = await req.json();
+    
+    // Extract order ID to detect duplicates from Cakto sending multiple webhooks for same purchase
+    const orderId = payload.data?.id || payload.id || '';
+    const subscriptionId = payload.data?.subscription?.id || '';
+    const eventType = payload.event || '';
+    const uniqueKey = `${orderId}-${subscriptionId}-${eventType}`;
+    
+    if (orderId) {
+      const lastProcessed = processedOrders.get(uniqueKey);
+      const now = Date.now();
+      
+      // If we processed this exact order+event within the last 60 seconds, skip it
+      if (lastProcessed && (now - lastProcessed) < 60000) {
+        console.log('=== DUPLICATE WEBHOOK BLOCKED (in-memory) ===');
+        console.log('Order ID:', orderId);
+        console.log('Event:', eventType);
+        console.log('Last processed:', new Date(lastProcessed).toISOString());
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            message: 'Duplicate webhook blocked',
+            orderId,
+            event: eventType
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Mark this order+event as processed
+      processedOrders.set(uniqueKey, now);
+      
+      // Clean up old entries (older than 5 minutes)
+      for (const [key, timestamp] of processedOrders.entries()) {
+        if ((now - timestamp) > 300000) {
+          processedOrders.delete(key);
+        }
+      }
+      
+      console.log('Processing webhook - Order ID:', orderId, 'Event:', eventType);
+    }
     console.log('Received Cakto webhook payload:', JSON.stringify(payload));
 
     // Extract customer data
@@ -619,7 +663,7 @@ Obrigado pela confiança! 💚`;
       // Fetch current profile to check if it's a trial user
       const { data: currentProfile, error: profileFetchError } = await supabase
         .from('profiles')
-        .select('subscription_plan, subscription_expires_at, trial_expires_at, is_active, updated_at')
+        .select('subscription_plan, subscription_expires_at, trial_expires_at, is_active, updated_at, created_at')
         .eq('id', existingUser.id)
         .single();
       
@@ -627,52 +671,102 @@ Obrigado pela confiança! 💚`;
         console.error('Error fetching current profile:', profileFetchError);
       }
       
+      const now = new Date();
+      const profileCreatedAt = currentProfile?.created_at ? new Date(currentProfile.created_at) : null;
+      const profileUpdatedAt = currentProfile?.updated_at ? new Date(currentProfile.updated_at) : null;
+      
+      const minutesSinceCreation = profileCreatedAt 
+        ? (now.getTime() - profileCreatedAt.getTime()) / (1000 * 60) 
+        : Infinity;
+      const minutesSinceProfileUpdate = profileUpdatedAt 
+        ? (now.getTime() - profileUpdatedAt.getTime()) / (1000 * 60) 
+        : Infinity;
+      
       console.log('Current profile state:', {
         subscription_plan: currentProfile?.subscription_plan,
         subscription_expires_at: currentProfile?.subscription_expires_at,
         trial_expires_at: currentProfile?.trial_expires_at,
         is_active: currentProfile?.is_active,
-        updated_at: currentProfile?.updated_at
+        updated_at: currentProfile?.updated_at,
+        created_at: currentProfile?.created_at,
+        minutes_since_creation: minutesSinceCreation.toFixed(2),
+        minutes_since_update: minutesSinceProfileUpdate.toFixed(2)
       });
       
-      // Calculate new expiration date considering existing subscription (ACCUMULATES DAYS!)
-      const expiresAt = calculateExpirationDate(plan, currentProfile?.subscription_expires_at);
-      console.log('=== EXPIRATION CALCULATION ===');
-      console.log('Plan:', plan);
-      console.log('Current subscription_expires_at:', currentProfile?.subscription_expires_at);
-      console.log('New expiresAt (accumulated):', expiresAt);
+      // CRITICAL: If the profile was created very recently (within 2 minutes), 
+      // this is likely a duplicate webhook from Cakto (subscription_created + purchase_approved)
+      // In this case, DON'T accumulate days - the user was just created with the correct subscription
+      const isNewlyCreatedProfile = minutesSinceCreation < 2 && 
+                                     currentProfile?.subscription_plan === plan &&
+                                     currentProfile?.subscription_expires_at !== null;
+      
+      if (isNewlyCreatedProfile) {
+        console.log('=== DUPLICATE WEBHOOK BLOCKED (newly created profile) ===');
+        console.log('Profile was created', minutesSinceCreation.toFixed(2), 'minutes ago');
+        console.log('Already has plan:', currentProfile?.subscription_plan);
+        console.log('Already has expires_at:', currentProfile?.subscription_expires_at);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            message: 'Duplicate webhook blocked - profile just created',
+            email: customerEmail,
+            plan: currentProfile?.subscription_plan,
+            expiresAt: currentProfile?.subscription_expires_at
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       
       // Check if this is a TRIAL user converting to paid
       const isTrialUser = currentProfile?.subscription_plan === 'trial' || 
                           currentProfile?.trial_expires_at !== null;
       
-      // Check if profile was recently updated (within 2 minutes) to avoid duplicate processing
-      const profileUpdatedAt = currentProfile?.updated_at ? new Date(currentProfile.updated_at) : null;
-      const now = new Date();
-      const minutesSinceProfileUpdate = profileUpdatedAt 
-        ? (now.getTime() - profileUpdatedAt.getTime()) / (1000 * 60) 
-        : Infinity;
+      // For calculating new expiration, only accumulate if this is a GENUINE renewal
+      // (profile existed before and has a current valid subscription)
+      let expiresAt: string | null;
       
-      // Check if subscription_expires_at was already updated to this exact value
-      const alreadyProcessed = currentProfile?.subscription_expires_at === expiresAt && 
-                               currentProfile?.subscription_plan === plan &&
-                               minutesSinceProfileUpdate < 2;
+      // Check if profile was recently updated with same plan (within 2 minutes) - another duplicate check
+      const isRecentUpdate = minutesSinceProfileUpdate < 2 && 
+                              currentProfile?.subscription_plan === plan;
       
-      if (alreadyProcessed) {
-        console.log('=== DUPLICATE WEBHOOK DETECTED ===');
-        console.log('Profile already has this exact plan and expiration, updated', minutesSinceProfileUpdate.toFixed(2), 'minutes ago');
+      if (isRecentUpdate) {
+        console.log('=== DUPLICATE WEBHOOK BLOCKED (recent update with same plan) ===');
+        console.log('Profile was updated', minutesSinceProfileUpdate.toFixed(2), 'minutes ago');
         
         return new Response(
           JSON.stringify({ 
             success: true,
-            message: 'Webhook already processed (duplicate)',
+            message: 'Duplicate webhook blocked - recently processed',
             email: customerEmail,
-            plan,
-            expiresAt
+            plan: currentProfile?.subscription_plan,
+            expiresAt: currentProfile?.subscription_expires_at
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      
+      // Calculate expiration: accumulate only if it's a genuine renewal of an active subscription
+      const hasActiveSubscription = currentProfile?.subscription_expires_at && 
+                                     new Date(currentProfile.subscription_expires_at) > now &&
+                                     currentProfile?.subscription_plan !== 'trial' &&
+                                     minutesSinceCreation > 5; // Profile must be older than 5 minutes
+      
+      if (hasActiveSubscription) {
+        // Genuine renewal - accumulate days
+        expiresAt = calculateExpirationDate(plan, currentProfile?.subscription_expires_at);
+        console.log('=== GENUINE RENEWAL - ACCUMULATING DAYS ===');
+      } else {
+        // New subscription, trial conversion, or expired subscription - start fresh from today
+        expiresAt = calculateExpirationDate(plan, null);
+        console.log('=== NEW/FIRST SUBSCRIPTION - STARTING FROM TODAY ===');
+      }
+      
+      console.log('=== EXPIRATION CALCULATION ===');
+      console.log('Plan:', plan);
+      console.log('Current subscription_expires_at:', currentProfile?.subscription_expires_at);
+      console.log('Has active subscription:', hasActiveSubscription);
+      console.log('New expiresAt:', expiresAt);
       
       if (isTrialUser) {
         console.log('=== TRIAL TO PAID CONVERSION ===');
