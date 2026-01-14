@@ -213,16 +213,17 @@ export default function Profile() {
   };
 
   const handleTestWhatsApp = async () => {
-    if (!profile?.phone) {
-      toast.error('Cadastre um número de telefone primeiro');
+    // Verificar se o WhatsApp está conectado
+    if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
+      toast.error('Conecte seu WhatsApp nas configurações primeiro');
       return;
     }
 
     setSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
         body: {
-          phone: profile.phone,
+          userId: user?.id,
           message: `🧪 *Teste do CobraFácil*\n\nOlá ${profile.full_name || ''}!\n\nEsta é uma mensagem de teste do sistema de notificações.\n\n✅ Se você está recebendo esta mensagem, a integração com WhatsApp está funcionando corretamente!\n\n_Mensagem automática de teste_`,
         },
       });
@@ -230,7 +231,9 @@ export default function Profile() {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success('Mensagem de teste enviada com sucesso!');
+        toast.success('Mensagem de teste enviada para seu WhatsApp!');
+      } else if (data?.error === 'whatsapp_not_connected') {
+        toast.error('WhatsApp não conectado. Conecte nas configurações.');
       } else {
         throw new Error(data?.error || 'Erro ao enviar mensagem');
       }
@@ -1008,11 +1011,17 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Envie uma mensagem de teste para verificar se as notificações estão funcionando corretamente.
+              Envie uma mensagem de teste para o seu próprio WhatsApp conectado.
             </p>
+            {profile?.whatsapp_connected_phone && (
+              <p className="text-sm text-green-600 mb-4 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                WhatsApp conectado: {profile.whatsapp_connected_phone}
+              </p>
+            )}
             <Button 
               onClick={handleTestWhatsApp} 
-              disabled={sendingTest || !profile?.phone}
+              disabled={sendingTest || !profile?.whatsapp_instance_id}
               className="gap-2"
             >
               {sendingTest ? (
@@ -1023,13 +1032,13 @@ export default function Profile() {
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  Enviar Teste para WhatsApp
+                  Enviar Teste para Meu WhatsApp
                 </>
               )}
             </Button>
-            {!profile?.phone && (
+            {!profile?.whatsapp_instance_id && (
               <p className="text-xs text-destructive mt-2">
-                Cadastre um número de telefone para testar
+                Conecte seu WhatsApp nas configurações para testar
               </p>
             )}
           </CardContent>
