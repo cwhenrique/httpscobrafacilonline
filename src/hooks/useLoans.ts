@@ -815,6 +815,58 @@ export function useLoans() {
       }
     }
     
+    // Verificar se era pagamento só de juros (declarado aqui para uso nos blocos seguintes)
+    const isInterestOnlyPayment = paymentNotes.includes('[INTEREST_ONLY_PAYMENT]');
+    
+    // 🆕 FALLBACK: Se não removeu nenhuma tag pelos métodos acima,
+    // tentar identificar e remover pelo valor do pagamento
+    if (!notesChanged && !advanceMatch && !subparcelaPaidMatch && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+      const paymentAmount = paymentData.amount;
+      
+      // Buscar todas as tags PARTIAL_PAID atuais
+      const allPartialPaidTags = (updatedLoanNotes.match(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g) || []);
+      
+      // Tentar encontrar uma tag que corresponda ao valor do pagamento
+      for (const tag of allPartialPaidTags) {
+        const match = tag.match(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/);
+        if (match) {
+          const tagAmount = parseFloat(match[2]);
+          // Se o valor da tag é igual ao valor do pagamento (com tolerância de 1 centavo)
+          if (Math.abs(tagAmount - paymentAmount) < 0.02) {
+            updatedLoanNotes = updatedLoanNotes.replace(tag, '').trim();
+            notesChanged = true;
+            break; // Remover apenas uma tag por pagamento excluído
+          }
+        }
+      }
+    }
+    
+    // 🆕 GARANTIR CONSISTÊNCIA: Se ainda há mais tags PARTIAL_PAID do que deveria,
+    // remover a última tag para manter sincronizado com os pagamentos
+    if (!notesChanged && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+      // Contar pagamentos restantes (excluindo o que foi excluído)
+      const { count: remainingPaymentsCount } = await supabase
+        .from('loan_payments')
+        .select('id', { count: 'exact', head: true })
+        .eq('loan_id', loanId)
+        .not('notes', 'ilike', '%[INTEREST_ONLY_PAYMENT]%')
+        .not('notes', 'ilike', '%[PRE_RENEGOTIATION]%');
+      
+      if (remainingPaymentsCount !== null) {
+        const currentTags = (updatedLoanNotes.match(/\[PARTIAL_PAID:\d+:[0-9.]+\]/g) || []);
+        
+        // Se há mais tags do que pagamentos, remover tags excedentes
+        if (currentTags.length > remainingPaymentsCount) {
+          // Remover a última tag (mais recente)
+          const lastTag = currentTags[currentTags.length - 1];
+          if (lastTag) {
+            updatedLoanNotes = updatedLoanNotes.replace(lastTag, '').trim();
+            notesChanged = true;
+          }
+        }
+      }
+    }
+    
     // 🆕 Reverter datas de vencimento usando snapshots do pagamento
     // Suporta dois tipos de snapshot:
     // 1. Manual: [DUE_DATE_PREV:...][DUE_DATE_NEW:...] + [INSTALLMENT_DATE_CHANGE:index:prev:new]
@@ -866,7 +918,6 @@ export function useLoans() {
       }
     }
     
-    const isInterestOnlyPayment = paymentNotes.includes('[INTEREST_ONLY_PAYMENT]');
     if (isInterestOnlyPayment) {
       // 1. Remover a tag [INTEREST_ONLY_PAYMENT] das notas do empréstimo
       let newNotes = updatedLoanNotes.replace(/\[INTEREST_ONLY_PAYMENT\]\n?/g, '');
