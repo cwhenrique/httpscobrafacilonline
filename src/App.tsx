@@ -32,6 +32,7 @@ import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import Tutorials from "./pages/Tutorials";
 import Employees from "./pages/Employees";
+import ConsultaCpf from "./pages/ConsultaCpf";
 import Quiz from "./pages/Quiz";
 import NotFound from "./pages/NotFound";
 
@@ -82,6 +83,7 @@ const App = () => {
               <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
               <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
               <Route path="/employees" element={<ProtectedRoute><OwnerOnlyRoute><Employees /></OwnerOnlyRoute></ProtectedRoute>} />
+              <Route path="/consulta-cpf" element={<ProtectedRoute><ConsultaCpf /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
