@@ -258,9 +258,10 @@ export default function Dashboard() {
                     <Search className="w-6 h-6 text-cyan-300" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="text-cyan-200 text-sm font-medium">Precisa encontrar uma pessoa?</span>
                       <h3 className="font-display font-bold text-xl text-white drop-shadow-md">
-                        ConsultaFácil
+                        Conheça o ConsultaFácil
                       </h3>
                       <Badge className="bg-cyan-500 text-white text-xs">NOVO</Badge>
                     </div>
