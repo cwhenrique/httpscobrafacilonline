@@ -36,8 +36,11 @@ export default function ConsultaCpf() {
                   <h2 className="text-3xl font-bold text-white">ConsultaFácil</h2>
                   <Badge className="bg-cyan-500 text-white">NOVO</Badge>
                 </div>
-                <p className="text-cyan-100 text-lg max-w-md">
+                <p className="text-cyan-100 text-lg max-w-md mb-3">
                   Precisa encontrar uma pessoa? Consulte CPFs em segundos com dados cadastrais completos.
+                </p>
+                <p className="text-cyan-200/80 text-base max-w-lg">
+                  Com apenas o CPF você consegue encontrar <strong className="text-cyan-300">endereços</strong>, <strong className="text-cyan-300">telefones</strong>, <strong className="text-cyan-300">parentescos</strong>, <strong className="text-cyan-300">renda</strong> e muito mais sobre seu cliente.
                 </p>
               </div>
 
