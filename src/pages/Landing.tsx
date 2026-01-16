@@ -313,7 +313,7 @@ const Landing = () => {
             className="mt-6 px-2"
           >
             <a 
-              href="https://wa.me/5541956565679?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP" 
+              href="https://wa.me/5541956555679?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-3 sm:gap-4 badge-premium badge-glow rounded-xl sm:rounded-2xl px-6 py-4 sm:px-10 sm:py-5 hover:scale-105 transition-transform duration-300"
@@ -1179,7 +1179,7 @@ const Landing = () => {
             </p>
             
             <a 
-              href="https://wa.me/5541956565679?text=Ol%C3%A1!%20Vim%20do%20site%20do%20CobraF%C3%A1cil%20e%20tenho%20uma%20d%C3%BAvida.%20LP" 
+              href="https://wa.me/5541956555679?text=Ol%C3%A1!%20Vim%20do%20site%20do%20CobraF%C3%A1cil%20e%20tenho%20uma%20d%C3%BAvida.%20LP" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-block w-full sm:w-auto"
@@ -1315,7 +1315,7 @@ const Landing = () => {
       >
         <div className="container mx-auto flex items-center justify-center gap-3">
           <a 
-            href="https://wa.me/5541956565679?text=Ol%C3%A1!%20Vim%20do%20site%20do%20CobraF%C3%A1cil%20e%20gostaria%20de%20tirar%20uma%20d%C3%BAvida.%20LP" 
+            href="https://wa.me/5541956555679?text=Ol%C3%A1!%20Vim%20do%20site%20do%20CobraF%C3%A1cil%20e%20gostaria%20de%20tirar%20uma%20d%C3%BAvida.%20LP" 
             target="_blank" 
             rel="noopener noreferrer"
             className="w-full sm:w-auto"
