@@ -275,12 +275,34 @@ export default function Settings() {
     if (!user?.id) return;
     
     setResettingInstance(true);
-    toast.info('Reiniciando instância...');
+    toast.info('Recriando instância do WhatsApp... Isso pode levar alguns segundos.');
     
     try {
-      // Force a reset by doing logout + new QR
-      await handleRefreshQrCode(true);
-      toast.success('Instância reiniciada! Escaneie o novo QR Code.');
+      // Force reset - deletes old instance and creates a brand new one
+      const { data, error } = await supabase.functions.invoke('whatsapp-force-reset', {
+        body: { userId: user.id }
+      });
+
+      if (error) {
+        console.error('Error force resetting instance:', error);
+        toast.error('Erro ao recriar instância');
+        return;
+      }
+
+      if (data.success && data.qrCode) {
+        setQrCode(data.qrCode);
+        setShowQrModal(true);
+        toast.success('Instância recriada! Escaneie o novo QR Code.');
+      } else if (data.success) {
+        toast.success(data.message || 'Instância recriada!');
+        // Try to get QR code
+        await handleConnectWhatsApp();
+      } else {
+        toast.error(data.error || 'Erro ao recriar instância');
+      }
+
+      // Refresh status
+      await checkWhatsAppStatus();
     } catch (error) {
       console.error('Error resetting instance:', error);
       toast.error('Erro ao reiniciar instância');
@@ -814,24 +836,47 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                   </Button>
                 </div>
 
-                <Button 
-                  variant="outline" 
-                  onClick={handleDisconnectWhatsApp}
-                  disabled={disconnecting}
-                  className="w-full text-destructive hover:text-destructive"
-                >
-                  {disconnecting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Desconectando...
-                    </>
-                  ) : (
-                    <>
-                      <Unplug className="w-4 h-4 mr-2" />
-                      Desconectar WhatsApp
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleResetInstance}
+                    disabled={resettingInstance}
+                    className="flex-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                  >
+                    {resettingInstance ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Recriando...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Recriar Instância
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDisconnectWhatsApp}
+                    disabled={disconnecting}
+                    className="flex-1 text-destructive hover:text-destructive"
+                  >
+                    {disconnecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Desconectando...
+                      </>
+                    ) : (
+                      <>
+                        <Unplug className="w-4 h-4 mr-2" />
+                        Desconectar
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Se sua conexão estiver instável ou desconectando, use "Recriar Instância" para gerar uma nova conexão.
+                </p>
               </>
             ) : (
               <>

@@ -146,3 +146,6 @@ verify_jwt = false
 
 [functions.fix-historical-loans]
 verify_jwt = false
+
+[functions.whatsapp-force-reset]
+verify_jwt = true
