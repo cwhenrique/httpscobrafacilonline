@@ -277,20 +277,7 @@ function getSubscriptionPlan(payload: any): string {
     return 'annual';
   }
 
-  // Check for monthly/mensal by name
-  if (
-    productName.includes('mensal') ||
-    productName.includes('monthly') ||
-    productName.includes('mês') ||
-    productName.includes('mes') ||
-    productId.includes('monthly') ||
-    productId.includes('mensal')
-  ) {
-    console.log('Matched: MONTHLY by name');
-    return 'monthly';
-  }
-
-  // Check for quarterly/trimestral by name
+  // Check for quarterly/trimestral by name FIRST (before monthly, because "trimestral" contains "mes")
   if (
     productName.includes('trimestral') ||
     productName.includes('quarterly') ||
@@ -302,6 +289,19 @@ function getSubscriptionPlan(payload: any): string {
   ) {
     console.log('Matched: QUARTERLY by name');
     return 'quarterly';
+  }
+
+  // Check for monthly/mensal by name (AFTER trimestral to avoid false matches)
+  if (
+    productName.includes('mensal') ||
+    productName.includes('monthly') ||
+    productName.includes('mês') ||
+    productName.includes('mes') ||
+    productId.includes('monthly') ||
+    productId.includes('mensal')
+  ) {
+    console.log('Matched: MONTHLY by name');
+    return 'monthly';
   }
 
   // FALLBACK: Use price to detect plan
