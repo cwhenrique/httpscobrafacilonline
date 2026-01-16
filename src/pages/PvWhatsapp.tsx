@@ -81,7 +81,7 @@ const scaleIn = {
   visible: { opacity: 1, scale: 1 },
 };
 
-const WHATSAPP_LINK = "https://wa.me/5541956565679?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP";
+const WHATSAPP_LINK = "https://wa.me/5541956555679?text=Ol%C3%A1%20gostaria%20de%20saber%20mais%20sobre%20o%20sistema%20CobraF%C3%A1cil%20LP";
 
 const PvWhatsapp = () => {
   const [showBottomBar, setShowBottomBar] = useState(false);
@@ -514,7 +514,7 @@ const PvWhatsapp = () => {
               </div>
               <Button 
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
-                onClick={() => window.open("https://wa.me/5541956565679?text=Olá! Tenho interesse no plano MENSAL do CobraFácil. Pode me passar mais informações?", '_blank')}
+                onClick={() => window.open("https://wa.me/5541956555679?text=Olá! Tenho interesse no plano MENSAL do CobraFácil. Pode me passar mais informações?", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Quero Plano Mensal
@@ -564,7 +564,7 @@ const PvWhatsapp = () => {
               </div>
               <Button 
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
-                onClick={() => window.open("https://wa.me/5541956565679?text=Olá! Tenho interesse no plano VITALÍCIO do CobraFácil. Quero acesso para sempre!", '_blank')}
+                onClick={() => window.open("https://wa.me/5541956555679?text=Olá! Tenho interesse no plano VITALÍCIO do CobraFácil. Quero acesso para sempre!", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Quero Acesso Vitalício
@@ -608,7 +608,7 @@ const PvWhatsapp = () => {
               </div>
               <Button 
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-bold"
-                onClick={() => window.open("https://wa.me/5541956565679?text=Olá! Tenho interesse no plano ANUAL do CobraFácil. Pode me passar mais detalhes?", '_blank')}
+                onClick={() => window.open("https://wa.me/5541956555679?text=Olá! Tenho interesse no plano ANUAL do CobraFácil. Pode me passar mais detalhes?", '_blank')}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Quero Plano Anual
