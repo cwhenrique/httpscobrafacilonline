@@ -26,7 +26,7 @@ import {
   Lock,
   UserPlus,
   X,
-  Search,
+  
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -42,19 +42,12 @@ export default function Dashboard() {
     return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
   });
   
-  const [showConsultaBanner, setShowConsultaBanner] = useState(() => {
-    return sessionStorage.getItem('hideConsultaBanner') !== 'true';
-  });
   
   const handleCloseEmployeeBanner = () => {
     sessionStorage.setItem('hideEmployeeBanner', 'true');
     setShowEmployeeBanner(false);
   };
   
-  const handleCloseConsultaBanner = () => {
-    sessionStorage.setItem('hideConsultaBanner', 'true');
-    setShowConsultaBanner(false);
-  };
   
   // Enable browser notifications for overdue loans
   useOverdueNotifications(loans, loansLoading);
@@ -241,55 +234,6 @@ export default function Dashboard() {
         {/* PWA Install Banner */}
         <PWAInstallBanner variant="card" />
 
-        {/* ConsultaFácil Promo Banner */}
-        {showConsultaBanner && (
-          <Card className="shadow-soft border-cyan-500/50 bg-gradient-to-r from-gray-900 to-cyan-900 relative">
-            <button 
-              onClick={handleCloseConsultaBanner}
-              className="absolute top-2 right-2 p-1 rounded-full hover:bg-cyan-500/20 transition-colors z-10"
-              aria-label="Fechar banner"
-            >
-              <X className="w-4 h-4 text-cyan-200" />
-            </button>
-            <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-cyan-500/30">
-                    <Search className="w-6 h-6 text-cyan-300" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="text-cyan-200 text-sm font-medium">Precisa encontrar uma pessoa?</span>
-                      <h3 className="font-display font-bold text-xl text-white drop-shadow-md">
-                        Conheça o ConsultaFácil
-                      </h3>
-                      <Badge className="bg-cyan-500 text-white text-xs">NOVO</Badge>
-                    </div>
-                    <p className="text-sm text-cyan-100 mt-1 font-medium">
-                      Consulte CPFs em segundos! Dados cadastrais completos com segurança e conformidade LGPD.
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-cyan-100 font-medium">
-                      <span className="flex items-center gap-1">✓ Consulta em menos de 2s</span>
-                      <span className="flex items-center gap-1">✓ Consulta em lote</span>
-                      <span className="flex items-center gap-1">✓ Exportação em PDF</span>
-                      <span className="flex items-center gap-1">✓ +10.000 consultas realizadas</span>
-                    </div>
-                  </div>
-                </div>
-                <a 
-                  href="https://sign-and-search.lovable.app" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <Button className="gap-2 bg-cyan-500 hover:bg-cyan-400 text-white font-semibold">
-                    Conhecer Agora
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Button>
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Employee Feature Promo - Only for owners */}
         {!isEmployee && isOwner && showEmployeeBanner && (
