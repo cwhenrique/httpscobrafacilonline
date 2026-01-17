@@ -511,6 +511,7 @@ export default function Loans() {
     principal_amount: '',
     interest_rate: '',
     installments: '6',
+    payment_frequency: 'monthly' as 'monthly' | 'weekly',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
     start_date: format(new Date(), 'yyyy-MM-dd'),
     notes: '',
@@ -522,21 +523,33 @@ export default function Loans() {
   // Cálculo da Tabela Price
   const priceTablePreview = useMemo(() => {
     const principal = parseFloat(priceFormData.principal_amount);
-    const rate = parseFloat(priceFormData.interest_rate);
+    const monthlyRate = parseFloat(priceFormData.interest_rate);
     const installments = parseInt(priceFormData.installments) || 1;
 
-    if (!principal || principal <= 0 || !rate || rate <= 0 || installments <= 0) {
+    if (!principal || principal <= 0 || !monthlyRate || monthlyRate <= 0 || installments <= 0) {
       return null;
     }
 
-    return generatePriceTable(principal, rate, installments);
-  }, [priceFormData.principal_amount, priceFormData.interest_rate, priceFormData.installments]);
+    // Se semanal, dividir taxa mensal por 4.33 para obter taxa semanal
+    const effectiveRate = priceFormData.payment_frequency === 'weekly' 
+      ? monthlyRate / 4.33 
+      : monthlyRate;
+
+    return generatePriceTable(principal, effectiveRate, installments);
+  }, [priceFormData.principal_amount, priceFormData.interest_rate, priceFormData.installments, priceFormData.payment_frequency]);
   
   // Datas das parcelas Price
   const priceInstallmentDates = useMemo(() => {
     if (!priceFormData.start_date) return [];
     
     const numInstallments = parseInt(priceFormData.installments) || 1;
+    
+    // Se semanal, usar generateWeeklyDates; se mensal, usar addMonths
+    if (priceFormData.payment_frequency === 'weekly') {
+      return generateWeeklyDates(priceFormData.start_date, numInstallments, false, false, false);
+    }
+    
+    // Mensal - comportamento original
     const startDate = new Date(priceFormData.start_date + 'T12:00:00');
     const dates: string[] = [];
     
@@ -546,7 +559,7 @@ export default function Loans() {
     }
     
     return dates;
-  }, [priceFormData.start_date, priceFormData.installments]);
+  }, [priceFormData.start_date, priceFormData.installments, priceFormData.payment_frequency]);
   
   // Função para criar empréstimo Price
   const handlePriceTableSubmit = async () => {
@@ -565,7 +578,8 @@ export default function Loans() {
     const installments = parseInt(priceFormData.installments);
 
     let notes = priceFormData.notes || '';
-    notes = `[PRICE_TABLE]\n${notes}`;
+    const weeklyTag = priceFormData.payment_frequency === 'weekly' ? '[SEMANAL]' : '';
+    notes = `[PRICE_TABLE]${weeklyTag}\n${notes}`;
 
     const result = await createLoan({
       client_id: priceFormData.client_id,
@@ -617,6 +631,7 @@ export default function Loans() {
         principal_amount: '',
         interest_rate: '',
         installments: '6',
+        payment_frequency: 'monthly',
         contract_date: format(new Date(), 'yyyy-MM-dd'),
         start_date: format(new Date(), 'yyyy-MM-dd'),
         notes: '',
@@ -10266,7 +10281,7 @@ export default function Loans() {
                 </div>
 
                 {/* Valores Principais */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4" /> Valor do Capital
@@ -10284,6 +10299,11 @@ export default function Loans() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium flex items-center gap-1.5">
                       <Percent className="w-4 h-4" /> Taxa Mensal (%)
+                      {priceFormData.payment_frequency === 'weekly' && priceFormData.interest_rate && (
+                        <span className="text-xs text-muted-foreground font-normal">
+                          (÷4,33 = {(parseFloat(priceFormData.interest_rate) / 4.33).toFixed(2)}%/sem)
+                        </span>
+                      )}
                     </Label>
                     <Input
                       type="number"
@@ -10307,6 +10327,24 @@ export default function Loans() {
                       onChange={(e) => setPriceFormData(prev => ({ ...prev, installments: e.target.value }))}
                       className="h-10"
                     />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1.5">
+                      <CalendarIcon className="w-4 h-4" /> Frequência
+                    </Label>
+                    <Select
+                      value={priceFormData.payment_frequency}
+                      onValueChange={(value: 'monthly' | 'weekly') => setPriceFormData(prev => ({ ...prev, payment_frequency: value }))}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monthly">Mensal</SelectItem>
+                        <SelectItem value="weekly">Semanal</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
