@@ -32,7 +32,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
 import { motion } from 'framer-motion';
@@ -230,11 +230,14 @@ export default function ReportsLoans() {
     loansFilteredByType.forEach(loan => {
       const loanPayments = (loan as any).payments || [];
       loanPayments.forEach((payment: any) => {
-        const paymentDate = payment.payment_date ? new Date(payment.payment_date) : null;
-        if (!paymentDate) return;
+        if (!payment.payment_date) return;
+        const paymentDate = parseISO(payment.payment_date);
         
         if (dateRange?.from && dateRange?.to) {
-          if (isWithinInterval(paymentDate, { start: dateRange.from, end: dateRange.to })) {
+          // Normalize dates for comparison without time issues
+          const startDate = startOfDay(dateRange.from);
+          const endDate = endOfDay(dateRange.to);
+          if (isWithinInterval(paymentDate, { start: startDate, end: endDate })) {
             payments.push({
               loanId: loan.id,
               amount: Number(payment.amount || 0),
@@ -345,7 +348,9 @@ export default function ReportsLoans() {
           
           if (!isInstallmentPaid) {
             if (dateRange?.from && dateRange?.to) {
-              if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
+              const startDate = startOfDay(dateRange.from);
+              const endDate = endOfDay(dateRange.to);
+              if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
                 pendingInPeriod += Math.max(0, installmentValue - paidAmount);
               }
             } else {
@@ -358,7 +363,9 @@ export default function ReportsLoans() {
         // Empréstimo com parcela única
         const dueDate = parseISO(loan.due_date);
         if (dateRange?.from && dateRange?.to) {
-          if (isWithinInterval(dueDate, { start: dateRange.from, end: dateRange.to })) {
+          const startDate = startOfDay(dateRange.from);
+          const endDate = endOfDay(dateRange.to);
+          if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
             return sum + Number(loan.remaining_balance || 0);
           }
           return sum;
