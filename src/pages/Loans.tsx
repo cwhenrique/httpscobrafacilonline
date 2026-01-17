@@ -1104,6 +1104,27 @@ export default function Loans() {
     }
   };
 
+  // Function to remove ALL penalties from a loan
+  const handleRemoveAllPenalties = async (loanId: string, currentNotes: string | null) => {
+    try {
+      // Remove todas as tags [DAILY_PENALTY:X:Y]
+      const cleanNotes = (currentNotes || '').replace(/\[DAILY_PENALTY:\d+:[0-9.]+\]\n?/g, '').trim();
+      
+      const { error } = await supabase
+        .from('loans')
+        .update({ notes: cleanNotes })
+        .eq('id', loanId);
+      
+      if (error) throw error;
+      
+      fetchLoans();
+      toast.success('Todas as multas foram removidas!');
+    } catch (error) {
+      console.error('Error removing all penalties:', error);
+      toast.error('Erro ao remover multas');
+    }
+  };
+
   // Function to edit penalty for specific daily installment
   const handleEditDailyPenalty = async (
     loanId: string, 
@@ -7597,9 +7618,21 @@ export default function Loans() {
                                   {/* Multa Aplicada (fixa - [DAILY_PENALTY]) */}
                                   {totalAppliedPenalties > 0 && (
                                     <div className="flex items-center justify-between mt-2 text-xs sm:text-sm">
-                                      <span className="text-orange-300">
-                                        <DollarSign className="w-3 h-3 inline mr-1" />
+                                      <span className="text-orange-300 flex items-center gap-2">
+                                        <DollarSign className="w-3 h-3" />
                                         Multa Aplicada
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-400/40"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveAllPenalties(loan.id, loan.notes);
+                                          }}
+                                        >
+                                          <Trash2 className="w-3 h-3 mr-1" />
+                                          Excluir
+                                        </Button>
                                       </span>
                                       <span className="font-bold text-orange-200">
                                         +{formatCurrency(totalAppliedPenalties)}
@@ -9384,14 +9417,28 @@ export default function Loans() {
                             {/* Seção de multas MANUAIS aplicadas - exibe mesmo se há juros dinâmicos */}
                             {totalAppliedPenaltiesDaily > 0 && (
                               <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-3">
-                                {/* Cabeçalho */}
+                                {/* Cabeçalho com botão de excluir */}
                                 <div className="flex items-center justify-between">
                                   <span className="text-orange-400 font-semibold flex items-center gap-1.5 text-sm">
                                     <DollarSign className="w-4 h-4" /> Multa Aplicada
                                   </span>
-                                  <span className="font-bold text-orange-300">
-                                    +{formatCurrency(totalAppliedPenaltiesDaily)}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-orange-300">
+                                      +{formatCurrency(totalAppliedPenaltiesDaily)}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-400/40"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveAllPenalties(loan.id, loan.notes);
+                                      }}
+                                    >
+                                      <Trash2 className="w-3 h-3 mr-1" />
+                                      Excluir
+                                    </Button>
+                                  </div>
                                 </div>
                                 
                                 {/* Detalhamento por parcela */}
@@ -9399,9 +9446,22 @@ export default function Loans() {
                                   {(() => {
                                     const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
                                     return Object.entries(manualPenalties).map(([idx, penalty]) => (
-                                      <div key={idx} className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1">
+                                      <div key={idx} className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1.5">
                                         <span className="text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
-                                        <span className="font-medium text-orange-400">+{formatCurrency(penalty)}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-orange-400">+{formatCurrency(penalty)}</span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRemoveDailyPenalty(loan.id, parseInt(idx), loan.notes);
+                                            }}
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     ));
                                   })()}
