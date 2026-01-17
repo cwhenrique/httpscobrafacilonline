@@ -544,9 +544,16 @@ export default function Loans() {
     
     const numInstallments = parseInt(priceFormData.installments) || 1;
     
-    // Se semanal, usar generateWeeklyDates; se mensal, usar addMonths
+    // Se semanal, gerar datas semanais inline (7 em 7 dias)
     if (priceFormData.payment_frequency === 'weekly') {
-      return generateWeeklyDates(priceFormData.start_date, numInstallments, false, false, false);
+      const dates: string[] = [];
+      let currentDate = new Date(priceFormData.start_date + 'T12:00:00');
+      
+      for (let i = 0; i < numInstallments; i++) {
+        dates.push(format(currentDate, 'yyyy-MM-dd'));
+        currentDate.setDate(currentDate.getDate() + 7);
+      }
+      return dates;
     }
     
     // Mensal - comportamento original
