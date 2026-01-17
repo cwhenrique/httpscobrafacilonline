@@ -810,6 +810,7 @@ export default function CreateTrialUser() {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Telefone</TableHead>
                         <TableHead>Senha</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
@@ -834,6 +835,21 @@ export default function CreateTrialUser() {
                                     size="sm"
                                     className="h-6 w-6 p-0 flex-shrink-0"
                                     onClick={() => copyToClipboard(user.email!)}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{user.phone || '-'}</span>
+                                {user.phone && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 flex-shrink-0"
+                                    onClick={() => copyToClipboard(user.phone!)}
                                   >
                                     <Copy className="w-3 h-3" />
                                   </Button>
