@@ -7621,18 +7621,18 @@ export default function Loans() {
                                       <span className="text-orange-300 flex items-center gap-2">
                                         <DollarSign className="w-3 h-3" />
                                         Multa Aplicada
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-400/40"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleRemoveAllPenalties(loan.id, loan.notes);
-                                          }}
-                                        >
-                                          <Trash2 className="w-3 h-3 mr-1" />
-                                          Excluir
-                                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 border border-green-400/40"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveAllPenalties(loan.id, loan.notes);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Excluir
+                        </Button>
                                       </span>
                                       <span className="font-bold text-orange-200">
                                         +{formatCurrency(totalAppliedPenalties)}
@@ -9426,18 +9426,18 @@ export default function Loans() {
                                     <span className="font-bold text-orange-300">
                                       +{formatCurrency(totalAppliedPenaltiesDaily)}
                                     </span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-400/40"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveAllPenalties(loan.id, loan.notes);
-                                      }}
-                                    >
-                                      <Trash2 className="w-3 h-3 mr-1" />
-                                      Excluir
-                                    </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 border border-green-400/40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveAllPenalties(loan.id, loan.notes);
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Excluir
+                              </Button>
                                   </div>
                                 </div>
                                 
@@ -9450,17 +9450,17 @@ export default function Loans() {
                                         <span className="text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
                                         <div className="flex items-center gap-2">
                                           <span className="font-medium text-orange-400">+{formatCurrency(penalty)}</span>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleRemoveDailyPenalty(loan.id, parseInt(idx), loan.notes);
-                                            }}
-                                          >
-                                            <X className="w-3 h-3" />
-                                          </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 text-green-400 hover:text-green-300 hover:bg-green-500/20"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveDailyPenalty(loan.id, parseInt(idx), loan.notes);
+                                      }}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </Button>
                                         </div>
                                       </div>
                                     ));
