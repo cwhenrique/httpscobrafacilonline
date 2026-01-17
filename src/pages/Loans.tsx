@@ -3703,14 +3703,12 @@ export default function Loans() {
         : paymentData.selected_installments.map(i => i + 1)  // Múltiplas: array de números
       : targetInstallmentIndex + 1;
     
-    // Atualizar notes do loan com tracking de parcelas ANTES do registerPayment
-    // para que as notas já estejam salvas quando o fetchLoans for chamado
-    // 🆕 NÃO salvar se for amortização - a amortização salva suas próprias notas abaixo
-    // 🆕 Guardar notas originais para reversão em caso de erro no registerPayment
-    const originalNotesBeforePayment = selectedLoan.notes || '';
-    if (updatedNotes !== selectedLoan.notes && !paymentData.recalculate_interest) {
-      await supabase.from('loans').update({ notes: updatedNotes.trim() }).eq('id', selectedLoanId);
-    }
+    // 🆕 FIX: NÃO salvar notas com PARTIAL_PAID aqui!
+    // As notas serão salvas APENAS DEPOIS que o registerPayment confirmar sucesso
+    // Isso evita que tags PARTIAL_PAID fiquem no banco mesmo quando o pagamento falha
+    // Guardar as notas atualizadas para salvar depois do sucesso
+    const notesToSaveAfterPayment = updatedNotes.trim();
+    const shouldSaveNotesAfterPayment = notesToSaveAfterPayment !== (selectedLoan.notes || '').trim() && !paymentData.recalculate_interest;
     
     // 🆕 RECÁLCULO DE JUROS (AMORTIZAÇÃO): Se o usuário marcou a opção de recalcular juros
     // A amortização reduz o PRINCIPAL ORIGINAL, e os novos juros são calculados sobre esse novo principal
@@ -3850,16 +3848,11 @@ export default function Loans() {
       send_notification: paymentData.send_notification,
     });
     
-    // 🆕 Se o pagamento falhou, reverter as notas para o estado original
+    // 🆕 Se o pagamento falhou, NÃO há nada para reverter (notas não foram salvas ainda)
     if (paymentResult.error) {
-      console.error('[PAYMENT ERROR] Falha ao inserir pagamento, revertendo notas:', paymentResult.error);
+      console.error('[PAYMENT ERROR] Falha ao inserir pagamento:', paymentResult.error);
       
-      // Reverter as notas para o estado antes da tag PARTIAL_PAID ser adicionada
-      await supabase.from('loans').update({ 
-        notes: originalNotesBeforePayment.trim() || null 
-      }).eq('id', selectedLoanId);
-      
-      // Se houve alteração de due_date, também reverter
+      // Se houve alteração de due_date, reverter apenas isso
       if (paymentData.new_due_date) {
         const originalDates = (selectedLoan.installment_dates as string[]) || [];
         await supabase.from('loans').update({ 
@@ -3877,6 +3870,12 @@ export default function Loans() {
       paymentLockRef.current = false;
       setIsPaymentSubmitting(false);
       return; // toast.error já foi mostrado no registerPayment
+    }
+    
+    // 🆕 FIX: AGORA que o pagamento foi confirmado, salvar as notas com PARTIAL_PAID
+    // Isso garante que as tags só existem quando há um pagamento real correspondente
+    if (shouldSaveNotesAfterPayment) {
+      await supabase.from('loans').update({ notes: notesToSaveAfterPayment }).eq('id', selectedLoanId);
     }
     
     // 🆕 CORREÇÃO: Atualizar due_date automaticamente para a próxima parcela não paga
