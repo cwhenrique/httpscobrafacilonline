@@ -744,7 +744,20 @@ export default function ProductSales() {
 
 
   // Receipt generation functions
-  const handleGenerateProductReceipt = (sale: ProductSale) => {
+  const handleGenerateProductReceipt = async (sale: ProductSale) => {
+    // Fetch payments directly from the database to avoid the 1000-record limit issue
+    const { data: payments, error } = await supabase
+      .from('product_sale_payments')
+      .select('*')
+      .eq('product_sale_id', sale.id)
+      .order('installment_number', { ascending: true });
+
+    if (error) {
+      toast.error('Erro ao carregar parcelas para o comprovante');
+      console.error('Error fetching payments for receipt:', error);
+      return;
+    }
+
     const receiptData: ContractReceiptData = {
       type: 'product',
       contractId: sale.id,
@@ -766,7 +779,7 @@ export default function ProductSales() {
         downPayment: sale.down_payment || 0,
         costValue: sale.cost_value || 0,
       },
-      dueDates: getSalePayments(sale.id).map(p => ({ date: p.due_date, isPaid: p.status === 'paid' })),
+      dueDates: (payments || []).map(p => ({ date: p.due_date, isPaid: p.status === 'paid' })),
       productInfo: { name: sale.product_name, description: sale.product_description || undefined },
     };
     setReceiptPreviewData(receiptData);
