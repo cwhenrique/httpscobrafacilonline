@@ -149,3 +149,6 @@ verify_jwt = false
 
 [functions.whatsapp-force-reset]
 verify_jwt = true
+
+[functions.fix-daily-loan-balances]
+verify_jwt = false
