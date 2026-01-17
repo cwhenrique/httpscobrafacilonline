@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { format, addMonths } from 'date-fns';
+import { format, addMonths, addWeeks } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +59,7 @@ export default function PriceTableDialog({
     principal_amount: '',
     interest_rate: '',
     installments: '6',
+    payment_frequency: 'monthly' as 'monthly' | 'weekly',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
     start_date: format(new Date(), 'yyyy-MM-dd'),
     notes: '',
@@ -70,15 +71,20 @@ export default function PriceTableDialog({
   // Calculate Price table when values change
   const priceTableData = useMemo(() => {
     const principal = parseFloat(formData.principal_amount);
-    const rate = parseFloat(formData.interest_rate);
+    const monthlyRate = parseFloat(formData.interest_rate);
     const installments = parseInt(formData.installments) || 1;
 
-    if (!principal || principal <= 0 || !rate || rate <= 0 || installments <= 0) {
+    if (!principal || principal <= 0 || !monthlyRate || monthlyRate <= 0 || installments <= 0) {
       return null;
     }
 
+    // Converter taxa mensal para semanal se necessário (dividir por ~4.33 semanas/mês)
+    const rate = formData.payment_frequency === 'weekly' 
+      ? monthlyRate / 4.33  
+      : monthlyRate;
+
     return generatePriceTable(principal, rate, installments);
-  }, [formData.principal_amount, formData.interest_rate, formData.installments]);
+  }, [formData.principal_amount, formData.interest_rate, formData.installments, formData.payment_frequency]);
 
   // Generate installment dates
   const installmentDates = useMemo(() => {
@@ -86,17 +92,17 @@ export default function PriceTableDialog({
     
     const numInstallments = parseInt(formData.installments) || 1;
     const startDate = new Date(formData.start_date + 'T12:00:00');
-    const startDay = startDate.getDate();
     const dates: string[] = [];
     
     for (let i = 0; i < numInstallments; i++) {
-      // Usar addMonths do date-fns para evitar bugs na virada de ano/mês
-      const date = addMonths(startDate, i);
+      const date = formData.payment_frequency === 'weekly'
+        ? addWeeks(startDate, i)
+        : addMonths(startDate, i);
       dates.push(format(date, 'yyyy-MM-dd'));
     }
     
     return dates;
-  }, [formData.start_date, formData.installments]);
+  }, [formData.start_date, formData.installments, formData.payment_frequency]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +123,7 @@ export default function PriceTableDialog({
 
     // Create notes with price table tag
     let notes = formData.notes || '';
-    notes = `[PRICE_TABLE]\n${notes}`;
+    notes = `[PRICE_TABLE]${formData.payment_frequency === 'weekly' ? '[SEMANAL]' : ''}\n${notes}`;
 
     const result = await onCreateLoan({
       client_id: formData.client_id,
@@ -144,6 +150,7 @@ export default function PriceTableDialog({
         principal_amount: '',
         interest_rate: '',
         installments: '6',
+        payment_frequency: 'monthly',
         contract_date: format(new Date(), 'yyyy-MM-dd'),
         start_date: format(new Date(), 'yyyy-MM-dd'),
         notes: '',
@@ -239,6 +246,11 @@ export default function PriceTableDialog({
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <Percent className="w-4 h-4" /> Taxa Mensal (%)
+                {formData.payment_frequency === 'weekly' && parseFloat(formData.interest_rate) > 0 && (
+                  <span className="text-xs text-muted-foreground ml-1">
+                    (÷4.33 = {(parseFloat(formData.interest_rate) / 4.33).toFixed(2)}%/sem)
+                  </span>
+                )}
               </Label>
               <Input
                 type="number"
@@ -257,11 +269,31 @@ export default function PriceTableDialog({
               <Input
                 type="number"
                 min="1"
-                max="60"
+                max="120"
                 value={formData.installments}
                 onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
                 className="h-10"
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <CalendarIcon className="w-4 h-4" /> Frequência
+              </Label>
+              <Select
+                value={formData.payment_frequency}
+                onValueChange={(value: 'monthly' | 'weekly') => 
+                  setFormData(prev => ({ ...prev, payment_frequency: value }))
+                }
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
