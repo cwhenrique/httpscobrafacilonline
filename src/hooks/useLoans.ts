@@ -746,6 +746,19 @@ export function useLoans() {
       return { error: deleteError };
     }
 
+    // 🆕 IMPORTANTE: Re-buscar os dados do empréstimo APÓS o delete
+    // O trigger já atualizou remaining_balance e notes no banco
+    // Devemos usar as notas atualizadas pelo trigger, não as antigas
+    const { data: freshLoanAfterDelete } = await supabase
+      .from('loans')
+      .select('notes, remaining_balance, total_paid, status')
+      .eq('id', loanId)
+      .single();
+    
+    if (freshLoanAfterDelete) {
+      updatedLoanNotes = freshLoanAfterDelete.notes || '';
+    }
+
     // Ao excluir pagamento, NÃO desconsolidar juros/multas de atraso
     // O trigger do banco já reverte o remaining_balance para o valor consolidado (ex: 1485)
     // A tag [OVERDUE_CONSOLIDATED] permanece para manter o histórico correto
@@ -794,10 +807,12 @@ export function useLoans() {
       }
     }
     
-    // Se era pagamento de parcela específica (sem ser adiantamento)
+    // Se era pagamento de parcela ÚNICA específica (sem ser adiantamento)
     // Suportar múltiplos formatos: "Parcela 5 de 10" ou "Parcela 5/10"
+    // IMPORTANTE: Excluir "Parcelas X, Y" (plural) - esses já são tratados pelo trigger do banco
+    const isGroupedPayment = paymentNotes.includes('Parcelas ');
     const parcelaMatch = paymentNotes.match(/Parcela (\d+)(?:\/| de )\d+/);
-    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch && !paymentNotes.includes('[AMORTIZATION]')) {
+    if (parcelaMatch && !isGroupedPayment && !advanceMatch && !subparcelaPaidMatch && !paymentNotes.includes('[AMORTIZATION]')) {
       const installmentIndex = parseInt(parcelaMatch[1]) - 1;
       // Remover a tag PARTIAL_PAID desta parcela
       let newNotes = updatedLoanNotes.replace(
@@ -820,7 +835,8 @@ export function useLoans() {
     
     // 🆕 FALLBACK: Se não removeu nenhuma tag pelos métodos acima,
     // tentar identificar e remover pelo valor do pagamento
-    if (!notesChanged && !advanceMatch && !subparcelaPaidMatch && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+    // NOTA: Para pagamentos agrupados (isGroupedPayment), o trigger do banco já tratou
+    if (!notesChanged && !isGroupedPayment && !advanceMatch && !subparcelaPaidMatch && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
       const paymentAmount = paymentData.amount;
       
       // Buscar todas as tags PARTIAL_PAID atuais
@@ -843,7 +859,8 @@ export function useLoans() {
     
     // 🆕 GARANTIR CONSISTÊNCIA: Se ainda há mais tags PARTIAL_PAID do que deveria,
     // remover a última tag para manter sincronizado com os pagamentos
-    if (!notesChanged && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+    // NOTA: Para pagamentos agrupados (isGroupedPayment), o trigger do banco já tratou
+    if (!notesChanged && !isGroupedPayment && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
       // Contar pagamentos restantes (excluindo o que foi excluído)
       const { count: remainingPaymentsCount } = await supabase
         .from('loan_payments')
