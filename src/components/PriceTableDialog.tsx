@@ -228,7 +228,7 @@ export default function PriceTableDialog({
           </div>
 
           {/* Main Values */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 <DollarSign className="w-4 h-4" /> Valor do Capital
