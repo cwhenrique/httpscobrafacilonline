@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX, KeyRound } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX, KeyRound, Download } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
@@ -443,6 +443,61 @@ export default function CreateTrialUser() {
     return { label: 'Ativo', className: 'bg-primary/20 text-primary' };
   };
 
+  const handleExportCSV = () => {
+    if (filteredUsers.length === 0) {
+      toast({
+        title: 'Nenhum usuário para exportar',
+        description: 'Não há usuários na aba selecionada',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const planLabels: Record<string, string> = {
+      all: 'todos',
+      trial: 'trial',
+      monthly: 'mensal',
+      quarterly: 'trimestral',
+      annual: 'anual',
+      lifetime: 'vitalicio'
+    };
+
+    const fileName = `usuarios_${planLabels[planFilter]}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+
+    const headers = ['Nome', 'Email', 'Telefone'];
+    const rows = filteredUsers.map(user => [
+      user.full_name || '',
+      user.email || '',
+      user.phone || ''
+    ]);
+
+    const escapeCSV = (field: string) => {
+      if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+        return `"${field.replace(/"/g, '""')}"`;
+      }
+      return field;
+    };
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    toast({
+      title: 'Exportação concluída!',
+      description: `${filteredUsers.length} usuários exportados para ${fileName}`,
+    });
+  };
+
   // Login screen
   if (!isAuthenticated) {
     return (
@@ -656,14 +711,26 @@ export default function CreateTrialUser() {
                   <Users className="w-5 h-5 text-primary" />
                   <CardTitle>Todos os Usuários ({users.length})</CardTitle>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchUsers}
-                  disabled={loadingUsers}
-                >
-                  <RefreshCw className={`w-4 h-4 ${loadingUsers ? 'animate-spin' : ''}`} />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportCSV}
+                    disabled={loadingUsers || filteredUsers.length === 0}
+                    title={`Exportar ${filteredUsers.length} usuários`}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Exportar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchUsers}
+                    disabled={loadingUsers}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingUsers ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
               </div>
               {/* Search Field */}
               <div className="relative mt-4">
