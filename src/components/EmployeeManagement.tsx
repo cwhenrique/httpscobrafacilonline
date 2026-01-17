@@ -198,7 +198,7 @@ export default function EmployeeManagement() {
 
     setSaving(true);
     try {
-      const { error } = await supabase.functions.invoke('update-employee', {
+      const { data, error } = await supabase.functions.invoke('update-employee', {
         body: {
           employeeId: selectedEmployee.id,
           permissions: formPermissions,
@@ -206,6 +206,7 @@ export default function EmployeeManagement() {
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast.success('Permissões atualizadas!');
       setShowEditDialog(false);
