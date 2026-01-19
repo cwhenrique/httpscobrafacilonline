@@ -3463,14 +3463,22 @@ export default function Loans() {
       
       const discountAmount = selectedLoan.remaining_balance - receivedAmount;
       
-      // 🆕 CORREÇÃO: Distribuir pagamento corretamente entre principal e juros
-      // O desconto deve ser aplicado ao JUROS, não ao principal
-      // O cliente deve pagar o principal integralmente + parte dos juros
-      const principalDue = selectedLoan.principal_amount - (selectedLoan.total_paid || 0);
-      const principalRemaining = Math.max(0, principalDue);
+      // 🆕 CORREÇÃO: Buscar o principal REALMENTE pago nos pagamentos anteriores
+      // total_paid inclui principal + juros, então precisamos somar apenas principal_paid
+      const { data: existingPayments } = await supabase
+        .from('loan_payments')
+        .select('principal_paid')
+        .eq('loan_id', selectedLoanId);
       
-      // Se o valor recebido é menor ou igual ao principal restante, tudo vai para principal
-      // Se for maior, o excedente vai para juros
+      const actualPrincipalPaid = existingPayments?.reduce(
+        (sum, p) => sum + (p.principal_paid || 0), 0
+      ) || 0;
+      
+      // Calcular o principal que ainda falta pagar
+      const principalRemaining = Math.max(0, selectedLoan.principal_amount - actualPrincipalPaid);
+      
+      // Distribuir pagamento: primeiro cobre o principal, depois os juros
+      // O desconto é aplicado aos JUROS, não ao principal
       let principalPaid: number;
       let interestPaid: number;
       
@@ -3484,8 +3492,10 @@ export default function Loans() {
         interestPaid = receivedAmount - principalRemaining;
       }
       
-      console.log('[DISCOUNT_SETTLEMENT] Distribuição do pagamento:', {
+      console.log('[DISCOUNT_SETTLEMENT] Distribuição correta do pagamento:', {
         receivedAmount,
+        principal_total: selectedLoan.principal_amount,
+        actualPrincipalPaid,
         principalRemaining,
         principalPaid,
         interestPaid,
