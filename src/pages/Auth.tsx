@@ -47,8 +47,18 @@ export default function Auth() {
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [showExpiredDialog, setShowExpiredDialog] = useState(false);
+  const [showTrialExpiredMessage, setShowTrialExpiredMessage] = useState(false);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Check if user had a paid subscription (not just trial)
+  const checkIfPaidSubscription = (profile: { subscription_plan: string | null; subscription_expires_at: string | null }) => {
+    // If user has a subscription_plan set (monthly, annual, quarterly, lifetime), they're a paying customer
+    const paidPlans = ['monthly', 'annual', 'quarterly', 'trimestral', 'mensal', 'anual', 'lifetime', 'vitalicio'];
+    return profile.subscription_plan && paidPlans.some(plan => 
+      profile.subscription_plan?.toLowerCase().includes(plan)
+    );
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +69,7 @@ export default function Auth() {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('is_active')
+          .select('is_active, subscription_plan, subscription_expires_at')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -76,7 +86,17 @@ export default function Auth() {
 
         if (data.is_active === false) {
           await supabase.auth.signOut();
-          setShowExpiredDialog(true);
+          
+          // Check if user had a paid subscription
+          if (checkIfPaidSubscription(data)) {
+            setShowExpiredDialog(true);
+          } else {
+            // Trial user - show simple message
+            setShowTrialExpiredMessage(true);
+            toast.error('Período de teste expirado', {
+              description: 'Seu período de teste terminou. Entre em contato para adquirir um plano.',
+            });
+          }
           return;
         }
 
@@ -114,7 +134,7 @@ export default function Auth() {
     if (data?.user) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('is_active')
+        .select('is_active, subscription_plan, subscription_expires_at')
         .eq('id', data.user.id)
         .maybeSingle();
 
@@ -129,7 +149,16 @@ export default function Auth() {
 
       if (profile.is_active === false) {
         await supabase.auth.signOut();
-        setShowExpiredDialog(true);
+        
+        // Check if user had a paid subscription
+        if (checkIfPaidSubscription(profile)) {
+          setShowExpiredDialog(true);
+        } else {
+          // Trial user - show simple message
+          toast.error('Período de teste expirado', {
+            description: 'Seu período de teste terminou. Entre em contato para adquirir um plano.',
+          });
+        }
         setIsLoading(false);
         return;
       }
