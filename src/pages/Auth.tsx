@@ -6,9 +6,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle, CreditCard } from 'lucide-react';
 import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
+
+const PLAN_OPTIONS = [
+  {
+    name: 'Mensal',
+    price: 'R$ 49,90/mês',
+    link: 'https://pay.cakto.com.br/35qwwgz',
+    description: 'Acesso por 30 dias',
+  },
+  {
+    name: 'Trimestral',
+    price: 'R$ 119,90/trimestre',
+    link: 'https://pay.cakto.com.br/eb6ern9',
+    description: 'Acesso por 90 dias',
+    badge: 'Economia de 20%',
+  },
+  {
+    name: 'Anual',
+    price: 'R$ 399,90/ano',
+    link: 'https://pay.cakto.com.br/fhwfptb',
+    description: 'Acesso por 365 dias',
+    badge: 'Melhor custo-benefício',
+  },
+];
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +46,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [showExpiredDialog, setShowExpiredDialog] = useState(false);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
 
@@ -45,9 +76,7 @@ export default function Auth() {
 
         if (data.is_active === false) {
           await supabase.auth.signOut();
-          toast.error('Conta inativa', {
-            description: 'Seu período de acesso expirou. Entre em contato para renovar.',
-          });
+          setShowExpiredDialog(true);
           return;
         }
 
@@ -100,9 +129,7 @@ export default function Auth() {
 
       if (profile.is_active === false) {
         await supabase.auth.signOut();
-        toast.error('Conta inativa', {
-          description: 'Seu período de acesso expirou. Entre em contato para renovar.',
-        });
+        setShowExpiredDialog(true);
         setIsLoading(false);
         return;
       }
@@ -135,6 +162,10 @@ export default function Auth() {
     }
 
     setIsLoading(false);
+  };
+
+  const handleSelectPlan = (link: string) => {
+    window.open(link, '_blank');
   };
 
   return (
@@ -233,6 +264,51 @@ export default function Auth() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Plano Expirado */}
+      <Dialog open={showExpiredDialog} onOpenChange={setShowExpiredDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+            </div>
+            <DialogTitle className="text-xl">Seu plano expirou</DialogTitle>
+            <DialogDescription className="text-center">
+              Seu período de acesso ao CobraFácil terminou. Renove agora para continuar gerenciando seus empréstimos e mensalidades.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-3">
+            {PLAN_OPTIONS.map((plan) => (
+              <button
+                key={plan.name}
+                onClick={() => handleSelectPlan(plan.link)}
+                className="relative w-full rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md"
+              >
+                {plan.badge && (
+                  <span className="absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                    {plan.badge}
+                  </span>
+                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-foreground">{plan.name}</p>
+                    <p className="text-sm text-muted-foreground">{plan.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">{plan.price}</span>
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Após o pagamento, seu acesso será liberado automaticamente.
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
