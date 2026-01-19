@@ -15,8 +15,8 @@ export function useOverdueNotifications(loans: Loan[], loading: boolean) {
       // Skip paid loans
       if (loan.status === 'paid') return false;
 
-      // Note: Historical contracts are NOT skipped - they should be checked for overdue
-      // based on unpaid installments just like regular contracts
+      // Skip historical contracts - they should NOT trigger overdue notifications
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) return false;
 
       const isDaily = loan.payment_type === 'daily';
       const numInstallments = loan.installments || 1;
