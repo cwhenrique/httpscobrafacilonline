@@ -3463,12 +3463,41 @@ export default function Loans() {
       
       const discountAmount = selectedLoan.remaining_balance - receivedAmount;
       
+      // 🆕 CORREÇÃO: Distribuir pagamento corretamente entre principal e juros
+      // O desconto deve ser aplicado ao JUROS, não ao principal
+      // O cliente deve pagar o principal integralmente + parte dos juros
+      const principalDue = selectedLoan.principal_amount - (selectedLoan.total_paid || 0);
+      const principalRemaining = Math.max(0, principalDue);
+      
+      // Se o valor recebido é menor ou igual ao principal restante, tudo vai para principal
+      // Se for maior, o excedente vai para juros
+      let principalPaid: number;
+      let interestPaid: number;
+      
+      if (receivedAmount <= principalRemaining) {
+        // O valor recebido não cobre nem o principal restante
+        principalPaid = receivedAmount;
+        interestPaid = 0;
+      } else {
+        // Principal é coberto, o resto vai para juros
+        principalPaid = principalRemaining;
+        interestPaid = receivedAmount - principalRemaining;
+      }
+      
+      console.log('[DISCOUNT_SETTLEMENT] Distribuição do pagamento:', {
+        receivedAmount,
+        principalRemaining,
+        principalPaid,
+        interestPaid,
+        discountAmount
+      });
+      
       // 🆕 CORREÇÃO: Verificar resultado do registerPayment para pagamento com desconto
       const discountPaymentResult = await registerPayment({
         loan_id: selectedLoanId,
         amount: receivedAmount,
-        principal_paid: receivedAmount,
-        interest_paid: 0,
+        principal_paid: principalPaid,
+        interest_paid: interestPaid,
         payment_date: paymentData.payment_date,
         notes: `Quitação com desconto de ${formatCurrency(discountAmount)} [DISCOUNT_SETTLEMENT:${discountAmount.toFixed(2)}]`,
       });
