@@ -20,20 +20,20 @@ import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
 const PLAN_OPTIONS = [
   {
     name: 'Mensal',
-    price: 'R$ 49,90/mês',
+    price: 'R$ 55,90/mês',
     link: 'https://pay.cakto.com.br/35qwwgz',
     description: 'Acesso por 30 dias',
   },
   {
     name: 'Trimestral',
-    price: 'R$ 119,90/trimestre',
+    price: 'R$ 149,90/trimestre',
     link: 'https://pay.cakto.com.br/eb6ern9',
     description: 'Acesso por 90 dias',
-    badge: 'Economia de 20%',
+    badge: 'Economia de 10%',
   },
   {
     name: 'Anual',
-    price: 'R$ 399,90/ano',
+    price: 'R$ 479,90/ano',
     link: 'https://pay.cakto.com.br/fhwfptb',
     description: 'Acesso por 365 dias',
     badge: 'Melhor custo-benefício',
