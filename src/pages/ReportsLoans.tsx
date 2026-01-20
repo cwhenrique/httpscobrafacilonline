@@ -162,8 +162,8 @@ export default function ReportsLoans() {
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
-      // Get all active loans filtered by type
-      const loansToExport = loansFilteredByType.filter(loan => loan.status !== 'paid');
+      // Use filteredLoans (filtered by period AND type) to include ALL loans (paid + active)
+      const loansToExport = filteredLoans;
       
       // Transform loans to the format expected by generateOperationsReport
       const loansData: LoanOperationData[] = loansToExport.map(loan => {
@@ -219,7 +219,7 @@ export default function ReportsLoans() {
             ? Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments
             : Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
         
-        // Determine status
+        // Determine status - now correctly includes 'paid'
         const loanIsOverdue = isLoanOverdue(loan);
         const status = loan.status === 'paid' ? 'paid' : loanIsOverdue ? 'overdue' : 'pending';
         
@@ -254,10 +254,11 @@ export default function ReportsLoans() {
         };
       });
       
-      // Calculate summary
-      const paidLoansCount = loansFilteredByType.filter(l => l.status === 'paid').length;
-      const pendingLoansCount = loansToExport.filter(l => !isLoanOverdue(l)).length;
-      const overdueLoansCount = loansToExport.filter(l => isLoanOverdue(l)).length;
+      // Use the same data as displayed in the StatCards
+      const paidLoansCount = filteredLoans.filter(l => l.status === 'paid').length;
+      const activeLoansInExport = filteredLoans.filter(l => l.status !== 'paid');
+      const pendingLoansCount = activeLoansInExport.filter(l => !isLoanOverdue(l)).length;
+      const overdueLoansCount = activeLoansInExport.filter(l => isLoanOverdue(l)).length;
       
       const reportData: OperationsReportData = {
         companyName: profile?.company_name || profile?.full_name || '',
@@ -265,7 +266,9 @@ export default function ReportsLoans() {
         generatedAt: new Date().toISOString(),
         loans: loansData,
         summary: {
-          totalLoans: loansData.length,
+          // Use filteredLoans.length for total contracts (same as displayed)
+          totalLoans: filteredLoans.length,
+          // Use the exact same values from filteredStats (displayed in StatCards)
           totalLent: filteredStats.totalLent,
           totalInterest: filteredStats.pendingInterest,
           totalToReceive: filteredStats.totalOnStreet + filteredStats.pendingInterest,
@@ -286,7 +289,7 @@ export default function ReportsLoans() {
       const typeDesc = paymentTypeLabels[paymentTypeFilter];
       
       toast.success(`PDF gerado com sucesso!`, {
-        description: `Período: ${periodDesc} | Tipo: ${typeDesc}`,
+        description: `Período: ${periodDesc} | Tipo: ${typeDesc} | ${loansData.length} contratos`,
       });
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
