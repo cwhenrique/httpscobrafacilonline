@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -17,56 +17,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const validatingRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    // Apenas valida na inicialização, não em cada mudança de estado
-    const validateOnce = async (currentSession: Session | null) => {
-      if (!currentSession?.access_token) return;
-      if (validatingRef.current) return;
-
-      validatingRef.current = true;
-      try {
-        const { error } = await supabase.auth.getUser();
-        if (error && isMounted) {
-          console.warn('Sessão inválida, fazendo logout:', error.message);
-          await supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
-        }
-      } catch (err) {
-        console.warn('Erro ao validar sessão:', err);
-      } finally {
-        validatingRef.current = false;
-      }
-    };
-
+    // Listener de mudanças de autenticação - sem validação extra que pode causar conflitos
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!isMounted) return;
       
+      // Apenas atualiza o estado local, sem forçar logout
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setLoading(false);
-
-      // Só valida em eventos específicos, não em TOKEN_REFRESHED
-      if (event === 'SIGNED_IN' && newSession) {
-        setTimeout(() => validateOnce(newSession), 100);
-      }
     });
 
+    // Obtém a sessão inicial
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!isMounted) return;
       
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       setLoading(false);
-
-      // Validação única na inicialização
-      if (initialSession) {
-        setTimeout(() => validateOnce(initialSession), 100);
-      }
     });
 
     return () => {
