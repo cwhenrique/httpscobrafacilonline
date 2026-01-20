@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useOperationalStats } from '@/hooks/useOperationalStats';
+import { useProfile } from '@/hooks/useProfile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatCurrency, formatDate, isLoanOverdue, getDaysOverdue, calculateDynamicOverdueInterest } from '@/lib/calculations';
+import { generateOperationsReport, OperationsReportData, LoanOperationData, InstallmentDetail } from '@/lib/pdfGenerator';
+import { toast } from 'sonner';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -27,7 +30,8 @@ import {
   CalendarRange,
   CalendarCheck,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Download
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -113,7 +117,9 @@ const StatCardSkeleton = () => (
 
 export default function ReportsLoans() {
   const { stats, refetch } = useOperationalStats();
+  const { profile } = useProfile();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subMonths(new Date(), 6),
@@ -136,6 +142,160 @@ export default function ReportsLoans() {
     await refetch();
     setLastUpdated(new Date());
     setIsRefreshing(false);
+  };
+
+  // Helper function to get partial payments from notes
+  const getPartialPaymentsFromNotesForPDF = (notes: string | null | undefined): Record<number, number> => {
+    if (!notes) return {};
+    const partialPayments: Record<number, number> = {};
+    const regex = /\[PARTIAL_PAID:(\d+):([\d.]+)\]/g;
+    let match;
+    while ((match = regex.exec(notes)) !== null) {
+      const index = parseInt(match[1], 10);
+      const amount = parseFloat(match[2]);
+      partialPayments[index] = (partialPayments[index] || 0) + amount;
+    }
+    return partialPayments;
+  };
+
+  // Export PDF function
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      // Get all active loans filtered by type
+      const loansToExport = loansFilteredByType.filter(loan => loan.status !== 'paid');
+      
+      // Transform loans to the format expected by generateOperationsReport
+      const loansData: LoanOperationData[] = loansToExport.map(loan => {
+        const isDaily = loan.payment_type === 'daily';
+        const installmentDates = (loan as any).installment_dates || [];
+        const payments = (loan as any).payments || [];
+        const partialPayments = getPartialPaymentsFromNotesForPDF(loan.notes);
+        const numInstallments = Number(loan.installments) || installmentDates.length || 1;
+        
+        // Calculate installment value
+        let installmentValue: number;
+        if (isDaily) {
+          installmentValue = Number(loan.total_interest) || 0;
+        } else if (loan.interest_mode === 'on_total') {
+          const totalInterest = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
+          installmentValue = (Number(loan.principal_amount) + totalInterest) / numInstallments;
+        } else {
+          const totalInterest = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments;
+          installmentValue = (Number(loan.principal_amount) + totalInterest) / numInstallments;
+        }
+        
+        // Build installment details
+        const installmentDetails: InstallmentDetail[] = installmentDates.map((dateStr: string, index: number) => {
+          const paidAmount = partialPayments[index] || 0;
+          const isPaid = paidAmount >= installmentValue * 0.99;
+          const dueDate = parseISO(dateStr);
+          const isOverdue = !isPaid && dueDate < new Date();
+          
+          // Find payment for this installment
+          const matchingPayment = payments.find((p: any) => {
+            if (!p.notes) return false;
+            return p.notes.includes(`[PARTIAL_PAID:${index}:`);
+          });
+          
+          return {
+            number: index + 1,
+            dueDate: dateStr,
+            amount: installmentValue,
+            status: isPaid ? 'paid' as const : isOverdue ? 'overdue' as const : 'pending' as const,
+            paidDate: matchingPayment?.payment_date || null,
+            paidAmount: paidAmount,
+          };
+        });
+        
+        // Count paid and overdue installments
+        const paidInstallments = installmentDetails.filter(i => i.status === 'paid').length;
+        const overdueInstallments = installmentDetails.filter(i => i.status === 'overdue').length;
+        
+        // Calculate total interest
+        const totalInterestCalc = isDaily
+          ? (Number(loan.remaining_balance) + Number(loan.total_paid || 0)) - Number(loan.principal_amount)
+          : loan.interest_mode === 'per_installment'
+            ? Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments
+            : Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
+        
+        // Determine status
+        const loanIsOverdue = isLoanOverdue(loan);
+        const status = loan.status === 'paid' ? 'paid' : loanIsOverdue ? 'overdue' : 'pending';
+        
+        const pendingInstallments = installmentDetails.filter(i => i.status === 'pending').length;
+        
+        return {
+          id: loan.id,
+          clientName: (loan as any).client?.full_name || 'Cliente',
+          principalAmount: Number(loan.principal_amount),
+          interestRate: Number(loan.interest_rate),
+          interestMode: loan.interest_mode || 'per_installment',
+          totalInterest: totalInterestCalc,
+          totalToReceive: Number(loan.principal_amount) + totalInterestCalc,
+          totalPaid: Number(loan.total_paid || 0),
+          remainingBalance: Number(loan.remaining_balance || 0),
+          paymentType: loan.payment_type,
+          installments: numInstallments,
+          paidInstallments,
+          pendingInstallments,
+          overdueInstallments,
+          startDate: loan.start_date,
+          dueDate: loan.due_date,
+          status,
+          installmentDetails,
+          payments: payments.map((p: any) => ({
+            date: p.payment_date,
+            amount: Number(p.amount || 0),
+            principalPaid: Number(p.principal_paid || 0),
+            interestPaid: Number(p.interest_paid || 0),
+            notes: p.notes,
+          })),
+        };
+      });
+      
+      // Calculate summary
+      const paidLoansCount = loansFilteredByType.filter(l => l.status === 'paid').length;
+      const pendingLoansCount = loansToExport.filter(l => !isLoanOverdue(l)).length;
+      const overdueLoansCount = loansToExport.filter(l => isLoanOverdue(l)).length;
+      
+      const reportData: OperationsReportData = {
+        companyName: profile?.company_name || profile?.full_name || '',
+        userName: profile?.full_name || '',
+        generatedAt: new Date().toISOString(),
+        loans: loansData,
+        summary: {
+          totalLoans: loansData.length,
+          totalLent: filteredStats.totalLent,
+          totalInterest: filteredStats.pendingInterest,
+          totalToReceive: filteredStats.totalOnStreet + filteredStats.pendingInterest,
+          totalReceived: filteredStats.totalReceived,
+          totalPending: filteredStats.pendingAmount,
+          paidLoans: paidLoansCount,
+          pendingLoans: pendingLoansCount,
+          overdueLoans: overdueLoansCount,
+        },
+      };
+      
+      await generateOperationsReport(reportData);
+      
+      // Build period description for toast
+      const periodDesc = dateRange?.from && dateRange?.to 
+        ? `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`
+        : 'Todos os períodos';
+      const typeDesc = paymentTypeLabels[paymentTypeFilter];
+      
+      toast.success(`PDF gerado com sucesso!`, {
+        description: `Período: ${periodDesc} | Tipo: ${typeDesc}`,
+      });
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF', {
+        description: 'Tente novamente.',
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Filter loans by date range and payment type
@@ -495,6 +655,16 @@ export default function ReportsLoans() {
               <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
                 Atualizado: {format(lastUpdated, "HH:mm", { locale: ptBR })}
               </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportPDF}
+                disabled={isExporting}
+                className="gap-1.5 text-xs"
+              >
+                <Download className={cn("w-3.5 h-3.5", isExporting && "animate-pulse")} />
+                <span className="hidden sm:inline">{isExporting ? 'Gerando...' : 'Baixar PDF'}</span>
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
