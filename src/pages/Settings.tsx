@@ -200,6 +200,7 @@ export default function Settings() {
     
     setGeneratingQr(true);
     setShowQrModal(true);
+    setQrCode(null); // Reset QR code state
     
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-create-instance', {
@@ -207,8 +208,9 @@ export default function Settings() {
       });
 
       if (error) {
-        toast.error('Erro ao gerar QR Code');
-        setShowQrModal(false);
+        console.error('Error from whatsapp-create-instance:', error);
+        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
+        // Keep modal open so user can try reset
         return;
       }
 
@@ -221,14 +223,18 @@ export default function Settings() {
 
       if (data.qrCode) {
         setQrCode(data.qrCode);
+      } else if (data.error) {
+        console.error('QR Code error:', data.error);
+        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
+        // Keep modal open so user can try reset
       } else {
-        toast.error('Não foi possível gerar o QR Code');
-        setShowQrModal(false);
+        toast.error('Não foi possível gerar o QR Code. Tente "Reiniciar Conexão".');
+        // Keep modal open so user can try reset
       }
     } catch (error) {
       console.error('Error connecting WhatsApp:', error);
       toast.error('Erro ao conectar WhatsApp');
-      setShowQrModal(false);
+      // Keep modal open so user can try reset
     } finally {
       setGeneratingQr(false);
     }

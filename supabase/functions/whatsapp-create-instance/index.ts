@@ -163,6 +163,38 @@ serve(async (req) => {
 
     // If instance was created or already exists, try to get QR code
     if (createResponse.ok || createResponse.status === 403) {
+      // First, check instance state
+      const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+        method: 'GET',
+      });
+
+      const stateText = await stateResponse.text();
+      console.log('State check response:', stateResponse.status, stateText);
+
+      let instanceState = null;
+      try {
+        const stateData = JSON.parse(stateText);
+        instanceState = stateData.instance?.state || stateData.state;
+        console.log('Instance state:', instanceState);
+        
+        // If already connected, return success
+        if (instanceState === 'open' || instanceState === 'connected') {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              alreadyConnected: true,
+              message: 'WhatsApp já está conectado',
+            }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+      } catch (e) {
+        console.error('Error parsing state response:', e);
+      }
+
+      // Try to connect and get QR code
       const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
         method: 'GET',
       });
@@ -175,6 +207,11 @@ serve(async (req) => {
           const connectData = JSON.parse(connectText);
           if (connectData.base64) {
             qrCodeBase64 = connectData.base64;
+          } else if (connectData.code) {
+            // Some versions return 'code' instead of 'base64'
+            qrCodeBase64 = connectData.code;
+          } else if (connectData.qrcode?.base64) {
+            qrCodeBase64 = connectData.qrcode.base64;
           } else if (connectData.instance?.state === 'open') {
             return new Response(
               JSON.stringify({
@@ -189,6 +226,37 @@ serve(async (req) => {
           }
         } catch (e) {
           console.error('Error parsing connect response:', e);
+        }
+      }
+
+      // If still no QR code, try the fetchInstances endpoint to restart
+      if (!qrCodeBase64) {
+        console.log('No QR from connect, trying to restart instance...');
+        
+        // Try restart endpoint
+        const restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+          method: 'PUT',
+        });
+        console.log('Restart response:', restartResponse.status);
+
+        // Wait a bit for restart
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Try connect again after restart
+        const retryConnectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+          method: 'GET',
+        });
+
+        const retryConnectText = await retryConnectResponse.text();
+        console.log('Retry connect response:', retryConnectResponse.status, retryConnectText);
+
+        if (retryConnectResponse.ok) {
+          try {
+            const retryData = JSON.parse(retryConnectText);
+            qrCodeBase64 = retryData.base64 || retryData.code || retryData.qrcode?.base64;
+          } catch (e) {
+            console.error('Error parsing retry connect response:', e);
+          }
         }
       }
     }
