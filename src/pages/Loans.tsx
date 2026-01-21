@@ -459,7 +459,8 @@ export default function Loans() {
   const [filterByEmployee, setFilterByEmployee] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paid' | 'overdue' | 'renegotiated' | 'pending' | 'weekly' | 'biweekly' | 'installment' | 'single' | 'interest_only' | 'due_today'>('active');
   const [overdueDaysFilter, setOverdueDaysFilter] = useState<number | null>(null);
-  const [customOverdueDays, setCustomOverdueDays] = useState<string>('');
+const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
+  const [customOverdueDaysMax, setCustomOverdueDaysMax] = useState<string>('');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
   // Query para buscar funcionários do dono (só para donos)
@@ -2352,10 +2353,20 @@ export default function Loans() {
             case 30: return daysOverdue >= 16 && daysOverdue <= 30;
             case 60: return daysOverdue >= 31 && daysOverdue <= 60;
             case 999: return daysOverdue > 60;
-            case -1: // Personalizado
-              const customDays = parseInt(customOverdueDays);
-              if (!isNaN(customDays) && customDays > 0) {
-                return daysOverdue === customDays;
+            case -1: // Personalizado com intervalo
+              const minDays = parseInt(customOverdueDaysMin);
+              const maxDays = parseInt(customOverdueDaysMax);
+              // Se só min definido, filtra >= min
+              if (!isNaN(minDays) && minDays > 0 && (isNaN(maxDays) || maxDays <= 0)) {
+                return daysOverdue >= minDays;
+              }
+              // Se só max definido, filtra <= max
+              if ((isNaN(minDays) || minDays <= 0) && !isNaN(maxDays) && maxDays > 0) {
+                return daysOverdue >= 1 && daysOverdue <= maxDays;
+              }
+              // Se ambos definidos, filtra dentro do intervalo
+              if (!isNaN(minDays) && minDays > 0 && !isNaN(maxDays) && maxDays > 0) {
+                return daysOverdue >= minDays && daysOverdue <= maxDays;
               }
               return true;
             default: return true;
@@ -6620,7 +6631,7 @@ export default function Loans() {
                             : overdueDaysFilter === 30 ? 'Atraso 16-30d'
                             : overdueDaysFilter === 60 ? 'Atraso 31-60d'
                             : overdueDaysFilter === 999 ? 'Atraso +60d'
-                            : overdueDaysFilter === -1 ? `Atraso ${customOverdueDays}d`
+                            : overdueDaysFilter === -1 ? `Atraso ${customOverdueDaysMin || '1'}${customOverdueDaysMax ? `-${customOverdueDaysMax}` : '+'}d`
                             : 'Atraso'
                           : 'Atraso'}
                         <ChevronDown className="w-3 h-3 ml-1" />
@@ -6652,14 +6663,25 @@ export default function Loans() {
                       <DropdownMenuSeparator />
                       <div className="p-2">
                         <Label className="text-xs text-muted-foreground">Dias personalizados</Label>
-                        <div className="flex gap-2 mt-1">
+                        <div className="flex gap-2 mt-1 items-center">
                           <Input
                             type="number"
                             min="1"
-                            placeholder="Ex: 45"
-                            value={customOverdueDays}
-                            onChange={(e) => setCustomOverdueDays(e.target.value)}
-                            className="h-8 w-20"
+                            placeholder="De"
+                            value={customOverdueDaysMin}
+                            onChange={(e) => setCustomOverdueDaysMin(e.target.value)}
+                            className="h-8 w-14"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          <span className="text-xs text-muted-foreground">a</span>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Até"
+                            value={customOverdueDaysMax}
+                            onChange={(e) => setCustomOverdueDaysMax(e.target.value)}
+                            className="h-8 w-14"
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                           />
@@ -6668,7 +6690,9 @@ export default function Loans() {
                             className="h-8"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (customOverdueDays && parseInt(customOverdueDays) > 0) {
+                              const min = parseInt(customOverdueDaysMin);
+                              const max = parseInt(customOverdueDaysMax);
+                              if ((!isNaN(min) && min > 0) || (!isNaN(max) && max > 0)) {
                                 setStatusFilter('overdue');
                                 setOverdueDaysFilter(-1);
                                 setIsFiltersExpanded(false);
