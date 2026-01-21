@@ -44,7 +44,7 @@ export default function CreateTrialUser() {
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('all');
+  const [planFilter, setPlanFilter] = useState<'all' | 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime' | 'expired'>('all');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('trial');
   const [updatingPlan, setUpdatingPlan] = useState(false);
@@ -119,6 +119,26 @@ export default function CreateTrialUser() {
   }, []);
 
   const planCounts = useMemo(() => {
+    const now = new Date();
+    
+    // Users who had paid plans (not trial) but expired
+    const expiredPaidUsers = users.filter(u => {
+      // Must not be trial or empty plan (those are trial users)
+      const isTrial = u.subscription_plan === 'trial' || !u.subscription_plan;
+      if (isTrial) return false;
+      
+      // Must not be lifetime (never expires)
+      if (u.subscription_plan === 'lifetime') return false;
+      
+      // Check if subscription expired
+      if (u.subscription_expires_at) {
+        const expiresAt = new Date(u.subscription_expires_at);
+        return expiresAt < now;
+      }
+      
+      return false;
+    });
+
     return {
       all: users.length,
       trial: users.filter(u => u.subscription_plan === 'trial' || !u.subscription_plan).length,
@@ -126,11 +146,13 @@ export default function CreateTrialUser() {
       quarterly: users.filter(u => u.subscription_plan === 'quarterly').length,
       annual: users.filter(u => u.subscription_plan === 'annual').length,
       lifetime: users.filter(u => u.subscription_plan === 'lifetime').length,
+      expired: expiredPaidUsers.length,
     };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
     let result = users;
+    const now = new Date();
     
     // Filtrar por plano
     if (planFilter !== 'all') {
@@ -138,6 +160,19 @@ export default function CreateTrialUser() {
         result = result.filter(user => user.subscription_plan === 'trial' || !user.subscription_plan);
       } else if (planFilter === 'quarterly') {
         result = result.filter(user => user.subscription_plan === 'quarterly');
+      } else if (planFilter === 'expired') {
+        // Filter expired paid users (not trial, not lifetime)
+        result = result.filter(user => {
+          const isTrial = user.subscription_plan === 'trial' || !user.subscription_plan;
+          if (isTrial) return false;
+          if (user.subscription_plan === 'lifetime') return false;
+          
+          if (user.subscription_expires_at) {
+            const expiresAt = new Date(user.subscription_expires_at);
+            return expiresAt < now;
+          }
+          return false;
+        });
       } else {
         result = result.filter(user => user.subscription_plan === planFilter);
       }
@@ -459,7 +494,8 @@ export default function CreateTrialUser() {
       monthly: 'mensal',
       quarterly: 'trimestral',
       annual: 'anual',
-      lifetime: 'vitalicio'
+      lifetime: 'vitalicio',
+      expired: 'expirados'
     };
 
     const fileName = `usuarios_${planLabels[planFilter]}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
@@ -791,6 +827,14 @@ export default function CreateTrialUser() {
                   className={planFilter === 'lifetime' ? 'bg-primary hover:bg-primary/90' : 'border-primary/50 text-primary hover:bg-primary/10'}
                 >
                   ♾️ Vitalício ({planCounts.lifetime})
+                </Button>
+                <Button
+                  variant={planFilter === 'expired' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPlanFilter('expired')}
+                  className={planFilter === 'expired' ? 'bg-destructive hover:bg-destructive/90 text-white' : 'border-destructive/50 text-destructive hover:bg-destructive/10'}
+                >
+                  ⚠️ Expirados ({planCounts.expired})
                 </Button>
               </div>
             </CardHeader>
