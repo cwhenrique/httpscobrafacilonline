@@ -1182,20 +1182,46 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
                     )}
                   </div>
                 ) : (
-                  <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                    <div className="flex flex-col items-center gap-3">
-                      <AlertCircle className="w-8 h-8 text-destructive" />
-                      <p className="text-muted-foreground text-center">Erro ao gerar QR Code</p>
+                  <div className="w-72 flex flex-col items-center justify-center bg-muted rounded-lg p-6">
+                    <AlertCircle className="w-12 h-12 text-destructive mb-3" />
+                    <p className="text-foreground font-medium text-center mb-1">Erro ao gerar QR Code</p>
+                    <p className="text-xs text-muted-foreground text-center mb-4">
+                      A instância pode estar travada. Tente as opções abaixo:
+                    </p>
+                    <div className="flex flex-col gap-2 w-full">
                       <Button 
                         variant="outline"
                         size="sm"
                         onClick={() => handleRefreshQrCode()}
-                        disabled={generatingQr}
+                        disabled={generatingQr || resettingInstance}
+                        className="w-full"
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Tentar Novamente
                       </Button>
+                      <Button 
+                        variant="default"
+                        size="sm"
+                        onClick={handleResetInstance}
+                        disabled={generatingQr || resettingInstance}
+                        className="w-full bg-destructive hover:bg-destructive/90"
+                      >
+                        {resettingInstance ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Recriando...
+                          </>
+                        ) : (
+                          <>
+                            <Unplug className="w-4 h-4 mr-2" />
+                            Recriar Instância
+                          </>
+                        )}
+                      </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground text-center mt-3">
+                      "Recriar Instância" resolve problemas persistentes
+                    </p>
                   </div>
                 )}
 
