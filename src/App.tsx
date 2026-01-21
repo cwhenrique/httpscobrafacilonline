@@ -34,6 +34,7 @@ import Tutorials from "./pages/Tutorials";
 import Employees from "./pages/Employees";
 
 import Quiz from "./pages/Quiz";
+import ConnectionTest from "./pages/ConnectionTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -67,6 +68,7 @@ const App = () => {
               <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/teste-conexao" element={<ConnectionTest />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><PermissionRoute permission="view_clients"><Clients /></PermissionRoute></ProtectedRoute>} />
               <Route path="/scores" element={<ProtectedRoute><PermissionRoute permission="view_clients"><ClientScores /></PermissionRoute></ProtectedRoute>} />

@@ -3,18 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- Meta Pixel Code -->
+    <!-- Security meta tags para evitar bloqueios de firewall -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    
+    <!-- DNS prefetch para melhorar conectividade -->
+    <link rel="dns-prefetch" href="//yulegybknvtanqkipsbj.supabase.co">
+    <link rel="preconnect" href="https://yulegybknvtanqkipsbj.supabase.co" crossorigin>
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    
+    <!-- Meta Pixel Code com tratamento de erro -->
     <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '3921358827996487');
-    fbq('track', 'PageView');
+    try {
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;t.onerror=function(){console.log('FB Pixel blocked by network')};
+      s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      if(typeof fbq !== 'undefined'){
+        fbq('init', '3921358827996487');
+        fbq('track', 'PageView');
+      }
+    } catch(e) { console.log('FB Pixel unavailable'); }
     </script>
     <!-- End Meta Pixel Code -->
     
@@ -56,7 +72,16 @@
     src="https://www.facebook.com/tr?id=3921358827996487&ev=PageView&noscript=1"
     /></noscript>
     
-    <div id="root"></div>
+    <!-- Loading fallback para quando scripts externos são bloqueados -->
+    <div id="root">
+      <div id="initial-loader" style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0a;font-family:system-ui,-apple-system,sans-serif;">
+        <div style="text-align:center;">
+          <div style="width:48px;height:48px;border:3px solid #1a1a1a;border-top-color:#22c55e;border-radius:50%;margin:0 auto 16px;animation:spin 1s linear infinite;"></div>
+          <p style="color:#22c55e;font-size:14px;margin:0;">Carregando CobraFácil...</p>
+        </div>
+      </div>
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
