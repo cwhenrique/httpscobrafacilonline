@@ -73,7 +73,7 @@ export interface CreateProductSaleData {
   installmentDates?: InstallmentDate[];
   send_creation_notification?: boolean;
   is_historical?: boolean; // Flag for historical contracts
-  payment_frequency?: 'monthly' | 'weekly';
+  payment_frequency?: 'monthly' | 'weekly' | 'biweekly';
 }
 
 export interface UpdateProductSaleData {

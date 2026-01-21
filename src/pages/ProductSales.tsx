@@ -312,7 +312,7 @@ export default function ProductSales() {
     notes: '',
     send_creation_notification: false,
     is_historical: false,
-    payment_frequency: 'monthly' as 'monthly' | 'weekly',
+    payment_frequency: 'monthly' as 'monthly' | 'weekly' | 'biweekly',
   });
 
   const [contractForm, setContractForm] = useState<CreateContractData>({
@@ -415,6 +415,9 @@ export default function ProductSales() {
         if (formData.payment_frequency === 'weekly') {
           // Add 7 days for each installment (weekly)
           dueDate = addDays(firstDate, i * 7);
+        } else if (formData.payment_frequency === 'biweekly') {
+          // Add 15 days for each installment (biweekly/quinzenal)
+          dueDate = addDays(firstDate, i * 15);
         } else {
           // Add 1 month for each installment (monthly)
           dueDate = addMonths(firstDate, i);
@@ -1389,13 +1392,14 @@ export default function ProductSales() {
                         <Label>Frequência de Pagamento *</Label>
                         <Select 
                           value={formData.payment_frequency || 'monthly'} 
-                          onValueChange={(v) => setFormData({ ...formData, payment_frequency: v as 'monthly' | 'weekly' })}
+                          onValueChange={(v) => setFormData({ ...formData, payment_frequency: v as 'monthly' | 'weekly' | 'biweekly' })}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="monthly">Mensal</SelectItem>
+                            <SelectItem value="biweekly">Quinzenal</SelectItem>
                             <SelectItem value="weekly">Semanal</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1423,6 +1427,8 @@ export default function ProductSales() {
                         <Label className="text-muted-foreground text-xs">
                           {formData.payment_frequency === 'weekly' 
                             ? 'Parcelas geradas a cada 7 dias' 
+                            : formData.payment_frequency === 'biweekly'
+                            ? 'Parcelas geradas a cada 15 dias'
                             : 'Parcelas geradas no mesmo dia do mês'}
                         </Label>
                       </div>
