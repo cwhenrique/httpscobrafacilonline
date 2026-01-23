@@ -910,7 +910,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     interest_rate: '',
     interest_type: 'simple',
     interest_mode: 'per_installment',
-    payment_type: 'single',
+    payment_type: 'installment',
     installments: '1',
     contract_date: '',
     start_date: '',
@@ -1761,7 +1761,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     interest_rate: '',
     interest_type: 'simple' as InterestType,
     interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound',
-    payment_type: 'single' as LoanPaymentType | 'daily',
+    payment_type: 'installment' as LoanPaymentType | 'daily',
     installments: '1',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
     start_date: format(new Date(), 'yyyy-MM-dd'),
@@ -4121,7 +4121,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const resetForm = () => {
     setFormData({
       client_id: '', principal_amount: '', interest_rate: '', interest_type: 'simple',
-      interest_mode: 'per_installment', payment_type: 'single', installments: '1', 
+      interest_mode: 'per_installment', payment_type: 'installment', installments: '1',
       contract_date: format(new Date(), 'yyyy-MM-dd'),
       start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
       daily_amount: '', daily_period: '15', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
@@ -5972,10 +5972,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     </div>
                     <div className="space-y-1 sm:space-y-2 tutorial-form-payment-type">
                       <Label className="text-xs sm:text-sm">Modalidade</Label>
-                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v, installments: v === 'single' ? '1' : formData.installments })}>
+                      <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
-                        <SelectItem value="single" className="text-xs sm:text-sm">Pagamento Único</SelectItem>
                           <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
                           <SelectItem value="biweekly" className="text-xs sm:text-sm">Quinzenal</SelectItem>
                           <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>
@@ -12322,7 +12321,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       >
                         <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="single">Pagamento Único</SelectItem>
                           <SelectItem value="installment">Parcelado (Mensal)</SelectItem>
                           <SelectItem value="weekly">Semanal</SelectItem>
                           <SelectItem value="biweekly">Quinzenal</SelectItem>
