@@ -21,20 +21,20 @@ const PLAN_OPTIONS = [
   {
     name: 'Mensal',
     price: 'R$ 55,90/mês',
-    link: 'https://pay.cakto.com.br/35qwwgz',
+    link: 'https://pay.cakto.com.br/35qwwgz?SCK=renew',
     description: 'Acesso por 30 dias',
   },
   {
     name: 'Trimestral',
     price: 'R$ 149,90/trimestre',
-    link: 'https://pay.cakto.com.br/eb6ern9',
+    link: 'https://pay.cakto.com.br/eb6ern9?SCK=renew',
     description: 'Acesso por 90 dias',
     badge: 'Economia de 10%',
   },
   {
     name: 'Anual',
     price: 'R$ 479,90/ano',
-    link: 'https://pay.cakto.com.br/fhwfptb',
+    link: 'https://pay.cakto.com.br/fhwfptb?SCK=renew',
     description: 'Acesso por 365 dias',
     badge: 'Melhor custo-benefício',
   },
