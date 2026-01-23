@@ -2070,6 +2070,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
 
   // Generate installment dates when start_date or installments change
   useEffect(() => {
+    // Don't regenerate monthly dates if daily dialog is open
+    if (isDailyDialogOpen) return;
+    
     if (formData.payment_type === 'installment' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
       const newDates = generateMonthlyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
@@ -2080,10 +2083,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays, isDailyDialogOpen]);
 
   // Generate weekly dates when start_date or installments change
   useEffect(() => {
+    // Don't regenerate weekly dates if daily dialog is open
+    if (isDailyDialogOpen) return;
+    
     if (formData.payment_type === 'weekly' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
       const newDates = generateWeeklyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
@@ -2094,10 +2100,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays, isDailyDialogOpen]);
 
   // Generate biweekly dates when start_date or installments change
   useEffect(() => {
+    // Don't regenerate biweekly dates if daily dialog is open
+    if (isDailyDialogOpen) return;
+    
     if (formData.payment_type === 'biweekly' && formData.start_date) {
       const numInstallments = parseInt(formData.installments) || 1;
       const newDates = generateBiweeklyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
@@ -2108,7 +2117,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         setFormData(prev => ({ ...prev, due_date: newDates[newDates.length - 1] }));
       }
     }
-  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays]);
+  }, [formData.payment_type, formData.start_date, formData.installments, skipSaturday, skipSunday, skipHolidays, isDailyDialogOpen]);
 
   // Reset dates when switching to daily payment type
   useEffect(() => {
@@ -5591,6 +5600,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Datas geradas automaticamente - clique para ajustar se necessário</p>
                     <div className="border rounded-md p-2 sm:p-3 bg-background text-foreground">
                       <Calendar
+                        key={`daily-calendar-${installmentDates.join(',')}`}
                         mode="multiple"
                         selected={installmentDates.map(d => new Date(d + 'T12:00:00'))}
                         onSelect={(dates) => {
