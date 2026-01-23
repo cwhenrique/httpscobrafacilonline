@@ -10,9 +10,9 @@ import {
 } from '@/components/ui/dialog';
 
 const RENEWAL_LINKS = {
-  monthly: "https://pay.cakto.com.br/35qwwgz",
-  quarterly: "https://pay.cakto.com.br/eb6ern9",
-  annual: "https://pay.cakto.com.br/fhwfptb",
+  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
+  quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
+  annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
 };
 
 export function SubscriptionExpiringBanner() {
