@@ -5975,7 +5975,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <Select value={formData.payment_type} onValueChange={(v: LoanPaymentType) => setFormData({ ...formData, payment_type: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
-                          <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado</SelectItem>
+                          <SelectItem value="installment" className="text-xs sm:text-sm">Parcelado (Mensal)</SelectItem>
                           <SelectItem value="biweekly" className="text-xs sm:text-sm">Quinzenal</SelectItem>
                           <SelectItem value="weekly" className="text-xs sm:text-sm">Semanal</SelectItem>
                         </SelectContent>
