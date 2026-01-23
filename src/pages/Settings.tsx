@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera, Hash, FileText, Send } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera, FileText, Send } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -76,11 +76,6 @@ export default function Settings() {
   const [resettingInstance, setResettingInstance] = useState(false);
   const [sendingDailyTest, setSendingDailyTest] = useState(false);
   
-  // Pairing code states (for mobile connection)
-  const [showPairingCodeOption, setShowPairingCodeOption] = useState(false);
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [generatingPairingCode, setGeneratingPairingCode] = useState(false);
-  const [pairingPhoneNumber, setPairingPhoneNumber] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -317,62 +312,6 @@ export default function Settings() {
     }
   };
 
-  // Handle pairing code request (for mobile users)
-  const handleRequestPairingCode = async () => {
-    if (!user?.id) return;
-    
-    // Validate phone number
-    const cleanPhone = pairingPhoneNumber.replace(/\D/g, '');
-    if (cleanPhone.length < 10) {
-      toast.error('Digite o número completo com DDD (ex: 5511999999999)');
-      return;
-    }
-
-    setGeneratingPairingCode(true);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-get-pairing-code', {
-        body: { userId: user.id, phoneNumber: cleanPhone }
-      });
-
-      if (error) {
-        console.error('Error getting pairing code:', error);
-        toast.error('Erro ao gerar código de pareamento');
-        return;
-      }
-
-      if (data.alreadyConnected) {
-        toast.success('WhatsApp já está conectado!');
-        setShowQrModal(false);
-        setShowPairingCodeOption(false);
-        setPairingCode(null);
-        await checkWhatsAppStatus();
-        return;
-      }
-
-      if (data.pairingCode) {
-        setPairingCode(data.pairingCode);
-        toast.success('Código gerado! Digite no WhatsApp.');
-      } else {
-        toast.error(data.error || 'Não foi possível gerar o código');
-      }
-    } catch (error) {
-      console.error('Error requesting pairing code:', error);
-      toast.error('Erro ao gerar código de pareamento');
-    } finally {
-      setGeneratingPairingCode(false);
-    }
-  };
-
-  // Reset pairing code state when modal closes
-  const handleCloseQrModal = (open: boolean) => {
-    setShowQrModal(open);
-    if (!open) {
-      setShowPairingCodeOption(false);
-      setPairingCode(null);
-      setPairingPhoneNumber('');
-    }
-  };
 
   const handleDisconnectWhatsApp = async () => {
     if (!user?.id) return;
@@ -1080,335 +1019,184 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
       </div>
 
       {/* QR Code Modal */}
-      <Dialog open={showQrModal} onOpenChange={handleCloseQrModal}>
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {showPairingCodeOption ? (
-                <>
-                  <Hash className="w-5 h-5 text-green-500" />
-                  Conectar com Código
-                </>
-              ) : (
-                <>
-                  <QrCode className="w-5 h-5 text-green-500" />
-                  Escaneie o QR Code
-                </>
-              )}
+              <QrCode className="w-5 h-5 text-green-500" />
+              Escaneie o QR Code
             </DialogTitle>
             <DialogDescription>
-              {showPairingCodeOption 
-                ? 'Digite o código de 8 dígitos no seu WhatsApp' 
-                : 'Conecte seu WhatsApp para enviar mensagens aos clientes'}
+              Conecte seu WhatsApp para enviar mensagens aos clientes
             </DialogDescription>
           </DialogHeader>
 
-          {/* Mobile Connection Option - fixed at the TOP of the modal */}
-          {!showPairingCodeOption && qrCode && !generatingQr && !qrExpired && (
-            <div className="mt-2">
-              <Button
-                variant="outline"
-                className="w-full border-green-500/30 text-green-600 hover:bg-green-500/10"
-                onClick={() => {
-                  setShowPairingCodeOption(true);
-                  setPairingCode(null);
-                }}
-              >
-                <Smartphone className="w-4 h-4 mr-2" />
-                Está no celular? Conecte com código
-              </Button>
-            </div>
-          )}
-
           <div className="flex flex-col items-center py-4">
-            {/* Toggle between QR and Pairing Code */}
-            {!showPairingCodeOption ? (
-              <>
+            {/* Timer and Progress Bar */}
+            {qrCode && !generatingQr && (
+              <div className="w-full mb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-green-500'}`} />
+                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                      {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
+                    </span>
+                  </div>
+                  {!qrExpired && (
+                    <span className="text-xs text-muted-foreground">Escaneie com calma</span>
+                  )}
+                </div>
+                <Progress 
+                  value={(qrTimeRemaining / 90) * 100} 
+                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 15 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
+                />
+              </div>
+            )}
 
-                {/* Timer and Progress Bar */}
-                {qrCode && !generatingQr && (
-                  <div className="w-full mb-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-green-500'}`} />
-                        <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                          {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
-                        </span>
-                      </div>
-                      {!qrExpired && (
-                        <span className="text-xs text-muted-foreground">Escaneie com calma</span>
-                      )}
-                    </div>
-                    <Progress 
-                      value={(qrTimeRemaining / 90) * 100} 
-                      className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 15 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
-                    />
-                  </div>
-                )}
-
-                {/* QR Code Display */}
-                {generatingQr ? (
-                  <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                    <div className="flex flex-col items-center gap-3">
-                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground">Gerando QR Code...</span>
-                    </div>
-                  </div>
-                ) : qrCode ? (
-                  <div className="relative">
-                    <div className={`p-4 bg-white rounded-lg transition-all ${qrExpired ? 'opacity-30 blur-sm' : ''}`}>
-                      <img 
-                        src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
-                        alt="QR Code" 
-                        className="w-56 h-56"
-                      />
-                    </div>
-                    
-                    {/* Expired Overlay */}
-                    {qrExpired && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg">
-                        <AlertCircle className="w-12 h-12 text-destructive mb-3" />
-                        <p className="font-medium text-destructive text-center">QR Code expirado!</p>
-                        <p className="text-sm text-muted-foreground text-center mt-1">Clique abaixo para gerar um novo</p>
-                        <Button 
-                          onClick={() => handleRefreshQrCode()}
-                          disabled={generatingQr}
-                          className="mt-4 bg-green-600 hover:bg-green-700"
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Gerar Novo QR Code
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-72 flex flex-col items-center justify-center bg-muted rounded-lg p-6">
+            {/* QR Code Display */}
+            {generatingQr ? (
+              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Gerando QR Code...</span>
+                </div>
+              </div>
+            ) : qrCode ? (
+              <div className="relative">
+                <div className={`p-4 bg-white rounded-lg transition-all ${qrExpired ? 'opacity-30 blur-sm' : ''}`}>
+                  <img 
+                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
+                    alt="QR Code" 
+                    className="w-56 h-56"
+                  />
+                </div>
+                
+                {/* Expired Overlay */}
+                {qrExpired && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg">
                     <AlertCircle className="w-12 h-12 text-destructive mb-3" />
-                    <p className="text-foreground font-medium text-center mb-1">Erro ao gerar QR Code</p>
-                    <p className="text-xs text-muted-foreground text-center mb-4">
-                      A instância pode estar travada. Tente as opções abaixo:
-                    </p>
-                    <div className="flex flex-col gap-2 w-full">
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRefreshQrCode()}
-                        disabled={generatingQr || resettingInstance}
-                        className="w-full"
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Tentar Novamente
-                      </Button>
-                      <Button 
-                        variant="default"
-                        size="sm"
-                        onClick={handleResetInstance}
-                        disabled={generatingQr || resettingInstance}
-                        className="w-full bg-destructive hover:bg-destructive/90"
-                      >
-                        {resettingInstance ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Recriando...
-                          </>
-                        ) : (
-                          <>
-                            <Unplug className="w-4 h-4 mr-2" />
-                            Recriar Instância
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center mt-3">
-                      "Recriar Instância" resolve problemas persistentes
-                    </p>
-                  </div>
-                )}
-
-                {/* Instructions */}
-                {!qrExpired && (
-                  <div className="mt-6 w-full space-y-3">
-                    {/* Warning about device conflicts */}
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                        <p className="text-xs text-amber-600">
-                          <strong>Importante:</strong> Se você tiver outras sessões do WhatsApp Web ativas, feche-as primeiro para evitar desconexões.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="p-2 rounded-full bg-green-500/10">
-                        <Smartphone className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">1. Abra o WhatsApp</p>
-                        <p className="text-xs text-muted-foreground">No seu celular</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="p-2 rounded-full bg-green-500/10">
-                        <Link className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">2. Aparelhos conectados</p>
-                        <p className="text-xs text-muted-foreground">Menu ⋮ → Aparelhos conectados</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="p-2 rounded-full bg-green-500/10">
-                        <Camera className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">3. Escaneie este QR Code</p>
-                        <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e escaneie</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Connection Status */}
-                {!qrExpired && qrCode && !generatingQr && (
-                  <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-green-500/10 text-green-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-medium">Aguardando conexão...</span>
-                  </div>
-                )}
-
-                {/* Refresh Button (when not expired) */}
-                {!qrExpired && qrCode && !generatingQr && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => handleRefreshQrCode()}
-                    disabled={generatingQr}
-                    className="mt-3 text-muted-foreground hover:text-foreground"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Atualizar QR Code
-                  </Button>
-                )}
-
-              </>
-            ) : (
-              /* Pairing Code View */
-              <div className="w-full space-y-4">
-                {!pairingCode ? (
-                  <>
-                    {/* Phone number input */}
-                    <div className="space-y-2">
-                      <Label htmlFor="pairing-phone">Número do WhatsApp</Label>
-                      <Input
-                        id="pairing-phone"
-                        placeholder="5511999999999"
-                        value={pairingPhoneNumber}
-                        onChange={(e) => setPairingPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                        maxLength={15}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Digite o número completo com código do país e DDD (ex: 5511999999999)
-                      </p>
-                    </div>
-
-                    <Button
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      onClick={handleRequestPairingCode}
-                      disabled={generatingPairingCode || pairingPhoneNumber.length < 10}
-                    >
-                      {generatingPairingCode ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Gerando código...
-                        </>
-                      ) : (
-                        <>
-                          <Hash className="w-4 h-4 mr-2" />
-                          Gerar Código de Pareamento
-                        </>
-                      )}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {/* Display Pairing Code */}
-                    <div className="p-6 bg-green-500/10 border-2 border-green-500/30 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-2">Seu código de pareamento:</p>
-                      <p className="text-4xl font-mono font-bold tracking-widest text-green-600">
-                        {pairingCode}
-                      </p>
-                    </div>
-
-                    {/* Instructions for pairing code */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="p-2 rounded-full bg-green-500/10">
-                          <Smartphone className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">1. Abra o WhatsApp</p>
-                          <p className="text-xs text-muted-foreground">No seu celular</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="p-2 rounded-full bg-green-500/10">
-                          <Link className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">2. Aparelhos conectados</p>
-                          <p className="text-xs text-muted-foreground">Menu ⋮ → Aparelhos conectados</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="p-2 rounded-full bg-green-500/10">
-                          <Hash className="w-5 h-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">3. Conectar com número</p>
-                          <p className="text-xs text-muted-foreground">Toque em "Conectar com número de telefone" e digite o código</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Waiting for connection */}
-                    <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-green-500/10 text-green-600">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm font-medium">Aguardando conexão...</span>
-                    </div>
-
-                    {/* Generate new code button */}
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        setPairingCode(null);
-                        setPairingPhoneNumber('');
-                      }}
+                    <p className="font-medium text-destructive text-center">QR Code expirado!</p>
+                    <p className="text-sm text-muted-foreground text-center mt-1">Clique abaixo para gerar um novo</p>
+                    <Button 
+                      onClick={() => handleRefreshQrCode()}
+                      disabled={generatingQr}
+                      className="mt-4 bg-green-600 hover:bg-green-700"
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Gerar Novo Código
+                      Gerar Novo QR Code
                     </Button>
-                  </>
+                  </div>
                 )}
-
-                {/* Back to QR option */}
-                <Button
-                  variant="ghost"
-                  className="w-full text-muted-foreground"
-                  onClick={() => {
-                    setShowPairingCodeOption(false);
-                    setPairingCode(null);
-                    setPairingPhoneNumber('');
-                  }}
-                >
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Voltar para QR Code
-                </Button>
               </div>
+            ) : (
+              <div className="w-72 flex flex-col items-center justify-center bg-muted rounded-lg p-6">
+                <AlertCircle className="w-12 h-12 text-destructive mb-3" />
+                <p className="text-foreground font-medium text-center mb-1">Erro ao gerar QR Code</p>
+                <p className="text-xs text-muted-foreground text-center mb-4">
+                  A instância pode estar travada. Tente as opções abaixo:
+                </p>
+                <div className="flex flex-col gap-2 w-full">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRefreshQrCode()}
+                    disabled={generatingQr || resettingInstance}
+                    className="w-full"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Tentar Novamente
+                  </Button>
+                  <Button 
+                    variant="default"
+                    size="sm"
+                    onClick={handleResetInstance}
+                    disabled={generatingQr || resettingInstance}
+                    className="w-full bg-destructive hover:bg-destructive/90"
+                  >
+                    {resettingInstance ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Recriando...
+                      </>
+                    ) : (
+                      <>
+                        <Unplug className="w-4 h-4 mr-2" />
+                        Recriar Instância
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-3">
+                  "Recriar Instância" resolve problemas persistentes
+                </p>
+              </div>
+            )}
+
+            {/* Instructions */}
+            {!qrExpired && (
+              <div className="mt-6 w-full space-y-3">
+                {/* Warning about device conflicts */}
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-600">
+                      <strong>Importante:</strong> Se você tiver outras sessões do WhatsApp Web ativas, feche-as primeiro para evitar desconexões.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Smartphone className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">1. Abra o WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">No seu celular</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Link className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">2. Aparelhos conectados</p>
+                    <p className="text-xs text-muted-foreground">Menu ⋮ → Aparelhos conectados</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <Camera className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">3. Escaneie este QR Code</p>
+                    <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e escaneie</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Connection Status */}
+            {!qrExpired && qrCode && !generatingQr && (
+              <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-green-500/10 text-green-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm font-medium">Aguardando conexão...</span>
+              </div>
+            )}
+
+            {/* Refresh Button (when not expired) */}
+            {!qrExpired && qrCode && !generatingQr && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => handleRefreshQrCode()}
+                disabled={generatingQr}
+                className="mt-3 text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar QR Code
+              </Button>
             )}
           </div>
         </DialogContent>
