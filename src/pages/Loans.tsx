@@ -3815,6 +3815,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // 🆕 RECÁLCULO DE JUROS (AMORTIZAÇÃO): Se o usuário marcou a opção de recalcular juros
     // A amortização reduz o PRINCIPAL ORIGINAL, e os novos juros são calculados sobre esse novo principal
     if (paymentData.recalculate_interest && paymentData.payment_type === 'partial') {
+      // 🆕 FIX: Bloquear amortização para empréstimos diários
+      // Para empréstimos diários, total_interest representa o valor da parcela, não o total de juros
+      if (selectedLoan.payment_type === 'daily') {
+        toast.error('Amortização não disponível para empréstimos diários', {
+          description: 'Use pagamento parcial normal para este tipo de empréstimo.'
+        });
+        paymentLockRef.current = false;
+        setIsPaymentSubmitting(false);
+        return;
+      }
+      
       const originalPrincipal = selectedLoan.principal_amount;
       const interestRate = selectedLoan.interest_rate;
       const numInstallments = selectedLoan.installments || 1;
@@ -11336,7 +11347,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         </div>
                         
                         {/* Checkbox de Recálculo de Juros - aparece para pagamentos parciais que não sejam adiantamento */}
-                        {!selectedSubparcela && (() => {
+                        {/* 🆕 FIX: Não mostrar para empréstimos diários - amortização não faz sentido para eles */}
+                        {!selectedSubparcela && selectedLoan?.payment_type !== 'daily' && (() => {
                           const paidAmount = parseFloat(paymentData.amount) || 0;
                           const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
                           
