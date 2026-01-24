@@ -1,82 +1,108 @@
-# Plano: Mostrar Prompt de Comprovante ao Criar Empréstimo com Tabela Price
 
-## Problema Identificado
+## Plano: Corrigir Amortização para Empréstimos Diários
 
-No `PriceTableDialog.tsx`, após criar o empréstimo com sucesso:
-1. Mostra um `toast.success`
-2. Fecha o diálogo imediatamente (`onOpenChange(false)`)
-3. Reseta o formulário
+### Diagnóstico
+O empréstimo do **BRUNO BEZERRA** não aparece na lista porque a lógica de amortização corrompeu seus dados:
 
-Isso impede que o prompt de comprovante (`LoanCreatedReceiptPrompt`) seja exibido, pois o diálogo é fechado antes que o `Loans.tsx` possa processar o resultado e abrir o prompt.
+| Campo | Valor Atual (incorreto) | Valor Esperado |
+|-------|------------------------|----------------|
+| `principal_amount` | R$ 950,00 | R$ 950,00 ✓ |
+| `total_interest` | R$ 50,00 | ~R$ 47,50/parcela |
+| `remaining_balance` | R$ 0,00 | R$ 950 + juros |
+| `total_paid` | R$ 50,00 | R$ 50,00 ✓ |
 
-A lógica no `Loans.tsx` (linhas 12716-12738) já configura os dados e abre o prompt de comprovante corretamente, mas a execução do `onOpenChange(false)` dentro do `PriceTableDialog` interfere.
+O problema: O cálculo de amortização (linha 3833) usa `newPrincipal * (interestRate / 100)`, que funciona para empréstimos mensais mas **não para diários** onde `total_interest` representa o valor da parcela diária.
 
-## Solução
+---
 
-Remover a lógica de fechar o diálogo e mostrar toast de dentro do `PriceTableDialog`, deixando essa responsabilidade para o componente pai (`Loans.tsx`).
+### Correção 1: Ajustar Lógica de Amortização para Empréstimos Diários
+**Arquivo:** `src/pages/Loans.tsx` (linhas 3815-3870)
 
-## Alterações Necessárias
-
-### Arquivo: `src/components/PriceTableDialog.tsx`
-
-**Linhas 138-154** - Remover o `toast.success`, `onOpenChange(false)` e reset do formulário de dentro do bloco `if (result.data)`:
-
-```typescript
-// ANTES (incorreto):
-if (result.data) {
-  toast.success('Empréstimo Tabela Price criado com sucesso!');
-  onOpenChange(false);
-  // Reset form
-  setFormData({
-    client_id: '',
-    ...
-  });
-}
-
-// DEPOIS (correto):
-// Não fazer nada aqui - o Loans.tsx já abre o prompt de comprovante
-// O reset e fechamento do diálogo serão controlados pelo pai
-```
-
-### Arquivo: `src/pages/Loans.tsx`
-
-**Linhas 12716-12742** - Após configurar os dados do comprovante, fechar o diálogo Price e mostrar toast:
+Adicionar verificação do tipo de pagamento antes de calcular amortização:
 
 ```typescript
-if (result?.data) {
-  const client = clients.find(c => c.id === loanData.client_id);
-  const installmentValue = (loanData.principal_amount + loanData.total_interest) / loanData.installments;
+if (paymentData.recalculate_interest && paymentData.payment_type === 'partial') {
+  const isDaily = selectedLoan.payment_type === 'daily';
   
-  setLoanCreatedData({
-    // ... dados do empréstimo
-  });
-  setLoanCreatedInstallmentDates(loanData.installment_dates);
+  if (isDaily) {
+    // Para empréstimos diários, amortização não faz sentido da mesma forma
+    // total_interest é o valor da parcela, não o total de juros
+    toast.error('Amortização não disponível para empréstimos diários', {
+      description: 'Use pagamento parcial normal para este tipo de empréstimo.'
+    });
+    return;
+  }
   
-  // ADICIONAR: Fechar o diálogo Price e mostrar toast
-  setIsPriceTableDialogOpen(false);
-  toast.success('Empréstimo Tabela Price criado com sucesso!');
-  
-  // ADICIONAR: Pequeno delay para garantir que o diálogo Price feche antes de abrir o prompt
-  setTimeout(() => {
-    setIsLoanCreatedOpen(true);
-  }, 100);
+  // ... resto da lógica de amortização (apenas para não-diários)
 }
 ```
 
-## Resumo das Alterações
+---
+
+### Correção 2: Corrigir Dados do Empréstimo Corrompido
+**Opção A - Script de correção manual:**
+
+Criar uma edge function ou usar SQL direto para corrigir o empréstimo específico:
+
+```sql
+-- Restaurar valores originais do empréstimo BRUNO BEZERRA
+UPDATE loans 
+SET 
+  principal_amount = 1000.00,  -- Valor original
+  total_interest = 50.00,      -- Valor da parcela diária original
+  remaining_balance = 1150.00, -- 1000 + (50 * 25 parcelas) - 50 (pago)
+  total_paid = 0.00,           -- Remover amortização incorreta
+  notes = NULL                 -- Limpar tags de amortização
+WHERE id = 'b70c660b-1ff0-461b-b24c-1dd3bf09e884';
+
+-- Deletar pagamento de amortização incorreto
+DELETE FROM loan_payments 
+WHERE id = '889f344e-f56c-4495-8523-9a6820d02ce7';
+```
+
+**Opção B - Adicionar botão de "Corrigir Empréstimo" para o admin:**
+
+Adicionar funcionalidade para restaurar empréstimo usando os valores de `[AMORT_REVERSAL]` nas notas do pagamento.
+
+---
+
+### Correção 3: Bloquear Amortização no Formulário de Pagamento
+**Arquivo:** `src/pages/Loans.tsx`
+
+Esconder ou desabilitar a opção "Recalcular juros (amortização)" quando o empréstimo for do tipo `daily`:
+
+```tsx
+{/* Checkbox de amortização - só para não-diários */}
+{selectedLoan?.payment_type !== 'daily' && (
+  <div className="flex items-center space-x-2">
+    <Checkbox 
+      id="recalculate_interest"
+      checked={paymentData.recalculate_interest}
+      onCheckedChange={(checked) => setPaymentData(prev => ({ 
+        ...prev, 
+        recalculate_interest: checked === true 
+      }))}
+    />
+    <Label htmlFor="recalculate_interest">
+      Recalcular juros (amortização)
+    </Label>
+  </div>
+)}
+```
+
+---
+
+### Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/PriceTableDialog.tsx` | Remover `toast.success`, `onOpenChange(false)` e reset do form do bloco `if (result.data)` |
-| `src/pages/Loans.tsx` | Adicionar `setIsPriceTableDialogOpen(false)`, `toast.success` e `setTimeout` para abrir o prompt de comprovante |
+| `src/pages/Loans.tsx` | 1. Bloquear amortização para empréstimos diários |
+| `src/pages/Loans.tsx` | 2. Esconder checkbox de amortização para tipo 'daily' |
+| SQL/Edge Function | 3. Corrigir dados do empréstimo BRUNO BEZERRA |
 
-## Resultado Esperado
+---
 
-Após criar um empréstimo com Tabela Price:
-1. O diálogo Price fecha
-2. O toast de sucesso aparece
-3. O prompt de comprovante (`LoanCreatedReceiptPrompt`) é exibido com opções para:
-   - Copiar texto
-   - Enviar para si mesmo via WhatsApp
-   - Enviar para o cliente via WhatsApp
-   - Baixar PDF
+### Impacto
+- Empréstimos diários não poderão mais ser corrompidos por amortização incorreta
+- O empréstimo do BRUNO BEZERRA voltará a aparecer na lista após correção dos dados
+- Contador do tab e lista ficarão sincronizados
