@@ -8632,11 +8632,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               const activeDailyLoans = dailyLoans.filter(l => l.status !== 'paid');
               const today = new Date();
               today.setHours(0, 0, 0, 0);
+              const todayStr = format(today, 'yyyy-MM-dd');
               
               let dueToday = 0;
-              let profitToday = 0;
+              let profitTodayExpected = 0;
               let dueTodayCount = 0;
               let receivedToday = 0;
+              let profitTodayRealized = 0;
               let receivedTodayCount = 0;
               let totalOverdue = 0;
               let overdueCount = 0;
@@ -8658,7 +8660,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   
                   if (nextDueDate.getTime() === today.getTime()) {
                     dueToday += dailyInstallmentAmount;
-                    profitToday += profitPerInstallment;
+                    profitTodayExpected += profitPerInstallment;
                     dueTodayCount++;
                   }
                   
@@ -8674,21 +8676,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 }
               });
               
-              // Calcular parcelas recebidas hoje (todos os empréstimos diários)
+              // Calcular valores REAIS recebidos hoje (baseado em payment_date)
               dailyLoans.forEach(loan => {
-                const dailyInstallmentAmount = loan.total_interest || 0;
-                const paidCount = getPaidInstallmentsCount(loan);
-                const dates = (loan.installment_dates as string[]) || [];
-                
-                // Verificar parcelas pagas que vencem hoje
-                for (let i = 0; i < paidCount && i < dates.length; i++) {
-                  const dueDate = new Date(dates[i] + 'T12:00:00');
-                  dueDate.setHours(0, 0, 0, 0);
-                  if (dueDate.getTime() === today.getTime()) {
-                    receivedToday += dailyInstallmentAmount;
+                const payments = (loan as any).loan_payments || [];
+                payments.forEach((payment: any) => {
+                  if (payment.payment_date === todayStr) {
+                    receivedToday += Number(payment.amount || 0);
+                    profitTodayRealized += Number(payment.interest_paid || 0);
                     receivedTodayCount++;
                   }
-                }
+                });
               });
               
               return (
@@ -8710,8 +8707,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <DollarSign className="w-4 h-4 text-emerald-500" />
                         <span className="text-xs text-muted-foreground">Lucro do Dia</span>
                       </div>
-                      <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(profitToday)}</p>
-                      <p className="text-xs text-muted-foreground">previsto</p>
+                      <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(profitTodayRealized)}</p>
+                      <p className="text-xs text-muted-foreground">realizado</p>
                     </CardContent>
                   </Card>
                   
@@ -8722,7 +8719,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <span className="text-xs text-muted-foreground">Recebido Hoje</span>
                       </div>
                       <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(receivedToday)}</p>
-                      <p className="text-xs text-muted-foreground">{receivedTodayCount} parcela{receivedTodayCount !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-muted-foreground">{receivedTodayCount} pagamento{receivedTodayCount !== 1 ? 's' : ''}</p>
                     </CardContent>
                   </Card>
                   

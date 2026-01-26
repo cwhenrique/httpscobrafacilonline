@@ -98,7 +98,7 @@ const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
     .select(`
       *,
       client:clients(*),
-      loan_payments(interest_paid)
+      loan_payments(id, amount, interest_paid, principal_paid, payment_date)
     `)
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
