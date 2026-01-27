@@ -185,7 +185,7 @@ export default function ProductSales() {
   
   
   // Contracts hooks
-  const { contracts, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
+  const { contracts, allContractPayments, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
   
   // Monthly Fees (Subscriptions) hooks
   const { fees: monthlyFees, isLoading: feesLoading, createFee, updateFee, deleteFee, toggleActive, generatePayment } = useMonthlyFees();
@@ -1724,6 +1724,101 @@ export default function ProductSales() {
                           <span className="font-bold text-primary">{formatCurrency(contract.amount_to_receive)}</span>
                         </div>
                       </div>
+                      
+                      {/* Status e botão de cobrança WhatsApp direto no card */}
+                      {contract.status !== 'paid' && contract.client_phone && (() => {
+                        const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
+                        const nextPendingPayment = payments
+                          .filter(p => p.status !== 'paid')
+                          .sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime())[0];
+                        
+                        if (!nextPendingPayment) return null;
+                        
+                        const paymentDate = parseISO(nextPendingPayment.due_date);
+                        const isOverdue = isPast(paymentDate) && !isToday(paymentDate);
+                        const isDueToday = isToday(paymentDate);
+                        const isPending = !isPast(paymentDate) && !isToday(paymentDate);
+                        const daysOverdue = isOverdue ? Math.floor((Date.now() - paymentDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                        const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+                        const paidCount = payments.filter(p => p.status === 'paid').length;
+                        
+                        return (
+                          <div className="mb-3 space-y-2">
+                            {/* Badge de status */}
+                            <div className={cn(
+                              "p-2 rounded-lg text-sm flex items-center justify-between",
+                              isOverdue && "bg-destructive/10",
+                              isDueToday && "bg-yellow-500/10",
+                              isPending && "bg-muted"
+                            )}>
+                              <div className="flex items-center gap-2">
+                                {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
+                                {isDueToday && <Clock className="w-4 h-4 text-yellow-600" />}
+                                {isPending && <Calendar className="w-4 h-4 text-muted-foreground" />}
+                                <span>
+                                  {nextPendingPayment.installment_number}ª parcela - {format(paymentDate, "dd/MM")}
+                                  {isOverdue && <span className="text-destructive font-medium ml-1">({daysOverdue}d atraso)</span>}
+                                  {isDueToday && <span className="text-yellow-600 font-medium ml-1">(Vence Hoje)</span>}
+                                </span>
+                              </div>
+                              <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
+                            </div>
+                            
+                            {/* Botão de cobrança WhatsApp */}
+                            {isOverdue && (
+                              <SendOverdueNotification
+                                data={{
+                                  clientName: contract.client_name,
+                                  clientPhone: contract.client_phone,
+                                  contractType: 'contract',
+                                  installmentNumber: nextPendingPayment.installment_number,
+                                  totalInstallments: contract.installments,
+                                  amount: nextPendingPayment.amount,
+                                  dueDate: nextPendingPayment.due_date,
+                                  daysOverdue: daysOverdue,
+                                  loanId: contract.id,
+                                  paidCount: paidCount,
+                                }}
+                                className="w-full"
+                              />
+                            )}
+                            {isDueToday && (
+                              <SendDueTodayNotification
+                                data={{
+                                  clientName: contract.client_name,
+                                  clientPhone: contract.client_phone,
+                                  contractType: 'contract',
+                                  installmentNumber: nextPendingPayment.installment_number,
+                                  totalInstallments: contract.installments,
+                                  amount: nextPendingPayment.amount,
+                                  dueDate: nextPendingPayment.due_date,
+                                  loanId: contract.id,
+                                  paidCount: paidCount,
+                                }}
+                                className="w-full"
+                              />
+                            )}
+                            {isPending && (
+                              <SendEarlyNotification
+                                data={{
+                                  clientName: contract.client_name,
+                                  clientPhone: contract.client_phone,
+                                  contractType: 'contract',
+                                  installmentNumber: nextPendingPayment.installment_number,
+                                  totalInstallments: contract.installments,
+                                  amount: nextPendingPayment.amount,
+                                  dueDate: nextPendingPayment.due_date,
+                                  daysUntilDue: daysUntilDue,
+                                  loanId: contract.id,
+                                  paidCount: paidCount,
+                                }}
+                                className="w-full"
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
+                      
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
                           {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
