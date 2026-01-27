@@ -1,145 +1,206 @@
 
-# Plano: Sistema de Auditoria de Perfil
+# Plano: Confirmação por Código WhatsApp para Dados Sensíveis
 
 ## Visão Geral
-Implementar um sistema completo de auditoria que registre todas as alterações de dados sensíveis no perfil do usuário (PIX, telefone, email), incluindo endereço IP, data/hora e valores anteriores.
+Implementar um sistema de verificação em duas etapas (2FA) que envia um código de 6 dígitos via WhatsApp antes de permitir alterações em dados financeiros sensíveis como chave PIX, link de pagamento e nome nas cobranças.
+
+## Fluxo do Usuário
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Usuário edita chave PIX                                      │
+│                    │                                             │
+│                    ▼                                             │
+│  2. Sistema detecta campo sensível                               │
+│                    │                                             │
+│                    ▼                                             │
+│  3. Modal de confirmação aparece                                 │
+│     "Para sua segurança, enviaremos um código"                   │
+│                    │                                             │
+│                    ▼                                             │
+│  4. Edge function gera código e envia via WhatsApp               │
+│     (para o próprio número do usuário)                           │
+│                    │                                             │
+│                    ▼                                             │
+│  5. Usuário digita código de 6 dígitos                          │
+│     (usando input-otp já existente)                              │
+│                    │                                             │
+│                    ▼                                             │
+│  6. Sistema valida código e aplica alteração                    │
+│     (registra na auditoria com confirmação)                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Campos que Exigirão Confirmação
+- `pix_key` - Chave PIX
+- `pix_key_type` - Tipo da chave PIX
+- `payment_link` - Link de pagamento
+
+Nota: `phone`, `email`, `full_name` e `billing_signature_name` não exigirão código pois são campos de identificação pessoal, não financeiros.
 
 ## Arquitetura da Solução
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND                                  │
-│  Profile.tsx / Settings.tsx / ProfileSetupModal.tsx              │
-│                            │                                     │
-│                            ▼                                     │
-│              useProfile.ts (updateProfile)                       │
-│                            │                                     │
-│                            ▼                                     │
-│              Edge Function: update-profile-audited               │
-│              (recebe updates + captura IP)                       │
-└─────────────────────────────────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        DATABASE                                  │
+│                         FRONTEND                                 │
 │                                                                  │
-│   ┌─────────────────────┐      ┌──────────────────────────────┐ │
-│   │     profiles        │      │    profile_audit_log          │ │
-│   │  (tabela existente) │◄────►│  (nova tabela de auditoria)  │ │
-│   └─────────────────────┘      │  - id                         │ │
-│                                │  - user_id                    │ │
-│                                │  - field_name                 │ │
-│                                │  - old_value                  │ │
-│                                │  - new_value                  │ │
-│                                │  - ip_address                 │ │
-│                                │  - user_agent                 │ │
-│                                │  - changed_at                 │ │
-│                                └──────────────────────────────┘ │
+│  Profile.tsx                  VerificationCodeDialog.tsx         │
+│       │                              │                           │
+│       │ detecta campo sensível      │ input-otp de 6 dígitos    │
+│       │ abre modal ──────────────►  │                           │
+│                                      │                           │
+│                                      │ envia código              │
+│                                      ▼                           │
+│                   Edge Function: request-verification-code       │
+│                   Edge Function: verify-and-update-profile       │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         DATABASE                                 │
+│                                                                  │
+│   ┌──────────────────────────────────────────────────────────┐  │
+│   │              verification_codes (nova tabela)             │  │
+│   │                                                           │  │
+│   │  - id (uuid)                                              │  │
+│   │  - user_id (uuid)                                         │  │
+│   │  - code (text) - código de 6 dígitos hasheado             │  │
+│   │  - field_name (text) - campo sendo alterado               │  │
+│   │  - new_value (text) - novo valor proposto                 │  │
+│   │  - ip_address (inet)                                      │  │
+│   │  - user_agent (text)                                      │  │
+│   │  - expires_at (timestamptz) - expira em 5 minutos         │  │
+│   │  - verified_at (timestamptz)                              │  │
+│   │  - attempts (int) - máximo 3 tentativas                   │  │
+│   │  - created_at (timestamptz)                               │  │
+│   └──────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│   ┌──────────────────────────────────────────────────────────┐  │
+│   │           profile_audit_log (tabela existente)            │  │
+│   │  + verification_id (uuid) - referência ao código usado    │  │
+│   └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Campos Sensíveis Monitorados
-- `pix_key` - Chave PIX
-- `pix_key_type` - Tipo da chave PIX
-- `phone` - Telefone/WhatsApp
-- `email` - Email
-- `full_name` - Nome completo
-- `billing_signature_name` - Nome nas cobranças
-- `payment_link` - Link de pagamento
-
 ## Etapas de Implementação
 
-### 1. Criar Tabela de Auditoria
+### 1. Criar Tabela verification_codes
 
-Nova tabela `profile_audit_log` para armazenar histórico de alterações:
+Nova tabela para armazenar códigos de verificação temporários:
 
-**Campos:**
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | id | uuid | Identificador único |
 | user_id | uuid | Referência ao usuário |
-| field_name | text | Nome do campo alterado |
-| old_value | text | Valor anterior (criptografado para dados sensíveis) |
-| new_value | text | Novo valor (criptografado para dados sensíveis) |
-| ip_address | inet | Endereço IP da requisição |
-| user_agent | text | User agent do navegador |
-| changed_at | timestamptz | Data/hora da alteração |
-| changed_by | uuid | Quem fez a alteração (útil para funcionários) |
+| code | text | Hash do código de 6 dígitos |
+| field_name | text | Campo sendo alterado (pix_key, payment_link) |
+| pending_updates | jsonb | Todas as alterações pendentes |
+| ip_address | inet | IP de onde foi solicitado |
+| user_agent | text | Navegador/dispositivo |
+| expires_at | timestamptz | Expira em 5 minutos |
+| verified_at | timestamptz | Quando foi verificado |
+| attempts | int | Contador de tentativas (máx 3) |
+| created_at | timestamptz | Data de criação |
 
-**Políticas RLS:**
-- Usuários podem visualizar apenas seu próprio histórico
-- Admins podem visualizar todos os registros
+Políticas RLS:
+- Usuários podem inserir/visualizar apenas seus próprios códigos
+- Nenhuma operação de UPDATE/DELETE permitida (imutável)
 
-### 2. Criar Edge Function para Atualizações Auditadas
+### 2. Criar Edge Function request-verification-code
 
-Nova edge function `update-profile-audited` que:
-1. Recebe as atualizações do perfil
-2. Captura o IP real do cliente
-3. Busca os valores atuais do perfil
-4. Compara quais campos sensíveis foram alterados
-5. Registra cada alteração na tabela de auditoria
-6. Aplica as atualizações no perfil
+Esta função:
+1. Recebe as alterações propostas do perfil
+2. Verifica se algum campo requer confirmação (pix_key, payment_link)
+3. Gera código aleatório de 6 dígitos
+4. Salva código hasheado no banco com expiração de 5 minutos
+5. Envia código via WhatsApp para o próprio usuário (usando send-whatsapp-to-self)
+6. Retorna indicação de que código foi enviado
 
-**Benefícios da abordagem via Edge Function:**
-- Captura IP real do cliente (não disponível no frontend)
-- Garante que toda alteração passe pela auditoria
-- Permite validação adicional no servidor
+Mensagem WhatsApp:
+```
+🔐 *Código de Verificação CobraFácil*
 
-### 3. Atualizar Hook useProfile
+Seu código para alterar a Chave PIX é:
 
-Modificar `updateProfile` em `src/hooks/useProfile.ts` para:
-- Chamar a edge function ao invés de atualizar diretamente
-- Passar informações do user agent
+*123456*
 
-### 4. Atualizar ProfileSetupModal
+Este código expira em 5 minutos.
 
-Modificar `src/components/ProfileSetupModal.tsx` para também usar a edge function ao invés de atualização direta.
+⚠️ Se você não solicitou esta alteração, ignore esta mensagem e altere sua senha imediatamente.
+```
 
-### 5. Interface para Visualizar Histórico (Opcional)
+### 3. Criar Edge Function verify-and-update-profile
 
-Adicionar seção na página de Perfil para visualizar o histórico de alterações, mostrando:
-- Data/hora da alteração
-- Campo alterado
-- Valor anterior → Novo valor
-- IP de origem
+Esta função:
+1. Recebe o código digitado pelo usuário
+2. Valida se o código está correto e não expirou
+3. Verifica se não excedeu 3 tentativas
+4. Se válido, aplica as alterações no perfil
+5. Registra na auditoria com referência ao código de verificação
+6. Marca o código como verificado
+
+### 4. Criar Componente VerificationCodeDialog
+
+Componente React que:
+- Exibe modal de confirmação
+- Mostra input OTP de 6 dígitos (usando input-otp existente)
+- Exibe timer de expiração (5 minutos)
+- Permite reenviar código após 60 segundos
+- Mostra feedback de erro/sucesso
+
+### 5. Atualizar Profile.tsx
+
+Modificar as funções de save (handleSavePix, handleSavePaymentLink):
+1. Detectar se campo requer verificação
+2. Abrir modal VerificationCodeDialog ao invés de salvar diretamente
+3. Após verificação bem-sucedida, atualizar UI
+
+### 6. Atualizar useProfile.ts
+
+Adicionar nova função `updateProfileWithVerification`:
+- Verifica se alterações incluem campos sensíveis
+- Se sim, inicia fluxo de verificação
+- Se não, atualiza normalmente
 
 ---
 
 ## Detalhes Técnicos
 
-### Edge Function: update-profile-audited
-
+### Geração de Código Seguro
 ```typescript
-// Estrutura da requisição
-{
-  updates: { pix_key?: string, phone?: string, ... },
-  userAgent: string
-}
+// Gerar código de 6 dígitos criptograficamente seguro
+const code = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+  .map(b => (b % 10).toString())
+  .join('')
+  .padEnd(6, '0');
 
-// Campos sensíveis monitorados
-const SENSITIVE_FIELDS = [
+// Hash do código para armazenamento
+const hashedCode = await crypto.subtle.digest(
+  'SHA-256',
+  new TextEncoder().encode(code + userId)
+);
+```
+
+### Campos que Exigem Verificação
+```typescript
+const VERIFICATION_REQUIRED_FIELDS = [
   'pix_key',
-  'pix_key_type', 
-  'phone',
-  'email',
-  'full_name',
-  'billing_signature_name',
+  'pix_key_type',
   'payment_link'
 ];
 ```
 
-### Captura de IP
+### Validações de Segurança
+1. Código expira em 5 minutos
+2. Máximo de 3 tentativas por código
+3. Rate limit: máximo 5 códigos por hora por usuário
+4. IP e User Agent registrados para auditoria
+5. Usuário deve ter WhatsApp conectado (fallback: usar telefone cadastrado via API global)
 
-O IP será extraído dos headers da requisição:
-- `x-forwarded-for` (proxy/load balancer)
-- `x-real-ip` (alternativa)
-- `cf-connecting-ip` (Cloudflare)
-
-### Segurança
-
-1. **RLS na tabela de auditoria**: Usuários só veem seus próprios logs
-2. **Logs imutáveis**: Sem políticas de UPDATE/DELETE para usuários
-3. **Dados sensíveis**: Valores parcialmente mascarados na visualização
+### Fallback se WhatsApp não Conectado
+Se o usuário não tiver WhatsApp conectado:
+- Usar edge function `send-whatsapp` com o telefone cadastrado no perfil
+- Mensagem enviada via instância global do CobraFácil
 
 ---
 
@@ -147,18 +208,20 @@ O IP será extraído dos headers da requisição:
 
 | Arquivo | Ação |
 |---------|------|
-| Migração SQL | Criar tabela `profile_audit_log` com RLS |
-| `supabase/functions/update-profile-audited/index.ts` | Nova edge function |
-| `supabase/config.toml` | Adicionar configuração da nova função |
-| `src/hooks/useProfile.ts` | Usar edge function para updates |
-| `src/components/ProfileSetupModal.tsx` | Usar edge function |
-| `src/pages/Profile.tsx` | Adicionar visualização do histórico (opcional) |
+| Migração SQL | Criar tabela `verification_codes` |
+| `supabase/functions/request-verification-code/index.ts` | Nova edge function |
+| `supabase/functions/verify-and-update-profile/index.ts` | Nova edge function |
+| `supabase/config.toml` | Adicionar novas funções |
+| `src/components/VerificationCodeDialog.tsx` | Novo componente |
+| `src/pages/Profile.tsx` | Integrar verificação no save de PIX |
+| `src/hooks/useProfile.ts` | Adicionar funções de verificação |
 
 ---
 
-## Benefícios
+## Benefícios de Segurança
 
-1. **Rastreabilidade completa**: Saber exatamente quando, de onde e o que foi alterado
-2. **Investigação de fraudes**: Identificar alterações não autorizadas
-3. **Recuperação de dados**: Possibilidade de restaurar valores anteriores
-4. **Compliance**: Atender requisitos de auditoria e segurança
+1. **Proteção contra acesso não autorizado**: Mesmo com sessão ativa, alterações críticas exigem confirmação
+2. **Rastreabilidade completa**: Cada alteração tem código de verificação vinculado na auditoria
+3. **Notificação ao usuário**: Tentativas de alteração são notificadas via WhatsApp
+4. **Rate limiting**: Previne ataques de força bruta
+5. **Expiração rápida**: Códigos válidos por apenas 5 minutos
