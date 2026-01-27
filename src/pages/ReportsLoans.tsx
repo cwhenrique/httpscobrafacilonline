@@ -500,17 +500,33 @@ export default function ReportsLoans() {
         const startDate = startOfDay(dateRange.from);
         const endDate = endOfDay(dateRange.to);
         
-        // Count how many installments are already paid
-        const paidInstallmentsCount = interestPerInstallment > 0 
-          ? Math.min(Math.floor(interestPaid / interestPerInstallment), installments)
+        // Get principal paid to determine truly paid installments
+        // An installment is only "fully paid" when BOTH principal AND interest are paid
+        const principalPaid = payments.reduce((s: number, p: any) => 
+          s + Number(p.principal_paid || 0), 0);
+        
+        const principalPerInstallment = principal / installments;
+        
+        // Calculate fully paid installments based on principal
+        const fullyPaidInstallments = principalPerInstallment > 0 
+          ? Math.min(Math.floor(principalPaid / principalPerInstallment), installments)
           : 0;
         
         let interestInPeriod = 0;
         installmentDates.forEach((dateStr: string, index: number) => {
           const dueDate = parseISO(dateStr);
-          // Only count unpaid installments within the period
-          if (index >= paidInstallmentsCount && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
-            interestInPeriod += interestPerInstallment;
+          // Include interest for installments that are NOT fully paid and within period
+          if (index >= fullyPaidInstallments && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+            // For this installment, calculate remaining interest
+            // If some interest was already paid but installment not fully paid,
+            // the remaining interest for this installment might be 0 or reduced
+            const interestAlreadyPaidForUnpaidInstallments = Math.max(0, interestPaid - (fullyPaidInstallments * interestPerInstallment));
+            const installmentInterestPaid = index === fullyPaidInstallments 
+              ? interestAlreadyPaidForUnpaidInstallments
+              : 0;
+            
+            const remainingInterestForInstallment = Math.max(0, interestPerInstallment - installmentInterestPaid);
+            interestInPeriod += remainingInterestForInstallment;
           }
         });
         
