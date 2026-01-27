@@ -1078,6 +1078,7 @@ export default function ReportsLoans() {
           receivedInPeriod={cashFlowStats.receivedInPeriod}
           interestReceived={cashFlowStats.interestReceived}
           onUpdateInitialBalance={handleUpdateCashFlowBalance}
+          isUnlocked={profile?.cash_flow_initial_balance !== null && profile?.cash_flow_initial_balance !== undefined && profile.cash_flow_initial_balance > 0}
         />
 
         {/* Main Stats Grid - Filtered */}
