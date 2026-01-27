@@ -1036,39 +1036,6 @@ export default function ReportsLoans() {
           </CollapsibleContent>
         </Collapsible>
 
-        {/* Period Stats - Filtered - Compact */}
-        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="p-2 sm:p-3">
-            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-              <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
-              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
-                {dateRange?.from && dateRange?.to ? (
-                  `${format(dateRange.from, "dd/MM", { locale: ptBR })} - ${format(dateRange.to, "dd/MM", { locale: ptBR })}`
-                ) : 'Todo o período'}
-              </p>
-              {paymentTypeFilter !== 'all' && (
-                <Badge variant="outline" className="text-[10px] border-primary/50 text-primary ml-1">
-                  {paymentTypeLabels[paymentTypeFilter]}
-                </Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center">
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Emprestado</p>
-                <p className="text-xs sm:text-sm font-bold text-blue-500">{formatCurrency(filteredStats.totalLent)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Recebido</p>
-                <p className="text-xs sm:text-sm font-bold text-emerald-500">{formatCurrency(filteredStats.totalReceived)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Lucro</p>
-                <p className="text-xs sm:text-sm font-bold text-purple-500">{formatCurrency(filteredStats.totalProfit)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Cash Flow Card */}
         <CashFlowCard
           initialBalance={cashFlowStats.initialBalance}
