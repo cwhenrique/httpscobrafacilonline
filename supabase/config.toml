@@ -155,3 +155,9 @@ verify_jwt = false
 
 [functions.update-profile-audited]
 verify_jwt = false
+
+[functions.request-verification-code]
+verify_jwt = false
+
+[functions.verify-and-update-profile]
+verify_jwt = false

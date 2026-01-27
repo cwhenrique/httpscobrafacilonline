@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import VerificationCodeDialog from '@/components/VerificationCodeDialog';
 
 const RENEWAL_LINKS = {
   monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
@@ -94,6 +95,11 @@ export default function Profile() {
   const [savingBillingName, setSavingBillingName] = useState(false);
   const [savingPaymentLink, setSavingPaymentLink] = useState(false);
   const [isRenewalDialogOpen, setIsRenewalDialogOpen] = useState(false);
+  
+  // Estados para verificação 2FA
+  const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
+  const [pendingVerificationUpdates, setPendingVerificationUpdates] = useState<Record<string, unknown>>({});
+  const [verificationFieldName, setVerificationFieldName] = useState('');
 
   const handleSelectPlan = (link: string) => {
     window.open(link, '_blank');
@@ -279,19 +285,29 @@ export default function Profile() {
 
   // Funções de save individuais
   const handleSavePix = async () => {
-    setSavingPix(true);
-    const { error } = await updateProfile({
+    const updates = {
       pix_key: formData.pix_key.trim() || null,
       pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
-    });
-    if (error) {
-      toast.error('Erro ao salvar chave PIX');
+    };
+    
+    // Verificar se houve mudança real
+    const pixChanged = updates.pix_key !== (profile?.pix_key || null);
+    const typeChanged = updates.pix_key_type !== (profile?.pix_key_type || null);
+    
+    if (pixChanged || typeChanged) {
+      // Requer verificação por código
+      setPendingVerificationUpdates(updates);
+      setVerificationFieldName('Chave PIX');
+      setVerificationDialogOpen(true);
     } else {
-      toast.success('Chave PIX atualizada!');
+      // Sem mudanças, apenas fechar
       setIsEditingPix(false);
-      refetch();
     }
-    setSavingPix(false);
+  };
+
+  const handlePixVerificationSuccess = () => {
+    setIsEditingPix(false);
+    refetch();
   };
 
   const handleCancelPix = () => {
@@ -327,18 +343,27 @@ export default function Profile() {
   };
 
   const handleSavePaymentLink = async () => {
-    setSavingPaymentLink(true);
-    const { error } = await updateProfile({
+    const updates = {
       payment_link: formData.payment_link.trim() || null,
-    });
-    if (error) {
-      toast.error('Erro ao salvar link');
+    };
+    
+    // Verificar se houve mudança real
+    const linkChanged = updates.payment_link !== (profile?.payment_link || null);
+    
+    if (linkChanged) {
+      // Requer verificação por código
+      setPendingVerificationUpdates(updates);
+      setVerificationFieldName('Link de Pagamento');
+      setVerificationDialogOpen(true);
     } else {
-      toast.success('Link de pagamento atualizado!');
+      // Sem mudanças, apenas fechar
       setIsEditingPaymentLink(false);
-      refetch();
     }
-    setSavingPaymentLink(false);
+  };
+
+  const handlePaymentLinkVerificationSuccess = () => {
+    setIsEditingPaymentLink(false);
+    refetch();
   };
 
   const handleCancelPaymentLink = () => {
@@ -1119,6 +1144,28 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Verification Code Dialog for sensitive changes */}
+      <VerificationCodeDialog
+        open={verificationDialogOpen}
+        onOpenChange={(open) => {
+          setVerificationDialogOpen(open);
+          if (!open) {
+            setPendingVerificationUpdates({});
+            setVerificationFieldName('');
+          }
+        }}
+        pendingUpdates={pendingVerificationUpdates}
+        fieldDisplayName={verificationFieldName}
+        onSuccess={() => {
+          // Determine which field was being edited and call appropriate success handler
+          if (verificationFieldName === 'Chave PIX') {
+            handlePixVerificationSuccess();
+          } else if (verificationFieldName === 'Link de Pagamento') {
+            handlePaymentLinkVerificationSuccess();
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

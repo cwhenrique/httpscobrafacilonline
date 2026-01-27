@@ -926,6 +926,7 @@ export type Database = {
           old_value: string | null
           user_agent: string | null
           user_id: string
+          verification_id: string | null
         }
         Insert: {
           changed_at?: string
@@ -937,6 +938,7 @@ export type Database = {
           old_value?: string | null
           user_agent?: string | null
           user_id: string
+          verification_id?: string | null
         }
         Update: {
           changed_at?: string
@@ -948,8 +950,17 @@ export type Database = {
           old_value?: string | null
           user_agent?: string | null
           user_id?: string
+          verification_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profile_audit_log_verification_id_fkey"
+            columns: ["verification_id"]
+            isOneToOne: false
+            referencedRelation: "verification_codes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1285,6 +1296,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           year?: number
+        }
+        Relationships: []
+      }
+      verification_codes: {
+        Row: {
+          attempts: number
+          code: string
+          created_at: string
+          expires_at: string
+          field_name: string
+          id: string
+          ip_address: unknown
+          pending_updates: Json
+          user_agent: string | null
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          code: string
+          created_at?: string
+          expires_at?: string
+          field_name: string
+          id?: string
+          ip_address?: unknown
+          pending_updates?: Json
+          user_agent?: string | null
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          code?: string
+          created_at?: string
+          expires_at?: string
+          field_name?: string
+          id?: string
+          ip_address?: unknown
+          pending_updates?: Json
+          user_agent?: string | null
+          user_id?: string
+          verified_at?: string | null
         }
         Relationships: []
       }
