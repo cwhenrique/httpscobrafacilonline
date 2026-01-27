@@ -227,11 +227,21 @@ export default function ProductSales() {
   const [contractPayments, setContractPayments] = useState<Record<string, ContractPayment[]>>({});
   const [editContractForm, setEditContractForm] = useState<UpdateContractData>({
     client_name: '',
+    client_phone: '',
+    client_cpf: '',
+    client_rg: '',
+    client_email: '',
+    client_address: '',
     contract_type: '',
     total_amount: 0,
     amount_to_receive: 0,
     notes: '',
   });
+  const [editingContractPayments, setEditingContractPayments] = useState<ContractPayment[]>([]);
+  const [selectedContractClientId, setSelectedContractClientId] = useState<string | null>(null);
+  const [isContractHistorical, setIsContractHistorical] = useState(false);
+  const [historicalPaidInstallments, setHistoricalPaidInstallments] = useState<number[]>([]);
+  const [contractsStatusFilter, setContractsStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
 
   // Contract payment dialog states
   const [contractPaymentDialogOpen, setContractPaymentDialogOpen] = useState(false);
@@ -331,9 +341,11 @@ export default function ProductSales() {
     amount_to_receive: 0,
     frequency: 'monthly',
     installments: 12,
+    contract_date: format(new Date(), 'yyyy-MM-dd'),
     first_payment_date: '',
     payment_method: 'all_days',
     notes: '',
+    is_historical: false,
   });
 
 
@@ -397,10 +409,76 @@ export default function ProductSales() {
       amount_to_receive: 0,
       frequency: 'monthly',
       installments: 12,
+      contract_date: format(new Date(), 'yyyy-MM-dd'),
       first_payment_date: '',
       payment_method: 'all_days',
       notes: '',
+      is_historical: false,
     });
+    setSelectedContractClientId(null);
+    setIsContractHistorical(false);
+    setHistoricalPaidInstallments([]);
+  };
+
+  // Handler for contract client selection
+  const handleContractClientSelect = (client: Client | null) => {
+    if (client) {
+      setSelectedContractClientId(client.id);
+      setContractForm(prev => ({
+        ...prev,
+        client_name: client.full_name,
+        client_phone: client.phone || '',
+        client_cpf: client.cpf || '',
+        client_rg: client.rg || '',
+        client_email: client.email || '',
+        client_address: formatFullAddress(client),
+      }));
+    } else {
+      setSelectedContractClientId(null);
+    }
+  };
+
+  // Generate contract installment dates for preview (when historical)
+  const getContractInstallmentDates = () => {
+    if (!contractForm.first_payment_date || !contractForm.installments) return [];
+    
+    const dates = [];
+    const firstDate = parseISO(contractForm.first_payment_date);
+    
+    for (let i = 0; i < contractForm.installments; i++) {
+      let dueDate: Date;
+      if (contractForm.frequency === 'weekly') {
+        dueDate = addDays(firstDate, i * 7);
+      } else if (contractForm.frequency === 'biweekly') {
+        dueDate = addDays(firstDate, i * 15);
+      } else {
+        dueDate = addMonths(firstDate, i);
+      }
+      dates.push({
+        number: i + 1,
+        date: format(dueDate, 'yyyy-MM-dd'),
+        isPast: isPast(dueDate) && !isToday(dueDate),
+      });
+    }
+    return dates;
+  };
+
+  const toggleHistoricalInstallment = (installmentNumber: number) => {
+    setHistoricalPaidInstallments(prev => 
+      prev.includes(installmentNumber)
+        ? prev.filter(n => n !== installmentNumber)
+        : [...prev, installmentNumber]
+    );
+  };
+
+  const selectAllHistoricalInstallments = () => {
+    const dates = getContractInstallmentDates();
+    const pastInstallments = dates.filter(d => d.isPast).map(d => d.number);
+    setHistoricalPaidInstallments(pastInstallments);
+  };
+
+  const deselectAllHistoricalInstallments = () => {
+    setHistoricalPaidInstallments([]);
   };
 
 
@@ -702,20 +780,38 @@ export default function ProductSales() {
   // Contract handlers
   const handleCreateContract = async () => {
     if (!contractForm.client_name || !contractForm.total_amount || !contractForm.first_payment_date) return;
-    await createContract.mutateAsync(contractForm);
+    
+    const formDataWithHistorical = {
+      ...contractForm,
+      is_historical: isContractHistorical,
+      historical_paid_installments: isContractHistorical ? historicalPaidInstallments : undefined,
+    };
+    
+    await createContract.mutateAsync(formDataWithHistorical);
     setIsContractOpen(false);
     resetContractForm();
   };
 
-  const openEditContractDialog = (contract: Contract) => {
+  const openEditContractDialog = async (contract: Contract) => {
     setEditingContract(contract);
     setEditContractForm({
       client_name: contract.client_name,
+      client_phone: contract.client_phone || '',
+      client_cpf: contract.client_cpf || '',
+      client_rg: contract.client_rg || '',
+      client_email: contract.client_email || '',
+      client_address: contract.client_address || '',
       contract_type: contract.contract_type,
       total_amount: contract.total_amount,
       amount_to_receive: contract.amount_to_receive,
+      frequency: contract.frequency as 'monthly' | 'biweekly' | 'weekly',
+      contract_date: contract.contract_date || '',
       notes: contract.notes || '',
     });
+    
+    // Load payments for editing
+    const payments = await getContractPayments(contract.id);
+    setEditingContractPayments(payments);
     setIsEditContractOpen(true);
   };
 
@@ -727,6 +823,7 @@ export default function ProductSales() {
     });
     setIsEditContractOpen(false);
     setEditingContract(null);
+    setEditingContractPayments([]);
   };
 
   const handleDeleteContract = async () => {
@@ -900,10 +997,73 @@ export default function ProductSales() {
     return status === salesStatusFilter;
   }) || [];
 
-  const filteredContracts = contracts.filter(contract =>
-    contract.client_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    contract.bill_type === 'receivable'
-  );
+  // Helper to get contract status based on next pending payment
+  const getContractStatus = (contract: Contract) => {
+    if (contract.status === 'paid') return 'paid';
+    
+    const payments = allContractPayments.filter(p => p.contract_id === contract.id);
+    const nextPendingPayment = payments
+      .filter(p => p.status !== 'paid')
+      .sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime())[0];
+    
+    if (!nextPendingPayment) return 'paid';
+    
+    const paymentDate = parseISO(nextPendingPayment.due_date);
+    if (isPast(paymentDate) && !isToday(paymentDate)) return 'overdue';
+    if (isToday(paymentDate)) return 'due_today';
+    return 'pending';
+  };
+
+  const filteredContracts = contracts.filter(contract => {
+    const matchesSearch = contract.client_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const isReceivable = contract.bill_type === 'receivable';
+    
+    if (!matchesSearch || !isReceivable) return false;
+    if (contractsStatusFilter === 'all') return true;
+    
+    const status = getContractStatus(contract);
+    if (contractsStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+    return status === contractsStatusFilter;
+  });
+
+  // Contract stats
+  const allContractsStats = {
+    total: contracts.filter(c => c.bill_type === 'receivable').length,
+    pending: contracts.filter(c => {
+      const status = getContractStatus(c);
+      return c.bill_type === 'receivable' && (status === 'pending' || status === 'due_today');
+    }).length,
+    overdue: contracts.filter(c => c.bill_type === 'receivable' && getContractStatus(c) === 'overdue').length,
+    paid: contracts.filter(c => c.bill_type === 'receivable' && getContractStatus(c) === 'paid').length,
+  };
+
+  const contractsStats = {
+    totalContracts: filteredContracts.length,
+    totalToReceive: filteredContracts.reduce((acc, c) => acc + c.amount_to_receive, 0),
+    totalReceived: filteredContracts.reduce((acc, c) => {
+      const payments = allContractPayments.filter(p => p.contract_id === c.id);
+      return acc + payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+    }, 0),
+    overdueAmount: filteredContracts.reduce((acc, c) => {
+      if (getContractStatus(c) !== 'overdue') return acc;
+      const payments = allContractPayments.filter(p => p.contract_id === c.id);
+      const overduePayments = payments.filter(p => {
+        const date = parseISO(p.due_date);
+        return p.status !== 'paid' && isPast(date) && !isToday(date);
+      });
+      return acc + overduePayments.reduce((sum, p) => sum + p.amount, 0);
+    }, 0),
+  };
+
+  // Frequency label helper
+  const getFrequencyLabel = (frequency: string) => {
+    switch (frequency) {
+      case 'weekly': return 'Semanal';
+      case 'biweekly': return 'Quinzenal';
+      case 'monthly': 
+      default: return 'Mensal';
+    }
+  };
 
   const getCardStyles = (status: string) => {
     switch (status) {
@@ -1591,18 +1751,110 @@ export default function ProductSales() {
 
           {/* CONTRATOS TAB */}
           <TabsContent value="contracts" className="mt-4 space-y-4">
+            {/* Dashboard Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <FileSignature className="w-5 h-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">Total</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{allContractsStats.total}</p>
+                  <p className="text-xs text-muted-foreground">contratos</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">A Receber</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">{formatCurrency(contractsStats.totalToReceive - contractsStats.totalReceived)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    <span className="text-sm text-muted-foreground">Em Atraso</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1 text-destructive">{formatCurrency(contractsStats.overdueAmount)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-primary/30 bg-primary/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">Recebido</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1 text-primary">{formatCurrency(contractsStats.totalReceived)}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant={contractsStatusFilter === 'all' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setContractsStatusFilter('all')}
+              >
+                Todos ({allContractsStats.total})
+              </Button>
+              <Button 
+                variant={contractsStatusFilter === 'pending' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setContractsStatusFilter('pending')}
+              >
+                Pendentes ({allContractsStats.pending})
+              </Button>
+              <Button 
+                variant={contractsStatusFilter === 'overdue' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setContractsStatusFilter('overdue')}
+                className={contractsStatusFilter !== 'overdue' && allContractsStats.overdue > 0 ? 'text-destructive border-destructive/50' : ''}
+              >
+                Atrasados ({allContractsStats.overdue})
+              </Button>
+              <Button 
+                variant={contractsStatusFilter === 'paid' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setContractsStatusFilter('paid')}
+              >
+                Quitados ({allContractsStats.paid})
+              </Button>
+            </div>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
               </div>
-              <Dialog open={isContractOpen} onOpenChange={setIsContractOpen}>
+              <Dialog open={isContractOpen} onOpenChange={(open) => {
+                setIsContractOpen(open);
+                if (!open) resetContractForm();
+              }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>Novo Contrato</DialogTitle></DialogHeader>
                   <div className="space-y-4 py-4">
+                    {/* ClientSelector */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Usar cliente cadastrado
+                      </Label>
+                      <ClientSelector
+                        selectedClientId={selectedContractClientId}
+                        onSelect={handleContractClientSelect}
+                        placeholder="Selecione para preencher automaticamente"
+                      />
+                    </div>
+                    
+                    <Separator />
+                    
                     <div className="space-y-2">
                       <Label>Cliente / Inquilino *</Label>
                       <Input placeholder="Nome do cliente" value={contractForm.client_name} onChange={(e) => setContractForm({ ...contractForm, client_name: e.target.value })} />
@@ -1631,6 +1883,9 @@ export default function ProductSales() {
                       <Label>Endereço</Label>
                       <Input placeholder="Rua, número, bairro, cidade..." value={contractForm.client_address} onChange={(e) => setContractForm({ ...contractForm, client_address: e.target.value })} />
                     </div>
+                    
+                    <Separator />
+                    
                     <div className="space-y-2">
                       <Label>Tipo de contrato</Label>
                       <Select value={contractForm.contract_type} onValueChange={(value) => setContractForm({ ...contractForm, contract_type: value })}>
@@ -1646,9 +1901,22 @@ export default function ProductSales() {
                         </SelectContent>
                       </Select>
                     </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Frequência de Pagamento *</Label>
+                      <Select value={contractForm.frequency} onValueChange={(value: 'monthly' | 'biweekly' | 'weekly') => setContractForm({ ...contractForm, frequency: value })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Mensal</SelectItem>
+                          <SelectItem value="biweekly">Quinzenal</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Valor mensal (R$) *</Label>
+                        <Label>Valor da parcela (R$) *</Label>
                         <Input type="number" step="0.01" min="0" value={contractForm.total_amount || ''} onChange={(e) => {
                           const value = parseFloat(e.target.value) || 0;
                           setContractForm({ ...contractForm, total_amount: value, amount_to_receive: value * contractForm.installments });
@@ -1662,10 +1930,90 @@ export default function ProductSales() {
                         }} />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Primeiro vencimento *</Label>
-                      <Input type="date" value={contractForm.first_payment_date} onChange={(e) => setContractForm({ ...contractForm, first_payment_date: e.target.value })} />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Data do Contrato</Label>
+                        <Input type="date" value={contractForm.contract_date} onChange={(e) => setContractForm({ ...contractForm, contract_date: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Primeiro Vencimento *</Label>
+                        <Input type="date" value={contractForm.first_payment_date} onChange={(e) => setContractForm({ ...contractForm, first_payment_date: e.target.value })} />
+                      </div>
                     </div>
+                    
+                    {/* Historical Contract Option */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={isContractHistorical}
+                          onCheckedChange={(checked) => {
+                            setIsContractHistorical(checked);
+                            if (!checked) setHistoricalPaidInstallments([]);
+                          }}
+                        />
+                        <Label className="flex items-center gap-2 cursor-pointer">
+                          <History className="w-4 h-4" />
+                          É um contrato antigo que está registrando?
+                        </Label>
+                      </div>
+                      
+                      {isContractHistorical && contractForm.first_payment_date && (
+                        <div className="mt-3 p-3 rounded-lg border bg-muted/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">Marque as parcelas já pagas:</p>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={selectAllHistoricalInstallments}>
+                                Passadas
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={deselectAllHistoricalInstallments}>
+                                Nenhuma
+                              </Button>
+                            </div>
+                          </div>
+                          <ScrollArea className="h-[150px]">
+                            <div className="space-y-1">
+                              {getContractInstallmentDates().map((inst) => (
+                                <div 
+                                  key={inst.number}
+                                  className={cn(
+                                    "flex items-center justify-between p-2 rounded-lg text-sm",
+                                    historicalPaidInstallments.includes(inst.number) 
+                                      ? "bg-primary/10 border border-primary/30" 
+                                      : "bg-background border border-border"
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="w-12 justify-center text-xs">
+                                      {inst.number}ª
+                                    </Badge>
+                                    <span>{format(parseISO(inst.date), "dd/MM/yyyy")}</span>
+                                    {inst.isPast && !historicalPaidInstallments.includes(inst.number) && (
+                                      <Badge variant="destructive" className="text-xs">Passada</Badge>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant={historicalPaidInstallments.includes(inst.number) ? "default" : "outline"}
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => toggleHistoricalInstallment(inst.number)}
+                                    disabled={!inst.isPast}
+                                  >
+                                    {historicalPaidInstallments.includes(inst.number) ? (
+                                      <><Check className="w-3 h-3 mr-1" /> Paga</>
+                                    ) : (
+                                      "Marcar Paga"
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      )}
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label>Observações</Label>
                       <Textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} />
@@ -2606,17 +2954,82 @@ export default function ProductSales() {
 
         {/* Edit Contract Dialog */}
         <Dialog open={isEditContractOpen} onOpenChange={setIsEditContractOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Editar Contrato</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Cliente</Label>
                 <Input value={editContractForm.client_name} onChange={(e) => setEditContractForm({ ...editContractForm, client_name: e.target.value })} />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input value={editContractForm.client_phone || ''} onChange={(e) => setEditContractForm({ ...editContractForm, client_phone: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input value={editContractForm.client_email || ''} onChange={(e) => setEditContractForm({ ...editContractForm, client_email: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>CPF</Label>
+                  <Input value={editContractForm.client_cpf || ''} onChange={(e) => setEditContractForm({ ...editContractForm, client_cpf: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>RG</Label>
+                  <Input value={editContractForm.client_rg || ''} onChange={(e) => setEditContractForm({ ...editContractForm, client_rg: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Endereço</Label>
+                <Input value={editContractForm.client_address || ''} onChange={(e) => setEditContractForm({ ...editContractForm, client_address: e.target.value })} />
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor da Parcela (R$)</Label>
+                  <Input type="number" step="0.01" value={editContractForm.total_amount || ''} onChange={(e) => setEditContractForm({ ...editContractForm, total_amount: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data do Contrato</Label>
+                  <Input type="date" value={editContractForm.contract_date || ''} onChange={(e) => setEditContractForm({ ...editContractForm, contract_date: e.target.value })} />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Observações</Label>
                 <Textarea value={editContractForm.notes || ''} onChange={(e) => setEditContractForm({ ...editContractForm, notes: e.target.value })} />
               </div>
+              
+              {/* Parcelas do contrato */}
+              {editingContractPayments.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Parcelas ({editingContractPayments.length})
+                  </Label>
+                  <ScrollArea className="h-[150px] rounded-md border p-3">
+                    <div className="space-y-2">
+                      {editingContractPayments.map((payment) => (
+                        <div key={payment.id} className={cn(
+                          "flex items-center justify-between p-2 rounded-lg text-sm",
+                          payment.status === 'paid' ? "bg-primary/10" : "bg-muted"
+                        )}>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="w-10 justify-center text-xs">{payment.installment_number}ª</Badge>
+                            <span>{format(parseISO(payment.due_date), "dd/MM/yyyy")}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{formatCurrency(payment.amount)}</span>
+                            {payment.status === 'paid' && <Check className="w-4 h-4 text-primary" />}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+              
               <Button onClick={handleEditContract} disabled={updateContract.isPending} className="w-full">{updateContract.isPending ? 'Salvando...' : 'Salvar Alterações'}</Button>
             </div>
           </DialogContent>
