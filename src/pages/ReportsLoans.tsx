@@ -537,6 +537,52 @@ export default function ReportsLoans() {
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
+    // Juros Programados no Período (agenda) - juros das parcelas que VENCEM no período
+    // Independente de já terem sido pagos ou não
+    const interestScheduledInPeriod = allActiveLoans.reduce((sum, loan) => {
+      const principal = Number(loan.principal_amount);
+      const rate = Number(loan.interest_rate);
+      const installments = Number(loan.installments) || 1;
+      const interestMode = loan.interest_mode || 'per_installment';
+      const isDaily = loan.payment_type === 'daily';
+      const installmentDates = (loan as any).installment_dates || [];
+      const remainingBalance = Number(loan.remaining_balance || 0);
+      const totalPaid = Number(loan.total_paid || 0);
+      
+      // Calculate interest per installment (same logic as pendingInterest)
+      let interestPerInstallment = 0;
+      
+      if (isDaily) {
+        const dailyInstallment = Number(loan.total_interest) || 0;
+        const principalPerInstallment = principal / installments;
+        interestPerInstallment = dailyInstallment - principalPerInstallment;
+      } else if (interestMode === 'per_installment') {
+        interestPerInstallment = principal * (rate / 100);
+      } else {
+        const totalInterest = principal * (rate / 100);
+        interestPerInstallment = totalInterest / installments;
+      }
+      
+      // If period is selected and loan has installment dates, sum interest for ALL installments in period
+      if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
+        const startDate = startOfDay(dateRange.from);
+        const endDate = endOfDay(dateRange.to);
+        
+        let scheduledInterest = 0;
+        installmentDates.forEach((dateStr: string) => {
+          const dueDate = parseISO(dateStr);
+          if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+            // Include interest for this installment regardless of payment status
+            scheduledInterest += interestPerInstallment;
+          }
+        });
+        
+        return sum + Math.max(0, scheduledInterest);
+      }
+      
+      return sum;
+    }, 0);
+    
     // Helper para extrair pagamentos parciais das notas
     const getPartialPaymentsFromNotes = (notes: string | null | undefined): Record<number, number> => {
       if (!notes) return {};
@@ -641,6 +687,7 @@ export default function ReportsLoans() {
     return {
       totalOnStreet,
       pendingInterest,
+      interestScheduledInPeriod,
       totalReceivedAllTime: totalReceivedInPeriod,
       pendingAmount,
       overdueAmount,
@@ -1121,12 +1168,21 @@ export default function ReportsLoans() {
                 compact
               />
               <StatCard
-                label="💰 Juros a Receber"
+                label="💰 Juros Pendentes"
                 value={formatCurrency(filteredStats.pendingInterest)}
                 icon={TrendingUp}
                 iconColor="text-primary"
                 bgColor="bg-primary/10"
-                subtitle="Lucro pendente"
+                subtitle="Ainda não pagos"
+                compact
+              />
+              <StatCard
+                label="📅 Juros no Período"
+                value={formatCurrency(filteredStats.interestScheduledInPeriod)}
+                icon={CalendarDays}
+                iconColor="text-blue-400"
+                bgColor="bg-blue-400/10"
+                subtitle="Agenda de vencimentos"
                 compact
               />
               <StatCard
