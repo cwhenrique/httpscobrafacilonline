@@ -146,10 +146,17 @@ async function fetchOperationalStats(): Promise<StatsData> {
       let totalInterest = 0;
       if (isDaily) {
         totalInterest = remainingBalance + totalPaid - principal;
+      } else if (loan.total_interest && Number(loan.total_interest) > 0) {
+        // Usar o valor já calculado e armazenado no banco
+        totalInterest = Number(loan.total_interest);
+      } else if (interestMode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * installments;
+      } else if (interestMode === 'compound') {
+        // Juros compostos: M = P × (1 + i)^n - P
+        totalInterest = principal * Math.pow(1 + (rate / 100), installments) - principal;
       } else {
-        totalInterest = interestMode === 'per_installment' 
-          ? principal * (rate / 100) * installments 
-          : principal * (rate / 100);
+        // on_total
+        totalInterest = principal * (rate / 100);
       }
       const interestPending = Math.max(0, totalInterest - totalInterestReceived);
       pendingInterest += interestPending;
