@@ -1,48 +1,40 @@
 
-
-# Corrigir Mensagens de Erro do Teste de WhatsApp
+# Esclarecer Origem da Mensagem de Teste WhatsApp
 
 ## Problema
 
-Após a migração do "WhatsApp para Clientes" para a página Meu Perfil, as mensagens de erro da função `handleTestWhatsApp` ainda referenciam "configurações" ao invés da seção correta que agora está na mesma página.
+Atualmente, ao clicar em "Enviar Teste" e receber sucesso, a mensagem de toast exibida é:
 
-**Mensagens atuais incorretas:**
-- `"Conecte seu WhatsApp nas configurações primeiro"` (linha 551)
-- `"WhatsApp não conectado. Conecte nas configurações."` (linha 569)
+> "Mensagem de teste enviada para seu WhatsApp!"
+
+Isso pode causar confusão, fazendo o usuário pensar que a mensagem virá de um número terceiro (do CobraFácil ou outro). Na realidade, a mensagem é enviada **do próprio número do usuário para ele mesmo**, através da instância conectada.
 
 ## Solução
 
-Atualizar as mensagens de erro para referenciar corretamente a seção "WhatsApp para Clientes" que agora está na mesma página, acima do botão de teste.
+Atualizar a mensagem de sucesso para deixar explícito que a mensagem será recebida do próprio número.
 
-## Alterações Técnicas
+## Alteração Técnica
 
 ### Arquivo: `src/pages/Profile.tsx`
 
-**1. Linha 551 - Erro de validação inicial:**
+**Linha 567 - Mensagem de sucesso:**
 ```typescript
 // De:
-toast.error('Conecte seu WhatsApp nas configurações primeiro');
+toast.success('Mensagem de teste enviada para seu WhatsApp!');
 
 // Para:
-toast.error('Conecte seu WhatsApp na seção acima primeiro');
-```
-
-**2. Linha 569 - Erro de resposta da edge function:**
-```typescript
-// De:
-toast.error('WhatsApp não conectado. Conecte nas configurações.');
-
-// Para:
-toast.error('WhatsApp não conectado. Conecte na seção acima.');
+toast.success('Mensagem de teste enviada! Você receberá do seu próprio número.');
 ```
 
 ## Arquivo Modificado
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/Profile.tsx` | Atualizar 2 mensagens de erro para referenciar "seção acima" ao invés de "configurações" |
+| `src/pages/Profile.tsx` | Atualizar mensagem de sucesso do toast para explicar que a mensagem vem do próprio número |
 
 ## Resultado
 
-Quando o usuário clicar em "Teste de Notificações WhatsApp" sem estar conectado, receberá uma mensagem clara indicando que deve conectar na seção acima (WhatsApp para Clientes), que agora está na mesma página de Perfil.
-
+O usuário entenderá claramente que:
+- A mensagem é enviada através da sua própria conexão WhatsApp
+- Ele receberá a mensagem no chat "consigo mesmo" (como uma nota pessoal)
+- Não é um número terceiro enviando para ele
