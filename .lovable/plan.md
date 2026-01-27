@@ -1,253 +1,180 @@
 
-# Adicionar Aluguel de Veículos em Contratos
+
+# Bloquear DevTools e Ferramentas de Inspeção
 
 ## Resumo
 
-Adicionar a opção "Aluguel de Veículos" no dropdown de tipo de contrato. Quando selecionada, novos campos específicos do veículo aparecem no formulário para capturar informações como placa, marca, modelo, cor, km inicial e km final.
+Implementar proteções no lado do cliente para dificultar o uso de DevTools, inspeção de elementos e outras ferramentas de edição de código no navegador.
 
-## Alterações Necessárias
+## Importante Saber
 
-### 1. Adicionar nova opção no Select de tipo de contrato
+Essas proteções são **barreiras de dificuldade**, não bloqueios absolutos. Usuários técnicos determinados podem encontrar formas de contornar. No entanto, para a maioria dos usuários, essas proteções são eficazes.
 
-**Arquivo:** `src/pages/ProductSales.tsx`
+## Proteções a Implementar
 
-**Localização:** Linhas 1893-1901 (Select de tipo de contrato)
+### 1. Bloquear Clique Direito (Menu de Contexto)
+Impede o menu que aparece ao clicar com botão direito, que dá acesso a "Inspecionar Elemento".
 
-Adicionar a opção:
-```jsx
-<SelectItem value="aluguel_veiculo">Aluguel de Veículo</SelectItem>
-```
+### 2. Bloquear Atalhos de Teclado
+Desabilitar teclas e combinações que abrem DevTools:
+- **F12** - Abre DevTools diretamente
+- **Ctrl+Shift+I** - Abre DevTools
+- **Ctrl+Shift+J** - Abre Console
+- **Ctrl+Shift+C** - Seletor de elementos
+- **Ctrl+U** - Ver código fonte
+- **Ctrl+S** - Salvar página
 
-### 2. Adicionar label na função getContractTypeLabel
+### 3. Detectar Abertura do DevTools
+Monitorar mudanças no tamanho da janela ou tempo de execução para detectar quando DevTools é aberto.
 
-**Arquivo:** `src/pages/ProductSales.tsx`
+### 4. Desabilitar Seleção de Texto
+Impedir seleção de texto em áreas sensíveis para dificultar cópia de código.
 
-**Localização:** Linhas 1172-1184
+### 5. Bloquear Arrastar Elementos
+Impedir drag de elementos da página.
 
-Adicionar no objeto labels:
+## Implementação
+
+### Novo Arquivo: `src/hooks/useDevToolsProtection.ts`
+
 ```typescript
-aluguel_veiculo: 'Aluguel de Veículo',
-```
+import { useEffect } from 'react';
 
-### 3. Adicionar campos de veículo no formulário
+export function useDevToolsProtection() {
+  useEffect(() => {
+    // Bloquear clique direito
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      return false;
+    };
 
-**Arquivo:** `src/pages/ProductSales.tsx`
+    // Bloquear atalhos de teclado
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F12
+      if (e.key === 'F12') {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+      if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+U (view source)
+      if (e.ctrlKey && e.key.toUpperCase() === 'U') {
+        e.preventDefault();
+        return false;
+      }
+      // Ctrl+S (save)
+      if (e.ctrlKey && e.key.toUpperCase() === 'S') {
+        e.preventDefault();
+        return false;
+      }
+    };
 
-**Localização:** Após o Select de tipo de contrato (linha 1902), adicionar seção condicional:
+    // Bloquear arrastar
+    const handleDragStart = (e: DragEvent) => {
+      e.preventDefault();
+      return false;
+    };
 
-```jsx
-{contractForm.contract_type === 'aluguel_veiculo' && (
-  <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-4">
-    <div className="flex items-center gap-2 text-primary">
-      <Car className="w-4 h-4" />
-      <Label className="font-medium">Dados do Veículo</Label>
-    </div>
-    
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label>Placa *</Label>
-        <Input placeholder="ABC-1234" value={contractForm.vehicle_plate} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_plate: e.target.value.toUpperCase()})} />
-      </div>
-      <div className="space-y-2">
-        <Label>Marca</Label>
-        <Input placeholder="Ex: Fiat, Honda..." value={contractForm.vehicle_brand} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_brand: e.target.value})} />
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label>Modelo</Label>
-        <Input placeholder="Ex: Uno, Civic..." value={contractForm.vehicle_model} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_model: e.target.value})} />
-      </div>
-      <div className="space-y-2">
-        <Label>Cor</Label>
-        <Input placeholder="Ex: Preto, Prata..." value={contractForm.vehicle_color} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_color: e.target.value})} />
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label>KM Inicial</Label>
-        <Input type="number" placeholder="0" value={contractForm.vehicle_km_start} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_km_start: e.target.value})} />
-      </div>
-      <div className="space-y-2">
-        <Label>KM Final (devolução)</Label>
-        <Input type="number" placeholder="0" value={contractForm.vehicle_km_end} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_km_end: e.target.value})} />
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label>Ano</Label>
-        <Input type="number" placeholder="2024" value={contractForm.vehicle_year} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_year: e.target.value})} />
-      </div>
-      <div className="space-y-2">
-        <Label>Renavam</Label>
-        <Input placeholder="00000000000" value={contractForm.vehicle_renavam} 
-               onChange={(e) => setContractForm({...contractForm, vehicle_renavam: e.target.value})} />
-      </div>
-    </div>
-  </div>
-)}
-```
+    // Adicionar listeners
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('dragstart', handleDragStart);
 
-### 4. Atualizar estado inicial do contractForm
+    // Detectar DevTools (via debugger timing)
+    const detectDevTools = () => {
+      const start = performance.now();
+      debugger; // Pausa se DevTools estiver aberto
+      const end = performance.now();
+      if (end - start > 100) {
+        // DevTools detectado - pode redirecionar ou mostrar aviso
+        document.body.innerHTML = '<div style="...">Acesso não autorizado</div>';
+      }
+    };
 
-**Arquivo:** `src/pages/ProductSales.tsx`
+    // Executar detecção periodicamente (opcional)
+    // const interval = setInterval(detectDevTools, 1000);
 
-**Localização:** Linhas 331-349 (estado contractForm)
-
-Adicionar novos campos:
-```typescript
-const [contractForm, setContractForm] = useState<CreateContractData>({
-  // ... campos existentes ...
-  vehicle_plate: '',
-  vehicle_brand: '',
-  vehicle_model: '',
-  vehicle_color: '',
-  vehicle_km_start: '',
-  vehicle_km_end: '',
-  vehicle_year: '',
-  vehicle_renavam: '',
-});
-```
-
-### 5. Atualizar resetContractForm
-
-**Arquivo:** `src/pages/ProductSales.tsx`
-
-**Localização:** Linhas 398-420
-
-Adicionar reset dos novos campos:
-```typescript
-vehicle_plate: '',
-vehicle_brand: '',
-vehicle_model: '',
-vehicle_color: '',
-vehicle_km_start: '',
-vehicle_km_end: '',
-vehicle_year: '',
-vehicle_renavam: '',
-```
-
-### 6. Salvar dados do veículo nas observações
-
-Como a tabela `contracts` não possui colunas específicas para veículos, os dados serão armazenados no campo `notes` em formato estruturado:
-
-**Arquivo:** `src/pages/ProductSales.tsx`
-
-**Localização:** Função `handleCreateContract`
-
-Modificar para incluir dados do veículo nas observações:
-```typescript
-const vehicleNotes = contractForm.contract_type === 'aluguel_veiculo' 
-  ? `[VEÍCULO] Placa: ${contractForm.vehicle_plate} | Marca: ${contractForm.vehicle_brand} | Modelo: ${contractForm.vehicle_model} | Cor: ${contractForm.vehicle_color} | Ano: ${contractForm.vehicle_year} | KM Inicial: ${contractForm.vehicle_km_start} | KM Final: ${contractForm.vehicle_km_end} | Renavam: ${contractForm.vehicle_renavam}\n\n`
-  : '';
-
-const fullNotes = vehicleNotes + (contractForm.notes || '');
-```
-
-### 7. Exibir informações do veículo no card do contrato
-
-**Arquivo:** `src/pages/ProductSales.tsx`
-
-**Localização:** No card de contrato (linhas 2039-2064)
-
-Adicionar exibição de placa quando for aluguel de veículo:
-```jsx
-{contract.contract_type === 'aluguel_veiculo' && contract.notes?.includes('[VEÍCULO]') && (
-  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-    <Car className="w-3 h-3" />
-    {contract.notes.match(/Placa: ([^\|]+)/)?.[1]?.trim()}
-  </div>
-)}
-```
-
-### 8. Atualizar interfaces de tipo
-
-**Arquivo:** `src/hooks/useContracts.ts`
-
-Adicionar campos opcionais ao `CreateContractData`:
-```typescript
-export interface CreateContractData {
-  // ... campos existentes ...
-  vehicle_plate?: string;
-  vehicle_brand?: string;
-  vehicle_model?: string;
-  vehicle_color?: string;
-  vehicle_km_start?: string;
-  vehicle_km_end?: string;
-  vehicle_year?: string;
-  vehicle_renavam?: string;
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('dragstart', handleDragStart);
+      // clearInterval(interval);
+    };
+  }, []);
 }
 ```
 
-## Seção Técnica
+### Atualizar: `src/App.tsx`
 
-### Campos do Veículo a Adicionar
+Adicionar o hook no componente principal:
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| vehicle_plate | string | Placa do veículo (obrigatório para aluguel de veículo) |
-| vehicle_brand | string | Marca (Fiat, Honda, Toyota...) |
-| vehicle_model | string | Modelo (Uno, Civic, Corolla...) |
-| vehicle_color | string | Cor do veículo |
-| vehicle_km_start | string | Quilometragem inicial |
-| vehicle_km_end | string | Quilometragem na devolução |
-| vehicle_year | string | Ano do veículo |
-| vehicle_renavam | string | Código Renavam |
+```typescript
+import { useDevToolsProtection } from '@/hooks/useDevToolsProtection';
 
-### Layout Visual do Formulário
-
-```text
-+------------------------------------------+
-| Tipo de contrato                         |
-| [Aluguel de Veículo ▼]                   |
-+------------------------------------------+
-| 🚗 Dados do Veículo                      |
-| ---------------------------------------- |
-| Placa *        | Marca                   |
-| [ABC-1234]     | [Fiat]                  |
-| ---------------------------------------- |
-| Modelo         | Cor                     |
-| [Uno]          | [Prata]                 |
-| ---------------------------------------- |
-| KM Inicial     | KM Final (devolução)    |
-| [45000]        | [0]                     |
-| ---------------------------------------- |
-| Ano            | Renavam                 |
-| [2020]         | [00000000000]           |
-+------------------------------------------+
+const App = () => {
+  useVisibilityControl();
+  useDevToolsProtection(); // Adicionar aqui
+  // ...
+}
 ```
 
-### Layout do Card com Veículo
+### Atualizar: `src/index.css`
 
-```text
-+------------------------------------------+
-| [👤] João Silva                          |
-|      Aluguel de Veículo                  |
-|      🚗 ABC-1234                         |   <-- Placa do veículo
-+------------------------------------------+
+Adicionar CSS para desabilitar seleção em áreas protegidas:
+
+```css
+/* Proteção anti-seleção */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Permitir seleção em inputs e textareas */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
 ```
+
+## Detalhes Técnicos
+
+### Arquivo a Criar
+- `src/hooks/useDevToolsProtection.ts` - Hook com todas as proteções
+
+### Arquivos a Modificar
+- `src/App.tsx` - Adicionar chamada do hook
+- `src/index.css` - CSS de proteção anti-seleção
+
+### Proteções Implementadas
+
+| Proteção | Método | Eficácia |
+|----------|--------|----------|
+| Clique direito | `contextmenu` event | Alta |
+| F12 | `keydown` event | Alta |
+| Ctrl+Shift+I/J/C | `keydown` event | Alta |
+| Ctrl+U | `keydown` event | Alta |
+| Arrastar elementos | `dragstart` event | Alta |
+| Seleção de texto | CSS `user-select` | Média |
+| Detectar DevTools | `debugger` timing | Média |
+
+### Considerações
+
+1. **Inputs e campos de texto** continuarão funcionando normalmente para seleção/cópia
+2. **Apenas em produção**: O hook só ativará proteções quando `import.meta.env.PROD === true` para não atrapalhar desenvolvimento
+3. **Performance**: As proteções são leves e não impactam performance
 
 ## Benefícios
 
-1. Novo tipo de contrato para locadoras de veículos
-2. Campos específicos aparecem apenas quando necessário (formulário dinâmico)
-3. Informações do veículo salvas de forma estruturada para referência futura
-4. Placa visível diretamente no card para identificação rápida
-5. Sem necessidade de alterações no banco de dados (usa campo notes existente)
+1. Dificulta usuários casuais de inspecionar código
+2. Impede cópia fácil de elementos visuais
+3. Protege contra tentativas básicas de manipulação
+4. Não interfere com uso normal do sistema
+5. Campos de formulário continuam funcionando normalmente
 
-## Importações Necessárias
-
-Adicionar o ícone `Car` do lucide-react (se ainda não estiver importado):
-```typescript
-import { Car } from 'lucide-react';
-```
