@@ -460,81 +460,52 @@ export default function ReportsLoans() {
       return sum + (principal - totalPrincipalPaid);
     }, 0);
     
-    // Juros a Receber - FILTERED BY PERIOD (based on installment due dates)
+    // Juros a Receber - Baseado no remaining_balance para capturar juros de rollover
+    // Quando cliente paga só juros, novos juros são adicionados ao remaining_balance
     const pendingInterest = allActiveLoans.reduce((sum, loan) => {
       const principal = Number(loan.principal_amount);
       const remainingBalance = Number(loan.remaining_balance || 0);
-      const totalPaid = Number(loan.total_paid || 0);
-      const rate = Number(loan.interest_rate);
-      const installments = Number(loan.installments) || 1;
-      const interestMode = loan.interest_mode || 'per_installment';
-      const isDaily = loan.payment_type === 'daily';
       const installmentDates = (loan as any).installment_dates || [];
       
       const payments = (loan as any).payments || [];
-      const interestPaid = payments.reduce((s: number, p: any) => 
-        s + Number(p.interest_paid || 0), 0);
       
-      // Calculate interest per installment
-      let interestPerInstallment = 0;
-      let totalInterest = 0;
+      // Calcular principal já pago para determinar principal restante
+      const principalPaid = payments.reduce((s: number, p: any) => 
+        s + Number(p.principal_paid || 0), 0);
       
-      if (isDaily) {
-        // For daily loans, total_interest is the installment value (principal + interest)
-        const dailyInstallment = Number(loan.total_interest) || 0;
-        const principalPerInstallment = principal / installments;
-        interestPerInstallment = dailyInstallment - principalPerInstallment;
-        totalInterest = remainingBalance + totalPaid - principal;
-      } else if (interestMode === 'per_installment') {
-        // Interest charged per installment
-        interestPerInstallment = principal * (rate / 100);
-        totalInterest = interestPerInstallment * installments;
-      } else {
-        // Interest on total (divided across installments)
-        totalInterest = principal * (rate / 100);
-        interestPerInstallment = totalInterest / installments;
-      }
+      // Principal restante = principal original - principal pago
+      const principalRemaining = Math.max(0, principal - principalPaid);
       
-      // If period is selected and loan has installment dates, filter by due dates
+      // Juros pendentes = saldo devedor - principal restante
+      // Isso captura juros de rollover que não estão no total_interest original
+      // Ex: remaining_balance = 12000, principal_remaining = 10000 → juros = 2000
+      const pendingInterestFromBalance = Math.max(0, remainingBalance - principalRemaining);
+      
+      // Se há período selecionado, filtrar por datas de vencimento
       if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
         const startDate = startOfDay(dateRange.from);
         const endDate = endOfDay(dateRange.to);
         
-        // Get principal paid to determine truly paid installments
-        // An installment is only "fully paid" when BOTH principal AND interest are paid
-        const principalPaid = payments.reduce((s: number, p: any) => 
-          s + Number(p.principal_paid || 0), 0);
-        
-        const principalPerInstallment = principal / installments;
-        
-        // Calculate fully paid installments based on principal
-        const fullyPaidInstallments = principalPerInstallment > 0 
-          ? Math.min(Math.floor(principalPaid / principalPerInstallment), installments)
-          : 0;
-        
-        let interestInPeriod = 0;
-        installmentDates.forEach((dateStr: string, index: number) => {
+        // Verificar se alguma parcela vence no período
+        let hasInstallmentInPeriod = false;
+        installmentDates.forEach((dateStr: string) => {
           const dueDate = parseISO(dateStr);
-          // Include interest for installments that are NOT fully paid and within period
-          if (index >= fullyPaidInstallments && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
-            // For this installment, calculate remaining interest
-            // If some interest was already paid but installment not fully paid,
-            // the remaining interest for this installment might be 0 or reduced
-            const interestAlreadyPaidForUnpaidInstallments = Math.max(0, interestPaid - (fullyPaidInstallments * interestPerInstallment));
-            const installmentInterestPaid = index === fullyPaidInstallments 
-              ? interestAlreadyPaidForUnpaidInstallments
-              : 0;
-            
-            const remainingInterestForInstallment = Math.max(0, interestPerInstallment - installmentInterestPaid);
-            interestInPeriod += remainingInterestForInstallment;
+          if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+            hasInstallmentInPeriod = true;
           }
         });
         
-        return sum + Math.max(0, interestInPeriod);
+        // Se há parcelas no período, incluir os juros pendentes
+        // (todos os juros são devidos quando há parcela vencendo)
+        if (hasInstallmentInPeriod) {
+          return sum + pendingInterestFromBalance;
+        }
+        
+        return sum;
       }
       
-      // No period selected - show all pending interest (current state)
-      return sum + Math.max(0, totalInterest - interestPaid);
+      // Sem período selecionado - mostrar todos os juros pendentes
+      return sum + pendingInterestFromBalance;
     }, 0);
     
     // Juros Programados no Período (agenda) - juros das parcelas que VENCEM no período
