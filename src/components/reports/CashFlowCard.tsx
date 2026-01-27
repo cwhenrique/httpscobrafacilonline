@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/calculations';
-import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Settings, Briefcase, ChevronRight, ChevronDown } from 'lucide-react';
+import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Briefcase, ChevronRight, ChevronDown, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { CashFlowConfigModal } from './CashFlowConfigModal';
@@ -41,34 +41,55 @@ export function CashFlowCard({
         transition={{ duration: 0.3 }}
       >
         <Card className="border-primary/30 bg-card shadow-lg">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pb-2">
             <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
               <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               Fluxo de Caixa
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfigOpen(true)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Settings className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Configurar</span>
-            </Button>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
             {/* Linha do fluxo: Inicial → Saídas → Entradas */}
             <div className="flex items-center justify-between gap-1 sm:gap-2">
-              {/* Caixa Inicial */}
-              <div className="flex-1 bg-muted/50 rounded-xl p-3 sm:p-4 text-center">
-                <div className="flex items-center justify-center gap-1.5 mb-2">
-                  <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-                  <span className="text-sm sm:text-base text-muted-foreground font-medium">Inicial</span>
-                </div>
-                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-500 tracking-tight">
-                  {formatCurrency(initialBalance)}
-                </p>
-              </div>
+              {/* Caixa Inicial - CLICÁVEL */}
+              {initialBalance === 0 ? (
+                <button
+                  onClick={() => setConfigOpen(true)}
+                  className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl p-3 sm:p-4 
+                             text-center border-2 border-dashed border-blue-500/50 
+                             animate-pulse cursor-pointer transition-all duration-200
+                             hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-center gap-1.5 mb-2">
+                    <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                    <span className="text-sm sm:text-base text-blue-500 font-medium">
+                      Definir Saldo
+                    </span>
+                  </div>
+                  <p className="text-lg sm:text-xl font-bold text-blue-500">
+                    + Adicionar
+                  </p>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setConfigOpen(true)}
+                  className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl p-3 sm:p-4 
+                             text-center border-2 border-dashed border-blue-500/30 
+                             hover:border-blue-500/50 transition-all duration-200
+                             cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-center gap-1.5 mb-2">
+                    <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                    <span className="text-sm sm:text-base text-muted-foreground font-medium">Inicial</span>
+                    <Pencil className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-500 tracking-tight">
+                    {formatCurrency(initialBalance)}
+                  </p>
+                  <p className="text-xs text-blue-500/60 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Clique para editar
+                  </p>
+                </button>
+              )}
 
               {/* Seta */}
               <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground/50 flex-shrink-0" />
@@ -157,12 +178,6 @@ export function CashFlowCard({
               </div>
             </div>
 
-            {/* Dica se não configurou saldo inicial */}
-            {initialBalance === 0 && (
-              <p className="text-sm text-muted-foreground text-center">
-                💡 Configure seu saldo inicial para acompanhar seu fluxo de caixa
-              </p>
-            )}
           </CardContent>
         </Card>
       </motion.div>
