@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { ProductSale, ProductSalePayment } from '@/hooks/useProductSales';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 
 interface ProductSaleCardProps {
   sale: ProductSale;
@@ -273,6 +274,25 @@ export default function ProductSaleCard({
                   amount: nextDuePayment.amount,
                   dueDate: nextDuePayment.due_date,
                   loanId: sale.id,
+                  paidCount: paidCount,
+                }}
+                className="w-full mt-2"
+              />
+            )}
+            {/* Early notification button for pending payments */}
+            {status === 'pending' && sale.client_phone && (
+              <SendEarlyNotification
+                data={{
+                  clientName: sale.client_name,
+                  clientPhone: sale.client_phone,
+                  contractType: 'product',
+                  installmentNumber: nextDuePayment.installment_number,
+                  totalInstallments: sale.installments,
+                  amount: nextDuePayment.amount,
+                  dueDate: nextDuePayment.due_date,
+                  daysUntilDue: Math.max(1, Math.floor((parseISO(nextDuePayment.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))),
+                  loanId: sale.id,
+                  paidCount: paidCount,
                 }}
                 className="w-full mt-2"
               />
