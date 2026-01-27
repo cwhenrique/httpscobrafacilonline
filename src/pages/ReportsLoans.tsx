@@ -31,7 +31,8 @@ import {
   CalendarCheck,
   Filter,
   ChevronDown,
-  Download
+  Download,
+  Check
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -122,11 +123,31 @@ export default function ReportsLoans() {
   const [isExporting, setIsExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subMonths(new Date(), 6),
+    from: startOfMonth(new Date()),
     to: new Date(),
   });
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [tempDateRange, setTempDateRange] = useState<DateRange | undefined>(undefined);
+
+  const handleCalendarOpenChange = (open: boolean) => {
+    setCalendarOpen(open);
+    if (open) {
+      // Reset para começar seleção do zero
+      setTempDateRange(undefined);
+    }
+  };
+
+  const handleConfirmDateRange = () => {
+    if (tempDateRange?.from) {
+      setDateRange({
+        from: tempDateRange.from,
+        to: tempDateRange.to || tempDateRange.from,
+      });
+    }
+    setCalendarOpen(false);
+  };
 
   // Payment type labels
   const paymentTypeLabels: Record<string, string> = {
@@ -683,7 +704,7 @@ export default function ReportsLoans() {
 
           {/* Period Filter */}
           <div className="flex flex-wrap items-center gap-2">
-            <Popover>
+            <Popover open={calendarOpen} onOpenChange={handleCalendarOpenChange}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 text-xs sm:text-sm">
                   <CalendarIcon className="w-3.5 h-3.5" />
@@ -701,23 +722,49 @@ export default function ReportsLoans() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3 border-b bg-muted/30">
+                  <p className="text-sm text-muted-foreground">
+                    {!tempDateRange?.from 
+                      ? 'Selecione a data inicial' 
+                      : !tempDateRange?.to 
+                        ? 'Agora selecione a data final' 
+                        : 'Período selecionado'}
+                  </p>
+                  {tempDateRange?.from && (
+                    <p className="text-sm font-medium text-primary mt-1">
+                      {format(tempDateRange.from, 'dd/MM/yyyy', { locale: ptBR })}
+                      {tempDateRange.to && ` - ${format(tempDateRange.to, 'dd/MM/yyyy', { locale: ptBR })}`}
+                    </p>
+                  )}
+                </div>
                 <Calendar
                   initialFocus
                   mode="range"
                   defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={1}
+                  selected={tempDateRange}
+                  onSelect={setTempDateRange}
+                  numberOfMonths={2}
                   locale={ptBR}
                   className="pointer-events-auto"
                 />
+                <div className="p-3 border-t flex justify-end">
+                  <Button 
+                    size="sm" 
+                    onClick={handleConfirmDateRange}
+                    disabled={!tempDateRange?.from}
+                    className="gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    Confirmar
+                  </Button>
+                </div>
               </PopoverContent>
             </Popover>
             {dateRange?.from && (
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => setDateRange({ from: subMonths(new Date(), 6), to: new Date() })}
+                onClick={() => setDateRange({ from: startOfMonth(new Date()), to: new Date() })}
                 className="text-xs text-muted-foreground"
               >
                 Limpar
