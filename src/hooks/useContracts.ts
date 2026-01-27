@@ -64,6 +64,15 @@ export interface CreateContractData {
   send_creation_notification?: boolean;
   is_historical?: boolean;
   historical_paid_installments?: number[];
+  // Vehicle rental fields
+  vehicle_plate?: string;
+  vehicle_brand?: string;
+  vehicle_model?: string;
+  vehicle_color?: string;
+  vehicle_km_start?: string;
+  vehicle_km_end?: string;
+  vehicle_year?: string;
+  vehicle_renavam?: string;
 }
 
 export interface UpdateContractData {
