@@ -548,7 +548,7 @@ export default function Profile() {
   const handleTestWhatsApp = async () => {
     // Verificar se o WhatsApp está conectado
     if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
-      toast.error('Conecte seu WhatsApp nas configurações primeiro');
+      toast.error('Conecte seu WhatsApp na seção acima primeiro');
       return;
     }
 
@@ -566,7 +566,7 @@ export default function Profile() {
       if (data?.success) {
         toast.success('Mensagem de teste enviada para seu WhatsApp!');
       } else if (data?.error === 'whatsapp_not_connected') {
-        toast.error('WhatsApp não conectado. Conecte nas configurações.');
+        toast.error('WhatsApp não conectado. Conecte na seção acima.');
       } else {
         throw new Error(data?.error || 'Erro ao enviar mensagem');
       }
