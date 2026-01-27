@@ -1,40 +1,100 @@
 
-# Esclarecer Origem da Mensagem de Teste WhatsApp
+# Bloquear WhatsApp para Usuários Trial
 
 ## Problema
 
-Atualmente, ao clicar em "Enviar Teste" e receber sucesso, a mensagem de toast exibida é:
-
-> "Mensagem de teste enviada para seu WhatsApp!"
-
-Isso pode causar confusão, fazendo o usuário pensar que a mensagem virá de um número terceiro (do CobraFácil ou outro). Na realidade, a mensagem é enviada **do próprio número do usuário para ele mesmo**, através da instância conectada.
+Usuários trial estão podendo conectar WhatsApp, ocupando instâncias no sistema. Apenas usuários pagantes (mensal, trimestral, anual, vitalício) devem ter acesso a essa funcionalidade.
 
 ## Solução
 
-Atualizar a mensagem de sucesso para deixar explícito que a mensagem será recebida do próprio número.
+Adicionar verificação de plano antes de permitir a conexão WhatsApp. Se o usuário for trial, mostrar uma mensagem informando que precisa de um plano pago, com botão para aquisição.
 
-## Alteração Técnica
+## Lógica de Identificação
+
+Baseado na estrutura existente do sistema:
+- **Trial**: `subscription_plan === 'trial'` ou `subscription_plan === null/undefined`
+- **Pagante**: `subscription_plan` contém: `monthly`, `quarterly`, `annual`, `lifetime`, `mensal`, `trimestral`, `anual`, `vitalicio`
+
+## Alterações Técnicas
 
 ### Arquivo: `src/pages/Profile.tsx`
 
-**Linha 567 - Mensagem de sucesso:**
-```typescript
-// De:
-toast.success('Mensagem de teste enviada para seu WhatsApp!');
+**1. Adicionar função helper para verificar se é plano pago:**
 
-// Para:
-toast.success('Mensagem de teste enviada! Você receberá do seu próprio número.');
+```typescript
+const isPaidPlan = (): boolean => {
+  if (!profile?.subscription_plan) return false;
+  const paidPlans = ['monthly', 'quarterly', 'annual', 'lifetime', 'mensal', 'trimestral', 'anual', 'vitalicio'];
+  return paidPlans.some(plan => 
+    profile.subscription_plan?.toLowerCase().includes(plan)
+  );
+};
 ```
+
+**2. Modificar a seção "WhatsApp para Clientes" (linhas 1387-1600):**
+
+Adicionar verificação condicional:
+- Se `!isPaidPlan()`: mostrar card informando que funcionalidade é exclusiva para planos pagos
+- Se `isPaidPlan()`: mostrar a interface normal de conexão
+
+**3. Nova UI para usuários trial:**
+
+```text
++--------------------------------------------------+
+|  MessageCircle  WhatsApp para Clientes           |
+|--------------------------------------------------|
+|     [Lock Icon]                                  |
+|                                                  |
+|  🔒 Funcionalidade Exclusiva para Assinantes    |
+|                                                  |
+|  A conexão WhatsApp está disponível apenas      |
+|  para planos:                                   |
+|  • Mensal                                       |
+|  • Trimestral                                   |
+|  • Anual                                        |
+|  • Vitalício                                    |
+|                                                  |
+|  [ Assinar Agora ]                              |
++--------------------------------------------------+
+```
+
+O botão "Assinar Agora" redireciona para o link de pagamento mensal.
+
+**4. Bloquear funções relacionadas:**
+
+Adicionar verificação no início das funções:
+- `handleConnectWhatsApp`
+- `handleReconnectWhatsApp`
+- `handleRefreshQrCode`
+
+```typescript
+if (!isPaidPlan()) {
+  toast.error('WhatsApp disponível apenas para planos pagos');
+  return;
+}
+```
+
+## Fluxo do Usuário
+
+**Usuário Trial:**
+1. Vai em "Meu Perfil"
+2. Vê seção "WhatsApp para Clientes"
+3. Vê mensagem de bloqueio informando que é exclusivo para assinantes
+4. Tem opção de "Assinar Agora"
+
+**Usuário Pagante:**
+1. Vai em "Meu Perfil"
+2. Vê seção "WhatsApp para Clientes" normal
+3. Pode conectar, desconectar, recriar instância normalmente
 
 ## Arquivo Modificado
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/Profile.tsx` | Atualizar mensagem de sucesso do toast para explicar que a mensagem vem do próprio número |
+| `src/pages/Profile.tsx` | Adicionar função `isPaidPlan()`, modificar renderização da seção WhatsApp, adicionar verificação nas funções de conexão |
 
-## Resultado
+## Comportamento Esperado
 
-O usuário entenderá claramente que:
-- A mensagem é enviada através da sua própria conexão WhatsApp
-- Ele receberá a mensagem no chat "consigo mesmo" (como uma nota pessoal)
-- Não é um número terceiro enviando para ele
+- Trial vê funcionalidade bloqueada com CTA para assinar
+- Ao efetuar pagamento (webhook Cakto atualiza `subscription_plan`), na próxima visita ao perfil a funcionalidade estará liberada automaticamente
+- Instâncias de WhatsApp só serão criadas para usuários pagantes
