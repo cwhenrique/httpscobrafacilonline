@@ -290,15 +290,30 @@ export default function Profile() {
       pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
     };
     
-    // Verificar se houve mudança real
+    // Verificar se é primeiro cadastro (não tinha PIX antes)
+    const isFirstTimeSetup = !profile?.pix_key || profile.pix_key.trim() === '';
     const pixChanged = updates.pix_key !== (profile?.pix_key || null);
     const typeChanged = updates.pix_key_type !== (profile?.pix_key_type || null);
     
     if (pixChanged || typeChanged) {
-      // Requer verificação por código
-      setPendingVerificationUpdates(updates);
-      setVerificationFieldName('Chave PIX');
-      setVerificationDialogOpen(true);
+      if (isFirstTimeSetup && updates.pix_key) {
+        // Primeiro cadastro: salvar direto sem verificação
+        setSavingPix(true);
+        const { error } = await updateProfile(updates);
+        if (error) {
+          toast.error('Erro ao salvar chave PIX');
+        } else {
+          toast.success('Chave PIX cadastrada com sucesso!');
+          setIsEditingPix(false);
+          refetch();
+        }
+        setSavingPix(false);
+      } else {
+        // Alteração ou remoção: exige verificação por código
+        setPendingVerificationUpdates(updates);
+        setVerificationFieldName('Chave PIX');
+        setVerificationDialogOpen(true);
+      }
     } else {
       // Sem mudanças, apenas fechar
       setIsEditingPix(false);
@@ -347,14 +362,29 @@ export default function Profile() {
       payment_link: formData.payment_link.trim() || null,
     };
     
-    // Verificar se houve mudança real
+    // Verificar se é primeiro cadastro (não tinha link antes)
+    const isFirstTimeSetup = !profile?.payment_link || profile.payment_link.trim() === '';
     const linkChanged = updates.payment_link !== (profile?.payment_link || null);
     
     if (linkChanged) {
-      // Requer verificação por código
-      setPendingVerificationUpdates(updates);
-      setVerificationFieldName('Link de Pagamento');
-      setVerificationDialogOpen(true);
+      if (isFirstTimeSetup && updates.payment_link) {
+        // Primeiro cadastro: salvar direto sem verificação
+        setSavingPaymentLink(true);
+        const { error } = await updateProfile(updates);
+        if (error) {
+          toast.error('Erro ao salvar link de pagamento');
+        } else {
+          toast.success('Link de pagamento cadastrado com sucesso!');
+          setIsEditingPaymentLink(false);
+          refetch();
+        }
+        setSavingPaymentLink(false);
+      } else {
+        // Alteração ou remoção: exige verificação por código
+        setPendingVerificationUpdates(updates);
+        setVerificationFieldName('Link de Pagamento');
+        setVerificationDialogOpen(true);
+      }
     } else {
       // Sem mudanças, apenas fechar
       setIsEditingPaymentLink(false);
