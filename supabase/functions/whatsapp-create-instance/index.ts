@@ -194,6 +194,20 @@ serve(async (req) => {
         console.error('Error parsing state response:', e);
       }
 
+      // If instance is 'close' or undefined, we need to do logout first to reset
+      if (instanceState === 'close' || !instanceState) {
+        console.log('Instance is closed or undefined, doing logout first...');
+        try {
+          const logoutResponse = await evolutionFetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
+            method: 'DELETE',
+          });
+          console.log('Logout response:', logoutResponse.status);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        } catch (e) {
+          console.log('Logout attempt error (continuing anyway):', e);
+        }
+      }
+
       // Try to connect and get QR code
       const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
         method: 'GET',
@@ -205,10 +219,13 @@ serve(async (req) => {
       if (connectResponse.ok) {
         try {
           const connectData = JSON.parse(connectText);
-          if (connectData.base64) {
+          
+          // Check for error in response body
+          if (connectData.error === true) {
+            console.log('Connect returned error, trying restart...');
+          } else if (connectData.base64) {
             qrCodeBase64 = connectData.base64;
           } else if (connectData.code) {
-            // Some versions return 'code' instead of 'base64'
             qrCodeBase64 = connectData.code;
           } else if (connectData.qrcode?.base64) {
             qrCodeBase64 = connectData.qrcode.base64;
@@ -229,17 +246,28 @@ serve(async (req) => {
         }
       }
 
-      // If still no QR code, try the fetchInstances endpoint to restart
+      // If still no QR code, try restart + connect again
       if (!qrCodeBase64) {
         console.log('No QR from connect, trying to restart instance...');
         
-        // Try restart endpoint
-        const restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+        // Try restart with PUT method
+        let restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
           method: 'PUT',
         });
-        console.log('Restart response:', restartResponse.status);
+        console.log('Restart PUT response:', restartResponse.status);
 
-        // Wait a bit for restart
+        // If PUT fails, try POST
+        if (!restartResponse.ok) {
+          restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          console.log('Restart POST response:', restartResponse.status);
+        }
+
+        // Wait for restart
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Try connect again after restart
@@ -253,9 +281,33 @@ serve(async (req) => {
         if (retryConnectResponse.ok) {
           try {
             const retryData = JSON.parse(retryConnectText);
-            qrCodeBase64 = retryData.base64 || retryData.code || retryData.qrcode?.base64;
+            if (retryData.error !== true) {
+              qrCodeBase64 = retryData.base64 || retryData.code || retryData.qrcode?.base64;
+            }
           } catch (e) {
             console.error('Error parsing retry connect response:', e);
+          }
+        }
+
+        // Last resort: try fetchInstances to get QR
+        if (!qrCodeBase64) {
+          console.log('Still no QR, trying fetchInstances...');
+          const fetchResponse = await evolutionFetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+            method: 'GET',
+          });
+          
+          if (fetchResponse.ok) {
+            const fetchText = await fetchResponse.text();
+            console.log('FetchInstances response:', fetchResponse.status, fetchText.substring(0, 200));
+            try {
+              const instances = JSON.parse(fetchText);
+              const instance = Array.isArray(instances) ? instances[0] : instances;
+              if (instance?.qrcode?.base64) {
+                qrCodeBase64 = instance.qrcode.base64;
+              }
+            } catch (e) {
+              console.error('Error parsing fetchInstances:', e);
+            }
           }
         }
       }
