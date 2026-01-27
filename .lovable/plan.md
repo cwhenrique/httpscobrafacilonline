@@ -1,76 +1,89 @@
 
 
-# Corrigir Cálculo de Juros Pendentes para Rollover
+# Simplificar para Um Único Card "Juros a Receber"
 
-## Problema Identificado
+## Objetivo
 
-Quando o cliente paga **apenas os juros** mas não paga o principal, o sistema faz um "rollover" - ou seja, novos juros são gerados:
+Consolidar os dois cards de juros (Juros Pendentes + Juros no Período) em um único card **"Juros a Receber"** que mostra os juros a receber das parcelas que vencem no período filtrado, usando a lógica correta de rollover.
 
-| Campo | Valor | Significado |
-|-------|-------|-------------|
-| `principal_amount` | R$ 10.000 | Capital original |
-| `total_interest` | R$ 2.000 | Juros originais do contrato |
-| `total_paid` | R$ 2.000 | Juros originais foram pagos |
-| `remaining_balance` | R$ 12.000 | Principal + **novos juros** de rollover |
+## Lógica de Negócio
 
-O `remaining_balance` de R$ 12.000 indica que há R$ 2.000 de **novos juros** além do principal de R$ 10.000.
+Quando o cliente paga via "PAGAR JUROS":
+1. O sistema registra como pagamento de juros (`interest_paid`)
+2. O principal permanece devendo
+3. Novos juros são adicionados ao `remaining_balance` (rollover)
+4. O card "Juros a Receber" deve mostrar esses novos juros
 
-## Solução
-
-Calcular juros pendentes baseado no `remaining_balance` menos o principal restante, não apenas no `total_interest` original:
-
+**Cálculo:**
 ```text
-Juros Pendentes = remaining_balance - (principal_amount - principal_paid)
-                = R$ 12.000 - (R$ 10.000 - R$ 0)
-                = R$ 2.000
+Juros a Receber = remaining_balance - principal_restante
 ```
 
 ## Alterações Necessárias
 
 ### Arquivo: `src/pages/ReportsLoans.tsx`
 
-**Modificar cálculo de `pendingInterest` (linhas 460-538):**
+**1. Remover cálculo de `interestScheduledInPeriod` (linhas 511-555):**
 
-Trocar a lógica de `totalInterest - interestPaid` para usar o `remaining_balance`:
+Deletar todo o bloco que calcula juros programados separadamente.
+
+**2. Manter apenas `pendingInterest` (linhas 465-509):**
+
+A lógica atual já está correta - usa `remaining_balance - principal_restante` para capturar rollover.
+
+**3. Atualizar retorno do `filteredStats` (linha 661):**
+
+Remover `interestScheduledInPeriod` do objeto retornado:
 
 ```typescript
-// Calcular juros pendentes baseado no remaining_balance
-// Isso captura juros de rollover que não estão no total_interest original
-const principalPaid = payments.reduce((s: number, p: any) => 
-  s + Number(p.principal_paid || 0), 0);
+return {
+  totalOnStreet,
+  pendingInterest,  // Manter - agora é o único
+  // interestScheduledInPeriod, ← REMOVER
+  totalReceivedAllTime: totalReceivedInPeriod,
+  // ...resto
+};
+```
 
-const principalRemaining = principal - principalPaid;
+**4. Atualizar UI - Consolidar em um card (linhas 1141-1158):**
 
-// Juros pendentes = saldo devedor - principal restante
-// Se remaining_balance = 12000 e principal restante = 10000, juros = 2000
-const pendingInterestFromBalance = Math.max(0, remainingBalance - principalRemaining);
+Substituir os dois cards por um único:
 
-// Se há período selecionado, filtrar por datas de vencimento
-if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
-  // ... lógica de filtro por período usando pendingInterestFromBalance
-}
+```tsx
+{/* Antes: 2 cards */}
+<StatCard label="💰 Juros Pendentes" ... />
+<StatCard label="📅 Juros no Período" ... />
 
-return sum + pendingInterestFromBalance;
+{/* Depois: 1 card */}
+<StatCard
+  label="💰 Juros a Receber"
+  value={formatCurrency(filteredStats.pendingInterest)}
+  icon={TrendingUp}
+  iconColor="text-primary"
+  bgColor="bg-primary/10"
+  subtitle="No período"
+  compact
+/>
 ```
 
 ## Resultado Esperado
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Juros Pendentes | R$ 0,00 | R$ 2.000,00 |
-| Juros no Período | R$ 2.000,00 | R$ 2.000,00 |
-
-Ambos os cards agora mostrarão R$ 2.000:
-- **Juros Pendentes**: Juros que ainda faltam pagar (rollover)
-- **Juros no Período**: Juros das parcelas que vencem no período
+| Cenário | Filtro | Card "Juros a Receber" |
+|---------|--------|------------------------|
+| Empréstimo R$ 10k, juros R$ 2k pagos via rollover | jan-mai (parcela em 27/03) | R$ 2.000,00 |
+| Mesmo empréstimo | jun-dez (fora do período) | R$ 0,00 |
+| Sem filtro de período | Todos | R$ 2.000,00 |
 
 ## Arquivos Modificados
 
 | Arquivo | Alterações |
 |---------|------------|
-| `src/pages/ReportsLoans.tsx` | Usar `remaining_balance - principal_restante` para calcular juros pendentes |
+| `src/pages/ReportsLoans.tsx` | Remover `interestScheduledInPeriod`, manter apenas `pendingInterest`, consolidar UI em um card |
 
-## Notas Importantes
+## Resumo Técnico
 
-Esta correção captura automaticamente qualquer cenário de rollover de juros, pois o `remaining_balance` sempre reflete o saldo real (principal + juros pendentes), independente de quantas vezes o cliente pagou "só juros".
+- Remove ~45 linhas de código duplicado
+- Simplifica a interface de 6 para 5 cards no grid
+- Mantém a lógica correta de rollover via `remaining_balance - principal_restante`
+- Filtra por período usando as datas de vencimento das parcelas
 
