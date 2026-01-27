@@ -6889,6 +6889,118 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               onDelete={setDeleteId}
               onViewHistory={openPaymentHistory}
               getPaidInstallmentsCount={getPaidInstallmentsCount}
+              profile={profile}
+              getOverdueNotificationData={(loan) => {
+                const numInstallments = loan.installments || 1;
+                const isDaily = loan.payment_type === 'daily';
+                const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
+                const storedTotalInterest = loan.total_interest || 0;
+                const principalPerInstallment = loan.principal_amount / numInstallments;
+                
+                let calculatedTotalInterest = 0;
+                if (!isDaily) {
+                  if (loan.interest_mode === 'on_total') {
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+                  } else if (loan.interest_mode === 'compound') {
+                    calculatedTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+                  } else {
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+                  }
+                }
+                const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
+                const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
+                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                
+                const paidCount = getPaidInstallmentsCount(loan);
+                const dates = (loan.installment_dates as string[]) || [];
+                const overdueDate = dates[paidCount] || loan.due_date;
+                
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const overdueDateObj = new Date(overdueDate + 'T12:00:00');
+                overdueDateObj.setHours(0, 0, 0, 0);
+                const daysOverdue = today > overdueDateObj ? Math.ceil((today.getTime() - overdueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                
+                if (daysOverdue <= 0) return null;
+                
+                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+                const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
+                
+                let dynamicPenaltyAmount = 0;
+                if (daysOverdue > 0 && overdueConfigValue > 0) {
+                  if (overdueConfigType === 'percentage') {
+                    dynamicPenaltyAmount = (totalPerInstallment * (overdueConfigValue / 100)) * daysOverdue;
+                  } else {
+                    dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
+                  }
+                }
+                
+                return {
+                  clientName: loan.client?.full_name || 'Cliente',
+                  clientPhone: loan.client?.phone || '',
+                  contractType: 'loan' as const,
+                  installmentNumber: paidCount + 1,
+                  totalInstallments: numInstallments,
+                  amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
+                  dueDate: overdueDate,
+                  daysOverdue,
+                  loanId: loan.id,
+                  overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                  penaltyType: overdueConfigType,
+                  penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
+                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  isDaily,
+                  manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
+                  hasDynamicPenalty: overdueConfigValue > 0,
+                  installmentDates: dates,
+                  paidCount,
+                };
+              }}
+              getDueTodayNotificationData={(loan) => {
+                const todayInfo = getTodayInstallmentInfo(loan);
+                if (!todayInfo) return null;
+                
+                const numInstallments = loan.installments || 1;
+                const isDaily = loan.payment_type === 'daily';
+                const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
+                const storedTotalInterest = loan.total_interest || 0;
+                const principalPerInstallment = loan.principal_amount / numInstallments;
+                
+                let calculatedTotalInterest = 0;
+                if (!isDaily) {
+                  if (loan.interest_mode === 'on_total') {
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+                  } else if (loan.interest_mode === 'compound') {
+                    calculatedTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+                  } else {
+                    calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+                  }
+                }
+                const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
+                const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
+                const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                
+                const paidCount = getPaidInstallmentsCount(loan);
+                
+                return {
+                  clientName: loan.client?.full_name || 'Cliente',
+                  clientPhone: loan.client?.phone || '',
+                  contractType: 'loan' as const,
+                  installmentNumber: todayInfo.installmentNumber,
+                  totalInstallments: todayInfo.totalInstallments,
+                  amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
+                  dueDate: todayInfo.dueDate,
+                  loanId: loan.id,
+                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  isDaily,
+                  installmentDates: (loan.installment_dates as string[]) || [],
+                  paidCount,
+                };
+              }}
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -8927,6 +9039,118 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 onDelete={setDeleteId}
                 onViewHistory={openPaymentHistory}
                 getPaidInstallmentsCount={getPaidInstallmentsCount}
+                profile={profile}
+                getOverdueNotificationData={(loan) => {
+                  const numInstallments = loan.installments || 1;
+                  const isDaily = loan.payment_type === 'daily';
+                  const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
+                  const storedTotalInterest = loan.total_interest || 0;
+                  const principalPerInstallment = loan.principal_amount / numInstallments;
+                  
+                  let calculatedTotalInterest = 0;
+                  if (!isDaily) {
+                    if (loan.interest_mode === 'on_total') {
+                      calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+                    } else if (loan.interest_mode === 'compound') {
+                      calculatedTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+                    } else {
+                      calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+                    }
+                  }
+                  const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
+                  const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
+                  const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                  
+                  const paidCount = getPaidInstallmentsCount(loan);
+                  const dates = (loan.installment_dates as string[]) || [];
+                  const overdueDate = dates[paidCount] || loan.due_date;
+                  
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const overdueDateObj = new Date(overdueDate + 'T12:00:00');
+                  overdueDateObj.setHours(0, 0, 0, 0);
+                  const daysOverdue = today > overdueDateObj ? Math.ceil((today.getTime() - overdueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                  
+                  if (daysOverdue <= 0) return null;
+                  
+                  const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                  const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                  const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
+                  const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
+                  
+                  let dynamicPenaltyAmount = 0;
+                  if (daysOverdue > 0 && overdueConfigValue > 0) {
+                    if (overdueConfigType === 'percentage') {
+                      dynamicPenaltyAmount = (totalPerInstallment * (overdueConfigValue / 100)) * daysOverdue;
+                    } else {
+                      dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
+                    }
+                  }
+                  
+                  return {
+                    clientName: loan.client?.full_name || 'Cliente',
+                    clientPhone: loan.client?.phone || '',
+                    contractType: 'loan' as const,
+                    installmentNumber: paidCount + 1,
+                    totalInstallments: numInstallments,
+                    amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
+                    dueDate: overdueDate,
+                    daysOverdue,
+                    loanId: loan.id,
+                    overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
+                    penaltyType: overdueConfigType,
+                    penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
+                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    isDaily,
+                    manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
+                    hasDynamicPenalty: overdueConfigValue > 0,
+                    installmentDates: dates,
+                    paidCount,
+                  };
+                }}
+                getDueTodayNotificationData={(loan) => {
+                  const todayInfo = getTodayInstallmentInfo(loan);
+                  if (!todayInfo) return null;
+                  
+                  const numInstallments = loan.installments || 1;
+                  const isDaily = loan.payment_type === 'daily';
+                  const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
+                  const storedTotalInterest = loan.total_interest || 0;
+                  const principalPerInstallment = loan.principal_amount / numInstallments;
+                  
+                  let calculatedTotalInterest = 0;
+                  if (!isDaily) {
+                    if (loan.interest_mode === 'on_total') {
+                      calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+                    } else if (loan.interest_mode === 'compound') {
+                      calculatedTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+                    } else {
+                      calculatedTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+                    }
+                  }
+                  const effectiveTotalInterest = isDaily ? 0 : (storedTotalInterest > 0 ? storedTotalInterest : calculatedTotalInterest);
+                  const calculatedInterestPerInstallment = isDaily ? 0 : effectiveTotalInterest / numInstallments;
+                  const totalPerInstallment = isDaily ? dailyInstallmentAmount : principalPerInstallment + calculatedInterestPerInstallment;
+                  
+                  const paidCount = getPaidInstallmentsCount(loan);
+                  
+                  return {
+                    clientName: loan.client?.full_name || 'Cliente',
+                    clientPhone: loan.client?.phone || '',
+                    contractType: 'loan' as const,
+                    installmentNumber: todayInfo.installmentNumber,
+                    totalInstallments: todayInfo.totalInstallments,
+                    amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
+                    dueDate: todayInfo.dueDate,
+                    loanId: loan.id,
+                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
+                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    isDaily,
+                    installmentDates: (loan.installment_dates as string[]) || [],
+                    paidCount,
+                  };
+                }}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">

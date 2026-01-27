@@ -5,12 +5,62 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, TrendingUp, Wallet, PiggyBank, UserCheck } from 'lucide-react';
+import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, MessageCircle, Bell, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { Loan } from '@/types/database';
 import { toast } from '@/hooks/use-toast';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+
+interface Profile {
+  whatsapp_instance_id?: string | null;
+  whatsapp_connected_phone?: string | null;
+  whatsapp_to_clients_enabled?: boolean | null;
+  pix_key?: string | null;
+  pix_key_type?: string | null;
+  billing_signature_name?: string | null;
+  company_name?: string | null;
+}
+
+interface OverdueNotificationData {
+  clientName: string;
+  clientPhone: string;
+  contractType: 'loan';
+  installmentNumber: number;
+  totalInstallments: number;
+  amount: number;
+  dueDate: string;
+  daysOverdue: number;
+  loanId: string;
+  overdueInterestAmount?: number;
+  penaltyType?: 'percentage' | 'fixed';
+  penaltyValue?: number;
+  interestAmount?: number;
+  principalAmount?: number;
+  isDaily?: boolean;
+  manualPenaltyAmount?: number;
+  hasDynamicPenalty?: boolean;
+  installmentDates?: string[];
+  paidCount?: number;
+}
+
+interface DueTodayNotificationData {
+  clientName: string;
+  clientPhone: string;
+  contractType: 'loan';
+  installmentNumber: number;
+  totalInstallments: number;
+  amount: number;
+  dueDate: string;
+  loanId: string;
+  interestAmount?: number;
+  principalAmount?: number;
+  isDaily?: boolean;
+  installmentDates?: string[];
+  paidCount?: number;
+}
 
 interface LoansTableViewProps {
   loans: Loan[];
@@ -21,6 +71,10 @@ interface LoansTableViewProps {
   onDelete: (loanId: string) => void;
   onViewHistory: (loanId: string) => void;
   getPaidInstallmentsCount: (loan: Loan) => number;
+  // New props for WhatsApp notifications
+  profile?: Profile | null;
+  getOverdueNotificationData?: (loan: Loan) => OverdueNotificationData | null;
+  getDueTodayNotificationData?: (loan: Loan) => DueTodayNotificationData | null;
 }
 
 export function LoansTableView({
@@ -32,9 +86,16 @@ export function LoansTableView({
   onDelete,
   onViewHistory,
   getPaidInstallmentsCount,
+  profile,
+  getOverdueNotificationData,
+  getDueTodayNotificationData,
 }: LoansTableViewProps) {
   const [sortField, setSortField] = useState<'client' | 'status' | 'amount' | 'remaining' | 'dueDate'>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // State for notification dialogs
+  const [overdueNotificationLoan, setOverdueNotificationLoan] = useState<Loan | null>(null);
+  const [dueTodayNotificationLoan, setDueTodayNotificationLoan] = useState<Loan | null>(null);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -197,6 +258,11 @@ export function LoansTableView({
     }, { totalPrincipal: 0, totalRemaining: 0, totalPaid: 0, totalProfit: 0 });
   }, [loans]);
 
+  // Check if WhatsApp notifications are enabled
+  const canSendNotifications = profile?.whatsapp_instance_id && 
+    profile?.whatsapp_connected_phone && 
+    profile?.whatsapp_to_clients_enabled;
+
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       {/* Summary Section */}
@@ -214,7 +280,7 @@ export function LoansTableView({
             </div>
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10">
-                <Wallet className="w-4 h-4 text-amber-600" />
+                <DollarSign className="w-4 h-4 text-amber-600" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total a Receber</p>
@@ -302,6 +368,10 @@ export function LoansTableView({
             const paidCount = getPaidInstallmentsCount(loan);
             const nextDueDate = getNextDueDate(loan);
             const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+            
+            // Check if client has phone for notifications
+            const clientHasPhone = !!loan.client?.phone;
+            const canSendToThisClient = canSendNotifications && clientHasPhone;
 
             return (
               <TableRow 
@@ -388,6 +458,46 @@ export function LoansTableView({
                             <DropdownMenuSeparator />
                           </>
                         )}
+                        
+                        {/* WhatsApp notification options */}
+                        {canSendToThisClient && isOverdue && getOverdueNotificationData && (
+                          <DropdownMenuItem 
+                            onClick={() => setOverdueNotificationLoan(loan)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Enviar Cobrança
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {canSendToThisClient && isDueToday && getDueTodayNotificationData && (
+                          <DropdownMenuItem 
+                            onClick={() => setDueTodayNotificationLoan(loan)}
+                            className="text-amber-600 focus:text-amber-600"
+                          >
+                            <Bell className="w-4 h-4 mr-2" />
+                            Cobrar Parcela de Hoje
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {/* For daily loans that are overdue, also show due today option if there's a payment today */}
+                        {canSendToThisClient && isOverdue && loan.payment_type === 'daily' && getDueTodayNotificationData && (() => {
+                          const dueTodayData = getDueTodayNotificationData(loan);
+                          return dueTodayData !== null;
+                        })() && (
+                          <DropdownMenuItem 
+                            onClick={() => setDueTodayNotificationLoan(loan)}
+                            className="text-amber-600 focus:text-amber-600"
+                          >
+                            <Bell className="w-4 h-4 mr-2" />
+                            Cobrar Parcela de Hoje
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {canSendToThisClient && (isOverdue || isDueToday) && (
+                          <DropdownMenuSeparator />
+                        )}
+                        
                         <DropdownMenuItem onClick={() => onViewHistory(loan.id)}>
                           <History className="w-4 h-4 mr-2" />
                           Histórico
@@ -426,6 +536,94 @@ export function LoansTableView({
           <p className="text-sm text-muted-foreground">Nenhum empréstimo encontrado</p>
         </div>
       )}
+      
+      {/* Render notification components outside the table */}
+      {overdueNotificationLoan && getOverdueNotificationData && (() => {
+        const data = getOverdueNotificationData(overdueNotificationLoan);
+        if (!data) return null;
+        return (
+          <div className="hidden">
+            <SendOverdueNotification
+              key={`overdue-${overdueNotificationLoan.id}`}
+              data={data}
+              className="hidden"
+            />
+          </div>
+        );
+      })()}
+      
+      {dueTodayNotificationLoan && getDueTodayNotificationData && (() => {
+        const data = getDueTodayNotificationData(dueTodayNotificationLoan);
+        if (!data) return null;
+        return (
+          <div className="hidden">
+            <SendDueTodayNotification
+              key={`duetoday-${dueTodayNotificationLoan.id}`}
+              data={data}
+              className="hidden"
+            />
+          </div>
+        );
+      })()}
+      
+      {/* Visible notification dialogs triggered by dropdown menu selection */}
+      {overdueNotificationLoan && getOverdueNotificationData && (() => {
+        const data = getOverdueNotificationData(overdueNotificationLoan);
+        if (!data) {
+          setOverdueNotificationLoan(null);
+          return null;
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOverdueNotificationLoan(null)}>
+            <div className="bg-card rounded-lg p-4 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-4">Enviar Cobrança</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Enviar cobrança de parcela em atraso para <strong>{data.clientName}</strong>
+              </p>
+              <SendOverdueNotification
+                data={data}
+                className="w-full"
+              />
+              <Button 
+                variant="outline" 
+                className="w-full mt-2"
+                onClick={() => setOverdueNotificationLoan(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+      
+      {dueTodayNotificationLoan && getDueTodayNotificationData && (() => {
+        const data = getDueTodayNotificationData(dueTodayNotificationLoan);
+        if (!data) {
+          setDueTodayNotificationLoan(null);
+          return null;
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDueTodayNotificationLoan(null)}>
+            <div className="bg-card rounded-lg p-4 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold mb-4">Cobrar Parcela de Hoje</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Enviar lembrete de pagamento para <strong>{data.clientName}</strong>
+              </p>
+              <SendDueTodayNotification
+                data={data}
+                className="w-full"
+              />
+              <Button 
+                variant="outline" 
+                className="w-full mt-2"
+                onClick={() => setDueTodayNotificationLoan(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
