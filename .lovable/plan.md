@@ -1,214 +1,179 @@
 
+# Exibir Botoes de Cobranca WhatsApp Direto no Card de Contrato
 
-# Adicionar Cobranca WhatsApp para Contratos e Produtos
+## Problema Identificado
 
-## Resumo do Problema
+Atualmente, os botoes de cobranca via WhatsApp para contratos so aparecem quando o usuario expande a secao de parcelas. O usuario precisa clicar em "Parcelas" para ver e usar os botoes de cobranca. Isso e diferente do comportamento nos emprestimos, onde os botoes ficam visiveis diretamente no card.
 
-A area de Contratos e Produtos nao possui os botoes de cobranca via WhatsApp que existem na pagina de Emprestimos:
-- **Contratos**: Nao tem nenhum botao de cobranca (nem atraso, nem vence hoje, nem antecipada)
-- **Produtos**: Tem cobranca de atraso e vence hoje, mas falta cobranca antecipada
+## Solucao Proposta
 
-## Solucao
+Adicionar os botoes de cobranca WhatsApp diretamente no card do contrato, sem precisar expandir as parcelas. Os botoes serao exibidos com base no status da proxima parcela pendente:
 
-Adicionar os mesmos botoes de notificacao WhatsApp que existem nos emprestimos:
-
-1. **Cobranca de Atraso** (`SendOverdueNotification`) - Quando parcela esta atrasada
-2. **Cobranca de Hoje** (`SendDueTodayNotification`) - Quando parcela vence hoje
-3. **Cobranca Antecipada** (`SendEarlyNotification`) - Quando parcela ainda nao venceu
-
-## Alteracoes Necessarias
-
-### 1. Contratos (ProductSales.tsx - Tab Contracts)
-
-Localizado nas linhas ~1686-1825
-
-**Adicionar para cada contrato com parcelas:**
-
-- Quando tem parcela em ATRASO: mostrar botao "Enviar Cobranca" vermelho
-- Quando tem parcela que VENCE HOJE: mostrar botao "Cobrar Parcela de Hoje" amarelo
-- Quando tem parcela PENDENTE (futura): mostrar botao "Cobrar Antes do Prazo" outline
-
-**Mudancas visuais no card de contrato:**
-- Adicionar indicador visual de status (icone de alerta para atraso, relogio para vence hoje)
-- Mostrar dias de atraso quando aplicavel
-- Exibir botoes de cobranca dentro da secao de parcelas expandida
-
-### 2. Produtos (ProductSaleCard.tsx)
-
-Localizado nas linhas 240-281
-
-**Adicionar cobranca antecipada:**
-
-- Quando status e 'pending' (proxima parcela no futuro): mostrar botao "Cobrar Antes do Prazo"
-- Posicionar abaixo das informacoes da proxima parcela
-
-## Implementacao Tecnica
-
-### Arquivo 1: src/pages/ProductSales.tsx
-
-**Importar componentes:**
-```typescript
-import SendOverdueNotification from '@/components/SendOverdueNotification';
-import SendDueTodayNotification from '@/components/SendDueTodayNotification';
-import { SendEarlyNotification } from '@/components/SendEarlyNotification';
-```
-
-**Adicionar logica para determinar status do contrato:**
-```typescript
-const getContractStatus = (contract: Contract, payments: ContractPayment[]) => {
-  if (contract.status === 'paid') return 'paid';
-  const overduePayment = payments.find(p => 
-    p.status !== 'paid' && isPast(parseISO(p.due_date)) && !isToday(parseISO(p.due_date))
-  );
-  if (overduePayment) return 'overdue';
-  const dueTodayPayment = payments.find(p => 
-    p.status !== 'paid' && isToday(parseISO(p.due_date))
-  );
-  if (dueTodayPayment) return 'due_today';
-  return 'pending';
-};
-```
-
-**Modificar card de contrato (~linhas 1688-1821):**
-- Adicionar classes condicionais para status (vermelho para atraso, amarelo para vence hoje)
-- Adicionar icone de alerta no canto superior direito
-- Adicionar botoes de cobranca WhatsApp na secao expandida de parcelas
-
-**Para cada parcela em atraso:**
-```jsx
-{payment.status !== 'paid' && isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) && contract.client_phone && (
-  <SendOverdueNotification
-    data={{
-      clientName: contract.client_name,
-      clientPhone: contract.client_phone,
-      contractType: 'contract',
-      installmentNumber: payment.installment_number,
-      totalInstallments: contract.installments,
-      amount: payment.amount,
-      dueDate: payment.due_date,
-      daysOverdue: Math.floor((new Date().getTime() - parseISO(payment.due_date).getTime()) / (1000 * 60 * 60 * 24)),
-      loanId: contract.id,
-    }}
-    className="flex-1"
-  />
-)}
-```
-
-**Para parcela que vence hoje:**
-```jsx
-{payment.status !== 'paid' && isToday(parseISO(payment.due_date)) && contract.client_phone && (
-  <SendDueTodayNotification
-    data={{
-      clientName: contract.client_name,
-      clientPhone: contract.client_phone,
-      contractType: 'contract',
-      installmentNumber: payment.installment_number,
-      totalInstallments: contract.installments,
-      amount: payment.amount,
-      dueDate: payment.due_date,
-      loanId: contract.id,
-    }}
-    className="flex-1"
-  />
-)}
-```
-
-**Para parcela pendente (cobranca antecipada):**
-```jsx
-{payment.status !== 'paid' && !isPast(parseISO(payment.due_date)) && contract.client_phone && (
-  <SendEarlyNotification
-    data={{
-      clientName: contract.client_name,
-      clientPhone: contract.client_phone,
-      contractType: 'contract',
-      installmentNumber: payment.installment_number,
-      totalInstallments: contract.installments,
-      amount: payment.amount,
-      dueDate: payment.due_date,
-      daysUntilDue: Math.floor((parseISO(payment.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-      loanId: contract.id,
-    }}
-    className="flex-1"
-  />
-)}
-```
-
-### Arquivo 2: src/components/ProductSaleCard.tsx
-
-**Importar componente:**
-```typescript
-import { SendEarlyNotification } from '@/components/SendEarlyNotification';
-```
-
-**Adicionar botao de cobranca antecipada (~linha 280):**
-
-Apos o bloco que mostra `SendDueTodayNotification`, adicionar:
-
-```jsx
-{/* Early notification button for pending payments */}
-{status === 'pending' && sale.client_phone && nextDuePayment && (
-  <SendEarlyNotification
-    data={{
-      clientName: sale.client_name,
-      clientPhone: sale.client_phone,
-      contractType: 'product',
-      installmentNumber: nextDuePayment.installment_number,
-      totalInstallments: sale.installments,
-      amount: nextDuePayment.amount,
-      dueDate: nextDuePayment.due_date,
-      daysUntilDue: Math.floor((parseISO(nextDuePayment.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-      loanId: sale.id,
-      paidCount: paidCount,
-    }}
-    className="w-full mt-2"
-  />
-)}
-```
+- **Parcela em Atraso**: Botao "Enviar Cobranca" vermelho
+- **Vence Hoje**: Botao "Cobrar Hoje" amarelo  
+- **Pendente (futura)**: Botao "Cobrar Antes do Prazo" outline
 
 ## Layout Visual Proposto
 
-### Card de Contrato com Atraso:
-```
+```text
 +------------------------------------------+
-| [!] Icone alerta vermelho no canto       |
+| [icone] Cliente: Joao Silva              |
+|         Tipo: Aluguel                    |
 |------------------------------------------|
-| Cliente: Joao Silva                      |
-| Tipo: Aluguel de Casa                    |
-| Valor mensal: R$ 1.000,00                |
-| Total a receber: R$ 12.000,00            |
+| Valor mensal: R$ 1.000   Total: R$ 12.000|
 |------------------------------------------|
-| [v Parcelas]  [Editar]  [Excluir]        |
+| [!] Parcela 2/12 - 10 dias em atraso     |
+| [Enviar Cobranca WhatsApp]               |   <-- NOVO
 |------------------------------------------|
-| Parcelas expandidas:                     |
-| 1a 05/01 R$ 1.000  [PAGO v]             |
-| 2a 05/02 R$ 1.000  [10 dias atraso]     |
-|   [Enviar Cobranca WhatsApp]            |
-| 3a 05/03 R$ 1.000  [Pendente]           |
-|   [Cobrar Antes do Prazo]               |
+| [Parcelas]  [Editar]  [Excluir]          |
 +------------------------------------------+
 ```
 
-### Card de Produto com Proxima Parcela Pendente:
+## Alteracoes Necessarias
+
+### Arquivo: src/pages/ProductSales.tsx
+
+**1. Adicionar logica para determinar status do contrato (antes do render)**
+
+Criar funcao `getContractNextPaymentStatus` que recebe o contrato e seus pagamentos e retorna:
+- Qual a proxima parcela pendente
+- Se esta em atraso, vence hoje ou e futura
+- Quantos dias de atraso ou ate o vencimento
+
+**2. Adicionar secao de status e cobranca no card do contrato**
+
+Entre as informacoes do contrato (linhas 1717-1726) e os botoes de acao (linhas 1727-1734), adicionar:
+
+```text
+Logica:
+1. Verificar se contrato tem client_phone
+2. Buscar pagamentos do contrato em contractPayments ou allContractPayments
+3. Encontrar primeira parcela nao paga
+4. Determinar status: overdue, due_today ou pending
+5. Mostrar badge de status + botao de cobranca apropriado
 ```
-+------------------------------------------+
-| Produto XYZ                              |
-| Cliente: Maria                           |
-|------------------------------------------|
-| Venda: R$ 5.000  | Recebido: R$ 1.000   |
-| Falta: R$ 4.000  | Parcelas: 1/5        |
-|------------------------------------------|
-| 2a parcela - 15/02/2026                 |
-| R$ 1.000,00                             |
-| [Cobrar Antes do Prazo]  <-- NOVO       |
-|------------------------------------------|
-| [Pagar] [Parcelas] [Recibo] [Edit] [Del]|
-+------------------------------------------+
+
+**3. Estrutura JSX a adicionar (~apos linha 1726)**
+
+```jsx
+{/* Status e botao de cobranca WhatsApp direto no card */}
+{contract.status !== 'paid' && contract.client_phone && (() => {
+  const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
+  const nextPendingPayment = payments
+    .filter(p => p.status !== 'paid')
+    .sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime())[0];
+  
+  if (!nextPendingPayment) return null;
+  
+  const paymentDate = parseISO(nextPendingPayment.due_date);
+  const isOverdue = isPast(paymentDate) && !isToday(paymentDate);
+  const isDueToday = isToday(paymentDate);
+  const isPending = !isPast(paymentDate);
+  const daysOverdue = isOverdue ? Math.floor((Date.now() - paymentDate.getTime()) / 86400000) : 0;
+  const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDate.getTime() - Date.now()) / 86400000)) : 0;
+  const paidCount = payments.filter(p => p.status === 'paid').length;
+  
+  return (
+    <div className="mb-3 space-y-2">
+      {/* Badge de status */}
+      <div className={cn(
+        "p-2 rounded-lg text-sm flex items-center justify-between",
+        isOverdue && "bg-destructive/10",
+        isDueToday && "bg-yellow-500/10",
+        isPending && "bg-muted"
+      )}>
+        <div className="flex items-center gap-2">
+          {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
+          {isDueToday && <Clock className="w-4 h-4 text-yellow-600" />}
+          {isPending && <Calendar className="w-4 h-4 text-muted-foreground" />}
+          <span>
+            {nextPendingPayment.installment_number}a parcela - {format(paymentDate, "dd/MM")}
+            {isOverdue && <span className="text-destructive font-medium ml-1">({daysOverdue}d atraso)</span>}
+            {isDueToday && <span className="text-yellow-600 font-medium ml-1">(Vence Hoje)</span>}
+          </span>
+        </div>
+        <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
+      </div>
+      
+      {/* Botao de cobranca WhatsApp */}
+      {isOverdue && (
+        <SendOverdueNotification data={{...}} className="w-full" />
+      )}
+      {isDueToday && (
+        <SendDueTodayNotification data={{...}} className="w-full" />
+      )}
+      {isPending && (
+        <SendEarlyNotification data={{...}} className="w-full" />
+      )}
+    </div>
+  );
+})()}
 ```
+
+## Secao Tecnica
+
+### Localizacao exata das mudancas
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+**Linha de insercao:** Entre linhas 1726 e 1727 (apos o bloco `<div className="space-y-2 mb-3">` com valores do contrato e antes do `<div className="flex gap-2">` com botoes de acao)
+
+### Dados necessarios para os componentes de notificacao
+
+Para `SendOverdueNotification`:
+```typescript
+{
+  clientName: contract.client_name,
+  clientPhone: contract.client_phone,
+  contractType: 'contract',
+  installmentNumber: nextPendingPayment.installment_number,
+  totalInstallments: contract.installments,
+  amount: nextPendingPayment.amount,
+  dueDate: nextPendingPayment.due_date,
+  daysOverdue: daysOverdue,
+  loanId: contract.id,
+  paidCount: paidCount,
+}
+```
+
+Para `SendDueTodayNotification`:
+```typescript
+{
+  clientName: contract.client_name,
+  clientPhone: contract.client_phone,
+  contractType: 'contract',
+  installmentNumber: nextPendingPayment.installment_number,
+  totalInstallments: contract.installments,
+  amount: nextPendingPayment.amount,
+  dueDate: nextPendingPayment.due_date,
+  loanId: contract.id,
+  paidCount: paidCount,
+}
+```
+
+Para `SendEarlyNotification`:
+```typescript
+{
+  clientName: contract.client_name,
+  clientPhone: contract.client_phone,
+  contractType: 'contract',
+  installmentNumber: nextPendingPayment.installment_number,
+  totalInstallments: contract.installments,
+  amount: nextPendingPayment.amount,
+  dueDate: nextPendingPayment.due_date,
+  daysUntilDue: daysUntilDue,
+  loanId: contract.id,
+  paidCount: paidCount,
+}
+```
+
+### Uso de allContractPayments
+
+O hook `useContracts` ja expoe `allContractPayments` que contem todos os pagamentos. Isso permite mostrar o status sem precisar expandir cada contrato primeiro (que carrega os pagamentos via `contractPayments[contract.id]`).
 
 ## Beneficios
 
-1. Usuarios podem enviar cobrancas de contratos e produtos da mesma forma que emprestimos
-2. Interface consistente entre todas as areas do sistema
-3. Cobranca antecipada permite lembrar clientes antes do vencimento
-4. Mensagens personalizadas com informacoes do contrato/produto
-
+1. Usuario ve imediatamente o status de cobranca de cada contrato
+2. Nao precisa expandir parcelas para enviar cobranca
+3. Consistencia com o comportamento da pagina de Emprestimos
+4. Acesso mais rapido as acoes de cobranca frequentes
