@@ -28,7 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
-import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck, ArrowUpRight, UserPlus } from 'lucide-react';
+import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck, ArrowUpRight, UserPlus, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -521,6 +521,21 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const [isGeneratingPricePDF, setIsGeneratingPricePDF] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
   
+  // Estados para validação de inconsistência (principal > total a receber)
+  const [inconsistencyWarningOpen, setInconsistencyWarningOpen] = useState(false);
+  const [inconsistencyAcknowledged, setInconsistencyAcknowledged] = useState(false);
+  const [pendingLoanData, setPendingLoanData] = useState<{
+    principal: number;
+    totalToReceive: number;
+    type: 'regular' | 'daily' | 'price';
+    formEvent?: React.FormEvent;
+  } | null>(null);
+  
+  // Função de validação centralizada para inconsistência de empréstimo
+  const checkLoanInconsistency = (principal: number, totalToReceive: number): boolean => {
+    return principal > totalToReceive && totalToReceive > 0;
+  };
+  
   // Cálculo da Tabela Price
   const priceTablePreview = useMemo(() => {
     const principal = parseFloat(priceFormData.principal_amount);
@@ -570,7 +585,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   }, [priceFormData.start_date, priceFormData.installments, priceFormData.payment_frequency]);
   
   // Função para criar empréstimo Price
-  const handlePriceTableSubmit = async () => {
+  const handlePriceTableSubmit = async (skipInconsistencyCheck = false) => {
     if (!priceFormData.client_id) {
       toast.error('Selecione um cliente');
       return;
@@ -584,6 +599,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const principal = parseFloat(priceFormData.principal_amount);
     const rate = parseFloat(priceFormData.interest_rate);
     const installments = parseInt(priceFormData.installments);
+    const totalToReceive = priceTablePreview.totalPayment;
+
+    // 🆕 VALIDAÇÃO DE INCONSISTÊNCIA: principal > total a receber
+    if (!skipInconsistencyCheck && checkLoanInconsistency(principal, totalToReceive)) {
+      setPendingLoanData({
+        principal,
+        totalToReceive,
+        type: 'price',
+      });
+      setInconsistencyWarningOpen(true);
+      return;
+    }
 
     let notes = priceFormData.notes || '';
     const weeklyTag = priceFormData.payment_frequency === 'weekly' ? '[SEMANAL]' : '';
@@ -2537,7 +2564,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   // 🆕 State para prevenir cliques duplos durante criação de empréstimo
   const [isCreatingLoan, setIsCreatingLoan] = useState(false);
 
-  const handleDailySubmit = async (e: React.FormEvent) => {
+  const handleDailySubmit = async (e: React.FormEvent, skipInconsistencyCheck = false) => {
     e.preventDefault();
     
     // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO
@@ -2556,16 +2583,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     
     if (!formData.principal_amount || parseFloat(formData.principal_amount) <= 0) {
       toast.error('Informe o valor total emprestado');
+      setIsCreatingLoan(false);
       return;
     }
     
     if (!formData.daily_amount || parseFloat(formData.daily_amount) <= 0) {
       toast.error('Informe o valor da parcela diária');
+      setIsCreatingLoan(false);
       return;
     }
     
     if (installmentDates.length === 0) {
       toast.error('Selecione pelo menos uma data de cobrança');
+      setIsCreatingLoan(false);
       return;
     }
     
@@ -2574,6 +2604,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const numDays = installmentDates.length;
     const totalToReceive = dailyAmount * numDays;
     const profit = totalToReceive - principalAmount;
+    
+    // 🆕 VALIDAÇÃO DE INCONSISTÊNCIA: principal > total a receber
+    if (!skipInconsistencyCheck && checkLoanInconsistency(principalAmount, totalToReceive)) {
+      setPendingLoanData({
+        principal: principalAmount,
+        totalToReceive,
+        type: 'daily',
+      });
+      setInconsistencyWarningOpen(true);
+      setIsCreatingLoan(false);
+      return;
+    }
     
     console.log('handleDailySubmit values:', {
       principalAmount,
@@ -2980,7 +3022,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     return { count: 0, totalValue: 0, pastInstallmentsList: [] as { date: string; value: number; index: number }[] };
   }, [formData.is_historical_contract, hasPastDates, formData.principal_amount, formData.installments, formData.payment_type, formData.daily_amount, formData.interest_rate, formData.interest_mode, formData.due_date, formData.start_date, installmentDates, installmentValue, isDailyDialogOpen]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, skipInconsistencyCheck = false) => {
     e.preventDefault();
     
     // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO
@@ -3001,11 +3043,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // Para pagamento diário no formulário regular, não permitir - redirecionar para "Novo Diário"
     if (formData.payment_type === 'daily') {
       toast.error('Use o botão "Empréstimo Diário" para criar empréstimos diários');
+      setIsCreatingLoan(false);
       return;
     }
     
     if (!formData.principal_amount || parseFloat(formData.principal_amount) <= 0) {
       toast.error('Informe o valor do empréstimo');
+      setIsCreatingLoan(false);
       return;
     }
     // Permitir taxa de juros 0% (zero é um valor válido)
@@ -3014,6 +3058,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       : NaN;
     if (isNaN(interestRateValue) || interestRateValue < 0) {
       toast.error('Informe a taxa de juros (pode ser 0%)');
+      setIsCreatingLoan(false);
       return;
     }
     // For single payment, due_date comes from start_date (first payment date)
@@ -3027,6 +3072,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     
     if (!finalDueDate) {
       toast.error('Informe a data de vencimento');
+      setIsCreatingLoan(false);
       return;
     }
     
@@ -3083,6 +3129,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     if (!isFinite(totalInterest) || isNaN(totalInterest)) {
       console.error('[LOAN_ERROR] Valor de juros inválido:', { totalInterest, principal, rate, numInstallments, interest_mode: formData.interest_mode });
       toast.error('Erro no cálculo de juros. Verifique a taxa e o número de parcelas.');
+      setIsCreatingLoan(false);
+      return;
+    }
+    
+    // 🆕 VALIDAÇÃO DE INCONSISTÊNCIA: principal > total a receber
+    const totalToReceiveRegular = principal + totalInterest;
+    if (!skipInconsistencyCheck && checkLoanInconsistency(principal, totalToReceiveRegular)) {
+      setPendingLoanData({
+        principal,
+        totalToReceive: totalToReceiveRegular,
+        type: 'regular',
+      });
+      setInconsistencyWarningOpen(true);
       setIsCreatingLoan(false);
       return;
     }
@@ -10803,7 +10862,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 {/* Botão Criar */}
                 <div className="flex justify-end pt-2">
                   <Button 
-                    onClick={handlePriceTableSubmit}
+                    onClick={() => handlePriceTableSubmit()}
                     className="h-10 bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={!priceTablePreview}
                   >
@@ -13491,6 +13550,76 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* AlertDialog para aviso de inconsistência (principal > total a receber) */}
+        <AlertDialog open={inconsistencyWarningOpen} onOpenChange={setInconsistencyWarningOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="w-5 h-5" />
+                Atenção: Inconsistência Detectada
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    O valor emprestado (<strong>{formatCurrency(pendingLoanData?.principal || 0)}</strong>) é{' '}
+                    <strong className="text-destructive">MAIOR</strong>{' '}
+                    do que o valor total a receber (<strong>{formatCurrency(pendingLoanData?.totalToReceive || 0)}</strong>).
+                  </p>
+                  <p className="text-destructive font-medium">
+                    Isso significa que você vai receber MENOS do que emprestou, resultando em PREJUÍZO.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Verifique se a taxa de juros e o número de parcelas estão corretos.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex items-start space-x-2 py-4">
+              <Checkbox 
+                id="acknowledge-inconsistency" 
+                checked={inconsistencyAcknowledged}
+                onCheckedChange={(checked) => setInconsistencyAcknowledged(!!checked)}
+              />
+              <Label htmlFor="acknowledge-inconsistency" className="text-sm cursor-pointer leading-relaxed">
+                Entendo que estou emprestando mais do que vou receber e desejo continuar
+              </Label>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setInconsistencyWarningOpen(false);
+                setInconsistencyAcknowledged(false);
+                setPendingLoanData(null);
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!inconsistencyAcknowledged}
+                onClick={async () => {
+                  setInconsistencyWarningOpen(false);
+                  setInconsistencyAcknowledged(false);
+                  const loanType = pendingLoanData?.type;
+                  setPendingLoanData(null);
+                  
+                  // Re-chamar o handler apropriado com skip de validação
+                  if (loanType === 'price') {
+                    await handlePriceTableSubmit(true);
+                  } else if (loanType === 'daily') {
+                    // Criar um evento fake para o form
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                    await handleDailySubmit(fakeEvent, true);
+                  } else if (loanType === 'regular') {
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                    await handleSubmit(fakeEvent, true);
+                  }
+                }}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                Continuar Mesmo Assim
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
 
       </div>
