@@ -1,146 +1,133 @@
 
-# Plano: Adicionar Ações de Pagamento e Cobrança na Visualização em Lista
 
-## Visão Geral
-Adicionar as funcionalidades de "Pagar Parcela", "Pagar Juros" e "Enviar Cobranças WhatsApp" na visualização em tabela (lista) da página de empréstimos, replicando as mesmas opções disponíveis na visualização em cards.
+# Plano: Mover Botão de Cobrança para Fora do Menu de 3 Pontos
 
-## Situação Atual
+## Visao Geral
+Tornar os botoes de cobranca WhatsApp ("Enviar Cobranca" e "Cobrar Parcela de Hoje") visiveis diretamente na coluna de acoes da tabela, sem precisar clicar no menu de 3 pontos.
 
-A visualização em tabela (`LoansTableView.tsx`) já possui:
-- Pagar Parcela (via dropdown menu)
-- Pagar Juros (via dropdown menu)
-- Histórico, Editar, Renegociar, Excluir
-
-O que **falta**:
-- Opção de "Enviar Cobrança" para empréstimos em atraso
-- Opção de "Cobrar Parcela de Hoje" para empréstimos vencendo hoje
-
-## Arquitetura da Solução
+## Situacao Atual vs. Nova
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    LoansTableView.tsx                           │
-│                                                                  │
-│   TableRow (cada empréstimo)                                     │
-│   ├── Status Badge (Atraso / Vence Hoje / Em Dia / Pago)        │
-│   └── Coluna de Ações (DropdownMenu)                            │
-│       ├── Pagar Parcela (já existe)                             │
-│       ├── Pagar Juros (já existe)                               │
-│       ├── ─────────────────────                                 │
-│       ├── 📲 Enviar Cobrança (NOVO - se em atraso)              │
-│       ├── 📅 Cobrar Parcela de Hoje (NOVO - se vence hoje)      │
-│       ├── ─────────────────────                                 │
-│       ├── Histórico                                             │
-│       ├── Editar                                                │
-│       ├── Renegociar                                            │
-│       └── Excluir                                               │
-└─────────────────────────────────────────────────────────────────┘
+ANTES (atual):
+┌──────────────────────────────────────────────────────────────────┐
+│ Cliente │ Status │ Restante │ Vencimento │ [...]                │
+├──────────────────────────────────────────────────────────────────┤
+│ Joao    │ Atraso │ R$ 500   │ 25/01      │    (menu 3 pontos)   │
+│                                           │    └── Pagar Parcela │
+│                                           │    └── Pagar Juros   │
+│                                           │    └── Enviar Cobrança│ <-- escondido
+└──────────────────────────────────────────────────────────────────┘
+
+DEPOIS (proposto):
+┌──────────────────────────────────────────────────────────────────┐
+│ Cliente │ Status │ Restante │ Vencimento │ Acoes                 │
+├──────────────────────────────────────────────────────────────────┤
+│ Joao    │ Atraso │ R$ 500   │ 25/01      │ [Cobrar] [...]       │
+│                                           │    ^         ^        │
+│                                           │    botao    menu      │
+│                                           │    visivel  3 pontos  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Etapas de Implementação
+## Mudancas Propostas
 
-### 1. Atualizar Interface do LoansTableView
+### 1. Adicionar Botao de Cobranca Visivel na Coluna de Acoes
 
-Adicionar novas props para as funcionalidades de cobrança:
+Para emprestimos em **atraso** ou que **vencem hoje**, exibir um botao compacto com icone do WhatsApp diretamente na celula de acoes, antes do menu de 3 pontos.
 
-| Nova Prop | Tipo | Descrição |
-|-----------|------|-----------|
-| `profile` | Profile | Perfil do usuário para verificar WhatsApp |
-| `onSendOverdueNotification` | `(loan: Loan) => void` | Callback para abrir notificação de atraso |
-| `onSendDueTodayNotification` | `(loan: Loan) => void` | Callback para abrir notificação do dia |
-| `getInstallmentData` | `(loan: Loan) => InstallmentData` | Função para calcular dados da parcela |
+**Comportamento do botao:**
+- Para emprestimos em **atraso**: botao vermelho "Cobrar" com icone MessageCircle
+- Para emprestimos que **vencem hoje**: botao amarelo "Lembrar" com icone Bell
+- Para emprestimos **diarios em atraso**: exibir ambos os botoes (cobranca + lembrete do dia)
 
-### 2. Adicionar Componentes de Notificação no Dropdown
+### 2. Layout da Celula de Acoes
 
-No dropdown de ações de cada linha da tabela:
-- Para empréstimos em **Atraso**: mostrar "📲 Enviar Cobrança"
-- Para empréstimos que **Vencem Hoje**: mostrar "📅 Cobrar Parcela de Hoje"
-- Botões só aparecem se WhatsApp estiver habilitado e cliente tiver telefone
+```text
+Celula de Acoes (atraso):
+┌─────────────────────────────────────┐
+│  [Cobrar]  [...]                    │
+│     ^        ^                      │
+│   vermelho  menu dropdown           │
+└─────────────────────────────────────┘
 
-### 3. Integrar SendOverdueNotification e SendDueTodayNotification
+Celula de Acoes (vence hoje):
+┌─────────────────────────────────────┐
+│  [Lembrar]  [...]                   │
+│     ^         ^                     │
+│   amarelo   menu dropdown           │
+└─────────────────────────────────────┘
 
-Os componentes de notificação precisam ser renderizados condicionalmente:
-- Usar estado local para controlar qual loan está sendo notificado
-- Passar os mesmos dados que são passados na visualização de cards
+Celula de Acoes (diario em atraso):
+┌─────────────────────────────────────┐
+│  [Cobrar] [Hoje] [...]              │
+│     ^       ^      ^                │
+│  vermelho amarelo menu              │
+└─────────────────────────────────────┘
+```
 
-### 4. Alternativa: Usar Dialog/Portal
+### 3. Versao Mobile Compacta
 
-Como os componentes de notificação são botões com dialogs internos, uma abordagem alternativa:
-- Adicionar estado no LoansTableView para controlar notificações ativas
-- Renderizar os dialogs fora da tabela usando Portal
-- Manter referência ao empréstimo selecionado para notificação
+Em telas menores, os botoes mostrarao apenas o icone (sem texto) para economizar espaco.
 
 ---
 
-## Detalhes Técnicos
+## Detalhes Tecnicos
 
-### Props Adicionais Necessárias
+### Modificacao na Celula de Acoes
 
-O componente `LoansTableView` precisará receber informações adicionais para calcular os dados da notificação:
+A celula `<TableCell className="text-right">` sera modificada para incluir:
 
-```typescript
-interface LoansTableViewProps {
-  // Props existentes
-  loans: Loan[];
-  onPayment: (loanId: string) => void;
-  onPayInterest: (loanId: string) => void;
-  // ... outras props existentes
-  
-  // NOVAS props para notificações
-  profile: Profile | null;
-  getOverdueNotificationData?: (loan: Loan) => OverdueData | null;
-  getDueTodayNotificationData?: (loan: Loan) => DueTodayData | null;
-}
-```
+1. **Botao de Cobranca (Atraso)**: Pequeno botao vermelho visivel para emprestimos em atraso
+2. **Botao de Lembrete (Vence Hoje)**: Pequeno botao amarelo para emprestimos do dia
+3. **Menu de 3 Pontos**: Mantem todas as outras opcoes (Pagar, Editar, etc.)
 
-### Lógica de Exibição das Opções
+### Estilizacao dos Botoes
 
 ```typescript
-// No dropdown menu de cada linha:
-{isOverdue && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
-  <DropdownMenuItem onClick={() => openOverdueNotification(loan)}>
-    <MessageCircle className="w-4 h-4 mr-2" />
-    Enviar Cobrança
-  </DropdownMenuItem>
-)}
+// Botao de cobranca (atraso)
+<Button 
+  variant="ghost" 
+  size="sm"
+  className="h-7 px-2 text-red-600 hover:bg-red-500/10"
+  onClick={() => setOverdueNotificationLoan(loan)}
+>
+  <MessageCircle className="w-4 h-4" />
+  <span className="hidden sm:inline ml-1">Cobrar</span>
+</Button>
 
-{isDueToday && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
-  <DropdownMenuItem onClick={() => openDueTodayNotification(loan)}>
-    <Bell className="w-4 h-4 mr-2" />
-    Cobrar Parcela de Hoje
-  </DropdownMenuItem>
-)}
+// Botao de lembrete (vence hoje)  
+<Button
+  variant="ghost"
+  size="sm"
+  className="h-7 px-2 text-amber-600 hover:bg-amber-500/10"
+  onClick={() => setDueTodayNotificationLoan(loan)}
+>
+  <Bell className="w-4 h-4" />
+  <span className="hidden sm:inline ml-1">Lembrar</span>
+</Button>
 ```
 
-### Estados Locais para Dialogs
+### Condicoes de Exibicao
 
-```typescript
-const [overdueNotificationLoan, setOverdueNotificationLoan] = useState<Loan | null>(null);
-const [dueTodayNotificationLoan, setDueTodayNotificationLoan] = useState<Loan | null>(null);
-```
+Os botoes so aparecem quando:
+- `canSendToThisClient` e true (WhatsApp habilitado + cliente tem telefone)
+- O emprestimo esta em atraso (`isOverdue`) ou vence hoje (`isDueToday`)
+- As funcoes de dados de notificacao estao disponiveis
 
 ---
 
-## Arquivos a Serem Modificados
+## Arquivo a Ser Modificado
 
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| `src/components/LoansTableView.tsx` | Adicionar opções de cobrança no dropdown + dialogs de notificação |
-| `src/pages/Loans.tsx` | Passar novas props necessárias para o LoansTableView |
+| `src/components/LoansTableView.tsx` | Adicionar botoes de cobranca fora do dropdown, na celula de acoes |
 
 ---
 
-## Considerações de UX
+## Beneficios
 
-1. **Consistência**: As mesmas opções disponíveis nos cards estarão na tabela
-2. **Feedback Visual**: Ícones específicos para cada ação (MessageCircle para cobrança, Bell para lembrete)
-3. **Separação Clara**: Separadores no dropdown agrupam ações similares
-4. **Cooldown Preservado**: O mesmo sistema de cooldown de 1 hora será respeitado
+1. **Acesso Rapido**: Usuario pode enviar cobranca com 1 clique ao inves de 2
+2. **Visibilidade**: Fica claro quais emprestimos precisam de acao imediata
+3. **Produtividade**: Reduz tempo para gerenciar multiplos emprestimos em atraso
+4. **UX Melhorada**: Acoes mais frequentes ficam mais acessiveis
 
----
-
-## Benefícios
-
-1. **Produtividade**: Usuários podem gerenciar empréstimos mais rapidamente na visualização em lista
-2. **Experiência Unificada**: Mesmas funcionalidades disponíveis em ambas as visualizações
-3. **Menos Cliques**: Ações diretas no menu dropdown sem precisar voltar para cards
