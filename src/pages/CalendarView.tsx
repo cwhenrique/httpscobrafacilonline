@@ -156,7 +156,7 @@ export default function CalendarView() {
       const values = calculateLoanValues(loan);
 
       // For installment loans, check each installment date
-      if ((loan.payment_type === 'installment' || loan.payment_type === 'daily') && loan.installment_dates) {
+      if ((loan.payment_type === 'installment' || loan.payment_type === 'daily' || loan.payment_type === 'weekly' || loan.payment_type === 'biweekly') && loan.installment_dates) {
         const installmentDates = Array.isArray(loan.installment_dates) 
           ? loan.installment_dates 
           : [];
