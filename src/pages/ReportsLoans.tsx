@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useOperationalStats } from '@/hooks/useOperationalStats';
 import { useProfile } from '@/hooks/useProfile';
+import { CashFlowCard } from '@/components/reports/CashFlowCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -118,7 +119,7 @@ const StatCardSkeleton = () => (
 
 export default function ReportsLoans() {
   const { stats, refetch } = useOperationalStats();
-  const { profile } = useProfile();
+  const { profile, updateProfile, refetch: refetchProfile } = useProfile();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -652,6 +653,34 @@ export default function ReportsLoans() {
     return months;
   }, [stats.allLoans, paymentTypeFilter]);
 
+  // Cash Flow calculations
+  const initialCashBalance = profile?.cash_flow_initial_balance || 0;
+  
+  const cashFlowStats = useMemo(() => {
+    const loanedInPeriod = filteredStats.totalLent;
+    const receivedInPeriod = filteredStats.totalReceived;
+    const interestReceived = filteredStats.realizedProfit;
+    const currentBalance = initialCashBalance - loanedInPeriod + receivedInPeriod;
+    
+    return {
+      initialBalance: initialCashBalance,
+      loanedInPeriod,
+      receivedInPeriod,
+      interestReceived,
+      currentBalance,
+    };
+  }, [initialCashBalance, filteredStats]);
+
+  const handleUpdateCashFlowBalance = async (value: number) => {
+    const { error } = await updateProfile({ cash_flow_initial_balance: value });
+    if (error) {
+      toast.error('Erro ao atualizar saldo inicial');
+    } else {
+      await refetchProfile();
+      toast.success('Saldo inicial atualizado!');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
@@ -1039,6 +1068,15 @@ export default function ReportsLoans() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Cash Flow Card */}
+        <CashFlowCard
+          initialBalance={cashFlowStats.initialBalance}
+          loanedInPeriod={cashFlowStats.loanedInPeriod}
+          receivedInPeriod={cashFlowStats.receivedInPeriod}
+          interestReceived={cashFlowStats.interestReceived}
+          onUpdateInitialBalance={handleUpdateCashFlowBalance}
+        />
 
         {/* Main Stats Grid - Filtered */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">

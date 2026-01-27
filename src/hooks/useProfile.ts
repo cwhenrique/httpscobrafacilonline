@@ -35,6 +35,8 @@ export interface Profile {
   // Employee management feature
   employees_feature_enabled: boolean;
   max_employees: number;
+  // Cash flow feature
+  cash_flow_initial_balance: number | null;
 }
 
 export function useProfile() {
