@@ -564,7 +564,7 @@ export default function Profile() {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success('Mensagem de teste enviada para seu WhatsApp!');
+        toast.success('Mensagem de teste enviada! Você receberá do seu próprio número.');
       } else if (data?.error === 'whatsapp_not_connected') {
         toast.error('WhatsApp não conectado. Conecte na seção acima.');
       } else {
