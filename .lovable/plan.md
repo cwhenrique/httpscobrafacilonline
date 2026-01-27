@@ -1,108 +1,164 @@
 
-## Plano: Corrigir Amortização para Empréstimos Diários
+# Plano: Sistema de Auditoria de Perfil
 
-### Diagnóstico
-O empréstimo do **BRUNO BEZERRA** não aparece na lista porque a lógica de amortização corrompeu seus dados:
+## Visão Geral
+Implementar um sistema completo de auditoria que registre todas as alterações de dados sensíveis no perfil do usuário (PIX, telefone, email), incluindo endereço IP, data/hora e valores anteriores.
 
-| Campo | Valor Atual (incorreto) | Valor Esperado |
-|-------|------------------------|----------------|
-| `principal_amount` | R$ 950,00 | R$ 950,00 ✓ |
-| `total_interest` | R$ 50,00 | ~R$ 47,50/parcela |
-| `remaining_balance` | R$ 0,00 | R$ 950 + juros |
-| `total_paid` | R$ 50,00 | R$ 50,00 ✓ |
+## Arquitetura da Solução
 
-O problema: O cálculo de amortização (linha 3833) usa `newPrincipal * (interestRate / 100)`, que funciona para empréstimos mensais mas **não para diários** onde `total_interest` representa o valor da parcela diária.
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTEND                                  │
+│  Profile.tsx / Settings.tsx / ProfileSetupModal.tsx              │
+│                            │                                     │
+│                            ▼                                     │
+│              useProfile.ts (updateProfile)                       │
+│                            │                                     │
+│                            ▼                                     │
+│              Edge Function: update-profile-audited               │
+│              (recebe updates + captura IP)                       │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        DATABASE                                  │
+│                                                                  │
+│   ┌─────────────────────┐      ┌──────────────────────────────┐ │
+│   │     profiles        │      │    profile_audit_log          │ │
+│   │  (tabela existente) │◄────►│  (nova tabela de auditoria)  │ │
+│   └─────────────────────┘      │  - id                         │ │
+│                                │  - user_id                    │ │
+│                                │  - field_name                 │ │
+│                                │  - old_value                  │ │
+│                                │  - new_value                  │ │
+│                                │  - ip_address                 │ │
+│                                │  - user_agent                 │ │
+│                                │  - changed_at                 │ │
+│                                └──────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Campos Sensíveis Monitorados
+- `pix_key` - Chave PIX
+- `pix_key_type` - Tipo da chave PIX
+- `phone` - Telefone/WhatsApp
+- `email` - Email
+- `full_name` - Nome completo
+- `billing_signature_name` - Nome nas cobranças
+- `payment_link` - Link de pagamento
+
+## Etapas de Implementação
+
+### 1. Criar Tabela de Auditoria
+
+Nova tabela `profile_audit_log` para armazenar histórico de alterações:
+
+**Campos:**
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| id | uuid | Identificador único |
+| user_id | uuid | Referência ao usuário |
+| field_name | text | Nome do campo alterado |
+| old_value | text | Valor anterior (criptografado para dados sensíveis) |
+| new_value | text | Novo valor (criptografado para dados sensíveis) |
+| ip_address | inet | Endereço IP da requisição |
+| user_agent | text | User agent do navegador |
+| changed_at | timestamptz | Data/hora da alteração |
+| changed_by | uuid | Quem fez a alteração (útil para funcionários) |
+
+**Políticas RLS:**
+- Usuários podem visualizar apenas seu próprio histórico
+- Admins podem visualizar todos os registros
+
+### 2. Criar Edge Function para Atualizações Auditadas
+
+Nova edge function `update-profile-audited` que:
+1. Recebe as atualizações do perfil
+2. Captura o IP real do cliente
+3. Busca os valores atuais do perfil
+4. Compara quais campos sensíveis foram alterados
+5. Registra cada alteração na tabela de auditoria
+6. Aplica as atualizações no perfil
+
+**Benefícios da abordagem via Edge Function:**
+- Captura IP real do cliente (não disponível no frontend)
+- Garante que toda alteração passe pela auditoria
+- Permite validação adicional no servidor
+
+### 3. Atualizar Hook useProfile
+
+Modificar `updateProfile` em `src/hooks/useProfile.ts` para:
+- Chamar a edge function ao invés de atualizar diretamente
+- Passar informações do user agent
+
+### 4. Atualizar ProfileSetupModal
+
+Modificar `src/components/ProfileSetupModal.tsx` para também usar a edge function ao invés de atualização direta.
+
+### 5. Interface para Visualizar Histórico (Opcional)
+
+Adicionar seção na página de Perfil para visualizar o histórico de alterações, mostrando:
+- Data/hora da alteração
+- Campo alterado
+- Valor anterior → Novo valor
+- IP de origem
 
 ---
 
-### Correção 1: Ajustar Lógica de Amortização para Empréstimos Diários
-**Arquivo:** `src/pages/Loans.tsx` (linhas 3815-3870)
+## Detalhes Técnicos
 
-Adicionar verificação do tipo de pagamento antes de calcular amortização:
+### Edge Function: update-profile-audited
 
 ```typescript
-if (paymentData.recalculate_interest && paymentData.payment_type === 'partial') {
-  const isDaily = selectedLoan.payment_type === 'daily';
-  
-  if (isDaily) {
-    // Para empréstimos diários, amortização não faz sentido da mesma forma
-    // total_interest é o valor da parcela, não o total de juros
-    toast.error('Amortização não disponível para empréstimos diários', {
-      description: 'Use pagamento parcial normal para este tipo de empréstimo.'
-    });
-    return;
-  }
-  
-  // ... resto da lógica de amortização (apenas para não-diários)
+// Estrutura da requisição
+{
+  updates: { pix_key?: string, phone?: string, ... },
+  userAgent: string
 }
+
+// Campos sensíveis monitorados
+const SENSITIVE_FIELDS = [
+  'pix_key',
+  'pix_key_type', 
+  'phone',
+  'email',
+  'full_name',
+  'billing_signature_name',
+  'payment_link'
+];
 ```
 
----
+### Captura de IP
 
-### Correção 2: Corrigir Dados do Empréstimo Corrompido
-**Opção A - Script de correção manual:**
+O IP será extraído dos headers da requisição:
+- `x-forwarded-for` (proxy/load balancer)
+- `x-real-ip` (alternativa)
+- `cf-connecting-ip` (Cloudflare)
 
-Criar uma edge function ou usar SQL direto para corrigir o empréstimo específico:
+### Segurança
 
-```sql
--- Restaurar valores originais do empréstimo BRUNO BEZERRA
-UPDATE loans 
-SET 
-  principal_amount = 1000.00,  -- Valor original
-  total_interest = 50.00,      -- Valor da parcela diária original
-  remaining_balance = 1150.00, -- 1000 + (50 * 25 parcelas) - 50 (pago)
-  total_paid = 0.00,           -- Remover amortização incorreta
-  notes = NULL                 -- Limpar tags de amortização
-WHERE id = 'b70c660b-1ff0-461b-b24c-1dd3bf09e884';
-
--- Deletar pagamento de amortização incorreto
-DELETE FROM loan_payments 
-WHERE id = '889f344e-f56c-4495-8523-9a6820d02ce7';
-```
-
-**Opção B - Adicionar botão de "Corrigir Empréstimo" para o admin:**
-
-Adicionar funcionalidade para restaurar empréstimo usando os valores de `[AMORT_REVERSAL]` nas notas do pagamento.
+1. **RLS na tabela de auditoria**: Usuários só veem seus próprios logs
+2. **Logs imutáveis**: Sem políticas de UPDATE/DELETE para usuários
+3. **Dados sensíveis**: Valores parcialmente mascarados na visualização
 
 ---
 
-### Correção 3: Bloquear Amortização no Formulário de Pagamento
-**Arquivo:** `src/pages/Loans.tsx`
+## Arquivos a Serem Criados/Modificados
 
-Esconder ou desabilitar a opção "Recalcular juros (amortização)" quando o empréstimo for do tipo `daily`:
-
-```tsx
-{/* Checkbox de amortização - só para não-diários */}
-{selectedLoan?.payment_type !== 'daily' && (
-  <div className="flex items-center space-x-2">
-    <Checkbox 
-      id="recalculate_interest"
-      checked={paymentData.recalculate_interest}
-      onCheckedChange={(checked) => setPaymentData(prev => ({ 
-        ...prev, 
-        recalculate_interest: checked === true 
-      }))}
-    />
-    <Label htmlFor="recalculate_interest">
-      Recalcular juros (amortização)
-    </Label>
-  </div>
-)}
-```
+| Arquivo | Ação |
+|---------|------|
+| Migração SQL | Criar tabela `profile_audit_log` com RLS |
+| `supabase/functions/update-profile-audited/index.ts` | Nova edge function |
+| `supabase/config.toml` | Adicionar configuração da nova função |
+| `src/hooks/useProfile.ts` | Usar edge function para updates |
+| `src/components/ProfileSetupModal.tsx` | Usar edge function |
+| `src/pages/Profile.tsx` | Adicionar visualização do histórico (opcional) |
 
 ---
 
-### Resumo das Alterações
+## Benefícios
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/Loans.tsx` | 1. Bloquear amortização para empréstimos diários |
-| `src/pages/Loans.tsx` | 2. Esconder checkbox de amortização para tipo 'daily' |
-| SQL/Edge Function | 3. Corrigir dados do empréstimo BRUNO BEZERRA |
-
----
-
-### Impacto
-- Empréstimos diários não poderão mais ser corrompidos por amortização incorreta
-- O empréstimo do BRUNO BEZERRA voltará a aparecer na lista após correção dos dados
-- Contador do tab e lista ficarão sincronizados
+1. **Rastreabilidade completa**: Saber exatamente quando, de onde e o que foi alterado
+2. **Investigação de fraudes**: Identificar alterações não autorizadas
+3. **Recuperação de dados**: Possibilidade de restaurar valores anteriores
+4. **Compliance**: Atender requisitos de auditoria e segurança
