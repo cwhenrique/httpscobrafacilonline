@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format, addMonths, addWeeks } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Table2, Calculator, Calendar as CalendarIcon, User, DollarSign, Percent, FileText, Plus, TrendingUp, TrendingDown, Wallet, Download } from 'lucide-react';
+import { Table2, Calculator, Calendar as CalendarIcon, User, DollarSign, Percent, FileText, Plus, TrendingUp, TrendingDown, Wallet, Download, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDate, generatePriceTable, PriceTableRow } from '@/lib/calculations';
 import { generatePriceTablePDF } from '@/lib/pdfGenerator';
 import { useProfile } from '@/hooks/useProfile';
@@ -54,6 +55,12 @@ export default function PriceTableDialog({
 }: PriceTableDialogProps) {
   const { profile } = useProfile();
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  
+  // Estados para validação de inconsistência
+  const [inconsistencyWarningOpen, setInconsistencyWarningOpen] = useState(false);
+  const [inconsistencyAcknowledged, setInconsistencyAcknowledged] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  
   const [formData, setFormData] = useState({
     client_id: '',
     principal_amount: '',
@@ -104,7 +111,12 @@ export default function PriceTableDialog({
     return dates;
   }, [formData.start_date, formData.installments, formData.payment_frequency]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Função de validação centralizada
+  const checkLoanInconsistency = (principal: number, totalToReceive: number): boolean => {
+    return principal > totalToReceive && totalToReceive > 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent, skipInconsistencyCheck = false) => {
     e.preventDefault();
 
     if (!formData.client_id) {
@@ -120,6 +132,14 @@ export default function PriceTableDialog({
     const principal = parseFloat(formData.principal_amount);
     const rate = parseFloat(formData.interest_rate);
     const installments = parseInt(formData.installments);
+    const totalToReceive = priceTableData.totalPayment;
+
+    // 🆕 VALIDAÇÃO DE INCONSISTÊNCIA: principal > total a receber
+    if (!skipInconsistencyCheck && checkLoanInconsistency(principal, totalToReceive)) {
+      setPendingSubmit(true);
+      setInconsistencyWarningOpen(true);
+      return;
+    }
 
     // Create notes with price table tag
     let notes = formData.notes || '';
@@ -459,6 +479,66 @@ export default function PriceTableDialog({
             </Button>
           </div>
         </form>
+
+        {/* AlertDialog para aviso de inconsistência (principal > total a receber) */}
+        <AlertDialog open={inconsistencyWarningOpen} onOpenChange={setInconsistencyWarningOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="w-5 h-5" />
+                Atenção: Inconsistência Detectada
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    O valor emprestado (<strong>{formatCurrency(parseFloat(formData.principal_amount) || 0)}</strong>) é{' '}
+                    <strong className="text-destructive">MAIOR</strong>{' '}
+                    do que o valor total a receber (<strong>{formatCurrency(priceTableData?.totalPayment || 0)}</strong>).
+                  </p>
+                  <p className="text-destructive font-medium">
+                    Isso significa que você vai receber MENOS do que emprestou, resultando em PREJUÍZO.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Verifique se a taxa de juros e o número de parcelas estão corretos.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex items-start space-x-2 py-4">
+              <Checkbox 
+                id="acknowledge-inconsistency-price" 
+                checked={inconsistencyAcknowledged}
+                onCheckedChange={(checked) => setInconsistencyAcknowledged(!!checked)}
+              />
+              <Label htmlFor="acknowledge-inconsistency-price" className="text-sm cursor-pointer leading-relaxed">
+                Entendo que estou emprestando mais do que vou receber e desejo continuar
+              </Label>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setInconsistencyWarningOpen(false);
+                setInconsistencyAcknowledged(false);
+                setPendingSubmit(false);
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!inconsistencyAcknowledged}
+                onClick={async () => {
+                  setInconsistencyWarningOpen(false);
+                  setInconsistencyAcknowledged(false);
+                  setPendingSubmit(false);
+                  // Re-chamar handleSubmit com skip de validação
+                  const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                  await handleSubmit(fakeEvent, true);
+                }}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                Continuar Mesmo Assim
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
