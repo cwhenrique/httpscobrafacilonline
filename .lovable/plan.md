@@ -1,125 +1,101 @@
 
 
-# Implementar Fluxo de Caixa nos Relatórios de Empréstimos
+# Mostrar Saídas do Período e Capital na Rua Total no Card de Fluxo de Caixa
 
 ## Resumo
 
-Adicionar uma funcionalidade de **Fluxo de Caixa** no relatório de empréstimos onde o usuário:
-1. Define um **saldo inicial** do caixa (ex: R$ 20.000)
-2. Vê o caixa **diminuir** quando novos empréstimos são criados
-3. Vê o caixa **aumentar** quando recebe pagamentos
-4. Acompanha o **lucro acumulado** (juros recebidos)
+Modificar o card de Fluxo de Caixa para exibir **duas métricas** no lugar de apenas "Saídas":
+1. **Saídas no Período**: Total emprestado dentro do filtro de datas selecionado
+2. **Capital na Rua**: Total de principal pendente de TODOS os empréstimos ativos (independente do período)
+
+## Layout Proposto
+
+```text
++------------------------------------------------------------------+
+| 💰 Fluxo de Caixa                                    [Configurar] |
++------------------------------------------------------------------+
+|                                                                   |
+| ┌─────────────┐  ┌──────────────────┐  ┌─────────────┐  ┌───────┐ |
+| │ 💵 Inicial  │  │ 📤 Saídas        │  │ 📥 Entradas │  │ 💰    │ |
+| │ R$ 20.000   │  │ R$ 5.580         │  │ R$ 8.500    │  │ Atual │ |
+| │             │  │ no período       │  │ recebido    │  │R$     │ |
+| │             │  ├──────────────────┤  │             │  │ 22.920│ |
+| │             │  │ 📊 Na Rua: 13.3k │  │             │  │       │ |
+| └─────────────┘  └──────────────────┘  └─────────────┘  └───────┘ |
+|                                                                   |
+| ┌─────────────────────────────────────────────────────────────┐  |
+| │ 📈 Lucro no Período: R$ 2.000,00 (juros recebidos)          │  |
+| └─────────────────────────────────────────────────────────────┘  |
++------------------------------------------------------------------+
+```
 
 ## Alterações Necessárias
 
-### 1. Adicionar coluna no banco de dados
+### 1. Atualizar interface do CashFlowCard
 
-**Tabela:** `profiles`
+**Arquivo:** `src/components/reports/CashFlowCard.tsx`
 
-**Nova coluna:**
-- `cash_flow_initial_balance` - numeric - Saldo inicial do caixa (default: 0)
-
-### 2. Atualizar interface Profile
-
-**Arquivo:** `src/hooks/useProfile.ts`
-
-Adicionar o campo na interface:
-
-```typescript
-export interface Profile {
-  // ... campos existentes ...
-  cash_flow_initial_balance: number | null;
-}
-```
-
-### 3. Criar componente CashFlowCard
-
-**Novo Arquivo:** `src/components/reports/CashFlowCard.tsx`
-
-Componente visual que exibe:
-- Card com ícone de carteira e título "Fluxo de Caixa"
-- Botão para configurar/editar saldo inicial
-- 4 métricas em grid:
-  - **Caixa Inicial**: Valor configurado pelo usuário
-  - **Saídas**: Total emprestado no período
-  - **Entradas**: Total recebido no período
-  - **Caixa Atual**: Cálculo (Inicial - Saídas + Entradas)
-- Indicador de lucro (juros recebidos)
-- Cores: verde para valores positivos, vermelho para negativos
+Adicionar nova prop `totalOnStreet`:
 
 ```typescript
 interface CashFlowCardProps {
   initialBalance: number;
-  loanedInPeriod: number;
+  loanedInPeriod: number;      // Saídas no período
+  totalOnStreet: number;        // NOVO: Capital na rua total
   receivedInPeriod: number;
   interestReceived: number;
   onUpdateInitialBalance: (value: number) => void;
 }
 ```
 
-### 4. Criar modal de configuração
+### 2. Modificar a célula "Saídas" para mostrar ambos
 
-**Novo Arquivo:** `src/components/reports/CashFlowConfigModal.tsx`
+Alterar a célula de "Saídas" para incluir:
+- **Valor principal**: Emprestado no período (em vermelho)
+- **Subtexto**: "no período"
+- **Linha adicional**: "Na Rua: R$ X" (capital na rua total, cor neutra/azul)
 
-Modal simples com:
-- Título "Configurar Saldo Inicial"
-- Input numérico para valor (com formatação em reais)
-- Texto explicativo sobre o funcionamento
-- Botões Cancelar e Salvar
+Estrutura visual:
 
-### 5. Integrar no ReportsLoans
+```jsx
+<div className="bg-muted/50 rounded-lg p-3 text-center">
+  {/* Título */}
+  <div className="flex items-center justify-center gap-1.5 mb-1">
+    <ArrowUpRight className="w-4 h-4 text-red-500" />
+    <span className="text-xs text-muted-foreground font-medium">Saídas</span>
+  </div>
+  
+  {/* Valor do período */}
+  <p className="text-sm sm:text-base font-bold text-red-500">
+    -{formatCurrency(loanedInPeriod)}
+  </p>
+  <p className="text-[10px] text-muted-foreground">no período</p>
+  
+  {/* Separador visual */}
+  <div className="border-t border-muted my-2" />
+  
+  {/* Capital na Rua Total */}
+  <div className="flex items-center justify-center gap-1">
+    <Briefcase className="w-3 h-3 text-orange-500" />
+    <span className="text-[10px] text-orange-500 font-medium">Na Rua:</span>
+  </div>
+  <p className="text-xs font-semibold text-orange-500">
+    {formatCurrency(totalOnStreet)}
+  </p>
+</div>
+```
+
+### 3. Passar a prop no ReportsLoans
 
 **Arquivo:** `src/pages/ReportsLoans.tsx`
 
-**Mudanças:**
+Atualizar a chamada do CashFlowCard para incluir `totalOnStreet`:
 
-1. Importar novos componentes e useProfile:
-```typescript
-import { CashFlowCard } from '@/components/reports/CashFlowCard';
-```
-
-2. Usar dados do profile para saldo inicial:
-```typescript
-const { profile, updateProfile, refetch: refetchProfile } = useProfile();
-const initialBalance = profile?.cash_flow_initial_balance || 0;
-```
-
-3. Calcular métricas de fluxo de caixa (usar useMemo):
-```typescript
-const cashFlowStats = useMemo(() => {
-  const loanedInPeriod = filteredStats.totalLent;
-  const receivedInPeriod = filteredStats.totalReceived;
-  const interestReceived = filteredStats.realizedProfit;
-  const currentBalance = initialBalance - loanedInPeriod + receivedInPeriod;
-  
-  return {
-    initialBalance,
-    loanedInPeriod,
-    receivedInPeriod,
-    interestReceived,
-    currentBalance,
-  };
-}, [initialBalance, filteredStats]);
-```
-
-4. Adicionar função para atualizar saldo:
-```typescript
-const handleUpdateCashFlowBalance = async (value: number) => {
-  const { error } = await updateProfile({ cash_flow_initial_balance: value });
-  if (error) {
-    toast.error('Erro ao atualizar saldo');
-  } else {
-    await refetchProfile();
-    toast.success('Saldo inicial atualizado!');
-  }
-};
-```
-
-5. Adicionar o componente na UI (após o card "Period Stats", antes do "Main Stats Grid", linha ~1042):
 ```jsx
 <CashFlowCard
   initialBalance={cashFlowStats.initialBalance}
   loanedInPeriod={cashFlowStats.loanedInPeriod}
+  totalOnStreet={filteredStats.totalOnStreet}  // NOVO
   receivedInPeriod={cashFlowStats.receivedInPeriod}
   interestReceived={cashFlowStats.interestReceived}
   onUpdateInitialBalance={handleUpdateCashFlowBalance}
@@ -128,68 +104,33 @@ const handleUpdateCashFlowBalance = async (value: number) => {
 
 ## Detalhes Técnicos
 
-### Migration SQL
-
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN IF NOT EXISTS cash_flow_initial_balance numeric DEFAULT 0;
-```
-
-### Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/reports/CashFlowCard.tsx` | Card principal do fluxo de caixa |
-| `src/components/reports/CashFlowConfigModal.tsx` | Modal para configurar saldo inicial |
-
 ### Arquivos a Modificar
 
 | Arquivo | Mudanças |
 |---------|----------|
-| `src/hooks/useProfile.ts` | Adicionar campo `cash_flow_initial_balance` na interface |
-| `src/pages/ReportsLoans.tsx` | Integrar componente de fluxo de caixa |
+| `src/components/reports/CashFlowCard.tsx` | Adicionar prop `totalOnStreet`, modificar célula de Saídas |
+| `src/pages/ReportsLoans.tsx` | Passar `filteredStats.totalOnStreet` para o componente |
 
-### Layout Visual do Card
+### Valores a Exibir
 
-```text
-+------------------------------------------------------------------+
-| 💰 Fluxo de Caixa                                    [⚙️ Editar] |
-+------------------------------------------------------------------+
-|                                                                   |
-| ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ |
-| │ 💵 Inicial  │  │ 📤 Saídas   │  │ 📥 Entradas │  │ 💰 Atual   │ |
-| │ R$ 20.000   │  │ R$ 15.000   │  │ R$ 8.500    │  │ R$ 13.500  │ |
-| │             │  │ emprestado  │  │ recebido    │  │ em caixa   │ |
-| └─────────────┘  └─────────────┘  └─────────────┘  └────────────┘ |
-|                                                                   |
-| ┌─────────────────────────────────────────────────────────────┐  |
-| │ 📈 Lucro no Período: R$ 2.000,00 (juros recebidos)          │  |
-| └─────────────────────────────────────────────────────────────┘  |
-+------------------------------------------------------------------+
-```
+| Métrica | Origem | Descrição |
+|---------|--------|-----------|
+| Saídas (período) | `filteredStats.totalLent` | Principal emprestado no período filtrado |
+| Capital na Rua | `filteredStats.totalOnStreet` | Principal pendente de TODOS empréstimos ativos |
+| Entradas | `filteredStats.totalReceived` | Pagamentos recebidos no período |
+| Caixa Atual | Cálculo | Inicial - Saídas do período + Entradas |
 
-### Fórmulas
+### Cores
 
-| Métrica | Fórmula |
-|---------|---------|
-| Caixa Atual | `Inicial - Emprestado + Recebido` |
-| Lucro | `Σ interest_paid dos pagamentos` |
-| Saídas | `Σ principal_amount dos empréstimos criados no período` |
-| Entradas | `Σ amount dos pagamentos recebidos no período` |
-
-### Comportamento com Filtros
-
-O fluxo de caixa respeita os filtros de período e tipo de pagamento já existentes:
-- Se filtrar por "Este mês", mostra apenas empréstimos/pagamentos do mês
-- Se filtrar por "Diário", mostra apenas contratos diários
-
-O saldo inicial é sempre o mesmo (configurado pelo usuário), mas as movimentações (emprestado/recebido) variam conforme o filtro.
+- **Saídas no período**: Vermelho (R$ -5.580)
+- **Capital na Rua**: Laranja (R$ 13.331,65)
+- **Entradas**: Verde
+- **Caixa Atual**: Verde se positivo, vermelho se negativo
 
 ## Benefícios
 
-1. **Controle de Capital**: Usuário sabe quanto dinheiro tem disponível
-2. **Planejamento**: Pode ver se o caixa está aumentando ou diminuindo
-3. **Lucro Visível**: Juros claramente separados do principal
-4. **Integração**: Usa dados que já existem (filteredStats), sem duplicação
-5. **Filtros**: Funciona com os filtros de período já existentes
+1. **Visão completa**: Usuário vê tanto o fluxo do período quanto a posição total
+2. **Contexto**: Entende que R$ 5.580 saíram no período, mas R$ 13.331 ainda estão emprestados no total
+3. **Sem confusão**: Valores claramente rotulados ("no período" vs "Na Rua")
+4. **Compacto**: Tudo no mesmo card, sem ocupar espaço extra
 
