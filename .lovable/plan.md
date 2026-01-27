@@ -1,197 +1,163 @@
 
-# Plano: Adicionar Filtro de Periodo no Relatorio de Vendas
+
+# Plano: Melhorar Filtro de Data no Relatorio de Emprestimos
 
 ## Visao Geral
-Adicionar um filtro de periodo (intervalo de datas) na pagina de Relatorio de Vendas (`ReportsSales.tsx`), igual ao que existe na pagina de Relatorio de Emprestimos, permitindo ao usuario analisar vendas de produtos e veiculos em periodos especificos.
+Melhorar a experiencia do filtro de datas na pagina de Relatorio de Emprestimos para:
+1. Mostrar instrucoes claras indicando qual data esta sendo selecionada (inicio vs. fim)
+2. Alterar o periodo padrao para o mes atual (em vez de 6 meses)
 
 ## Situacao Atual vs. Nova
 
 ```text
 ANTES (atual):
-┌──────────────────────────────────────────────────────────────────┐
-│  Relatório de Vendas                     [Última atualização]   │
-│  Produtos e Veículos                     [Atualizar]            │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ StatCards: Total Vendido, Recebido, Lucro, Em Atraso     │   │
-│  │ (mostra TODOS os dados, sem filtro de período)           │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ [📅 01/07/25 - 27/01/26]  [Limpar]                 │
+│                                                     │
+│ (Usuario clica no botao)                           │
+│ ┌───────────────────────────┐                      │
+│ │        Janeiro 2026       │                      │
+│ │  D  S  T  Q  Q  S  S      │                      │
+│ │        1  2  3  4  5      │ <-- Sem instrucao    │
+│ │  6  7  8  9  ...          │     do que fazer     │
+│ └───────────────────────────┘                      │
+└─────────────────────────────────────────────────────┘
 
 DEPOIS (proposto):
-┌──────────────────────────────────────────────────────────────────┐
-│  Relatório de Vendas                                             │
-│  Produtos e Veículos                                             │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ 📅 Período: [01/07/2025] - [27/01/2026] [✓]   [🔄] [📥]  │   │
-│  │                                                           │   │
-│  │    Atualizado: 14:30                                      │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ StatCards FILTRADOS pelo período selecionado             │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ [📅 01/01/26 - 27/01/26]  [Limpar]                 │
+│                           ^                        │
+│                   Mes atual como padrao            │
+│                                                     │
+│ (Usuario clica no botao)                           │
+│ ┌───────────────────────────────────────────────┐  │
+│ │ ┌─────────────────────────────────────────┐   │  │
+│ │ │ Selecione a data inicial               │   │  │
+│ │ │                            ou          │   │  │
+│ │ │ Selecione a data final                 │   │  │
+│ │ │ 01/01/2026 - 15/01/2026               │   │  │
+│ │ └─────────────────────────────────────────┘   │  │
+│ │        Janeiro 2026       │  Fevereiro 2026   │  │
+│ │  D  S  T  Q  Q  S  S      │  D  S  T  Q  ...  │  │
+│ │        [1] 2  3  4  5     │        ...        │  │
+│ │  6  7  8  9 [10]...       │                   │  │
+│ │                                               │  │
+│ │            [✓ Confirmar]                      │  │
+│ └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Campos de Data para Filtragem
+## Mudancas a Implementar
 
-| Tipo | Campo de Data | Descricao |
-|------|---------------|-----------|
-| Produtos | `sale_date` | Data da venda do produto |
-| Veiculos | `purchase_date` | Data da compra do veiculo |
-| Pagamentos de Produtos | `paid_date` | Data do pagamento (para "Recebido no Periodo") |
-| Pagamentos de Veiculos | `paid_date` | Data do pagamento (para "Recebido no Periodo") |
+### 1. Alterar Periodo Padrao para Mes Atual
 
-## Arquitetura das Metricas
-
-Seguindo o mesmo padrao de ReportsLoans, as metricas serao divididas em:
-
-### Metricas de Saldo (Estado Atual - NAO filtradas por periodo)
-- **Capital na Rua**: Total pendente de receber (todos os contratos ativos)
-- **Em Atraso**: Valor de parcelas vencidas nao pagas
-
-### Metricas de Fluxo (FILTRADAS pelo periodo selecionado)
-- **Vendido no Periodo**: Soma do valor total de vendas criadas no periodo
-- **Recebido no Periodo**: Soma dos pagamentos realizados no periodo
-- **Lucro no Periodo**: Vendido - Custo das vendas no periodo
-
-## Etapas de Implementacao
-
-### 1. Adicionar Estados de Filtro
-
-Adicionar estados para controlar o periodo selecionado:
+Modificar o estado inicial de `dateRange` para usar `startOfMonth(new Date())` e `new Date()`:
 
 ```typescript
+// ANTES
 const [dateRange, setDateRange] = useState<DateRange | undefined>({
-  from: subMonths(new Date(), 6),
+  from: subMonths(new Date(), 6),  // 6 meses atras
   to: new Date(),
+});
+
+// DEPOIS
+const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  from: startOfMonth(new Date()),  // Inicio do mes atual
+  to: new Date(),                  // Hoje
 });
 ```
 
-### 2. Importar o Componente PeriodFilter
+### 2. Adicionar Instrucoes no Popover do Calendario
 
-Reutilizar o componente `PeriodFilter` ja existente em `src/components/reports/PeriodFilter.tsx`.
+Adicionar um cabecalho informativo acima do calendario que mostra:
+- "Selecione a data inicial" quando nenhuma data esta selecionada
+- "Selecione a data final" quando apenas a data inicial foi selecionada
+- "Periodo selecionado" + as datas quando ambas estao selecionadas
 
-### 3. Criar Logica de Filtragem
+### 3. Adicionar Estado Temporario para Selecao
 
-Filtrar vendas e veiculos pelo periodo selecionado:
+Para mostrar as instrucoes corretamente, adicionar um estado temporario (`tempRange`) que:
+- Reseta quando o popover abre (para nova selecao do zero)
+- Permite ver o progresso da selecao antes de confirmar
+- So aplica ao estado real quando usuario confirma
 
-```typescript
-const filteredSales = useMemo(() => {
-  if (!sales || !dateRange?.from || !dateRange?.to) return sales || [];
-  
-  return sales.filter(sale => {
-    const saleDate = parseISO(sale.sale_date);
-    return isWithinInterval(saleDate, { 
-      start: startOfDay(dateRange.from!), 
-      end: endOfDay(dateRange.to!) 
-    });
-  });
-}, [sales, dateRange]);
+### 4. Adicionar Botao de Confirmacao
 
-const filteredVehicles = useMemo(() => {
-  if (!vehicles || !dateRange?.from || !dateRange?.to) return vehicles || [];
-  
-  return vehicles.filter(vehicle => {
-    const purchaseDate = parseISO(vehicle.purchase_date);
-    return isWithinInterval(purchaseDate, { 
-      start: startOfDay(dateRange.from!), 
-      end: endOfDay(dateRange.to!) 
-    });
-  });
-}, [vehicles, dateRange]);
-```
+Adicionar um botao "Confirmar" no rodape do popover para aplicar a selecao, similar ao PeriodFilter.tsx.
 
-### 4. Calcular Estatisticas Filtradas
+### 5. Mostrar 2 Meses no Calendario
 
-Atualizar os `useMemo` de `productStats` e `vehicleStats` para usar os dados filtrados:
-
-- **Vendido no Periodo**: Usar `filteredSales` e `filteredVehicles`
-- **Recebido no Periodo**: Filtrar pagamentos pela `paid_date` dentro do periodo
-- **Metricas de Saldo**: Manter usando todos os dados (como em ReportsLoans)
-
-### 5. Atualizar a UI
-
-- Substituir o header atual pelo componente `PeriodFilter`
-- Manter a funcionalidade de refresh existente
-- Adicionar opcao de exportar (futuro)
+Alterar `numberOfMonths={1}` para `numberOfMonths={2}` para facilitar selecao de periodos mais longos.
 
 ---
 
 ## Detalhes Tecnicos
 
-### Imports Adicionais
+### Novos Imports Necessarios
 
 ```typescript
-import { parseISO, startOfDay, endOfDay, isWithinInterval, subMonths } from 'date-fns';
-import { DateRange } from 'react-day-picker';
-import { PeriodFilter } from '@/components/reports/PeriodFilter';
+import { startOfMonth } from 'date-fns';
+import { Check } from 'lucide-react';
 ```
 
-### Estrutura dos StatCards
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ RESUMO GERAL (filtrado pelo período)                            │
-│                                                                  │
-│ [Vendido no Período]  [Recebido no Período]  [Lucro]  [Atraso] │
-└─────────────────────────────────────────────────────────────────┘
-
-Aba Produtos:
-┌─────────────────────────────────────────────────────────────────┐
-│ [Vendido]  [Custo]  [Lucro]  [Pendente]                        │
-│  (filtrado pelo período selecionado)                            │
-└─────────────────────────────────────────────────────────────────┘
-
-Aba Veículos:
-┌─────────────────────────────────────────────────────────────────┐
-│ [Vendido]  [Custo]  [Lucro]  [Pendente]                        │
-│  (filtrado pelo período selecionado)                            │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Calculo de Pagamentos no Periodo
-
-Para calcular "Recebido no Periodo" corretamente:
+### Estados Adicionais
 
 ```typescript
-const paymentsInPeriod = useMemo(() => {
-  let totalReceived = 0;
-  
-  // Product payments
-  productPayments?.forEach(payment => {
-    if (payment.status === 'paid' && payment.paid_date) {
-      const paidDate = parseISO(payment.paid_date);
-      if (dateRange?.from && dateRange?.to) {
-        if (isWithinInterval(paidDate, { 
-          start: startOfDay(dateRange.from), 
-          end: endOfDay(dateRange.to) 
-        })) {
-          totalReceived += Number(payment.amount);
-        }
-      }
-    }
-  });
-  
-  // Vehicle payments
-  vehiclePayments?.forEach(payment => {
-    if (payment.status === 'paid' && payment.paid_date) {
-      const paidDate = parseISO(payment.paid_date);
-      if (dateRange?.from && dateRange?.to) {
-        if (isWithinInterval(paidDate, { 
-          start: startOfDay(dateRange.from), 
-          end: endOfDay(dateRange.to) 
-        })) {
-          totalReceived += Number(payment.amount);
-        }
-      }
-    }
-  });
-  
-  return totalReceived;
-}, [productPayments, vehiclePayments, dateRange]);
+const [calendarOpen, setCalendarOpen] = useState(false);
+const [tempDateRange, setTempDateRange] = useState<DateRange | undefined>(dateRange);
+```
+
+### Logica do Popover
+
+```typescript
+const handleOpenChange = (open: boolean) => {
+  setCalendarOpen(open);
+  if (open) {
+    // Reset para comecar selecao do zero
+    setTempDateRange(undefined);
+  }
+};
+
+const handleConfirm = () => {
+  if (tempDateRange?.from) {
+    setDateRange({
+      from: tempDateRange.from,
+      to: tempDateRange.to || tempDateRange.from,
+    });
+  }
+  setCalendarOpen(false);
+};
+```
+
+### UI do Cabecalho Informativo
+
+```typescript
+<div className="p-3 border-b bg-muted/30">
+  <p className="text-sm text-muted-foreground">
+    {!tempDateRange?.from 
+      ? 'Selecione a data inicial' 
+      : !tempDateRange?.to 
+        ? 'Selecione a data final' 
+        : 'Periodo selecionado'}
+  </p>
+  {tempDateRange?.from && (
+    <p className="text-sm font-medium text-primary mt-1">
+      {format(tempDateRange.from, 'dd/MM/yyyy', { locale: ptBR })}
+      {tempDateRange.to && ` - ${format(tempDateRange.to, 'dd/MM/yyyy', { locale: ptBR })}`}
+    </p>
+  )}
+</div>
+```
+
+### Atualizar Botao "Limpar"
+
+O botao "Limpar" deve resetar para o mes atual (novo padrao):
+
+```typescript
+onClick={() => setDateRange({ 
+  from: startOfMonth(new Date()), 
+  to: new Date() 
+})}
 ```
 
 ---
@@ -200,13 +166,15 @@ const paymentsInPeriod = useMemo(() => {
 
 | Arquivo | Acao |
 |---------|------|
-| `src/pages/ReportsSales.tsx` | Adicionar filtro de periodo, estados de data, logica de filtragem e atualizar calculos |
+| `src/pages/ReportsLoans.tsx` | Atualizar periodo padrao, adicionar instrucoes no popover, implementar estado temporario e botao de confirmacao |
 
 ---
 
 ## Beneficios
 
-1. **Consistencia**: Mesma experiencia de filtragem que existe em Emprestimos
-2. **Analise Temporal**: Usuario pode analisar desempenho de vendas por periodo
-3. **Comparacao**: Permite comparar periodos diferentes facilmente
-4. **Visibilidade**: Entender melhor o fluxo de caixa em periodos especificos
+1. **Clareza**: Usuario sabe exatamente o que fazer ao selecionar datas
+2. **Feedback Visual**: Mostra as datas sendo selecionadas em tempo real
+3. **Consistencia**: Mesmo comportamento que o PeriodFilter usado em outras paginas
+4. **Padrao Util**: Mes atual e mais relevante para analise diaria do que 6 meses
+5. **Experiencia Melhorada**: Calendario maior (2 meses) facilita navegacao
+
