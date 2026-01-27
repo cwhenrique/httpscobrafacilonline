@@ -43,6 +43,7 @@ interface LoanWithClient {
   payment_type: string;
   installments: number;
   installment_dates: string[];
+  contract_date: string | null;
   start_date: string;
   due_date: string;
   total_interest: number;
@@ -85,7 +86,7 @@ async function fetchOperationalStats(): Promise<StatsData> {
     .from('loans')
     .select(`
       id, user_id, client_id, principal_amount, interest_rate, interest_type,
-      interest_mode, payment_type, installments, installment_dates, start_date,
+      interest_mode, payment_type, installments, installment_dates, contract_date, start_date,
       due_date, total_interest, total_paid, remaining_balance, status, notes,
       created_at, updated_at,
       client:clients(full_name, phone),
