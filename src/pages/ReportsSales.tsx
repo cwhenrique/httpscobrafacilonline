@@ -5,9 +5,7 @@ import { useVehicles, useVehiclePayments } from '@/hooks/useVehicles';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/calculations';
+import { formatCurrency } from '@/lib/calculations';
 import { 
   Package, 
   Car, 
@@ -15,18 +13,16 @@ import {
   AlertTriangle, 
   CheckCircle, 
   Clock,
-  RefreshCw,
   DollarSign,
   Percent,
   ShoppingBag,
   Truck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { subMonths, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PeriodFilter, PeriodType } from '@/components/reports/PeriodFilter';
 
 // Stat Card Component
 const StatCard = ({
@@ -80,11 +76,20 @@ export default function ReportsSales() {
   const [activeTab, setActiveTab] = useState('products');
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Period filter state - default last 6 months
+  const [startDate, setStartDate] = useState(() => subMonths(new Date(), 6));
+  const [endDate, setEndDate] = useState(() => new Date());
 
   const { sales, isLoading: salesLoading } = useProductSales();
   const { payments: productPayments } = useProductSalePayments();
   const { vehicles, isLoading: vehiclesLoading } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
+
+  const handlePeriodChange = (period: PeriodType, newStartDate: Date, newEndDate: Date) => {
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -92,46 +97,99 @@ export default function ReportsSales() {
     setIsRefreshing(false);
   };
 
-  // Product stats
-  const productStats = useMemo(() => {
-    if (!sales) return {
-      totalSold: 0,
-      totalCost: 0,
-      totalProfit: 0,
-      totalReceived: 0,
-      totalPending: 0,
-      totalOverdue: 0,
-      paidCount: 0,
-      overdueCount: 0,
-      activeCount: 0,
-      overdueSales: [],
-    };
+  // Filter sales by period
+  const filteredSales = useMemo(() => {
+    if (!sales) return [];
+    
+    return sales.filter((sale: any) => {
+      const saleDate = parseISO(sale.sale_date);
+      return isWithinInterval(saleDate, { 
+        start: startOfDay(startDate), 
+        end: endOfDay(endDate) 
+      });
+    });
+  }, [sales, startDate, endDate]);
 
+  // Filter vehicles by period
+  const filteredVehicles = useMemo(() => {
+    if (!vehicles) return [];
+    
+    return vehicles.filter((vehicle: any) => {
+      const purchaseDate = parseISO(vehicle.purchase_date);
+      return isWithinInterval(purchaseDate, { 
+        start: startOfDay(startDate), 
+        end: endOfDay(endDate) 
+      });
+    });
+  }, [vehicles, startDate, endDate]);
+
+  // Calculate payments received in period
+  const paymentsInPeriod = useMemo(() => {
+    let productReceived = 0;
+    let vehicleReceived = 0;
+    
+    productPayments?.forEach((payment: any) => {
+      if (payment.status === 'paid' && payment.paid_date) {
+        const paidDate = parseISO(payment.paid_date);
+        if (isWithinInterval(paidDate, { 
+          start: startOfDay(startDate), 
+          end: endOfDay(endDate) 
+        })) {
+          productReceived += Number(payment.amount);
+        }
+      }
+    });
+    
+    vehiclePayments?.forEach((payment: any) => {
+      if (payment.status === 'paid' && payment.paid_date) {
+        const paidDate = parseISO(payment.paid_date);
+        if (isWithinInterval(paidDate, { 
+          start: startOfDay(startDate), 
+          end: endOfDay(endDate) 
+        })) {
+          vehicleReceived += Number(payment.amount);
+        }
+      }
+    });
+    
+    return { productReceived, vehicleReceived, total: productReceived + vehicleReceived };
+  }, [productPayments, vehiclePayments, startDate, endDate]);
+
+  // Product stats (filtered by period for flow metrics)
+  const productStats = useMemo(() => {
+    // Flow metrics - filtered by period
     let totalSold = 0;
     let totalCost = 0;
-    let totalReceived = 0;
-    let paidCount = 0;
-    let overdueCount = 0;
-    let activeCount = 0;
-    const overdueSales: any[] = [];
-
-    sales.forEach((sale: any) => {
+    
+    filteredSales.forEach((sale: any) => {
       totalSold += Number(sale.total_amount);
       totalCost += Number(sale.cost_value || 0);
-      totalReceived += Number(sale.total_paid || 0);
+    });
 
+    // Balance metrics - ALL active data (not filtered)
+    let totalPending = 0;
+    let totalOverdue = 0;
+    let overdueCount = 0;
+    let activeCount = 0;
+    let paidCount = 0;
+    const overdueSales: any[] = [];
+
+    sales?.forEach((sale: any) => {
       if (sale.status === 'paid') {
         paidCount++;
       } else {
         activeCount++;
+        totalPending += Number(sale.remaining_balance || 0);
+        
         // Check if any payment is overdue
-        const hasOverdue = productPayments?.some(p => 
+        const hasOverdue = productPayments?.some((p: any) => 
           p.product_sale_id === sale.id && 
           p.status === 'pending' && 
           new Date(p.due_date) < new Date()
         );
         if (hasOverdue) {
           overdueCount++;
+          totalOverdue += Number(sale.remaining_balance);
           overdueSales.push(sale);
         }
       }
@@ -141,56 +199,52 @@ export default function ReportsSales() {
       totalSold,
       totalCost,
       totalProfit: totalSold - totalCost,
-      totalReceived,
-      totalPending: totalSold - totalReceived,
-      totalOverdue: overdueSales.reduce((sum, s) => sum + Number(s.remaining_balance), 0),
+      totalReceived: paymentsInPeriod.productReceived,
+      totalPending,
+      totalOverdue,
       paidCount,
       overdueCount,
       activeCount,
       overdueSales,
+      salesCount: filteredSales.length,
     };
-  }, [sales, productPayments]);
+  }, [filteredSales, sales, productPayments, paymentsInPeriod]);
 
-  // Vehicle stats
+  // Vehicle stats (filtered by period for flow metrics)
   const vehicleStats = useMemo(() => {
-    if (!vehicles) return {
-      totalSold: 0,
-      totalCost: 0,
-      totalProfit: 0,
-      totalReceived: 0,
-      totalPending: 0,
-      totalOverdue: 0,
-      paidCount: 0,
-      overdueCount: 0,
-      activeCount: 0,
-      overdueVehicles: [],
-    };
-
+    // Flow metrics - filtered by period
     let totalSold = 0;
     let totalCost = 0;
-    let totalReceived = 0;
-    let paidCount = 0;
-    let overdueCount = 0;
-    let activeCount = 0;
-    const overdueVehicles: any[] = [];
-
-    vehicles.forEach((vehicle: any) => {
+    
+    filteredVehicles.forEach((vehicle: any) => {
       totalSold += Number(vehicle.purchase_value);
       totalCost += Number(vehicle.cost_value || 0);
-      totalReceived += Number(vehicle.total_paid || 0);
+    });
 
+    // Balance metrics - ALL active data (not filtered)
+    let totalPending = 0;
+    let totalOverdue = 0;
+    let overdueCount = 0;
+    let activeCount = 0;
+    let paidCount = 0;
+    const overdueVehicles: any[] = [];
+
+    vehicles?.forEach((vehicle: any) => {
       if (vehicle.status === 'paid') {
         paidCount++;
       } else {
         activeCount++;
+        totalPending += Number(vehicle.remaining_balance || 0);
+        
         // Check if any payment is overdue
-        const hasOverdue = vehiclePayments?.some(p => 
+        const hasOverdue = vehiclePayments?.some((p: any) => 
           p.vehicle_id === vehicle.id && 
           p.status === 'pending' && 
           new Date(p.due_date) < new Date()
         );
         if (hasOverdue) {
           overdueCount++;
+          totalOverdue += Number(vehicle.remaining_balance);
           overdueVehicles.push(vehicle);
         }
       }
@@ -200,15 +254,16 @@ export default function ReportsSales() {
       totalSold,
       totalCost,
       totalProfit: totalSold - totalCost,
-      totalReceived,
-      totalPending: totalSold - totalReceived,
-      totalOverdue: overdueVehicles.reduce((sum, v) => sum + Number(v.remaining_balance), 0),
+      totalReceived: paymentsInPeriod.vehicleReceived,
+      totalPending,
+      totalOverdue,
       paidCount,
       overdueCount,
       activeCount,
       overdueVehicles,
+      vehiclesCount: filteredVehicles.length,
     };
-  }, [vehicles, vehiclePayments]);
+  }, [filteredVehicles, vehicles, vehiclePayments, paymentsInPeriod]);
 
   // Pie chart data
   const pieData = useMemo(() => {
@@ -224,49 +279,42 @@ export default function ReportsSales() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold font-display">Relatório de Vendas</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Produtos e Veículos
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-muted-foreground">
-              Última atualização: {format(lastUpdated, "HH:mm", { locale: ptBR })}
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="gap-2"
-            >
-              <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
-              Atualizar
-            </Button>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold font-display">Relatório de Vendas</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Produtos e Veículos
+          </p>
         </div>
+
+        {/* Period Filter */}
+        <PeriodFilter
+          period="custom"
+          startDate={startDate}
+          endDate={endDate}
+          onPeriodChange={handlePeriodChange}
+          onRefresh={handleRefresh}
+          lastUpdated={lastUpdated}
+        />
 
         {/* Combined Overview */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatCard
-            label="Total Vendido"
+            label="Vendido no Período"
             value={formatCurrency(productStats.totalSold + vehicleStats.totalSold)}
             icon={DollarSign}
             iconColor="text-primary"
             bgColor="bg-primary/10"
-            subtitle="Produtos + Veículos"
+            subtitle={`${productStats.salesCount + vehicleStats.vehiclesCount} vendas`}
           />
           <StatCard
-            label="Total Recebido"
-            value={formatCurrency(productStats.totalReceived + vehicleStats.totalReceived)}
+            label="Recebido no Período"
+            value={formatCurrency(paymentsInPeriod.total)}
             icon={CheckCircle}
             iconColor="text-emerald-500"
             bgColor="bg-emerald-500/10"
           />
           <StatCard
-            label="Lucro Total"
+            label="Lucro no Período"
             value={formatCurrency(productStats.totalProfit + vehicleStats.totalProfit)}
             icon={TrendingUp}
             iconColor="text-purple-500"
@@ -274,7 +322,7 @@ export default function ReportsSales() {
             subtitle="Vendido - Custo"
           />
           <StatCard
-            label="Em Atraso"
+            label="Em Atraso (Total)"
             value={formatCurrency(productStats.totalOverdue + vehicleStats.totalOverdue)}
             icon={AlertTriangle}
             iconColor="text-destructive"
@@ -339,12 +387,12 @@ export default function ReportsSales() {
           <TabsContent value="products" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard
-                label="Vendido"
+                label="Vendido no Período"
                 value={formatCurrency(productStats.totalSold)}
                 icon={ShoppingBag}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`${sales?.length || 0} vendas`}
+                subtitle={`${productStats.salesCount} vendas`}
               />
               <StatCard
                 label="Custo"
@@ -361,11 +409,12 @@ export default function ReportsSales() {
                 bgColor="bg-emerald-500/10"
               />
               <StatCard
-                label="Pendente"
+                label="Pendente (Total)"
                 value={formatCurrency(productStats.totalPending)}
                 icon={Clock}
                 iconColor="text-yellow-500"
                 bgColor="bg-yellow-500/10"
+                subtitle="Todos ativos"
               />
             </div>
 
@@ -409,12 +458,12 @@ export default function ReportsSales() {
           <TabsContent value="vehicles" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard
-                label="Vendido"
+                label="Vendido no Período"
                 value={formatCurrency(vehicleStats.totalSold)}
                 icon={Truck}
                 iconColor="text-blue-500"
                 bgColor="bg-blue-500/10"
-                subtitle={`${vehicles?.length || 0} veículos`}
+                subtitle={`${vehicleStats.vehiclesCount} veículos`}
               />
               <StatCard
                 label="Custo"
@@ -431,11 +480,12 @@ export default function ReportsSales() {
                 bgColor="bg-emerald-500/10"
               />
               <StatCard
-                label="Pendente"
+                label="Pendente (Total)"
                 value={formatCurrency(vehicleStats.totalPending)}
                 icon={Clock}
                 iconColor="text-yellow-500"
                 bgColor="bg-yellow-500/10"
+                subtitle="Todos ativos"
               />
             </div>
 
