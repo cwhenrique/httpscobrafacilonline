@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
@@ -9,24 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Wifi, WifiOff, QrCode, RefreshCw, Unplug, Mic, MicOff, Timer, Smartphone, Link, Camera, FileText, Send } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Mic, MicOff, Info, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
-
-interface WhatsAppStatus {
-  connected: boolean;
-  status: string;
-  instanceName?: string;
-  phoneNumber?: string;
-  connectedAt?: string;
-  needsNewQR?: boolean;
-  waitingForScan?: boolean;
-  message?: string;
-}
 
 // Emails com acesso privilegiado ao assistente de voz (independente do plano)
 const VOICE_PRIVILEGED_EMAILS = [
@@ -36,6 +24,7 @@ const VOICE_PRIVILEGED_EMAILS = [
 
 export default function Settings() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { profile, isProfileComplete, updateProfile } = useProfile();
   const { isEmployee } = useEmployeeContext();
 
@@ -50,6 +39,7 @@ export default function Settings() {
     const plan = profile?.subscription_plan;
     return plan === 'monthly' || plan === 'annual';
   };
+  
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -59,23 +49,10 @@ export default function Settings() {
   });
   const [errors, setErrors] = useState<{ full_name?: string; phone?: string }>({});
   
-  // WhatsApp QR Code states
-  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppStatus | null>(null);
-  const [checkingStatus, setCheckingStatus] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [generatingQr, setGeneratingQr] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
-  const [sendToClientsEnabled, setSendToClientsEnabled] = useState(false);
+  // Voice assistant states
   const [voiceAssistantEnabled, setVoiceAssistantEnabled] = useState(false);
   const [togglingVoice, setTogglingVoice] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
-  const [qrTimeRemaining, setQrTimeRemaining] = useState(90);
-  const [qrExpired, setQrExpired] = useState(false);
-  const [reconnecting, setReconnecting] = useState(false);
-  const [resettingInstance, setResettingInstance] = useState(false);
-  const [sendingDailyTest, setSendingDailyTest] = useState(false);
-  
 
   useEffect(() => {
     if (profile) {
@@ -85,273 +62,9 @@ export default function Settings() {
         phone: formatPhone(profile.phone || ''),
         company_name: profile.company_name || '',
       });
-      setSendToClientsEnabled(profile.whatsapp_to_clients_enabled || false);
       setVoiceAssistantEnabled(profile.voice_assistant_enabled || false);
     }
   }, [profile, user]);
-
-  // Check WhatsApp status on mount
-  useEffect(() => {
-    if (user?.id) {
-      checkWhatsAppStatus();
-    }
-  }, [user?.id]);
-
-  // Poll for connection status when QR modal is open
-  useEffect(() => {
-    if (!showQrModal || !qrCode) return;
-    
-    const interval = setInterval(() => {
-      checkWhatsAppStatus().then(status => {
-        if (status?.connected) {
-          setShowQrModal(false);
-          setQrCode(null);
-          // Auto-enable send to clients when connected
-          setSendToClientsEnabled(true);
-          toast.success('WhatsApp conectado com sucesso!');
-        }
-      });
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [showQrModal, qrCode]);
-
-  // QR Code expiration timer - 90 seconds (more time for users to scan)
-  useEffect(() => {
-    if (!qrCode || generatingQr) return;
-    
-    setQrTimeRemaining(90);
-    setQrExpired(false);
-    
-    const timer = setInterval(() => {
-      setQrTimeRemaining(prev => {
-        if (prev <= 1) {
-          setQrExpired(true);
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [qrCode, generatingQr]);
-
-  const checkWhatsAppStatus = useCallback(async (attemptReconnect = false): Promise<WhatsAppStatus | null> => {
-    if (!user?.id) return null;
-    
-    setCheckingStatus(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-check-status', {
-        body: { userId: user.id, attemptReconnect }
-      });
-
-      if (error) {
-        console.error('Error checking WhatsApp status:', error);
-        return null;
-      }
-
-      setWhatsappStatus(data);
-      
-      // Notify user if connection was restored
-      if (attemptReconnect && data?.reconnected) {
-        toast.success('Conexão restaurada automaticamente!');
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Error checking status:', error);
-      return null;
-    } finally {
-      setCheckingStatus(false);
-    }
-  }, [user?.id]);
-
-  const handleReconnectWhatsApp = async () => {
-    if (!user?.id) return;
-    
-    setReconnecting(true);
-    toast.info('Tentando reconectar...');
-    
-    try {
-      const status = await checkWhatsAppStatus(true);
-      
-      if (status?.connected) {
-        toast.success('WhatsApp reconectado com sucesso!');
-      } else {
-        // If reconnect failed, offer to scan QR code again
-        toast.error('Não foi possível reconectar automaticamente. Tente escanear o QR Code novamente.');
-      }
-    } catch (error) {
-      console.error('Error reconnecting:', error);
-      toast.error('Erro ao tentar reconectar');
-    } finally {
-      setReconnecting(false);
-    }
-  };
-
-  const handleConnectWhatsApp = async () => {
-    if (!user?.id) return;
-    
-    setGeneratingQr(true);
-    setShowQrModal(true);
-    setQrCode(null); // Reset QR code state
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-create-instance', {
-        body: { userId: user.id }
-      });
-
-      if (error) {
-        console.error('Error from whatsapp-create-instance:', error);
-        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
-        // Keep modal open so user can try reset
-        return;
-      }
-
-      if (data.alreadyConnected) {
-        toast.success('WhatsApp já está conectado!');
-        setShowQrModal(false);
-        await checkWhatsAppStatus();
-        return;
-      }
-
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
-      } else if (data.error) {
-        console.error('QR Code error:', data.error);
-        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
-        // Keep modal open so user can try reset
-      } else {
-        toast.error('Não foi possível gerar o QR Code. Tente "Reiniciar Conexão".');
-        // Keep modal open so user can try reset
-      }
-    } catch (error) {
-      console.error('Error connecting WhatsApp:', error);
-      toast.error('Erro ao conectar WhatsApp');
-      // Keep modal open so user can try reset
-    } finally {
-      setGeneratingQr(false);
-    }
-  };
-
-  const handleRefreshQrCode = async (forceReset = false) => {
-    if (!user?.id) return;
-    
-    setGeneratingQr(true);
-    setQrExpired(false);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-get-qrcode', {
-        body: { userId: user.id, forceReset }
-      });
-
-      if (error) {
-        toast.error('Erro ao atualizar QR Code');
-        return;
-      }
-
-      if (data.alreadyConnected) {
-        toast.success('WhatsApp já está conectado!');
-        setShowQrModal(false);
-        await checkWhatsAppStatus();
-        return;
-      }
-
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
-        setQrTimeRemaining(90);
-      } else {
-        toast.error(data.error || 'Não foi possível gerar o QR Code');
-      }
-    } catch (error) {
-      console.error('Error refreshing QR:', error);
-      toast.error('Erro ao atualizar QR Code');
-    } finally {
-      setGeneratingQr(false);
-    }
-  };
-
-  const handleResetInstance = async () => {
-    if (!user?.id) return;
-    
-    setResettingInstance(true);
-    toast.info('Recriando instância do WhatsApp... Isso pode levar alguns segundos.');
-    
-    try {
-      // Force reset - deletes old instance and creates a brand new one
-      const { data, error } = await supabase.functions.invoke('whatsapp-force-reset', {
-        body: { userId: user.id }
-      });
-
-      if (error) {
-        console.error('Error force resetting instance:', error);
-        toast.error('Erro ao recriar instância');
-        return;
-      }
-
-      if (data.success && data.qrCode) {
-        setQrCode(data.qrCode);
-        setShowQrModal(true);
-        toast.success('Instância recriada! Escaneie o novo QR Code.');
-      } else if (data.success) {
-        toast.success(data.message || 'Instância recriada!');
-        // Try to get QR code
-        await handleConnectWhatsApp();
-      } else {
-        toast.error(data.error || 'Erro ao recriar instância');
-      }
-
-      // Refresh status
-      await checkWhatsAppStatus();
-    } catch (error) {
-      console.error('Error resetting instance:', error);
-      toast.error('Erro ao reiniciar instância');
-    } finally {
-      setResettingInstance(false);
-    }
-  };
-
-
-  const handleDisconnectWhatsApp = async () => {
-    if (!user?.id) return;
-    
-    setDisconnecting(true);
-    
-    try {
-      const { error } = await supabase.functions.invoke('whatsapp-disconnect', {
-        body: { userId: user.id }
-      });
-
-      if (error) {
-        toast.error('Erro ao desconectar WhatsApp');
-        return;
-      }
-
-      toast.success('WhatsApp desconectado');
-      setWhatsappStatus(null);
-      setSendToClientsEnabled(false);
-      await checkWhatsAppStatus();
-    } catch (error) {
-      console.error('Error disconnecting:', error);
-      toast.error('Erro ao desconectar');
-    } finally {
-      setDisconnecting(false);
-    }
-  };
-
-  const handleToggleSendToClients = async (enabled: boolean) => {
-    setSendToClientsEnabled(enabled);
-    
-    const { error } = await updateProfile({
-      whatsapp_to_clients_enabled: enabled,
-    });
-
-    if (error) {
-      toast.error('Erro ao salvar configuração');
-      setSendToClientsEnabled(!enabled);
-    }
-  };
 
   const handleToggleVoiceAssistant = async (enabled: boolean) => {
     if (!user?.id) return;
@@ -372,8 +85,6 @@ export default function Settings() {
           return;
         }
 
-        // Save preference in profile - no webhook configuration needed anymore
-        // The central CobraFácil number already has the webhook configured
         const { error: profileError } = await updateProfile({
           voice_assistant_enabled: true,
           ...(currentDigits ? {} : { phone: phoneToSave }),
@@ -450,55 +161,12 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
     }
   };
 
-  const handleTestDailySummary = async () => {
-    if (!profile?.phone) {
-      toast.error('Você precisa ter um telefone cadastrado');
-      return;
-    }
-    
-    setSendingDailyTest(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('daily-summary', {
-        body: { testPhone: profile.phone }
-      });
-      
-      if (error) throw error;
-      
-      toast.success('Relatório enviado! Verifique seu WhatsApp.');
-    } catch (error) {
-      console.error('Error sending daily test:', error);
-      toast.error('Erro ao enviar relatório de teste');
-    } finally {
-      setSendingDailyTest(false);
-    }
-  };
-
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
     if (numbers.length <= 11) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
-  };
-
-  const formatPhoneDisplay = (phone: string) => {
-    if (!phone) return '';
-    const numbers = phone.replace(/\D/g, '');
-    // Remove country code for display if present
-    const localNumber = numbers.startsWith('55') ? numbers.slice(2) : numbers;
-    if (localNumber.length === 11) {
-      return `(${localNumber.slice(0, 2)}) ${localNumber.slice(2, 7)}-${localNumber.slice(7)}`;
-    }
-    return phone;
-  };
-
-  const getConnectedDays = (connectedAt: string | undefined) => {
-    if (!connectedAt) return null;
-    const connected = new Date(connectedAt);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - connected.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
   };
 
   const validateForm = () => {
@@ -542,8 +210,6 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
     }
     setLoading(false);
   };
-
-  const isConnected = whatsappStatus?.connected === true;
 
   return (
     <DashboardLayout>
@@ -673,252 +339,42 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
           </Button>
         </form>
 
-        {/* WhatsApp para Clientes - New Simplified UI */}
-        <Card className="shadow-soft border-primary/20">
+        {/* WhatsApp para Clientes - Migração para Meu Perfil */}
+        <Card className="shadow-soft border-blue-500/20">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <MessageCircle className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <CardTitle>WhatsApp para Clientes</CardTitle>
-                  <CardDescription>
-                    Envie mensagens diretamente aos seus clientes pelo seu WhatsApp
-                  </CardDescription>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <MessageCircle className="w-5 h-5 text-green-500" />
               </div>
-              {checkingStatus ? (
-                <Badge variant="outline" className="bg-muted">
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Verificando...
-                </Badge>
-              ) : isConnected ? (
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                  <Wifi className="w-3 h-3 mr-1" />
-                  Conectado
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="bg-muted text-muted-foreground">
-                  <WifiOff className="w-3 h-3 mr-1" />
-                  Não Conectado
-                </Badge>
-              )}
+              <div>
+                <CardTitle>WhatsApp para Clientes</CardTitle>
+                <CardDescription>
+                  Envie mensagens diretamente aos seus clientes pelo seu WhatsApp
+                </CardDescription>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {isConnected ? (
-              <>
-                {/* Connected State */}
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-green-600">WhatsApp Conectado</p>
-                      {whatsappStatus?.phoneNumber && (
-                        <p className="text-sm text-muted-foreground">
-                          Número: {formatPhoneDisplay(whatsappStatus.phoneNumber)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {whatsappStatus?.connectedAt && (
-                    <p className="text-xs text-muted-foreground">
-                      Conectado há {getConnectedDays(whatsappStatus.connectedAt)} dias
-                    </p>
-                  )}
-                  <div className="mt-2 p-2 rounded bg-green-500/5 border border-green-500/10">
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                      <Wifi className="w-3 h-3" />
-                      Conexão persistente ativa - permanece conectado mesmo com navegador fechado
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div>
-                    <p className="font-medium text-sm">Enviar para clientes</p>
-                    <p className="text-xs text-muted-foreground">Permite enviar cobranças e comprovantes</p>
-                  </div>
-                  <Switch
-                    checked={sendToClientsEnabled}
-                    onCheckedChange={handleToggleSendToClients}
-                  />
-                </div>
-
-                {/* Test Daily Summary Button */}
-                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Testar Relatório Diário</p>
-                      <p className="text-xs text-muted-foreground">
-                        Receba o relatório de cobranças do dia no seu WhatsApp
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleTestDailySummary}
-                    disabled={sendingDailyTest}
-                    variant="outline"
-                    className="w-full mt-2 border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
-                  >
-                    {sendingDailyTest ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Enviar Relatório de Teste
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleResetInstance}
-                    disabled={resettingInstance}
-                    className="flex-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-                  >
-                    {resettingInstance ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Recriando...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Recriar Instância
-                      </>
-                    )}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleDisconnectWhatsApp}
-                    disabled={disconnecting}
-                    className="flex-1 text-destructive hover:text-destructive"
-                  >
-                    {disconnecting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Desconectando...
-                      </>
-                    ) : (
-                      <>
-                        <Unplug className="w-4 h-4 mr-2" />
-                        Desconectar
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Se sua conexão estiver instável ou desconectando, use "Recriar Instância" para gerar uma nova conexão.
-                </p>
-              </>
-            ) : (
-              <>
-                {/* Disconnected State */}
-                <div className="p-4 rounded-lg bg-muted/50 text-center">
-                  <QrCode className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                  <p className="font-medium mb-1">Conecte seu WhatsApp</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Escaneie um QR Code para conectar seu WhatsApp e enviar mensagens diretamente aos seus clientes.
+          <CardContent>
+            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-blue-600 mb-1">
+                    Esta funcionalidade foi movida
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                    <Button onClick={handleConnectWhatsApp} className="bg-green-600 hover:bg-green-700">
-                      <QrCode className="w-4 h-4 mr-2" />
-                      Conectar WhatsApp
-                    </Button>
-                    {whatsappStatus?.status === 'close' || whatsappStatus?.status === 'disconnected' ? (
-                      <Button 
-                        variant="outline" 
-                        onClick={handleReconnectWhatsApp}
-                        disabled={reconnecting}
-                      >
-                        {reconnecting ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Reconectando...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Tentar Reconectar
-                          </>
-                        )}
-                      </Button>
-                    ) : null}
-                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    A conexão e configuração do WhatsApp para enviar mensagens aos seus clientes agora está disponível na página <strong>Meu Perfil</strong>.
+                  </p>
+                  <Button 
+                    onClick={() => navigate('/profile')}
+                    className="gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Ir para Meu Perfil
+                  </Button>
                 </div>
-
-                {/* Status: connecting (waiting for QR scan) */}
-                {whatsappStatus?.status === 'connecting' && (
-                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                    <div className="flex items-start gap-2">
-                      <Loader2 className="w-4 h-4 text-blue-500 mt-0.5 shrink-0 animate-spin" />
-                      <div>
-                        <p className="text-sm font-medium text-blue-600">Aguardando leitura do QR Code...</p>
-                        <p className="text-xs text-muted-foreground">
-                          Escaneie o QR Code no WhatsApp do seu celular para conectar.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Status: close (connection lost) */}
-                {whatsappStatus?.status === 'close' && (
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-600">Conexão perdida</p>
-                        <p className="text-xs text-muted-foreground">
-                          Sua conexão anterior foi desconectada. Tente reconectar ou escaneie o QR Code novamente.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Button to reset instance if having problems */}
-                {(whatsappStatus?.needsNewQR || whatsappStatus?.status === 'connecting') && (
-                  <div className="flex justify-center">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleResetInstance}
-                      disabled={resettingInstance}
-                      className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-                    >
-                      {resettingInstance ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Reiniciando...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Reiniciar e Gerar Novo QR
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-
-                <p className="text-xs text-muted-foreground text-center">
-                  Com o WhatsApp conectado, você poderá enviar notificações de cobrança e comprovantes diretamente para os telefones dos seus clientes.
-                </p>
-              </>
-            )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1017,190 +473,6 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
           </EmployeeFeatureCard>
         )}
       </div>
-
-      {/* QR Code Modal */}
-      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <QrCode className="w-5 h-5 text-green-500" />
-              Escaneie o QR Code
-            </DialogTitle>
-            <DialogDescription>
-              Conecte seu WhatsApp para enviar mensagens aos clientes
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col items-center py-4">
-            {/* Timer and Progress Bar */}
-            {qrCode && !generatingQr && (
-              <div className="w-full mb-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Timer className={`w-4 h-4 ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-green-500'}`} />
-                    <span className={`text-sm font-medium ${qrExpired ? 'text-destructive' : qrTimeRemaining <= 15 ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                      {qrExpired ? 'QR Code expirado!' : `${qrTimeRemaining}s restantes`}
-                    </span>
-                  </div>
-                  {!qrExpired && (
-                    <span className="text-xs text-muted-foreground">Escaneie com calma</span>
-                  )}
-                </div>
-                <Progress 
-                  value={(qrTimeRemaining / 90) * 100} 
-                  className={`h-2 ${qrExpired ? '[&>div]:bg-destructive' : qrTimeRemaining <= 15 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
-                />
-              </div>
-            )}
-
-            {/* QR Code Display */}
-            {generatingQr ? (
-              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Gerando QR Code...</span>
-                </div>
-              </div>
-            ) : qrCode ? (
-              <div className="relative">
-                <div className={`p-4 bg-white rounded-lg transition-all ${qrExpired ? 'opacity-30 blur-sm' : ''}`}>
-                  <img 
-                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
-                    alt="QR Code" 
-                    className="w-56 h-56"
-                  />
-                </div>
-                
-                {/* Expired Overlay */}
-                {qrExpired && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg">
-                    <AlertCircle className="w-12 h-12 text-destructive mb-3" />
-                    <p className="font-medium text-destructive text-center">QR Code expirado!</p>
-                    <p className="text-sm text-muted-foreground text-center mt-1">Clique abaixo para gerar um novo</p>
-                    <Button 
-                      onClick={() => handleRefreshQrCode()}
-                      disabled={generatingQr}
-                      className="mt-4 bg-green-600 hover:bg-green-700"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Gerar Novo QR Code
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="w-72 flex flex-col items-center justify-center bg-muted rounded-lg p-6">
-                <AlertCircle className="w-12 h-12 text-destructive mb-3" />
-                <p className="text-foreground font-medium text-center mb-1">Erro ao gerar QR Code</p>
-                <p className="text-xs text-muted-foreground text-center mb-4">
-                  A instância pode estar travada. Tente as opções abaixo:
-                </p>
-                <div className="flex flex-col gap-2 w-full">
-                  <Button 
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRefreshQrCode()}
-                    disabled={generatingQr || resettingInstance}
-                    className="w-full"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Tentar Novamente
-                  </Button>
-                  <Button 
-                    variant="default"
-                    size="sm"
-                    onClick={handleResetInstance}
-                    disabled={generatingQr || resettingInstance}
-                    className="w-full bg-destructive hover:bg-destructive/90"
-                  >
-                    {resettingInstance ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Recriando...
-                      </>
-                    ) : (
-                      <>
-                        <Unplug className="w-4 h-4 mr-2" />
-                        Recriar Instância
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center mt-3">
-                  "Recriar Instância" resolve problemas persistentes
-                </p>
-              </div>
-            )}
-
-            {/* Instructions */}
-            {!qrExpired && (
-              <div className="mt-6 w-full space-y-3">
-                {/* Warning about device conflicts */}
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                    <p className="text-xs text-amber-600">
-                      <strong>Importante:</strong> Se você tiver outras sessões do WhatsApp Web ativas, feche-as primeiro para evitar desconexões.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="p-2 rounded-full bg-green-500/10">
-                    <Smartphone className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">1. Abra o WhatsApp</p>
-                    <p className="text-xs text-muted-foreground">No seu celular</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="p-2 rounded-full bg-green-500/10">
-                    <Link className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">2. Aparelhos conectados</p>
-                    <p className="text-xs text-muted-foreground">Menu ⋮ → Aparelhos conectados</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="p-2 rounded-full bg-green-500/10">
-                    <Camera className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">3. Escaneie este QR Code</p>
-                    <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e escaneie</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Connection Status */}
-            {!qrExpired && qrCode && !generatingQr && (
-              <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-green-500/10 text-green-600">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm font-medium">Aguardando conexão...</span>
-              </div>
-            )}
-
-            {/* Refresh Button (when not expired) */}
-            {!qrExpired && qrCode && !generatingQr && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => handleRefreshQrCode()}
-                disabled={generatingQr}
-                className="mt-3 text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Atualizar QR Code
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
