@@ -148,6 +148,7 @@ export function useLoans() {
   // Function to invalidate loans cache - all components using useLoans will be updated
   const invalidateLoans = () => {
     queryClient.invalidateQueries({ queryKey: ['loans'] });
+    queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
   };
 
   const createLoan = async (loan: {
