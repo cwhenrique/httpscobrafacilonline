@@ -1,180 +1,224 @@
 
-
-# Bloquear DevTools e Ferramentas de Inspeção
+# Fluxo de Caixa nos Relatórios de Empréstimos
 
 ## Resumo
 
-Implementar proteções no lado do cliente para dificultar o uso de DevTools, inspeção de elementos e outras ferramentas de edição de código no navegador.
+Adicionar uma funcionalidade de **Fluxo de Caixa** no relatório de empréstimos onde o usuário:
+1. Define um **saldo inicial** do caixa (ex: R$ 20.000)
+2. Vê o caixa **diminuir** quando novos empréstimos são criados
+3. Vê o caixa **aumentar** quando recebe pagamentos
+4. Acompanha o **lucro acumulado** (juros recebidos)
 
-## Importante Saber
+## Como Vai Funcionar
 
-Essas proteções são **barreiras de dificuldade**, não bloqueios absolutos. Usuários técnicos determinados podem encontrar formas de contornar. No entanto, para a maioria dos usuários, essas proteções são eficazes.
+### Visualização
 
-## Proteções a Implementar
+```text
++------------------------------------------------------------------+
+| 💰 FLUXO DE CAIXA                                    [Configurar] |
++------------------------------------------------------------------+
+| Caixa Inicial: R$ 20.000,00                                      |
++------------------+------------------+-----------------------------+
+| 📤 Emprestado   | 📥 Recebido      | 💵 Caixa Atual             |
+| R$ 15.000,00    | R$ 8.500,00      | R$ 13.500,00               |
+|                 | (+ R$ 2.000 juros)| (Lucro: R$ 2.000,00)       |
++------------------+------------------+-----------------------------+
+```
 
-### 1. Bloquear Clique Direito (Menu de Contexto)
-Impede o menu que aparece ao clicar com botão direito, que dá acesso a "Inspecionar Elemento".
+### Cálculo do Caixa
 
-### 2. Bloquear Atalhos de Teclado
-Desabilitar teclas e combinações que abrem DevTools:
-- **F12** - Abre DevTools diretamente
-- **Ctrl+Shift+I** - Abre DevTools
-- **Ctrl+Shift+J** - Abre Console
-- **Ctrl+Shift+C** - Seletor de elementos
-- **Ctrl+U** - Ver código fonte
-- **Ctrl+S** - Salvar página
+```
+Caixa Atual = Caixa Inicial 
+            - Σ (Principal emprestado no período)
+            + Σ (Pagamentos recebidos no período)
 
-### 3. Detectar Abertura do DevTools
-Monitorar mudanças no tamanho da janela ou tempo de execução para detectar quando DevTools é aberto.
+Lucro = Σ (Juros recebidos nos pagamentos)
+```
 
-### 4. Desabilitar Seleção de Texto
-Impedir seleção de texto em áreas sensíveis para dificultar cópia de código.
+## Alterações Necessárias
 
-### 5. Bloquear Arrastar Elementos
-Impedir drag de elementos da página.
+### 1. Adicionar coluna no banco de dados
 
-## Implementação
+**Tabela:** `profiles`
 
-### Novo Arquivo: `src/hooks/useDevToolsProtection.ts`
+**Nova coluna:**
+- `cash_flow_initial_balance` - numeric - Saldo inicial do caixa
+
+A coluna será adicionada via migration.
+
+### 2. Atualizar interface Profile
+
+**Arquivo:** `src/hooks/useProfile.ts`
+
+Adicionar o campo `cash_flow_initial_balance` na interface `Profile`:
 
 ```typescript
-import { useEffect } from 'react';
-
-export function useDevToolsProtection() {
-  useEffect(() => {
-    // Bloquear clique direito
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Bloquear atalhos de teclado
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F12
-      if (e.key === 'F12') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
-      if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key.toUpperCase())) {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+U (view source)
-      if (e.ctrlKey && e.key.toUpperCase() === 'U') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+S (save)
-      if (e.ctrlKey && e.key.toUpperCase() === 'S') {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Bloquear arrastar
-    const handleDragStart = (e: DragEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Adicionar listeners
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('dragstart', handleDragStart);
-
-    // Detectar DevTools (via debugger timing)
-    const detectDevTools = () => {
-      const start = performance.now();
-      debugger; // Pausa se DevTools estiver aberto
-      const end = performance.now();
-      if (end - start > 100) {
-        // DevTools detectado - pode redirecionar ou mostrar aviso
-        document.body.innerHTML = '<div style="...">Acesso não autorizado</div>';
-      }
-    };
-
-    // Executar detecção periodicamente (opcional)
-    // const interval = setInterval(detectDevTools, 1000);
-
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('dragstart', handleDragStart);
-      // clearInterval(interval);
-    };
-  }, []);
+export interface Profile {
+  // ... campos existentes ...
+  cash_flow_initial_balance: number | null;
 }
 ```
 
-### Atualizar: `src/App.tsx`
+### 3. Criar componente CashFlowCard
 
-Adicionar o hook no componente principal:
+**Novo Arquivo:** `src/components/reports/CashFlowCard.tsx`
+
+Componente que exibe:
+- Botão para configurar saldo inicial (abre modal)
+- Card com caixa inicial, emprestado no período, recebido, e caixa atual
+- Indicador de lucro (juros)
+- Gráfico de evolução do caixa
 
 ```typescript
-import { useDevToolsProtection } from '@/hooks/useDevToolsProtection';
-
-const App = () => {
-  useVisibilityControl();
-  useDevToolsProtection(); // Adicionar aqui
-  // ...
+interface CashFlowCardProps {
+  initialBalance: number;
+  loanedInPeriod: number;      // Principal emprestado no período
+  receivedInPeriod: number;    // Pagamentos recebidos
+  interestReceived: number;    // Juros recebidos (lucro)
+  onUpdateInitialBalance: (value: number) => void;
 }
 ```
 
-### Atualizar: `src/index.css`
+### 4. Criar modal de configuração
 
-Adicionar CSS para desabilitar seleção em áreas protegidas:
+**Novo Arquivo:** `src/components/reports/CashFlowConfigModal.tsx`
 
-```css
-/* Proteção anti-seleção */
-body {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
+Modal simples para o usuário definir o saldo inicial do caixa:
+- Input numérico para valor
+- Botão salvar (atualiza profile via useProfile)
 
-/* Permitir seleção em inputs e textareas */
-input, textarea, [contenteditable="true"] {
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-}
+### 5. Integrar no ReportsLoans
+
+**Arquivo:** `src/pages/ReportsLoans.tsx`
+
+**Mudanças:**
+
+1. Importar novos componentes:
+```typescript
+import { CashFlowCard } from '@/components/reports/CashFlowCard';
 ```
+
+2. Usar dados do profile para saldo inicial:
+```typescript
+const initialBalance = profile?.cash_flow_initial_balance || 0;
+```
+
+3. Calcular métricas de fluxo de caixa:
+```typescript
+const cashFlowStats = useMemo(() => {
+  // Principal emprestado no período (já existe em filteredStats.totalLent)
+  const loanedInPeriod = filteredStats.totalLent;
+  
+  // Pagamentos recebidos no período (já existe em filteredStats.totalReceived)
+  const receivedInPeriod = filteredStats.totalReceived;
+  
+  // Juros recebidos (já existe em filteredStats.realizedProfit)
+  const interestReceived = filteredStats.realizedProfit;
+  
+  // Caixa atual
+  const currentBalance = initialBalance - loanedInPeriod + receivedInPeriod;
+  
+  return {
+    initialBalance,
+    loanedInPeriod,
+    receivedInPeriod,
+    interestReceived,
+    currentBalance,
+  };
+}, [initialBalance, filteredStats]);
+```
+
+4. Adicionar o componente na UI (após os filtros, antes das estatísticas):
+```jsx
+<CashFlowCard
+  initialBalance={cashFlowStats.initialBalance}
+  loanedInPeriod={cashFlowStats.loanedInPeriod}
+  receivedInPeriod={cashFlowStats.receivedInPeriod}
+  interestReceived={cashFlowStats.interestReceived}
+  onUpdateInitialBalance={handleUpdateCashFlowBalance}
+/>
+```
+
+5. Função para atualizar saldo:
+```typescript
+const handleUpdateCashFlowBalance = async (value: number) => {
+  await updateProfile({ cash_flow_initial_balance: value });
+  toast.success('Saldo inicial atualizado!');
+};
+```
+
+### 6. Gráfico de Evolução do Caixa
+
+**Dentro do CashFlowCard:**
+
+Mostrar um pequeno gráfico de área mostrando a evolução do caixa ao longo do período selecionado:
+- Linha começando no saldo inicial
+- Cada empréstimo criado diminui
+- Cada pagamento recebido aumenta
 
 ## Detalhes Técnicos
 
-### Arquivo a Criar
-- `src/hooks/useDevToolsProtection.ts` - Hook com todas as proteções
+### Migration SQL
+
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS cash_flow_initial_balance numeric DEFAULT 0;
+```
+
+### Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/reports/CashFlowCard.tsx` | Card principal do fluxo de caixa |
+| `src/components/reports/CashFlowConfigModal.tsx` | Modal para configurar saldo inicial |
 
 ### Arquivos a Modificar
-- `src/App.tsx` - Adicionar chamada do hook
-- `src/index.css` - CSS de proteção anti-seleção
 
-### Proteções Implementadas
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/hooks/useProfile.ts` | Adicionar campo `cash_flow_initial_balance` |
+| `src/pages/ReportsLoans.tsx` | Integrar componente de fluxo de caixa |
 
-| Proteção | Método | Eficácia |
-|----------|--------|----------|
-| Clique direito | `contextmenu` event | Alta |
-| F12 | `keydown` event | Alta |
-| Ctrl+Shift+I/J/C | `keydown` event | Alta |
-| Ctrl+U | `keydown` event | Alta |
-| Arrastar elementos | `dragstart` event | Alta |
-| Seleção de texto | CSS `user-select` | Média |
-| Detectar DevTools | `debugger` timing | Média |
+### Layout Visual do Card
 
-### Considerações
+```text
++------------------------------------------------------------------+
+| 💰 Fluxo de Caixa                                    [⚙️ Editar] |
++------------------------------------------------------------------+
+|                                                                   |
+| ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ |
+| │ 💵 Inicial  │  │ 📤 Saídas   │  │ 📥 Entradas │  │ 💰 Atual   │ |
+| │ R$ 20.000   │  │ R$ 15.000   │  │ R$ 8.500    │  │ R$ 13.500  │ |
+| │             │  │ emprestado  │  │ recebido    │  │ em caixa   │ |
+| └─────────────┘  └─────────────┘  └─────────────┘  └────────────┘ |
+|                                                                   |
+| ┌─────────────────────────────────────────────────────────────┐  |
+| │ 📈 Lucro no Período: R$ 2.000,00 (juros recebidos)          │  |
+| └─────────────────────────────────────────────────────────────┘  |
++------------------------------------------------------------------+
+```
 
-1. **Inputs e campos de texto** continuarão funcionando normalmente para seleção/cópia
-2. **Apenas em produção**: O hook só ativará proteções quando `import.meta.env.PROD === true` para não atrapalhar desenvolvimento
-3. **Performance**: As proteções são leves e não impactam performance
+### Fórmulas
+
+| Métrica | Fórmula |
+|---------|---------|
+| Caixa Atual | `Inicial - Emprestado + Recebido` |
+| Lucro | `Σ interest_paid dos pagamentos` |
+| Saídas | `Σ principal_amount dos empréstimos criados` |
+| Entradas | `Σ amount dos pagamentos recebidos` |
+
+## Comportamento com Filtros
+
+O fluxo de caixa respeita os filtros de período e tipo de pagamento já existentes:
+- Se filtrar por "Este mês", mostra apenas empréstimos/pagamentos do mês
+- Se filtrar por "Diário", mostra apenas contratos diários
+
+O saldo inicial é sempre o mesmo (configurado pelo usuário), mas as movimentações (emprestado/recebido) variam conforme o filtro.
 
 ## Benefícios
 
-1. Dificulta usuários casuais de inspecionar código
-2. Impede cópia fácil de elementos visuais
-3. Protege contra tentativas básicas de manipulação
-4. Não interfere com uso normal do sistema
-5. Campos de formulário continuam funcionando normalmente
-
+1. **Controle de Capital**: Usuário sabe quanto dinheiro tem disponível
+2. **Planejamento**: Pode ver se o caixa está aumentando ou diminuindo
+3. **Lucro Visível**: Juros claramente separados do principal
+4. **Integração**: Usa dados que já existem, sem duplicação
+5. **Filtros**: Funciona com os filtros de período já existentes
