@@ -65,6 +65,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import IPTVDashboard from '@/components/iptv/IPTVDashboard';
 import IPTVPlanManager from '@/components/iptv/IPTVPlanManager';
 import IPTVSubscriptionForm from '@/components/iptv/IPTVSubscriptionForm';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -1731,90 +1734,168 @@ export default function ProductSales() {
                       </div>
                       {expandedContract === contract.id && contractPayments[contract.id] && (
                         <div className="mt-4 pt-4 border-t space-y-2">
-                          {contractPayments[contract.id].map((payment) => (
-                            <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
-                              payment.status === 'paid' ? 'bg-primary/10 text-primary' :
-                              isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
-                            )}>
-                              <div className="flex items-center">
-                                <span className="font-medium">{payment.installment_number}ª</span>
-                                {payment.status !== 'paid' ? (
-                                  <Popover 
-                                    open={editingPaymentDueDateId === payment.id} 
-                                    onOpenChange={(open) => {
-                                      if (open) {
-                                        setEditingPaymentDueDateId(payment.id);
-                                        setNewPaymentDueDate(parseISO(payment.due_date));
-                                      } else {
-                                        setEditingPaymentDueDateId(null);
-                                        setNewPaymentDueDate(undefined);
-                                      }
-                                    }}
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <span className="ml-2 cursor-pointer hover:underline hover:text-primary group inline-flex items-center gap-1 p-1 -m-1 rounded touch-manipulation">
-                                        {format(parseISO(payment.due_date), "dd/MM/yy")}
-                                        <Pencil className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-                                      </span>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <div className="p-3">
-                                        <p className="text-xs text-muted-foreground mb-2">
-                                          Alterar vencimento da {payment.installment_number}ª parcela
-                                        </p>
-                                        <CalendarComponent
-                                          mode="single"
-                                          selected={newPaymentDueDate}
-                                          onSelect={(date) => date && setNewPaymentDueDate(date)}
-                                          initialFocus
-                                          locale={ptBR}
-                                        />
-                                        <div className="flex gap-2 mt-3">
-                                          <Button
-                                            size="sm"
-                                            className="flex-1"
-                                            onClick={async () => {
-                                              if (newPaymentDueDate) {
-                                                await updatePaymentDueDate.mutateAsync({
-                                                  paymentId: payment.id,
-                                                  newDueDate: format(newPaymentDueDate, 'yyyy-MM-dd')
-                                                });
-                                                setEditingPaymentDueDateId(null);
-                                                // Reload contract payments
-                                                const updatedPayments = await getContractPayments(contract.id);
-                                                setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
-                                              }
-                                            }}
-                                          >
-                                            Salvar
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setEditingPaymentDueDateId(null)}
-                                          >
-                                            Cancelar
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ) : (
-                                  <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                          {contractPayments[contract.id].map((payment) => {
+                            const paymentDate = parseISO(payment.due_date);
+                            const isOverdue = payment.status !== 'paid' && isPast(paymentDate) && !isToday(paymentDate);
+                            const isDueToday = payment.status !== 'paid' && isToday(paymentDate);
+                            const isPending = payment.status !== 'paid' && !isPast(paymentDate);
+                            const daysOverdue = isOverdue ? Math.floor((new Date().getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                            const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
+                            const paidPaymentsCount = contractPayments[contract.id].filter(p => p.status === 'paid').length;
+                            
+                            return (
+                              <div key={payment.id} className="space-y-2">
+                                <div className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
+                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' :
+                                  isOverdue ? 'bg-destructive/10 text-destructive' : 
+                                  isDueToday ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400' : 'bg-muted'
+                                )}>
+                                  <div className="flex items-center">
+                                    <span className="font-medium">{payment.installment_number}ª</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Popover 
+                                        open={editingPaymentDueDateId === payment.id} 
+                                        onOpenChange={(open) => {
+                                          if (open) {
+                                            setEditingPaymentDueDateId(payment.id);
+                                            setNewPaymentDueDate(parseISO(payment.due_date));
+                                          } else {
+                                            setEditingPaymentDueDateId(null);
+                                            setNewPaymentDueDate(undefined);
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <span className="ml-2 cursor-pointer hover:underline hover:text-primary group inline-flex items-center gap-1 p-1 -m-1 rounded touch-manipulation">
+                                            {format(parseISO(payment.due_date), "dd/MM/yy")}
+                                            <Pencil className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                          </span>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <div className="p-3">
+                                            <p className="text-xs text-muted-foreground mb-2">
+                                              Alterar vencimento da {payment.installment_number}ª parcela
+                                            </p>
+                                            <CalendarComponent
+                                              mode="single"
+                                              selected={newPaymentDueDate}
+                                              onSelect={(date) => date && setNewPaymentDueDate(date)}
+                                              initialFocus
+                                              locale={ptBR}
+                                            />
+                                            <div className="flex gap-2 mt-3">
+                                              <Button
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={async () => {
+                                                  if (newPaymentDueDate) {
+                                                    await updatePaymentDueDate.mutateAsync({
+                                                      paymentId: payment.id,
+                                                      newDueDate: format(newPaymentDueDate, 'yyyy-MM-dd')
+                                                    });
+                                                    setEditingPaymentDueDateId(null);
+                                                    // Reload contract payments
+                                                    const updatedPayments = await getContractPayments(contract.id);
+                                                    setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
+                                                  }
+                                                }}
+                                              >
+                                                Salvar
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setEditingPaymentDueDateId(null)}
+                                              >
+                                                Cancelar
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    ) : (
+                                      <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
+                                    )}
+                                    {isOverdue && (
+                                      <Badge variant="destructive" className="ml-2 text-[10px] h-5">
+                                        {daysOverdue}d atraso
+                                      </Badge>
+                                    )}
+                                    {isDueToday && (
+                                      <Badge className="ml-2 text-[10px] h-5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                                        Vence Hoje
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openContractPaymentDialog(payment, contract)}>
+                                        <Check className="w-3 h-3" />
+                                      </Button>
+                                    ) : (
+                                      <Check className="w-4 h-4 text-primary" />
+                                    )}
+                                  </div>
+                                </div>
+                                {/* WhatsApp notification buttons for contracts */}
+                                {payment.status !== 'paid' && contract.client_phone && (
+                                  <div className="pl-2">
+                                    {isOverdue && (
+                                      <SendOverdueNotification
+                                        data={{
+                                          clientName: contract.client_name,
+                                          clientPhone: contract.client_phone,
+                                          contractType: 'contract',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: contract.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          daysOverdue: daysOverdue,
+                                          loanId: contract.id,
+                                          paidCount: paidPaymentsCount,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                    {isDueToday && (
+                                      <SendDueTodayNotification
+                                        data={{
+                                          clientName: contract.client_name,
+                                          clientPhone: contract.client_phone,
+                                          contractType: 'contract',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: contract.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          loanId: contract.id,
+                                          paidCount: paidPaymentsCount,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                    {isPending && (
+                                      <SendEarlyNotification
+                                        data={{
+                                          clientName: contract.client_name,
+                                          clientPhone: contract.client_phone,
+                                          contractType: 'contract',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: contract.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          daysUntilDue: daysUntilDue,
+                                          loanId: contract.id,
+                                          paidCount: paidPaymentsCount,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold">{formatCurrency(payment.amount)}</span>
-                                {payment.status !== 'paid' ? (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openContractPaymentDialog(payment, contract)}>
-                                    <Check className="w-3 h-3" />
-                                  </Button>
-                                ) : (
-                                  <Check className="w-4 h-4 text-primary" />
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </CardContent>
