@@ -460,7 +460,7 @@ export default function ReportsLoans() {
       return sum + (principal - totalPrincipalPaid);
     }, 0);
     
-    // Juros a Receber - CURRENT STATE (not filtered by period)
+    // Juros a Receber - FILTERED BY PERIOD (based on installment due dates)
     const pendingInterest = allActiveLoans.reduce((sum, loan) => {
       const principal = Number(loan.principal_amount);
       const remainingBalance = Number(loan.remaining_balance || 0);
@@ -469,20 +469,55 @@ export default function ReportsLoans() {
       const installments = Number(loan.installments) || 1;
       const interestMode = loan.interest_mode || 'per_installment';
       const isDaily = loan.payment_type === 'daily';
+      const installmentDates = (loan as any).installment_dates || [];
       
       const payments = (loan as any).payments || [];
       const interestPaid = payments.reduce((s: number, p: any) => 
         s + Number(p.interest_paid || 0), 0);
       
+      // Calculate interest per installment
+      let interestPerInstallment = 0;
       let totalInterest = 0;
+      
       if (isDaily) {
+        // For daily loans, total_interest is the installment value (principal + interest)
+        const dailyInstallment = Number(loan.total_interest) || 0;
+        const principalPerInstallment = principal / installments;
+        interestPerInstallment = dailyInstallment - principalPerInstallment;
         totalInterest = remainingBalance + totalPaid - principal;
+      } else if (interestMode === 'per_installment') {
+        // Interest charged per installment
+        interestPerInstallment = principal * (rate / 100);
+        totalInterest = interestPerInstallment * installments;
       } else {
-        totalInterest = interestMode === 'per_installment' 
-          ? principal * (rate / 100) * installments 
-          : principal * (rate / 100);
+        // Interest on total (divided across installments)
+        totalInterest = principal * (rate / 100);
+        interestPerInstallment = totalInterest / installments;
       }
       
+      // If period is selected and loan has installment dates, filter by due dates
+      if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
+        const startDate = startOfDay(dateRange.from);
+        const endDate = endOfDay(dateRange.to);
+        
+        // Count how many installments are already paid
+        const paidInstallmentsCount = interestPerInstallment > 0 
+          ? Math.min(Math.floor(interestPaid / interestPerInstallment), installments)
+          : 0;
+        
+        let interestInPeriod = 0;
+        installmentDates.forEach((dateStr: string, index: number) => {
+          const dueDate = parseISO(dateStr);
+          // Only count unpaid installments within the period
+          if (index >= paidInstallmentsCount && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+            interestInPeriod += interestPerInstallment;
+          }
+        });
+        
+        return sum + Math.max(0, interestInPeriod);
+      }
+      
+      // No period selected - show all pending interest (current state)
       return sum + Math.max(0, totalInterest - interestPaid);
     }, 0);
     
