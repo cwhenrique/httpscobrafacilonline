@@ -1,112 +1,113 @@
 
 
-# Corrigir Cálculo de "Juros a Receber" para Pagamentos Interest-Only
+# Adicionar Dois Cards de Juros nos Relatórios
 
-## Diagnóstico
+## Objetivo
 
-O empréstimo de R$ 10.000 teve um pagamento de **apenas juros** (R$ 2.000), marcado com a tag `[INTEREST_ONLY_PAYMENT]`. O cliente ainda deve:
-- **Principal**: R$ 10.000
-- **Juros futuros**: R$ 2.000 (quando a parcela vencer em 27/03)
+Separar a informação de juros em dois cards distintos para evitar confusão quando há pagamentos adiantados:
 
-O código atual calcula parcelas pagas assim:
-```typescript
-const paidInstallmentsCount = Math.floor(interestPaid / interestPerInstallment)
-// = Math.floor(2000 / 2000) = 1 parcela "paga"
-```
+1. **Juros Pendentes**: Juros contratuais que AINDA NÃO foram pagos (saldo real)
+2. **Juros no Período**: Juros das parcelas que VENCEM no período filtrado (agenda/previsão)
 
-Isso faz o sistema pensar que a parcela foi quitada, quando na verdade apenas os juros foram pagos antecipadamente.
+## Cenário Atual vs Esperado
 
-## Solução
-
-Mudar a lógica para considerar uma parcela como "paga" apenas quando **AMBOS** principal e juros foram pagos. Uma parcela com juros pagos mas principal pendente ainda deve contar os juros futuros a receber.
+| Métrica | Valor Atual | Valor Esperado |
+|---------|-------------|----------------|
+| Juros Pendentes | R$ 0,00 | R$ 0,00 (correto - você já recebeu) |
+| Juros no Período | N/A | R$ 2.000 (parcela vence em 27/03) |
 
 ## Alterações Necessárias
 
 ### Arquivo: `src/pages/ReportsLoans.tsx`
 
-**Linhas 503-515** - Modificar lógica de contagem de parcelas pagas:
+**1. Adicionar novo cálculo `interestInPeriod` (após linha 538):**
+
+Calcular os juros das parcelas que vencem no período, **independente de já terem sido pagos ou não**:
 
 ```typescript
-// If period is selected and loan has installment dates, filter by due dates
-if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
-  const startDate = startOfDay(dateRange.from);
-  const endDate = endOfDay(dateRange.to);
+// Juros das Parcelas no Período (agenda/previsão)
+const interestScheduledInPeriod = allActiveLoans.reduce((sum, loan) => {
+  // ...calcular interestPerInstallment igual ao pendingInterest...
   
-  // Get principal paid to determine truly paid installments
-  const principalPaid = payments.reduce((s: number, p: any) => 
-    s + Number(p.principal_paid || 0), 0);
-  
-  const principalPerInstallment = principal / installments;
-  
-  // An installment is only "fully paid" when both principal AND interest are paid
-  // For interest-only payments, the installment is NOT fully paid
-  const fullyPaidInstallments = principalPerInstallment > 0 
-    ? Math.min(Math.floor(principalPaid / principalPerInstallment), installments)
-    : 0;
-  
-  let interestInPeriod = 0;
-  installmentDates.forEach((dateStr: string, index: number) => {
-    const dueDate = parseISO(dateStr);
-    // Include interest for installments that are NOT fully paid and within period
-    if (index >= fullyPaidInstallments && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
-      // For this installment, calculate remaining interest
-      // If some interest was already paid but installment not fully paid,
-      // the remaining interest for this installment might be 0 or reduced
-      const installmentInterestPaid = index < fullyPaidInstallments + 1 
-        ? Math.max(0, interestPaid - (fullyPaidInstallments * interestPerInstallment))
-        : 0;
-      
-      const remainingInterestForInstallment = interestPerInstallment - installmentInterestPaid;
-      interestInPeriod += Math.max(0, remainingInterestForInstallment);
-    }
-  });
-  
-  return sum + Math.max(0, interestInPeriod);
-}
+  if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
+    let scheduledInterest = 0;
+    installmentDates.forEach((dateStr: string) => {
+      const dueDate = parseISO(dateStr);
+      if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+        // Incluir juros da parcela, MESMO SE JÁ PAGO
+        scheduledInterest += interestPerInstallment;
+      }
+    });
+    return sum + scheduledInterest;
+  }
+  return sum;
+}, 0);
 ```
 
-## Lógica Explicada
+**2. Adicionar `interestScheduledInPeriod` ao retorno de `filteredStats` (linha ~641):**
 
-| Situação | Parcela Quitada? | Juros a Receber |
-|----------|------------------|-----------------|
-| Principal pago + Juros pagos | Sim | R$ 0 |
-| Principal pago + Juros não pagos | Não* | Juros pendentes |
-| Principal não pago + Juros pagos | Não | R$ 0 (juros já recebidos) |
-| Principal não pago + Juros não pagos | Não | Juros da parcela |
+```typescript
+return {
+  totalOnStreet,
+  pendingInterest,        // Juros ainda não pagos
+  interestScheduledInPeriod, // Juros das parcelas no período (agenda)
+  // ...resto
+};
+```
 
-*Caso raro, mas possível
+**3. Modificar exibição dos cards (após linha ~1123):**
 
-## Resultado Esperado
+Substituir o card único de "Juros a Receber" por dois cards:
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Juros a Receber (jan-mai) | R$ 0,00 | R$ 0,00 |
-| Falta Receber | R$ 12.000 | R$ 12.000 |
+```tsx
+{/* Card 1: Juros Pendentes (saldo real) */}
+<StatCard
+  label="💰 Juros Pendentes"
+  value={formatCurrency(filteredStats.pendingInterest)}
+  icon={TrendingUp}
+  iconColor="text-primary"
+  tooltip="Juros contratuais que ainda NÃO foram pagos"
+/>
 
-**Nota importante**: Neste caso específico, o cliente já pagou os R$ 2.000 de juros da única parcela. Os "Juros a Receber" devem mostrar R$ 0 porque:
-- O empréstimo tem 1 parcela de R$ 12.000 (R$ 10k principal + R$ 2k juros)
-- Os juros dessa parcela (R$ 2.000) já foram pagos
-- O que resta são R$ 10.000 de **principal**, não de juros
+{/* Card 2: Juros no Período (agenda) */}
+<StatCard
+  label="📅 Juros no Período"
+  value={formatCurrency(filteredStats.interestScheduledInPeriod)}
+  icon={CalendarDays}
+  iconColor="text-blue-500"
+  tooltip="Juros das parcelas que vencem no período selecionado (mesmo que já pagos)"
+/>
+```
 
-Se o contrato gerasse **novos juros** sobre o principal pendente (juros compostos), aí sim haveria mais juros a receber. Mas como é juros simples "per_installment", os R$ 2.000 de juros já foram recebidos.
+## Resultado Visual
 
-## Interpretação do Cenário
+O relatório passará a mostrar:
 
-Talvez a confusão seja sobre o que significa "Juros a Receber":
+| Card | Valor | Significado |
+|------|-------|-------------|
+| Juros Pendentes | R$ 0,00 | O cliente já pagou os juros |
+| Juros no Período | R$ 2.000 | Em março você tem R$ 2k de juros programados |
 
-- **Juros a Receber**: Juros contratuais ainda não pagos
-- **Falta Receber**: Total restante (principal + juros pendentes)
+## Alternativa Simplificada
 
-No seu caso:
-- Juros contratuais: R$ 2.000 → **Já pagos** ✓
-- Principal: R$ 10.000 → **Pendente**
-- Falta Receber: R$ 12.000 (remaining_balance que inclui o principal + estrutura do sistema)
+Se preferir manter apenas um card, podemos mostrar ambos os valores no mesmo card com um tooltip expandido:
 
-O remaining_balance de R$ 12.000 parece incorreto - deveria ser R$ 10.000 após o pagamento de juros. Isso pode ser um bug no trigger de atualização.
+```tsx
+<StatCard
+  label="💰 Juros a Receber"
+  value={formatCurrency(filteredStats.pendingInterest)}
+  secondaryValue={`Agenda: ${formatCurrency(filteredStats.interestScheduledInPeriod)}`}
+  tooltip="Pendente: juros não pagos | Agenda: juros das parcelas no período"
+/>
+```
 
 ## Arquivos Modificados
 
 | Arquivo | Alterações |
 |---------|------------|
-| `src/pages/ReportsLoans.tsx` | Usar `principal_paid` para determinar parcelas quitadas |
+| `src/pages/ReportsLoans.tsx` | Adicionar cálculo de `interestScheduledInPeriod` e novo card |
+
+## Notas Técnicas
+
+A lógica atual de `pendingInterest` está correta: ela calcula juros ainda NÃO pagos. O problema é que faltava uma métrica separada para mostrar "o que vence no período" (independente de pagamento).
 
