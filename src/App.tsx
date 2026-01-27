@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import { useVisibilityControl } from "@/hooks/useVisibilityControl";
+import { useDevToolsProtection } from "@/hooks/useDevToolsProtection";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
@@ -49,6 +50,7 @@ const queryClient = new QueryClient({
 
 const App = () => {
   useVisibilityControl();
+  useDevToolsProtection();
   
   return (
   <QueryClientProvider client={queryClient}>
