@@ -76,21 +76,31 @@ export function ProfileSetupModal({ open, onComplete }: ProfileSetupModalProps) 
 
     setLoading(true);
     
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        full_name: formData.full_name.trim(),
-        phone: formData.phone.replace(/\D/g, ''),
-        company_name: formData.company_name.trim() || null,
-      })
-      .eq('id', user.id);
+    try {
+      // Usar edge function para atualização auditada
+      const { data, error } = await supabase.functions.invoke('update-profile-audited', {
+        body: {
+          updates: {
+            full_name: formData.full_name.trim(),
+            phone: formData.phone.replace(/\D/g, ''),
+            company_name: formData.company_name.trim() || null,
+          },
+          userAgent: navigator.userAgent,
+        },
+      });
 
-    if (error) {
+      if (error || data?.error) {
+        console.error('Error updating profile:', error || data?.error);
+        toast.error('Erro ao salvar perfil');
+      } else {
+        toast.success('Perfil configurado com sucesso!');
+        onComplete();
+      }
+    } catch (err) {
+      console.error('Exception updating profile:', err);
       toast.error('Erro ao salvar perfil');
-    } else {
-      toast.success('Perfil configurado com sucesso!');
-      onComplete();
     }
+    
     setLoading(false);
   };
 

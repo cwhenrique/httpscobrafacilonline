@@ -78,16 +78,30 @@ export function useProfile() {
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { error: new Error('User not authenticated') };
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id);
+    try {
+      // Usar edge function para atualização auditada
+      const { data, error } = await supabase.functions.invoke('update-profile-audited', {
+        body: {
+          updates,
+          userAgent: navigator.userAgent,
+        },
+      });
 
-    if (!error) {
+      if (error) {
+        console.error('Error updating profile via edge function:', error);
+        return { error };
+      }
+
+      if (data?.error) {
+        return { error: new Error(data.error) };
+      }
+
       await fetchProfile();
+      return { error: null };
+    } catch (err) {
+      console.error('Exception updating profile:', err);
+      return { error: err as Error };
     }
-
-    return { error };
   };
 
   return {
