@@ -80,7 +80,7 @@ export function CashFlowCard({
                   <div className="flex items-center justify-center gap-1.5 mb-2">
                     <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
                     <span className="text-sm sm:text-base text-muted-foreground font-medium">Inicial</span>
-                    <Pencil className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <Pencil className="w-4 h-4 text-blue-500" />
                   </div>
                   <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-500 tracking-tight">
                     {formatCurrency(initialBalance)}
