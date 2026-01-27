@@ -234,12 +234,22 @@ export default function ReportsLoans() {
         const paidInstallments = installmentDetails.filter(i => i.status === 'paid').length;
         const overdueInstallments = installmentDetails.filter(i => i.status === 'overdue').length;
         
-        // Calculate total interest
-        const totalInterestCalc = isDaily
-          ? (Number(loan.remaining_balance) + Number(loan.total_paid || 0)) - Number(loan.principal_amount)
-          : loan.interest_mode === 'per_installment'
-            ? Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments
-            : Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
+        // Calculate total interest - prioritize stored value from database
+        let totalInterestCalc: number;
+        if (isDaily) {
+          totalInterestCalc = (Number(loan.remaining_balance) + Number(loan.total_paid || 0)) - Number(loan.principal_amount);
+        } else if (loan.total_interest && Number(loan.total_interest) > 0) {
+          // Usar o valor já calculado e armazenado no banco
+          totalInterestCalc = Number(loan.total_interest);
+        } else if (loan.interest_mode === 'per_installment') {
+          totalInterestCalc = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100) * numInstallments;
+        } else if (loan.interest_mode === 'compound') {
+          // Juros compostos: M = P × (1 + i)^n - P
+          totalInterestCalc = Number(loan.principal_amount) * Math.pow(1 + (Number(loan.interest_rate) / 100), numInstallments) - Number(loan.principal_amount);
+        } else {
+          // on_total
+          totalInterestCalc = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
+        }
         
         // Determine status - now correctly includes 'paid'
         const loanIsOverdue = isLoanOverdue(loan);
