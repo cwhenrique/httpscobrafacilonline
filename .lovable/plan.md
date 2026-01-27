@@ -1,170 +1,147 @@
 
 
-# Redesign do Fluxo de Caixa - UI/UX Melhorado
+# Tornar o Saldo Inicial Editável e Visível
 
 ## Problema Atual
 
-Analisando a screenshot e o código:
-- Números com `text-sm` (14px) e `text-base` (16px) - muito pequenos
-- Cards apertados com `p-3` (12px de padding)
-- Ícones pequenos (`w-4 h-4`)
-- Labels com `text-xs` (12px) difíceis de ler
-- Informação "Na Rua" escondida dentro do card de Saídas
+O botão de configurar saldo inicial:
+- Está escondido no canto superior direito
+- O texto "Configurar" desaparece no mobile (só mostra ícone)
+- Não é intuitivo que é para editar o saldo inicial
+- Usuário pode não perceber que pode alterar o saldo quando adquire mais capital
 
 ## Solução Proposta
 
-### Layout Reimaginado
+Tornar o card **"Inicial"** clicável diretamente, com indicadores visuais de que é editável:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  💰 Fluxo de Caixa                                        ⚙️ Configurar     │
+│  💰 Fluxo de Caixa                                                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐               │
-│  │   INICIAL     │    │    SAÍDAS     │    │   ENTRADAS    │               │
-│  │               │ → │               │ → │               │               │
-│  │ R$ 20.000,00  │    │ R$ 10.000,00  │    │ R$ 2.000,00   │               │
-│  │   (azul)      │    │   (vermelho)  │    │   (verde)     │               │
-│  └───────────────┘    └───────────────┘    └───────────────┘               │
-│                                                                             │
-│                            ═══════════════                                  │
-│                                  ↓                                          │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                         SALDO ATUAL                                  │   │
-│  │                      R$ 12.000,00                                    │   │
-│  │                        (destaque)                                    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│  ┌────────────────────────────┐  ┌────────────────────────────────────┐    │
-│  │  📊 Capital na Rua         │  │  📈 Lucro no Período               │    │
-│  │     R$ 10.000,00           │  │     R$ 2.000,00                    │    │
-│  └────────────────────────────┘  └────────────────────────────────────┘    │
+│  ┌───────────────────┐    ┌───────────────┐    ┌───────────────┐           │
+│  │   🐷 INICIAL      │    │    SAÍDAS     │    │   ENTRADAS    │           │
+│  │                   │    │               │    │               │           │
+│  │  R$ 20.000,00     │ → │ R$ 10.000,00  │ → │ R$ 2.000,00   │           │
+│  │                   │    │               │    │               │           │
+│  │  ✏️ Toque para    │    │               │    │               │           │
+│  │     editar        │    │               │    │               │           │
+│  └───────────────────┘    └───────────────┘    └───────────────┘           │
+│       ↑ Clicável!                                                           │
+│         (borda azul + hover effect + ícone de edição)                       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Mudanças de Design
+## Mudanças de Design
 
 | Elemento | Antes | Depois |
 |----------|-------|--------|
-| Valores principais | `text-sm sm:text-base` (14-16px) | `text-xl sm:text-2xl lg:text-3xl` (20-30px) |
-| Labels | `text-xs` (12px) | `text-sm sm:text-base` (14-16px) |
-| Ícones | `w-4 h-4` (16px) | `w-5 h-5 sm:w-6 sm:h-6` (20-24px) |
-| Padding cards | `p-3` (12px) | `p-4 sm:p-5` (16-20px) |
-| Gap entre cards | `gap-3` (12px) | `gap-4` (16px) |
-| Card Atual | Inline com outros | Destacado abaixo, largura total |
-
-### Hierarquia Visual
-
-1. **Primeiro nível**: Saldo Atual (maior destaque - é o que importa)
-2. **Segundo nível**: Fluxo (Inicial → Saídas → Entradas)
-3. **Terceiro nível**: Métricas complementares (Capital na Rua, Lucro)
-
-### Indicadores de Fluxo
-
-Adicionar setas visuais (`→`) entre os cards para indicar o fluxo do dinheiro:
-- Inicial → menos Saídas → mais Entradas = Atual
+| Card Inicial | Estático | Clicável com hover e cursor pointer |
+| Indicador visual | Nenhum | Borda tracejada + ícone de lápis |
+| Botão Configurar | Header do card | Removido (ação no próprio card) |
+| Feedback hover | Nenhum | Escala + brilho + tooltip |
+| Estado vazio | Mensagem de texto | Card com CTA visual forte |
 
 ## Alterações Técnicas
 
 ### Arquivo: `src/components/reports/CashFlowCard.tsx`
 
-**1. Aumentar tamanho dos valores (linhas 68, 80, 103, 124):**
+**1. Remover botão de configurar do header (linhas 49-57):**
+
+O header fica mais limpo, apenas com título.
+
+**2. Tornar card "Inicial" interativo (linhas 63-71):**
 
 ```tsx
-// Antes
-<p className="text-sm sm:text-base font-bold">
-
-// Depois  
-<p className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
-```
-
-**2. Aumentar labels (linhas 66, 77, 101, 118):**
-
-```tsx
-// Antes
-<span className="text-xs text-muted-foreground">
-
-// Depois
-<span className="text-sm sm:text-base text-muted-foreground font-medium">
-```
-
-**3. Aumentar ícones (linhas 65, 76, 100, 117):**
-
-```tsx
-// Antes
-<PiggyBank className="w-4 h-4" />
-
-// Depois
-<PiggyBank className="w-5 h-5 sm:w-6 sm:h-6" />
-```
-
-**4. Melhorar padding dos cards (linha 63, 74, 98, 110):**
-
-```tsx
-// Antes
-<div className="bg-muted/50 rounded-lg p-3">
-
-// Depois
-<div className="bg-muted/50 rounded-xl p-4 sm:p-5">
-```
-
-**5. Reformular layout geral:**
-
-```tsx
-<CardContent className="pt-4 space-y-4">
-  {/* Linha do fluxo: Inicial → Saídas → Entradas */}
-  <div className="grid grid-cols-3 gap-2 sm:gap-4">
-    {/* Cards com setas entre eles em desktop */}
+{/* Caixa Inicial - CLICÁVEL */}
+<button
+  onClick={() => setConfigOpen(true)}
+  className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl p-3 sm:p-4 
+             text-center border-2 border-dashed border-blue-500/30 
+             hover:border-blue-500/50 transition-all duration-200
+             cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
+>
+  <div className="flex items-center justify-center gap-1.5 mb-2">
+    <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+    <span className="text-sm sm:text-base text-muted-foreground font-medium">
+      Inicial
+    </span>
+    {/* Ícone de edição que aparece no hover */}
+    <Pencil className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 
+                       transition-opacity" />
   </div>
-  
-  {/* Card destacado: Saldo Atual */}
-  <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 
-                  rounded-xl p-5 sm:p-6 border-2 border-emerald-500/30">
-    <div className="text-center">
-      <span className="text-base sm:text-lg text-muted-foreground">Saldo Atual</span>
-      <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-emerald-500">
-        {formatCurrency(currentBalance)}
-      </p>
+  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-500 tracking-tight">
+    {formatCurrency(initialBalance)}
+  </p>
+  {/* Hint sutil */}
+  <p className="text-xs text-blue-500/60 mt-1 opacity-0 group-hover:opacity-100 
+                transition-opacity">
+    Clique para editar
+  </p>
+</button>
+```
+
+**3. Estado vazio mais destacado (quando saldo = 0):**
+
+```tsx
+{initialBalance === 0 ? (
+  <button
+    onClick={() => setConfigOpen(true)}
+    className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl p-3 sm:p-4 
+               text-center border-2 border-dashed border-blue-500/50 
+               animate-pulse cursor-pointer"
+  >
+    <div className="flex items-center justify-center gap-1.5 mb-2">
+      <PiggyBank className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+      <span className="text-sm sm:text-base text-blue-500 font-medium">
+        Definir Saldo Inicial
+      </span>
     </div>
-  </div>
-  
-  {/* Linha de métricas: Capital na Rua | Lucro */}
-  <div className="grid grid-cols-2 gap-3">
-    {/* Cards menores mas ainda legíveis */}
-  </div>
-</CardContent>
+    <p className="text-lg sm:text-xl font-bold text-blue-500">
+      + Adicionar
+    </p>
+  </button>
+) : (
+  // Card normal editável
+)}
 ```
 
-**6. Adicionar indicadores de seta entre cards (desktop):**
+**4. Adicionar ícone Pencil nos imports (linha 5):**
 
 ```tsx
-{/* Seta visual entre cards */}
-<div className="hidden sm:flex items-center justify-center">
-  <ChevronRight className="w-6 h-6 text-muted-foreground/50" />
-</div>
+import { ..., Pencil } from 'lucide-react';
 ```
+
+**5. Remover mensagem de dica antiga (linhas 161-165):**
+
+Não precisa mais pois o CTA visual já é óbvio.
 
 ## Resultado Visual Esperado
 
-| Métrica | Tamanho Visual |
-|---------|----------------|
-| Saldo Atual | **Extra grande** (destaque principal) |
-| Inicial, Saídas, Entradas | Grande (fácil leitura) |
-| Capital na Rua, Lucro | Médio (informação complementar) |
+### Estado Normal (com saldo configurado):
+- Card "Inicial" com borda tracejada azul
+- Efeito de escala no hover
+- Ícone de lápis aparece no hover
+- Texto "Clique para editar" aparece no hover
+
+### Estado Vazio (sem saldo configurado):
+- Card pulsando suavemente (chamando atenção)
+- Borda tracejada mais visível
+- Texto "Definir Saldo Inicial" + "+ Adicionar"
+- Impossível não notar!
 
 ## Benefícios
 
-- **Números 2-3x maiores** - fácil leitura à distância
-- **Hierarquia clara** - saldo atual em destaque
-- **Fluxo visual** - entender de onde vem e para onde vai
-- **Responsivo** - funciona bem em mobile e desktop
-- **Espaçoso** - menos informação apertada
+- **Descobribilidade**: Usuário intuitivamente entende que pode clicar
+- **Feedback visual**: Hover states claros
+- **CTA forte**: Estado vazio com animação chama atenção
+- **Mobile-friendly**: Área de toque grande (o card inteiro)
+- **Menos clutter**: Remove botão do header, mais limpo
 
 ## Arquivo Modificado
 
 | Arquivo | Alterações |
 |---------|------------|
-| `src/components/reports/CashFlowCard.tsx` | Redesign completo com tamanhos maiores e layout melhorado |
+| `src/components/reports/CashFlowCard.tsx` | Card Inicial clicável, remover botão header, adicionar estados visuais |
 
