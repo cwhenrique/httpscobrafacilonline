@@ -1,179 +1,242 @@
 
-# Exibir Botoes de Cobranca WhatsApp Direto no Card de Contrato
 
-## Problema Identificado
+# Melhorias para a Seção de Contratos
 
-Atualmente, os botoes de cobranca via WhatsApp para contratos so aparecem quando o usuario expande a secao de parcelas. O usuario precisa clicar em "Parcelas" para ver e usar os botoes de cobranca. Isso e diferente do comportamento nos emprestimos, onde os botoes ficam visiveis diretamente no card.
+## Análise da Situação Atual
 
-## Solucao Proposta
+A seção de Contratos atualmente possui funcionalidades básicas, mas está menos desenvolvida comparada aos Empréstimos e Produtos. Identificamos várias oportunidades de melhoria:
 
-Adicionar os botoes de cobranca WhatsApp diretamente no card do contrato, sem precisar expandir as parcelas. Os botoes serao exibidos com base no status da proxima parcela pendente:
+### O que já existe:
+- Criação de contratos com cliente, tipo, valor, parcelas e primeiro vencimento
+- Frequência mensal (única opção disponível atualmente no formulário)
+- Botões de cobrança WhatsApp (recém implementados)
+- Edição básica (apenas nome do cliente e observações)
+- Listagem de parcelas com pagamento
 
-- **Parcela em Atraso**: Botao "Enviar Cobranca" vermelho
-- **Vence Hoje**: Botao "Cobrar Hoje" amarelo  
-- **Pendente (futura)**: Botao "Cobrar Antes do Prazo" outline
+### O que está faltando (comparando com Empréstimos e Produtos):
 
-## Layout Visual Proposto
+| Funcionalidade | Empréstimos | Produtos | Contratos |
+|----------------|-------------|----------|-----------|
+| Semanal/Quinzenal | ✅ | ✅ | ❌ |
+| Data do contrato | ✅ | ✅ | ❌ |
+| Seletor de clientes | ✅ | ✅ | ❌ |
+| Histórico de contratos | ✅ | ✅ | ❌ |
+| Edição completa | ✅ | ✅ | ❌ |
+| Resumo visual do contrato | ✅ | ✅ | ❌ |
+| Indicadores de status | ✅ | ✅ | Parcial |
 
-```text
-+------------------------------------------+
-| [icone] Cliente: Joao Silva              |
-|         Tipo: Aluguel                    |
-|------------------------------------------|
-| Valor mensal: R$ 1.000   Total: R$ 12.000|
-|------------------------------------------|
-| [!] Parcela 2/12 - 10 dias em atraso     |
-| [Enviar Cobranca WhatsApp]               |   <-- NOVO
-|------------------------------------------|
-| [Parcelas]  [Editar]  [Excluir]          |
-+------------------------------------------+
-```
+## Plano de Implementação
 
-## Alteracoes Necessarias
-
-### Arquivo: src/pages/ProductSales.tsx
-
-**1. Adicionar logica para determinar status do contrato (antes do render)**
-
-Criar funcao `getContractNextPaymentStatus` que recebe o contrato e seus pagamentos e retorna:
-- Qual a proxima parcela pendente
-- Se esta em atraso, vence hoje ou e futura
-- Quantos dias de atraso ou ate o vencimento
-
-**2. Adicionar secao de status e cobranca no card do contrato**
-
-Entre as informacoes do contrato (linhas 1717-1726) e os botoes de acao (linhas 1727-1734), adicionar:
-
-```text
-Logica:
-1. Verificar se contrato tem client_phone
-2. Buscar pagamentos do contrato em contractPayments ou allContractPayments
-3. Encontrar primeira parcela nao paga
-4. Determinar status: overdue, due_today ou pending
-5. Mostrar badge de status + botao de cobranca apropriado
-```
-
-**3. Estrutura JSX a adicionar (~apos linha 1726)**
-
-```jsx
-{/* Status e botao de cobranca WhatsApp direto no card */}
-{contract.status !== 'paid' && contract.client_phone && (() => {
-  const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
-  const nextPendingPayment = payments
-    .filter(p => p.status !== 'paid')
-    .sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime())[0];
-  
-  if (!nextPendingPayment) return null;
-  
-  const paymentDate = parseISO(nextPendingPayment.due_date);
-  const isOverdue = isPast(paymentDate) && !isToday(paymentDate);
-  const isDueToday = isToday(paymentDate);
-  const isPending = !isPast(paymentDate);
-  const daysOverdue = isOverdue ? Math.floor((Date.now() - paymentDate.getTime()) / 86400000) : 0;
-  const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDate.getTime() - Date.now()) / 86400000)) : 0;
-  const paidCount = payments.filter(p => p.status === 'paid').length;
-  
-  return (
-    <div className="mb-3 space-y-2">
-      {/* Badge de status */}
-      <div className={cn(
-        "p-2 rounded-lg text-sm flex items-center justify-between",
-        isOverdue && "bg-destructive/10",
-        isDueToday && "bg-yellow-500/10",
-        isPending && "bg-muted"
-      )}>
-        <div className="flex items-center gap-2">
-          {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
-          {isDueToday && <Clock className="w-4 h-4 text-yellow-600" />}
-          {isPending && <Calendar className="w-4 h-4 text-muted-foreground" />}
-          <span>
-            {nextPendingPayment.installment_number}a parcela - {format(paymentDate, "dd/MM")}
-            {isOverdue && <span className="text-destructive font-medium ml-1">({daysOverdue}d atraso)</span>}
-            {isDueToday && <span className="text-yellow-600 font-medium ml-1">(Vence Hoje)</span>}
-          </span>
-        </div>
-        <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
-      </div>
-      
-      {/* Botao de cobranca WhatsApp */}
-      {isOverdue && (
-        <SendOverdueNotification data={{...}} className="w-full" />
-      )}
-      {isDueToday && (
-        <SendDueTodayNotification data={{...}} className="w-full" />
-      )}
-      {isPending && (
-        <SendEarlyNotification data={{...}} className="w-full" />
-      )}
-    </div>
-  );
-})()}
-```
-
-## Secao Tecnica
-
-### Localizacao exata das mudancas
+### 1. Adicionar Frequência Semanal e Quinzenal
 
 **Arquivo:** `src/pages/ProductSales.tsx`
 
-**Linha de insercao:** Entre linhas 1726 e 1727 (apos o bloco `<div className="space-y-2 mb-3">` com valores do contrato e antes do `<div className="flex gap-2">` com botoes de acao)
+**Mudanças no formulário de criação (linhas ~1634-1668):**
 
-### Dados necessarios para os componentes de notificacao
+Adicionar campo Select para frequência após o campo "Tipo de contrato":
 
-Para `SendOverdueNotification`:
-```typescript
-{
-  clientName: contract.client_name,
-  clientPhone: contract.client_phone,
-  contractType: 'contract',
-  installmentNumber: nextPendingPayment.installment_number,
-  totalInstallments: contract.installments,
-  amount: nextPendingPayment.amount,
-  dueDate: nextPendingPayment.due_date,
-  daysOverdue: daysOverdue,
-  loanId: contract.id,
-  paidCount: paidCount,
-}
+```text
+Nova estrutura do formulário:
+- Tipo de contrato (existente)
+- [NOVO] Frequência de pagamento (mensal/quinzenal/semanal)
+- Valor mensal (renomear para "Valor da parcela")
+- Nº de parcelas
+- Primeiro vencimento
+- [NOVO] Data do contrato (quando o acordo foi feito)
 ```
 
-Para `SendDueTodayNotification`:
-```typescript
-{
-  clientName: contract.client_name,
-  clientPhone: contract.client_phone,
-  contractType: 'contract',
-  installmentNumber: nextPendingPayment.installment_number,
-  totalInstallments: contract.installments,
-  amount: nextPendingPayment.amount,
-  dueDate: nextPendingPayment.due_date,
-  loanId: contract.id,
-  paidCount: paidCount,
-}
+**Opções de frequência:**
+- `monthly` - Mensal (a cada 30 dias)
+- `biweekly` - Quinzenal (a cada 15 dias)
+- `weekly` - Semanal (a cada 7 dias)
+
+**Nota:** O hook `useContracts.ts` já suporta essas frequências (linhas 81-93), então só precisamos atualizar a UI.
+
+### 2. Adicionar ClientSelector ao Formulário
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar o componente `ClientSelector` no início do formulário (igual ao que existe em Produtos):
+
+```text
+- [NOVO] Seletor de cliente cadastrado (preenche dados automaticamente)
+- Cliente / Inquilino
+- Telefone / E-mail
+- CPF / RG
+- Endereço
 ```
 
-Para `SendEarlyNotification`:
-```typescript
-{
-  clientName: contract.client_name,
-  clientPhone: contract.client_phone,
-  contractType: 'contract',
-  installmentNumber: nextPendingPayment.installment_number,
-  totalInstallments: contract.installments,
-  amount: nextPendingPayment.amount,
-  dueDate: nextPendingPayment.due_date,
-  daysUntilDue: daysUntilDue,
-  loanId: contract.id,
-  paidCount: paidCount,
-}
+Isso permite reutilizar dados de clientes já cadastrados no sistema.
+
+### 3. Adicionar Data do Contrato
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar campo "Data do Contrato" separado do "Primeiro Vencimento":
+
+- **Data do Contrato:** Quando o acordo foi assinado/fechado
+- **Primeiro Vencimento:** Quando a primeira parcela vence
+
+Isso já existe em Empréstimos e Produtos e é importante para documentação.
+
+### 4. Opção de Contrato Histórico
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar checkbox para marcar contratos antigos (igual ao que existe em Produtos):
+
+```text
+[checkbox] É um contrato antigo que está registrando na plataforma?
+    - Mostrar lista de parcelas com opção de marcar como já pagas
+    - Selecionar quais parcelas já foram pagas antes de cadastrar
 ```
 
-### Uso de allContractPayments
+Isso evita notificações de atraso para contratos que já tinham parcelas pagas.
 
-O hook `useContracts` ja expoe `allContractPayments` que contem todos os pagamentos. Isso permite mostrar o status sem precisar expandir cada contrato primeiro (que carrega os pagamentos via `contractPayments[contract.id]`).
+### 5. Expandir Modal de Edição
 
-## Beneficios
+**Arquivo:** `src/pages/ProductSales.tsx` (linhas ~2607-2623)
 
-1. Usuario ve imediatamente o status de cobranca de cada contrato
-2. Nao precisa expandir parcelas para enviar cobranca
-3. Consistencia com o comportamento da pagina de Emprestimos
-4. Acesso mais rapido as acoes de cobranca frequentes
+Atualmente o modal de edição só permite alterar nome e observações. Expandir para incluir:
+
+- Nome do cliente
+- Telefone / E-mail / CPF / RG / Endereço
+- Tipo de contrato
+- Valor da parcela
+- Observações
+- [NOVO] Lista de parcelas com opção de:
+  - Alterar data de vencimento individual
+  - Alterar valor individual
+  - Marcar/desmarcar como paga
+
+### 6. Filtros de Status
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar botões de filtro por status na listagem (igual ao que existe em Produtos):
+
+```text
+[Todos (X)] [Pendentes (X)] [Em dia (X)] [Atrasados (X)] [Quitados (X)]
+```
+
+### 7. Dashboard de Contratos
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar cards de resumo no topo da aba Contratos (igual aos que existem em Produtos):
+
+```text
++------------------+------------------+------------------+------------------+
+| 📋 Total         | 💰 A Receber     | ⚠️ Em Atraso     | ✅ Recebido      |
+| X contratos      | R$ XXX,XX        | R$ XXX,XX        | R$ XXX,XX        |
++------------------+------------------+------------------+------------------+
+```
+
+### 8. Melhorar Visualização do Card
+
+**Arquivo:** `src/pages/ProductSales.tsx`
+
+Adicionar informações visuais ao card do contrato:
+
+- Exibir frequência do contrato (Mensal/Quinzenal/Semanal)
+- Exibir data do contrato quando disponível
+- Adicionar ícone de alerta para contratos atrasados (já existe parcialmente)
+- Mostrar progresso visual (barra ou porcentagem de parcelas pagas)
+
+## Detalhes Técnicos
+
+### Modificações no Estado do Formulário
+
+```typescript
+// Estado atual do contractForm
+const [contractForm, setContractForm] = useState<CreateContractData>({
+  client_name: '',
+  client_phone: '',
+  // ... outros campos
+  frequency: 'monthly',  // Já existe, só não aparece na UI
+  // ...
+});
+
+// Adicionar novos campos:
+const [selectedContractClientId, setSelectedContractClientId] = useState<string | null>(null);
+const [contractDate, setContractDate] = useState<string>('');
+const [isContractHistorical, setIsContractHistorical] = useState(false);
+```
+
+### Novo Layout do Formulário de Criação
+
+```text
++------------------------------------------+
+| Novo Contrato                            |
++------------------------------------------+
+| 👤 Usar cliente cadastrado               |
+| [Seletor de cliente...]                  |
+| Selecione para preencher automaticamente |
++------------------------------------------+
+| Cliente / Inquilino *  | Telefone        |
+| [_______________]      | [___________]   |
++------------------------------------------+
+| CPF              | RG                    |
+| [___________]    | [___________]         |
++------------------------------------------+
+| E-mail           | Endereço              |
+| [___________]    | [___________________] |
++------------------------------------------+
+| Tipo de contrato                         |
+| [Aluguel de Casa ▼]                      |
++------------------------------------------+
+| Frequência de Pagamento *                |
+| [Mensal ▼]  (Quinzenal/Semanal)          |
++------------------------------------------+
+| Valor da Parcela *  | Nº de Parcelas     |
+| [___________]       | [___________]      |
++------------------------------------------+
+| Data do Contrato    | Primeiro Vencimento|
+| [dd/mm/aaaa]        | [dd/mm/aaaa]       |
++------------------------------------------+
+| [ ] É contrato antigo? (Marcar já pagas) |
++------------------------------------------+
+| Observações                              |
+| [_____________________________________]  |
++------------------------------------------+
+| [Cadastrar Contrato]                     |
++------------------------------------------+
+```
+
+### Arquivos a Modificar
+
+1. **src/pages/ProductSales.tsx**
+   - Formulário de criação de contratos (~linhas 1599-1678)
+   - Modal de edição de contratos (~linhas 2607-2623)
+   - Dashboard/Stats de contratos (novo)
+   - Filtros de status (novo)
+   - Cards de contrato (~linhas 1689-1830)
+
+2. **src/hooks/useContracts.ts**
+   - Adicionar campo `contract_date` ao `CreateContractData` (já existe no banco)
+   - Atualizar `UpdateContractData` para incluir mais campos
+
+### Prioridade de Implementação
+
+1. **Alta Prioridade:**
+   - Adicionar frequência semanal/quinzenal ao formulário
+   - Adicionar Data do Contrato
+   - Expandir modal de edição
+
+2. **Média Prioridade:**
+   - Adicionar ClientSelector
+   - Opção de contrato histórico
+   - Filtros de status
+
+3. **Baixa Prioridade:**
+   - Dashboard de resumo
+   - Melhorias visuais nos cards
+
+## Benefícios
+
+1. **Consistência:** Mesma experiência que em Empréstimos e Produtos
+2. **Flexibilidade:** Suporte a contratos semanais/quinzenais para diferentes tipos de negócio
+3. **Produtividade:** ClientSelector evita digitação repetida
+4. **Precisão:** Data do contrato vs primeiro vencimento para documentação
+5. **Controle:** Edição completa sem precisar recriar contratos
+
