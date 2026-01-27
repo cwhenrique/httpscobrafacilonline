@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/calculations';
 import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Briefcase, ChevronRight, ChevronDown, Pencil, Lock, Unlock } from 'lucide-react';
@@ -46,10 +47,13 @@ export function CashFlowCard({
         >
           <Card className="border-primary/30 bg-card shadow-lg">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
-                <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                Fluxo de Caixa
-              </CardTitle>
+            <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+              Fluxo de Caixa
+              <Badge className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 animate-pulse">
+                Novidade
+              </Badge>
+            </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="py-8 text-center space-y-4">
@@ -126,6 +130,9 @@ export function CashFlowCard({
             <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
               <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               Fluxo de Caixa
+              <Badge className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 animate-pulse">
+                Novidade
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
