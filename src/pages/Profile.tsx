@@ -232,8 +232,22 @@ export default function Profile() {
     }
   }, [user?.id]);
 
+  // Helper function to check if user has a paid plan
+  const isPaidPlan = (): boolean => {
+    if (!profile?.subscription_plan) return false;
+    const paidPlans = ['monthly', 'quarterly', 'annual', 'lifetime', 'mensal', 'trimestral', 'anual', 'vitalicio'];
+    return paidPlans.some(plan => 
+      profile.subscription_plan?.toLowerCase().includes(plan)
+    );
+  };
+
   const handleReconnectWhatsApp = async () => {
     if (!user?.id) return;
+    
+    if (!isPaidPlan()) {
+      toast.error('WhatsApp disponível apenas para planos pagos');
+      return;
+    }
     
     setReconnecting(true);
     toast.info('Tentando reconectar...');
@@ -256,6 +270,11 @@ export default function Profile() {
 
   const handleConnectWhatsApp = async () => {
     if (!user?.id) return;
+    
+    if (!isPaidPlan()) {
+      toast.error('WhatsApp disponível apenas para planos pagos');
+      return;
+    }
     
     setGeneratingQr(true);
     setShowQrModal(true);
@@ -297,6 +316,11 @@ export default function Profile() {
 
   const handleRefreshQrCode = async (forceReset = false) => {
     if (!user?.id) return;
+    
+    if (!isPaidPlan()) {
+      toast.error('WhatsApp disponível apenas para planos pagos');
+      return;
+    }
     
     setGeneratingQr(true);
     setQrExpired(false);
@@ -1399,26 +1423,60 @@ export default function Profile() {
                   </CardDescription>
                 </div>
               </div>
-              {checkingStatus ? (
-                <Badge variant="outline" className="bg-muted">
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Verificando...
-                </Badge>
-              ) : isConnected ? (
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                  <Wifi className="w-3 h-3 mr-1" />
-                  Conectado
-                </Badge>
+              {isPaidPlan() ? (
+                checkingStatus ? (
+                  <Badge variant="outline" className="bg-muted">
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Verificando...
+                  </Badge>
+                ) : isConnected ? (
+                  <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                    <Wifi className="w-3 h-3 mr-1" />
+                    Conectado
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-muted text-muted-foreground">
+                    <WifiOff className="w-3 h-3 mr-1" />
+                    Não Conectado
+                  </Badge>
+                )
               ) : (
-                <Badge variant="outline" className="bg-muted text-muted-foreground">
-                  <WifiOff className="w-3 h-3 mr-1" />
-                  Não Conectado
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                  <Lock className="w-3 h-3 mr-1" />
+                  Bloqueado
                 </Badge>
               )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isConnected ? (
+            {!isPaidPlan() ? (
+              /* Trial/Non-paid User - Locked State */
+              <div className="p-6 rounded-lg bg-muted/50 text-center border border-amber-500/20">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
+                  <Lock className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">🔒 Funcionalidade Exclusiva para Assinantes</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  A conexão WhatsApp está disponível apenas para planos:
+                </p>
+                <ul className="text-sm text-muted-foreground mb-6 space-y-1">
+                  <li>• Mensal</li>
+                  <li>• Trimestral</li>
+                  <li>• Anual</li>
+                  <li>• Vitalício</li>
+                </ul>
+                <Button 
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => window.open('https://pay.cakto.com.br/35qwwgz', '_blank')}
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Assinar Agora
+                </Button>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Após o pagamento, a funcionalidade será liberada automaticamente.
+                </p>
+              </div>
+            ) : isConnected ? (
               <>
                 {/* Connected State */}
                 <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
