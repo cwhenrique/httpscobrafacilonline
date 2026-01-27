@@ -1,148 +1,106 @@
 
 
-# Primeiro Cadastro de PIX/Link Sem Verificação 2FA
+# Migrar WhatsApp para Clientes para Meu Perfil
 
-## Problema
+## Objetivo
 
-Atualmente, qualquer alteração nos campos `pix_key` ou `payment_link` exige verificação via WhatsApp. Isso cria um problema para **novos usuários**:
+Mover toda a seção de conexão "WhatsApp para Clientes" da página de Configurações (`Settings.tsx`) para a página Meu Perfil (`Profile.tsx`), facilitando a identificação e conexão pelo usuário. Em Configurações, deixar apenas um aviso informando que a área foi migrada.
 
-1. Usuário novo não tem WhatsApp conectado
-2. Usuário tenta cadastrar sua chave PIX pela primeira vez
-3. Sistema exige código de verificação via WhatsApp
-4. Usuário não consegue receber o código (não conectou ainda)
-5. **Bloqueio**: Não consegue cadastrar PIX sem WhatsApp, mas precisa cadastrar PIX antes de se preocupar com WhatsApp
+## Alterações
 
-## Solução
+### 1. Profile.tsx - Adicionar Seção WhatsApp para Clientes
 
-Exigir verificação 2FA **apenas para alterações**, não para o primeiro cadastro:
+**Novos imports necessários:**
+- `Wifi`, `WifiOff`, `RefreshCw`, `Unplug`, `Timer`, `Smartphone`, `Camera`, `FileText` de `lucide-react`
+- `Switch` de `@/components/ui/switch`
+- `Progress` de `@/components/ui/progress`
+- `DialogDescription` de `@/components/ui/dialog`
 
-| Situação | PIX Atual | Ação | Verificação |
-|----------|-----------|------|-------------|
-| Primeiro cadastro | `null` ou vazio | Cadastrar | ❌ Não exige |
-| Alteração | Já tem valor | Mudar | ✅ Exige código |
-| Limpeza | Já tem valor | Remover | ✅ Exige código |
+**Novos estados a adicionar:**
+- `whatsappStatus` - Status da conexão WhatsApp
+- `checkingStatus` - Verificando status
+- `showQrModal` - Modal do QR Code
+- `qrCode` - QR Code base64
+- `generatingQr` - Gerando QR
+- `disconnecting` - Desconectando
+- `sendToClientsEnabled` - Enviar para clientes habilitado
+- `qrTimeRemaining` - Tempo restante do QR
+- `qrExpired` - QR expirado
+- `reconnecting` - Reconectando
+- `resettingInstance` - Recriando instância
+- `sendingDailyTest` - Enviando relatório diário
 
-## Alterações Técnicas
+**Novas funções a adicionar:**
+- `checkWhatsAppStatus` - Verificar status da conexão
+- `handleReconnectWhatsApp` - Tentar reconectar
+- `handleConnectWhatsApp` - Conectar (gerar QR)
+- `handleRefreshQrCode` - Atualizar QR Code
+- `handleResetInstance` - Recriar instância
+- `handleDisconnectWhatsApp` - Desconectar
+- `handleToggleSendToClients` - Toggle enviar para clientes
+- `handleTestDailySummary` - Testar relatório diário
+- `formatPhoneDisplay` - Formatar telefone para exibição
+- `getConnectedDays` - Dias conectado
 
-### Arquivo: `src/pages/Profile.tsx`
+**Nova seção visual:**
+Inserir a seção completa de "WhatsApp para Clientes" logo antes do card "Teste de Notificações WhatsApp" (aproximadamente linha 1059), incluindo:
+- Card com status de conexão (conectado/desconectado)
+- Estado conectado: info do número, switch de enviar para clientes, botão de relatório diário, botões de recriar e desconectar
+- Estado desconectado: botão para conectar, status de conexão pendente
+- Modal de QR Code com timer e instruções
 
-**1. Modificar `handleSavePix` (linhas ~287-306)**
+### 2. Settings.tsx - Substituir por Aviso de Migração
 
-Lógica atual:
-```typescript
-const handleSavePix = async () => {
-  const updates = { ... };
-  const pixChanged = updates.pix_key !== (profile?.pix_key || null);
-  
-  if (pixChanged || typeChanged) {
-    // Sempre exige verificação
-    setPendingVerificationUpdates(updates);
-    setVerificationDialogOpen(true);
-  }
-};
+Substituir toda a seção "WhatsApp para Clientes" (linhas 676-923) por um card simples com aviso:
+
+```text
++--------------------------------------------------+
+|  MessageCircle  WhatsApp para Clientes           |
+|--------------------------------------------------|
+|  ℹ️ Esta funcionalidade foi movida               |
+|                                                  |
+|  A conexão e configuração do WhatsApp para      |
+|  enviar mensagens aos seus clientes agora está  |
+|  disponível na página Meu Perfil.               |
+|                                                  |
+|  [ Ir para Meu Perfil ]                         |
++--------------------------------------------------+
 ```
 
-Lógica nova:
-```typescript
-const handleSavePix = async () => {
-  const updates = { ... };
-  
-  // Verificar se é primeiro cadastro (não tinha PIX antes)
-  const isFirstTimeSetup = !profile?.pix_key || profile.pix_key.trim() === '';
-  const pixChanged = updates.pix_key !== (profile?.pix_key || null);
-  
-  if (pixChanged) {
-    if (isFirstTimeSetup && updates.pix_key) {
-      // Primeiro cadastro: salvar direto sem verificação
-      setSavingPix(true);
-      const { error } = await updateProfile(updates);
-      if (error) {
-        toast.error('Erro ao salvar chave PIX');
-      } else {
-        toast.success('Chave PIX cadastrada com sucesso!');
-        setIsEditingPix(false);
-        refetch();
-      }
-      setSavingPix(false);
-    } else {
-      // Alteração ou remoção: exige verificação
-      setPendingVerificationUpdates(updates);
-      setVerificationFieldName('Chave PIX');
-      setVerificationDialogOpen(true);
-    }
-  } else {
-    setIsEditingPix(false);
-  }
-};
-```
+O botão redirecionará para `/profile`.
 
-**2. Modificar `handleSavePaymentLink` (linhas ~345-362)**
+### 3. Remover Código Desnecessário de Settings.tsx
 
-Mesma lógica:
-```typescript
-const handleSavePaymentLink = async () => {
-  const updates = { payment_link: formData.payment_link.trim() || null };
-  
-  // Verificar se é primeiro cadastro
-  const isFirstTimeSetup = !profile?.payment_link || profile.payment_link.trim() === '';
-  const linkChanged = updates.payment_link !== (profile?.payment_link || null);
-  
-  if (linkChanged) {
-    if (isFirstTimeSetup && updates.payment_link) {
-      // Primeiro cadastro: salvar direto sem verificação
-      setSavingPaymentLink(true);
-      const { error } = await updateProfile(updates);
-      if (error) {
-        toast.error('Erro ao salvar link');
-      } else {
-        toast.success('Link de pagamento cadastrado!');
-        setIsEditingPaymentLink(false);
-        refetch();
-      }
-      setSavingPaymentLink(false);
-    } else {
-      // Alteração ou remoção: exige verificação
-      setPendingVerificationUpdates(updates);
-      setVerificationFieldName('Link de Pagamento');
-      setVerificationDialogOpen(true);
-    }
-  } else {
-    setIsEditingPaymentLink(false);
-  }
-};
-```
+Após a substituição, as seguintes partes podem ser removidas de Settings.tsx:
+- Estados de WhatsApp QR Code (linhas 62-77)
+- Funções de WhatsApp (linhas 100-168, 170-191, 193-273, 275-354, 356-407)
+- Modal de QR Code (linhas 1021-1203)
+- Imports não utilizados
 
-## Arquivo Modificado
+## Arquivos Modificados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/Profile.tsx` | Ajustar `handleSavePix` e `handleSavePaymentLink` para permitir primeiro cadastro sem verificação |
+| `src/pages/Profile.tsx` | Adicionar seção completa de WhatsApp para Clientes antes de "Teste de Notificações" |
+| `src/pages/Settings.tsx` | Substituir seção WhatsApp por aviso de migração e remover código relacionado |
 
 ## Fluxo do Usuário
 
-### Usuário Novo
-1. Acessa perfil
-2. Clica em editar Chave PIX
-3. Preenche a chave
-4. Clica em salvar
-5. **Salva direto** sem pedir código ✅
+**Antes:**
+1. Usuário vai em Configurações
+2. Procura WhatsApp para Clientes
+3. Conecta por lá
 
-### Usuário Existente (Alteração)
-1. Já tem PIX cadastrado
-2. Clica em editar
-3. Muda o valor
-4. Clica em salvar
-5. **Exige código** via WhatsApp ✅
+**Depois:**
+1. Usuário vai em Meu Perfil
+2. Encontra WhatsApp para Clientes em destaque
+3. Conecta facilmente
+4. Se for em Configurações, vê aviso apontando para Perfil
 
-## Segurança
+## Benefícios
 
-A verificação 2FA continua protegendo contra:
-- Alterações maliciosas de dados financeiros existentes
-- Remoção de chaves PIX por atacantes
-- Fraudes em contas comprometidas
-
-O primeiro cadastro não precisa dessa proteção porque:
-- Não há dado sensível sendo substituído
-- É operação natural de onboarding
-- Usuário pode não ter WhatsApp conectado ainda
+- Perfil fica como "central de controle" do usuário
+- Mais intuitivo - tudo sobre "mim" em um lugar
+- Configurações fica mais leve
+- Reduz confusão de onde conectar WhatsApp
 
