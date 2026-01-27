@@ -1,47 +1,87 @@
 
 
-# Remover Seção "Period Stats" Redundante
+# Corrigir Filtro de Data: Usar contract_date ao invés de start_date
 
 ## Resumo
 
-Remover o card de estatísticas do período que exibe "Emprestado", "Recebido" e "Lucro" na página de relatórios de empréstimos, pois essas informações já estão sendo mostradas no novo card de **Fluxo de Caixa**.
+O empréstimo de R$ 10.000 (para receber R$ 12.000) foi criado com:
+- **contract_date**: 27/01/2026 (hoje - quando o dinheiro saiu)
+- **start_date**: 27/02/2026 (quando as parcelas começam a vencer)
 
-## O Que Será Removido
+O filtro atual usa `start_date`, o que faz empréstimos com parcelas futuras não aparecerem no período correto para fins de **fluxo de caixa**.
 
-O card que aparece logo abaixo da seção de empréstimos em atraso, mostrando:
-- Período selecionado (01/01 - 27/01)
-- Emprestado: R$ 5.580,00
-- Recebido: R$ 17.224,00  
-- Lucro: R$ 11.655,65
+## Solução
 
-## Alteração Necessária
+Alterar a lógica de filtro para usar `contract_date` (com fallback para `start_date` se não existir) para calcular empréstimos no período. Isso reflete corretamente quando o dinheiro saiu do caixa.
 
-**Arquivo:** `src/pages/ReportsLoans.tsx`
+## Alterações Necessárias
 
-Remover o bloco de código das linhas 1039-1070 que contém o card "Period Stats":
+### Arquivo: `src/pages/ReportsLoans.tsx`
 
-```jsx
-{/* Period Stats - Filtered - Compact */}
-<Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-  <CardContent className="p-2 sm:p-3">
-    ...
-  </CardContent>
-</Card>
+**1. Ajustar filteredLoans (linha ~332-335)**
+
+Usar `contract_date` ou `start_date` como fallback:
+
+```typescript
+// Filter by date range
+if (dateRange?.from && dateRange?.to) {
+  loans = loans.filter(loan => {
+    // Usar contract_date (quando o dinheiro saiu) ou start_date como fallback
+    const loanDate = new Date(loan.contract_date || loan.start_date);
+    return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
+  });
+}
 ```
 
-## Justificativa
+**2. Ajustar loansInPeriod no filteredStats (linha ~576-581)**
 
-O card de **Fluxo de Caixa** já exibe as mesmas informações de forma mais completa:
-- **Saídas no período** = Emprestado
-- **Entradas** = Recebido  
-- **Lucro no Período** = Lucro
+Mesma lógica:
 
-Manter ambos os cards seria redundante e ocuparia espaço desnecessário na interface.
+```typescript
+const loansInPeriod = dateRange?.from && dateRange?.to
+  ? loansFilteredByType.filter(loan => {
+      // Usar contract_date (quando o dinheiro saiu) ou start_date como fallback
+      const loanDate = new Date(loan.contract_date || loan.start_date);
+      return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
+    })
+  : loansFilteredByType;
+```
 
-## Resultado Final
+**3. Ajustar monthlyEvolution (linha ~633-634)**
 
-Após a remoção, a ordem dos elementos será:
-1. Seção de empréstimos em atraso (colapsável)
-2. **Card de Fluxo de Caixa** (com todas as métricas)
-3. Grid principal de estatísticas
+Para o gráfico de evolução mensal:
+
+```typescript
+baseLoans.forEach(loan => {
+  // Usar contract_date para fluxo de caixa
+  const loanDate = new Date(loan.contract_date || loan.start_date);
+  if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
+    // ...
+  }
+});
+```
+
+## Resultado Esperado
+
+Após essa mudança:
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Saídas (janeiro) | R$ 5.580 | R$ 15.580 (inclui os R$ 10k) |
+| Capital na Rua | R$ 13.331 | R$ 13.331 (sem mudança) |
+
+O empréstimo de R$ 10.000 passará a ser contabilizado em janeiro porque foi quando o contrato foi feito e o dinheiro saiu do caixa.
+
+## Lógica
+
+- **contract_date**: Quando o dinheiro foi emprestado (saída de caixa)
+- **start_date**: Quando as parcelas começam a vencer
+
+Para relatórios de **fluxo de caixa**, o correto é usar `contract_date`, pois representa quando o dinheiro realmente saiu.
+
+## Arquivos Modificados
+
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/pages/ReportsLoans.tsx` | Ajustar 3 locais para usar `contract_date || start_date` |
 
