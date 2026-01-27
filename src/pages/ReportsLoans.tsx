@@ -330,7 +330,7 @@ export default function ReportsLoans() {
     // Filter by date range - usar contract_date (quando o dinheiro saiu) com fallback para start_date
     if (dateRange?.from && dateRange?.to) {
       loans = loans.filter(loan => {
-        const loanDate = new Date(loan.contract_date || loan.start_date);
+        const loanDate = parseISO(loan.contract_date || loan.start_date);
         return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
       });
     }
@@ -575,7 +575,7 @@ export default function ReportsLoans() {
     // Loans created in period (for table display) - usar contract_date para fluxo de caixa
     const loansInPeriod = dateRange?.from && dateRange?.to
       ? loansFilteredByType.filter(loan => {
-          const loanDate = new Date(loan.contract_date || loan.start_date);
+          const loanDate = parseISO(loan.contract_date || loan.start_date);
           return isWithinInterval(loanDate, { start: dateRange.from!, end: dateRange.to! });
         })
       : loansFilteredByType;
@@ -631,7 +631,7 @@ export default function ReportsLoans() {
 
       baseLoans.forEach(loan => {
         // Usar contract_date para fluxo de caixa (quando o dinheiro saiu)
-        const loanDate = new Date(loan.contract_date || loan.start_date);
+        const loanDate = parseISO(loan.contract_date || loan.start_date);
         if (isWithinInterval(loanDate, { start: monthStart, end: monthEnd })) {
           if (loan.status !== 'paid') {
             monthNaRua += Number(loan.principal_amount);
