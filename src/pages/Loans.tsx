@@ -49,6 +49,7 @@ import PriceTableDialog from '@/components/PriceTableDialog';
 import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { LoansTableView } from '@/components/LoansTableView';
+import { cn } from '@/lib/utils';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -1897,6 +1898,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     return false;
   })();
   
+  // Detectar inconsistencia no formulario diario (feedback visual em tempo real)
+  const dailyFormInconsistency = useMemo(() => {
+    const principal = parseFloat(formData.principal_amount) || 0;
+    const dailyAmount = parseFloat(formData.daily_amount) || 0;
+    const numInstallments = installmentDates.length;
+    const totalToReceive = dailyAmount * numInstallments;
+    const profit = totalToReceive - principal;
+    const interestRate = parseFloat(formData.daily_interest_rate) || 0;
+    
+    const hasInconsistency = principal > 0 && totalToReceive > 0 && principal > totalToReceive;
+    const hasNegativeInterest = interestRate < 0;
+    
+    return {
+      hasInconsistency,
+      hasNegativeInterest,
+      principal,
+      totalToReceive,
+      profit,
+    };
+  }, [formData.principal_amount, formData.daily_amount, formData.daily_interest_rate, installmentDates.length]);
+
   const [installmentValue, setInstallmentValue] = usePersistedState('loan_installment_value', '');
   const [isManuallyEditingInstallment, setIsManuallyEditingInstallment] = useState(false);
   const [editableTotalInterest, setEditableTotalInterest] = useState('');
@@ -5505,27 +5527,75 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     </div>
                   </div>
                   <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Juros (%)</Label>
+                    <Label className={cn(
+                      "text-xs sm:text-sm",
+                      dailyFormInconsistency.hasNegativeInterest && "text-red-600 dark:text-red-400"
+                    )}>
+                      Juros (%)
+                      {dailyFormInconsistency.hasNegativeInterest && (
+                        <span className="text-red-600 dark:text-red-400 ml-1">- Taxa Negativa!</span>
+                      )}
+                    </Label>
                     <Input 
                       type="number" 
                       step="0.01" 
                       value={formData.daily_interest_rate} 
                       onChange={(e) => handleDailyInterestChange(e.target.value)} 
                       placeholder="Ex: 25"
-                      className="h-9 sm:h-10 text-sm"
+                      className={cn(
+                        "h-9 sm:h-10 text-sm",
+                        dailyFormInconsistency.hasNegativeInterest && "border-red-500 focus:ring-red-500"
+                      )}
                     />
-                    <p className="text-[10px] text-muted-foreground">Altere o juros para recalcular a parcela automaticamente</p>
+                    <p className={cn(
+                      "text-[10px]",
+                      dailyFormInconsistency.hasNegativeInterest 
+                        ? "text-red-600 dark:text-red-400" 
+                        : "text-muted-foreground"
+                    )}>
+                      {dailyFormInconsistency.hasNegativeInterest 
+                        ? "Taxa negativa resultará em prejuízo!" 
+                        : "Altere o juros para recalcular a parcela automaticamente"}
+                    </p>
                   </div>
                   {formData.principal_amount && formData.daily_amount && installmentDates.length > 0 && (
-                    <div className="bg-sky-50 dark:bg-sky-900/30 rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border border-sky-200 dark:border-sky-700">
-                      <p className="text-xs sm:text-sm font-medium text-sky-900 dark:text-sky-100">Resumo ({installmentDates.length} parcelas):</p>
-                      <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">
-                        Total a receber: {formatCurrency(parseFloat(formData.daily_amount) * installmentDates.length)}
+                    <div className={cn(
+                      "rounded-lg p-2 sm:p-3 space-y-0.5 sm:space-y-1 border",
+                      dailyFormInconsistency.hasInconsistency 
+                        ? "bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700" 
+                        : "bg-sky-50 dark:bg-sky-900/30 border-sky-200 dark:border-sky-700"
+                    )}>
+                      <p className={cn(
+                        "text-xs sm:text-sm font-medium flex items-center gap-1",
+                        dailyFormInconsistency.hasInconsistency 
+                          ? "text-red-900 dark:text-red-100" 
+                          : "text-sky-900 dark:text-sky-100"
+                      )}>
+                        {dailyFormInconsistency.hasInconsistency && <AlertTriangle className="w-4 h-4" />}
+                        Resumo ({installmentDates.length} parcelas):
                       </p>
-                      <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-200">
-                        Lucro: {formatCurrency((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount))} 
-                        ({(((parseFloat(formData.daily_amount) * installmentDates.length) - parseFloat(formData.principal_amount)) / parseFloat(formData.principal_amount) * 100).toFixed(1)}%)
+                      <p className={cn(
+                        "text-xs sm:text-sm",
+                        dailyFormInconsistency.hasInconsistency 
+                          ? "text-red-700 dark:text-red-200" 
+                          : "text-sky-700 dark:text-sky-200"
+                      )}>
+                        Total a receber: {formatCurrency(dailyFormInconsistency.totalToReceive)}
                       </p>
+                      <p className={cn(
+                        "text-xs sm:text-sm",
+                        dailyFormInconsistency.hasInconsistency 
+                          ? "text-red-700 dark:text-red-200 font-semibold" 
+                          : "text-sky-700 dark:text-sky-200"
+                      )}>
+                        Lucro: {formatCurrency(dailyFormInconsistency.profit)} 
+                        ({dailyFormInconsistency.principal > 0 ? ((dailyFormInconsistency.profit / dailyFormInconsistency.principal) * 100).toFixed(1) : '0.0'}%)
+                      </p>
+                      {dailyFormInconsistency.hasInconsistency && (
+                        <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 font-semibold mt-1">
+                          ⚠️ ATENÇÃO: Você vai receber MENOS do que emprestou!
+                        </p>
+                      )}
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
