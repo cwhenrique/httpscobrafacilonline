@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/calculations';
-import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Settings } from 'lucide-react';
+import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Settings, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { CashFlowConfigModal } from './CashFlowConfigModal';
@@ -10,6 +10,7 @@ import { CashFlowConfigModal } from './CashFlowConfigModal';
 interface CashFlowCardProps {
   initialBalance: number;
   loanedInPeriod: number;
+  totalOnStreet: number;
   receivedInPeriod: number;
   interestReceived: number;
   onUpdateInitialBalance: (value: number) => void;
@@ -18,6 +19,7 @@ interface CashFlowCardProps {
 export function CashFlowCard({
   initialBalance,
   loanedInPeriod,
+  totalOnStreet,
   receivedInPeriod,
   interestReceived,
   onUpdateInitialBalance,
@@ -68,7 +70,7 @@ export function CashFlowCard({
                 </p>
               </div>
 
-              {/* Saídas (Emprestado) */}
+              {/* Saídas (Emprestado) + Capital na Rua */}
               <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <ArrowUpRight className="w-4 h-4 text-red-500" />
@@ -77,7 +79,19 @@ export function CashFlowCard({
                 <p className="text-sm sm:text-base font-bold text-red-500">
                   -{formatCurrency(loanedInPeriod)}
                 </p>
-                <p className="text-[10px] text-muted-foreground">emprestado</p>
+                <p className="text-[10px] text-muted-foreground">no período</p>
+                
+                {/* Separador visual */}
+                <div className="border-t border-muted my-2" />
+                
+                {/* Capital na Rua Total */}
+                <div className="flex items-center justify-center gap-1">
+                  <Briefcase className="w-3 h-3 text-orange-500" />
+                  <span className="text-[10px] text-orange-500 font-medium">Na Rua:</span>
+                </div>
+                <p className="text-xs font-semibold text-orange-500">
+                  {formatCurrency(totalOnStreet)}
+                </p>
               </div>
 
               {/* Entradas (Recebido) */}

@@ -1073,6 +1073,7 @@ export default function ReportsLoans() {
         <CashFlowCard
           initialBalance={cashFlowStats.initialBalance}
           loanedInPeriod={cashFlowStats.loanedInPeriod}
+          totalOnStreet={filteredStats.totalOnStreet}
           receivedInPeriod={cashFlowStats.receivedInPeriod}
           interestReceived={cashFlowStats.interestReceived}
           onUpdateInitialBalance={handleUpdateCashFlowBalance}
