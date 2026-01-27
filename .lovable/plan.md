@@ -1,89 +1,170 @@
 
 
-# Simplificar para Um Único Card "Juros a Receber"
+# Redesign do Fluxo de Caixa - UI/UX Melhorado
 
-## Objetivo
+## Problema Atual
 
-Consolidar os dois cards de juros (Juros Pendentes + Juros no Período) em um único card **"Juros a Receber"** que mostra os juros a receber das parcelas que vencem no período filtrado, usando a lógica correta de rollover.
+Analisando a screenshot e o código:
+- Números com `text-sm` (14px) e `text-base` (16px) - muito pequenos
+- Cards apertados com `p-3` (12px de padding)
+- Ícones pequenos (`w-4 h-4`)
+- Labels com `text-xs` (12px) difíceis de ler
+- Informação "Na Rua" escondida dentro do card de Saídas
 
-## Lógica de Negócio
+## Solução Proposta
 
-Quando o cliente paga via "PAGAR JUROS":
-1. O sistema registra como pagamento de juros (`interest_paid`)
-2. O principal permanece devendo
-3. Novos juros são adicionados ao `remaining_balance` (rollover)
-4. O card "Juros a Receber" deve mostrar esses novos juros
+### Layout Reimaginado
 
-**Cálculo:**
 ```text
-Juros a Receber = remaining_balance - principal_restante
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  💰 Fluxo de Caixa                                        ⚙️ Configurar     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐               │
+│  │   INICIAL     │    │    SAÍDAS     │    │   ENTRADAS    │               │
+│  │               │ → │               │ → │               │               │
+│  │ R$ 20.000,00  │    │ R$ 10.000,00  │    │ R$ 2.000,00   │               │
+│  │   (azul)      │    │   (vermelho)  │    │   (verde)     │               │
+│  └───────────────┘    └───────────────┘    └───────────────┘               │
+│                                                                             │
+│                            ═══════════════                                  │
+│                                  ↓                                          │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                         SALDO ATUAL                                  │   │
+│  │                      R$ 12.000,00                                    │   │
+│  │                        (destaque)                                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌────────────────────────────┐  ┌────────────────────────────────────┐    │
+│  │  📊 Capital na Rua         │  │  📈 Lucro no Período               │    │
+│  │     R$ 10.000,00           │  │     R$ 2.000,00                    │    │
+│  └────────────────────────────┘  └────────────────────────────────────┘    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Alterações Necessárias
+### Mudanças de Design
 
-### Arquivo: `src/pages/ReportsLoans.tsx`
+| Elemento | Antes | Depois |
+|----------|-------|--------|
+| Valores principais | `text-sm sm:text-base` (14-16px) | `text-xl sm:text-2xl lg:text-3xl` (20-30px) |
+| Labels | `text-xs` (12px) | `text-sm sm:text-base` (14-16px) |
+| Ícones | `w-4 h-4` (16px) | `w-5 h-5 sm:w-6 sm:h-6` (20-24px) |
+| Padding cards | `p-3` (12px) | `p-4 sm:p-5` (16-20px) |
+| Gap entre cards | `gap-3` (12px) | `gap-4` (16px) |
+| Card Atual | Inline com outros | Destacado abaixo, largura total |
 
-**1. Remover cálculo de `interestScheduledInPeriod` (linhas 511-555):**
+### Hierarquia Visual
 
-Deletar todo o bloco que calcula juros programados separadamente.
+1. **Primeiro nível**: Saldo Atual (maior destaque - é o que importa)
+2. **Segundo nível**: Fluxo (Inicial → Saídas → Entradas)
+3. **Terceiro nível**: Métricas complementares (Capital na Rua, Lucro)
 
-**2. Manter apenas `pendingInterest` (linhas 465-509):**
+### Indicadores de Fluxo
 
-A lógica atual já está correta - usa `remaining_balance - principal_restante` para capturar rollover.
+Adicionar setas visuais (`→`) entre os cards para indicar o fluxo do dinheiro:
+- Inicial → menos Saídas → mais Entradas = Atual
 
-**3. Atualizar retorno do `filteredStats` (linha 661):**
+## Alterações Técnicas
 
-Remover `interestScheduledInPeriod` do objeto retornado:
+### Arquivo: `src/components/reports/CashFlowCard.tsx`
 
-```typescript
-return {
-  totalOnStreet,
-  pendingInterest,  // Manter - agora é o único
-  // interestScheduledInPeriod, ← REMOVER
-  totalReceivedAllTime: totalReceivedInPeriod,
-  // ...resto
-};
-```
-
-**4. Atualizar UI - Consolidar em um card (linhas 1141-1158):**
-
-Substituir os dois cards por um único:
+**1. Aumentar tamanho dos valores (linhas 68, 80, 103, 124):**
 
 ```tsx
-{/* Antes: 2 cards */}
-<StatCard label="💰 Juros Pendentes" ... />
-<StatCard label="📅 Juros no Período" ... />
+// Antes
+<p className="text-sm sm:text-base font-bold">
 
-{/* Depois: 1 card */}
-<StatCard
-  label="💰 Juros a Receber"
-  value={formatCurrency(filteredStats.pendingInterest)}
-  icon={TrendingUp}
-  iconColor="text-primary"
-  bgColor="bg-primary/10"
-  subtitle="No período"
-  compact
-/>
+// Depois  
+<p className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
 ```
 
-## Resultado Esperado
+**2. Aumentar labels (linhas 66, 77, 101, 118):**
 
-| Cenário | Filtro | Card "Juros a Receber" |
-|---------|--------|------------------------|
-| Empréstimo R$ 10k, juros R$ 2k pagos via rollover | jan-mai (parcela em 27/03) | R$ 2.000,00 |
-| Mesmo empréstimo | jun-dez (fora do período) | R$ 0,00 |
-| Sem filtro de período | Todos | R$ 2.000,00 |
+```tsx
+// Antes
+<span className="text-xs text-muted-foreground">
 
-## Arquivos Modificados
+// Depois
+<span className="text-sm sm:text-base text-muted-foreground font-medium">
+```
+
+**3. Aumentar ícones (linhas 65, 76, 100, 117):**
+
+```tsx
+// Antes
+<PiggyBank className="w-4 h-4" />
+
+// Depois
+<PiggyBank className="w-5 h-5 sm:w-6 sm:h-6" />
+```
+
+**4. Melhorar padding dos cards (linha 63, 74, 98, 110):**
+
+```tsx
+// Antes
+<div className="bg-muted/50 rounded-lg p-3">
+
+// Depois
+<div className="bg-muted/50 rounded-xl p-4 sm:p-5">
+```
+
+**5. Reformular layout geral:**
+
+```tsx
+<CardContent className="pt-4 space-y-4">
+  {/* Linha do fluxo: Inicial → Saídas → Entradas */}
+  <div className="grid grid-cols-3 gap-2 sm:gap-4">
+    {/* Cards com setas entre eles em desktop */}
+  </div>
+  
+  {/* Card destacado: Saldo Atual */}
+  <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 
+                  rounded-xl p-5 sm:p-6 border-2 border-emerald-500/30">
+    <div className="text-center">
+      <span className="text-base sm:text-lg text-muted-foreground">Saldo Atual</span>
+      <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-emerald-500">
+        {formatCurrency(currentBalance)}
+      </p>
+    </div>
+  </div>
+  
+  {/* Linha de métricas: Capital na Rua | Lucro */}
+  <div className="grid grid-cols-2 gap-3">
+    {/* Cards menores mas ainda legíveis */}
+  </div>
+</CardContent>
+```
+
+**6. Adicionar indicadores de seta entre cards (desktop):**
+
+```tsx
+{/* Seta visual entre cards */}
+<div className="hidden sm:flex items-center justify-center">
+  <ChevronRight className="w-6 h-6 text-muted-foreground/50" />
+</div>
+```
+
+## Resultado Visual Esperado
+
+| Métrica | Tamanho Visual |
+|---------|----------------|
+| Saldo Atual | **Extra grande** (destaque principal) |
+| Inicial, Saídas, Entradas | Grande (fácil leitura) |
+| Capital na Rua, Lucro | Médio (informação complementar) |
+
+## Benefícios
+
+- **Números 2-3x maiores** - fácil leitura à distância
+- **Hierarquia clara** - saldo atual em destaque
+- **Fluxo visual** - entender de onde vem e para onde vai
+- **Responsivo** - funciona bem em mobile e desktop
+- **Espaçoso** - menos informação apertada
+
+## Arquivo Modificado
 
 | Arquivo | Alterações |
 |---------|------------|
-| `src/pages/ReportsLoans.tsx` | Remover `interestScheduledInPeriod`, manter apenas `pendingInterest`, consolidar UI em um card |
-
-## Resumo Técnico
-
-- Remove ~45 linhas de código duplicado
-- Simplifica a interface de 6 para 5 cards no grid
-- Mantém a lógica correta de rollover via `remaining_balance - principal_restante`
-- Filtra por período usando as datas de vencimento das parcelas
+| `src/components/reports/CashFlowCard.tsx` | Redesign completo com tamanhos maiores e layout melhorado |
 
