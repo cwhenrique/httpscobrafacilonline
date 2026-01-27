@@ -1,113 +1,76 @@
 
 
-# Adicionar Dois Cards de Juros nos Relatórios
+# Corrigir Cálculo de Juros Pendentes para Rollover
 
-## Objetivo
+## Problema Identificado
 
-Separar a informação de juros em dois cards distintos para evitar confusão quando há pagamentos adiantados:
+Quando o cliente paga **apenas os juros** mas não paga o principal, o sistema faz um "rollover" - ou seja, novos juros são gerados:
 
-1. **Juros Pendentes**: Juros contratuais que AINDA NÃO foram pagos (saldo real)
-2. **Juros no Período**: Juros das parcelas que VENCEM no período filtrado (agenda/previsão)
+| Campo | Valor | Significado |
+|-------|-------|-------------|
+| `principal_amount` | R$ 10.000 | Capital original |
+| `total_interest` | R$ 2.000 | Juros originais do contrato |
+| `total_paid` | R$ 2.000 | Juros originais foram pagos |
+| `remaining_balance` | R$ 12.000 | Principal + **novos juros** de rollover |
 
-## Cenário Atual vs Esperado
+O `remaining_balance` de R$ 12.000 indica que há R$ 2.000 de **novos juros** além do principal de R$ 10.000.
 
-| Métrica | Valor Atual | Valor Esperado |
-|---------|-------------|----------------|
-| Juros Pendentes | R$ 0,00 | R$ 0,00 (correto - você já recebeu) |
-| Juros no Período | N/A | R$ 2.000 (parcela vence em 27/03) |
+## Solução
+
+Calcular juros pendentes baseado no `remaining_balance` menos o principal restante, não apenas no `total_interest` original:
+
+```text
+Juros Pendentes = remaining_balance - (principal_amount - principal_paid)
+                = R$ 12.000 - (R$ 10.000 - R$ 0)
+                = R$ 2.000
+```
 
 ## Alterações Necessárias
 
 ### Arquivo: `src/pages/ReportsLoans.tsx`
 
-**1. Adicionar novo cálculo `interestInPeriod` (após linha 538):**
+**Modificar cálculo de `pendingInterest` (linhas 460-538):**
 
-Calcular os juros das parcelas que vencem no período, **independente de já terem sido pagos ou não**:
-
-```typescript
-// Juros das Parcelas no Período (agenda/previsão)
-const interestScheduledInPeriod = allActiveLoans.reduce((sum, loan) => {
-  // ...calcular interestPerInstallment igual ao pendingInterest...
-  
-  if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
-    let scheduledInterest = 0;
-    installmentDates.forEach((dateStr: string) => {
-      const dueDate = parseISO(dateStr);
-      if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
-        // Incluir juros da parcela, MESMO SE JÁ PAGO
-        scheduledInterest += interestPerInstallment;
-      }
-    });
-    return sum + scheduledInterest;
-  }
-  return sum;
-}, 0);
-```
-
-**2. Adicionar `interestScheduledInPeriod` ao retorno de `filteredStats` (linha ~641):**
+Trocar a lógica de `totalInterest - interestPaid` para usar o `remaining_balance`:
 
 ```typescript
-return {
-  totalOnStreet,
-  pendingInterest,        // Juros ainda não pagos
-  interestScheduledInPeriod, // Juros das parcelas no período (agenda)
-  // ...resto
-};
+// Calcular juros pendentes baseado no remaining_balance
+// Isso captura juros de rollover que não estão no total_interest original
+const principalPaid = payments.reduce((s: number, p: any) => 
+  s + Number(p.principal_paid || 0), 0);
+
+const principalRemaining = principal - principalPaid;
+
+// Juros pendentes = saldo devedor - principal restante
+// Se remaining_balance = 12000 e principal restante = 10000, juros = 2000
+const pendingInterestFromBalance = Math.max(0, remainingBalance - principalRemaining);
+
+// Se há período selecionado, filtrar por datas de vencimento
+if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
+  // ... lógica de filtro por período usando pendingInterestFromBalance
+}
+
+return sum + pendingInterestFromBalance;
 ```
 
-**3. Modificar exibição dos cards (após linha ~1123):**
+## Resultado Esperado
 
-Substituir o card único de "Juros a Receber" por dois cards:
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Juros Pendentes | R$ 0,00 | R$ 2.000,00 |
+| Juros no Período | R$ 2.000,00 | R$ 2.000,00 |
 
-```tsx
-{/* Card 1: Juros Pendentes (saldo real) */}
-<StatCard
-  label="💰 Juros Pendentes"
-  value={formatCurrency(filteredStats.pendingInterest)}
-  icon={TrendingUp}
-  iconColor="text-primary"
-  tooltip="Juros contratuais que ainda NÃO foram pagos"
-/>
-
-{/* Card 2: Juros no Período (agenda) */}
-<StatCard
-  label="📅 Juros no Período"
-  value={formatCurrency(filteredStats.interestScheduledInPeriod)}
-  icon={CalendarDays}
-  iconColor="text-blue-500"
-  tooltip="Juros das parcelas que vencem no período selecionado (mesmo que já pagos)"
-/>
-```
-
-## Resultado Visual
-
-O relatório passará a mostrar:
-
-| Card | Valor | Significado |
-|------|-------|-------------|
-| Juros Pendentes | R$ 0,00 | O cliente já pagou os juros |
-| Juros no Período | R$ 2.000 | Em março você tem R$ 2k de juros programados |
-
-## Alternativa Simplificada
-
-Se preferir manter apenas um card, podemos mostrar ambos os valores no mesmo card com um tooltip expandido:
-
-```tsx
-<StatCard
-  label="💰 Juros a Receber"
-  value={formatCurrency(filteredStats.pendingInterest)}
-  secondaryValue={`Agenda: ${formatCurrency(filteredStats.interestScheduledInPeriod)}`}
-  tooltip="Pendente: juros não pagos | Agenda: juros das parcelas no período"
-/>
-```
+Ambos os cards agora mostrarão R$ 2.000:
+- **Juros Pendentes**: Juros que ainda faltam pagar (rollover)
+- **Juros no Período**: Juros das parcelas que vencem no período
 
 ## Arquivos Modificados
 
 | Arquivo | Alterações |
 |---------|------------|
-| `src/pages/ReportsLoans.tsx` | Adicionar cálculo de `interestScheduledInPeriod` e novo card |
+| `src/pages/ReportsLoans.tsx` | Usar `remaining_balance - principal_restante` para calcular juros pendentes |
 
-## Notas Técnicas
+## Notas Importantes
 
-A lógica atual de `pendingInterest` está correta: ela calcula juros ainda NÃO pagos. O problema é que faltava uma métrica separada para mostrar "o que vence no período" (independente de pagamento).
+Esta correção captura automaticamente qualquer cenário de rollover de juros, pois o `remaining_balance` sempre reflete o saldo real (principal + juros pendentes), independente de quantas vezes o cliente pagou "só juros".
 
