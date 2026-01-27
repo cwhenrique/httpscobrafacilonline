@@ -430,99 +430,131 @@ export function LoansTableView({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <TooltipProvider delayDuration={200}>
-                    <DropdownMenu>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="w-4 h-4" />
+                  <div className="flex items-center justify-end gap-1">
+                    {/* Visible WhatsApp buttons outside dropdown */}
+                    {canSendToThisClient && isOverdue && getOverdueNotificationData && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-7 px-2 text-red-600 hover:bg-red-500/10 hover:text-red-600"
+                              onClick={() => setOverdueNotificationLoan(loan)}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span className="hidden sm:inline ml-1">Cobrar</span>
                             </Button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          <p>Ações</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent align="end" className="w-48 bg-popover border">
-                        {!isPaid && (
-                          <>
-                            <DropdownMenuItem onClick={() => onPayment(loan.id)}>
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Pagar Parcela
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Enviar cobrança WhatsApp</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {canSendToThisClient && isDueToday && getDueTodayNotificationData && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-7 px-2 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600"
+                              onClick={() => setDueTodayNotificationLoan(loan)}
+                            >
+                              <Bell className="w-4 h-4" />
+                              <span className="hidden sm:inline ml-1">Lembrar</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Cobrar parcela de hoje</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {/* For daily loans that are overdue, also show due today button */}
+                    {canSendToThisClient && isOverdue && loan.payment_type === 'daily' && getDueTodayNotificationData && !isDueToday && (() => {
+                      const dueTodayData = getDueTodayNotificationData(loan);
+                      return dueTodayData !== null;
+                    })() && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-7 px-2 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600"
+                              onClick={() => setDueTodayNotificationLoan(loan)}
+                            >
+                              <Bell className="w-4 h-4" />
+                              <span className="hidden sm:inline ml-1">Hoje</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Cobrar parcela de hoje</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {/* Dropdown menu with other actions */}
+                    <TooltipProvider delayDuration={200}>
+                      <DropdownMenu>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            <p>Mais ações</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent align="end" className="w-48 bg-popover border">
+                          {!isPaid && (
+                            <>
+                              <DropdownMenuItem onClick={() => onPayment(loan.id)}>
+                                <CreditCard className="w-4 h-4 mr-2" />
+                                Pagar Parcela
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onPayInterest(loan.id)}>
+                                <DollarSign className="w-4 h-4 mr-2" />
+                                Pagar Juros
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          
+                          <DropdownMenuItem onClick={() => onViewHistory(loan.id)}>
+                            <History className="w-4 h-4 mr-2" />
+                            Histórico
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onEdit(loan.id)}>
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          {!isPaid && (
+                            <DropdownMenuItem onClick={() => onRenegotiate(loan.id)}>
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Renegociar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onPayInterest(loan.id)}>
-                              <DollarSign className="w-4 h-4 mr-2" />
-                              Pagar Juros
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        
-                        {/* WhatsApp notification options */}
-                        {canSendToThisClient && isOverdue && getOverdueNotificationData && (
-                          <DropdownMenuItem 
-                            onClick={() => setOverdueNotificationLoan(loan)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <MessageCircle className="w-4 h-4 mr-2" />
-                            Enviar Cobrança
-                          </DropdownMenuItem>
-                        )}
-                        
-                        {canSendToThisClient && isDueToday && getDueTodayNotificationData && (
-                          <DropdownMenuItem 
-                            onClick={() => setDueTodayNotificationLoan(loan)}
-                            className="text-amber-600 focus:text-amber-600"
-                          >
-                            <Bell className="w-4 h-4 mr-2" />
-                            Cobrar Parcela de Hoje
-                          </DropdownMenuItem>
-                        )}
-                        
-                        {/* For daily loans that are overdue, also show due today option if there's a payment today */}
-                        {canSendToThisClient && isOverdue && loan.payment_type === 'daily' && getDueTodayNotificationData && (() => {
-                          const dueTodayData = getDueTodayNotificationData(loan);
-                          return dueTodayData !== null;
-                        })() && (
-                          <DropdownMenuItem 
-                            onClick={() => setDueTodayNotificationLoan(loan)}
-                            className="text-amber-600 focus:text-amber-600"
-                          >
-                            <Bell className="w-4 h-4 mr-2" />
-                            Cobrar Parcela de Hoje
-                          </DropdownMenuItem>
-                        )}
-                        
-                        {canSendToThisClient && (isOverdue || isDueToday) && (
+                          )}
                           <DropdownMenuSeparator />
-                        )}
-                        
-                        <DropdownMenuItem onClick={() => onViewHistory(loan.id)}>
-                          <History className="w-4 h-4 mr-2" />
-                          Histórico
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(loan.id)}>
-                          <Pencil className="w-4 h-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        {!isPaid && (
-                          <DropdownMenuItem onClick={() => onRenegotiate(loan.id)}>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Renegociar
+                          <DropdownMenuItem 
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => onDelete(loan.id)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => onDelete(loan.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TooltipProvider>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TooltipProvider>
+                  </div>
                 </TableCell>
               </TableRow>
             );
