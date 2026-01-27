@@ -43,7 +43,7 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -346,6 +346,15 @@ export default function ProductSales() {
     payment_method: 'all_days',
     notes: '',
     is_historical: false,
+    // Vehicle rental fields
+    vehicle_plate: '',
+    vehicle_brand: '',
+    vehicle_model: '',
+    vehicle_color: '',
+    vehicle_km_start: '',
+    vehicle_km_end: '',
+    vehicle_year: '',
+    vehicle_renavam: '',
   });
 
 
@@ -414,6 +423,15 @@ export default function ProductSales() {
       payment_method: 'all_days',
       notes: '',
       is_historical: false,
+      // Reset vehicle fields
+      vehicle_plate: '',
+      vehicle_brand: '',
+      vehicle_model: '',
+      vehicle_color: '',
+      vehicle_km_start: '',
+      vehicle_km_end: '',
+      vehicle_year: '',
+      vehicle_renavam: '',
     });
     setSelectedContractClientId(null);
     setIsContractHistorical(false);
@@ -781,8 +799,16 @@ export default function ProductSales() {
   const handleCreateContract = async () => {
     if (!contractForm.client_name || !contractForm.total_amount || !contractForm.first_payment_date) return;
     
+    // Build vehicle notes if it's a vehicle rental
+    let finalNotes = contractForm.notes || '';
+    if (contractForm.contract_type === 'aluguel_veiculo' && contractForm.vehicle_plate) {
+      const vehicleInfo = `[VEÍCULO] Placa: ${contractForm.vehicle_plate} | Marca: ${contractForm.vehicle_brand || '-'} | Modelo: ${contractForm.vehicle_model || '-'} | Cor: ${contractForm.vehicle_color || '-'} | Ano: ${contractForm.vehicle_year || '-'} | KM Inicial: ${contractForm.vehicle_km_start || '-'} | KM Final: ${contractForm.vehicle_km_end || '-'} | Renavam: ${contractForm.vehicle_renavam || '-'}`;
+      finalNotes = vehicleInfo + (finalNotes ? `\n\n${finalNotes}` : '');
+    }
+    
     const formDataWithHistorical = {
       ...contractForm,
+      notes: finalNotes,
       is_historical: isContractHistorical,
       historical_paid_installments: isContractHistorical ? historicalPaidInstallments : undefined,
     };
@@ -1175,6 +1201,7 @@ export default function ProductSales() {
       aluguel_kitnet: 'Aluguel de Kitnet',
       aluguel_apartamento: 'Aluguel de Apartamento',
       aluguel_sala: 'Aluguel de Sala Comercial',
+      aluguel_veiculo: 'Aluguel de Veículo',
       mensalidade: 'Mensalidade',
       servico_mensal: 'Serviço Mensal',
       parcelado: 'Parcelado',
@@ -1895,12 +1922,102 @@ export default function ProductSales() {
                           <SelectItem value="aluguel_kitnet">Aluguel de Kitnet</SelectItem>
                           <SelectItem value="aluguel_apartamento">Aluguel de Apartamento</SelectItem>
                           <SelectItem value="aluguel_sala">Aluguel de Sala Comercial</SelectItem>
+                          <SelectItem value="aluguel_veiculo">Aluguel de Veículo</SelectItem>
                           <SelectItem value="mensalidade">Mensalidade</SelectItem>
                           <SelectItem value="servico_mensal">Serviço Mensal</SelectItem>
                           <SelectItem value="parcelado">Parcelado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    
+                    {/* Vehicle Rental Fields - Only shown when aluguel_veiculo is selected */}
+                    {contractForm.contract_type === 'aluguel_veiculo' && (
+                      <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-4">
+                        <div className="flex items-center gap-2 text-primary">
+                          <Car className="w-4 h-4" />
+                          <Label className="font-medium">Dados do Veículo</Label>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Placa *</Label>
+                            <Input 
+                              placeholder="ABC-1234" 
+                              value={contractForm.vehicle_plate || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_plate: e.target.value.toUpperCase()})} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Marca</Label>
+                            <Input 
+                              placeholder="Ex: Fiat, Honda..." 
+                              value={contractForm.vehicle_brand || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_brand: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Modelo</Label>
+                            <Input 
+                              placeholder="Ex: Uno, Civic..." 
+                              value={contractForm.vehicle_model || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_model: e.target.value})} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Cor</Label>
+                            <Input 
+                              placeholder="Ex: Preto, Prata..." 
+                              value={contractForm.vehicle_color || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_color: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>KM Inicial</Label>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              value={contractForm.vehicle_km_start || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_km_start: e.target.value})} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>KM Final (devolução)</Label>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              value={contractForm.vehicle_km_end || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_km_end: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Ano</Label>
+                            <Input 
+                              type="number" 
+                              placeholder="2024" 
+                              value={contractForm.vehicle_year || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_year: e.target.value})} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Renavam</Label>
+                            <Input 
+                              placeholder="00000000000" 
+                              value={contractForm.vehicle_renavam || ''} 
+                              onChange={(e) => setContractForm({...contractForm, vehicle_renavam: e.target.value})} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="space-y-2">
                       <Label>Frequência de Pagamento *</Label>
@@ -2042,11 +2159,22 @@ export default function ProductSales() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                            <FileSignature className="w-5 h-5 text-primary" />
+                            {contract.contract_type === 'aluguel_veiculo' ? (
+                              <Car className="w-5 h-5 text-primary" />
+                            ) : (
+                              <FileSignature className="w-5 h-5 text-primary" />
+                            )}
                           </div>
                           <div>
                             <p className="font-semibold">{contract.client_name}</p>
                             <p className="text-xs text-muted-foreground">{getContractTypeLabel(contract.contract_type)}</p>
+                            {/* Show vehicle plate for vehicle rentals */}
+                            {contract.contract_type === 'aluguel_veiculo' && contract.notes?.includes('[VEÍCULO]') && (
+                              <div className="flex items-center gap-1 text-xs text-primary font-medium mt-0.5">
+                                <Car className="w-3 h-3" />
+                                {contract.notes.match(/Placa: ([^\|]+)/)?.[1]?.trim() || 'Sem placa'}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
