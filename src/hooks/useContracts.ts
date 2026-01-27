@@ -55,13 +55,15 @@ export interface CreateContractData {
   bill_type: 'payable' | 'receivable';
   total_amount: number;
   amount_to_receive: number;
-  frequency: string;
+  frequency: 'monthly' | 'biweekly' | 'weekly';
   installments: number;
   contract_date?: string;
   first_payment_date: string;
   payment_method?: string;
   notes?: string;
   send_creation_notification?: boolean;
+  is_historical?: boolean;
+  historical_paid_installments?: number[];
 }
 
 export interface UpdateContractData {
@@ -75,6 +77,7 @@ export interface UpdateContractData {
   total_amount?: number;
   amount_to_receive?: number;
   contract_date?: string;
+  frequency?: 'monthly' | 'biweekly' | 'weekly';
   notes?: string;
 }
 
@@ -148,17 +151,21 @@ export function useContracts() {
       // Generate installment payments
       const installmentAmount = contractData.amount_to_receive / contractData.installments;
       const firstPaymentDate = new Date(contractData.first_payment_date);
+      const historicalPaidInstallments = contractData.historical_paid_installments || [];
       
       const payments = [];
       for (let i = 0; i < contractData.installments; i++) {
         const dueDate = calculateNextPaymentDate(firstPaymentDate, contractData.frequency, i);
+        const isPaidHistorical = contractData.is_historical && historicalPaidInstallments.includes(i + 1);
+        
         payments.push({
           contract_id: contract.id,
           user_id: effectiveUserId,
           installment_number: i + 1,
           amount: installmentAmount,
           due_date: dueDate.toISOString().split('T')[0],
-          status: 'pending',
+          status: isPaidHistorical ? 'paid' : 'pending',
+          paid_date: isPaidHistorical ? dueDate.toISOString().split('T')[0] : null,
         });
       }
 
@@ -173,6 +180,7 @@ export function useContracts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['contract_payments'] });
+      queryClient.invalidateQueries({ queryKey: ['all_contract_payments'] });
       toast.success('Contrato criado com sucesso!');
     },
     onError: (error) => {
