@@ -1,118 +1,85 @@
 
-# Plano: Corrigir Pagamentos Parciais de Juros que Estão Reduzindo Valor da Parcela
+## Objetivo
+Quando você paga **juros parcial** (ex: R$ 70 de R$ 200), a tela de **Parcelas** não pode diminuir a parcela para R$ 1.130.  
+O correto é:
+- **Valor da parcela continua R$ 1.200**
+- **Pago (da parcela)** continua **R$ 0** (porque não pagou principal/parcela ainda)
+- Mostrar separado: **“Juros já pago: R$ 70”** e **“Juros pendente: R$ 130”**
+- O **Restante do contrato** continua R$ 1.200 até quitar a parcela (ou até rolar quando quitar 100% dos juros, conforme regra já definida).
 
-## Problema
+---
 
-Quando o usuário registra pagamentos parciais de juros usando a nova funcionalidade, o valor da parcela está sendo reduzido incorretamente:
+## Causa raiz (confirmada no código)
+No `src/pages/Loans.tsx`, no diálogo/box de “Parcela”, existe um **fallback**:
+- Se não tem tags `[PARTIAL_PAID]` no `loan.notes`, ele usa `selectedLoan.total_paid` para “inventar” quanto foi pago na parcela.
+- O problema: no pagamento de juros parcial, o sistema **não grava** `[PARTIAL_INTEREST_PAYMENT]` dentro de `loan.notes` (essa tag fica no `loan_payments.notes`), então o fallback não detecta e interpreta `total_paid=70` como “pago da parcela”, reduzindo para 1130.
 
-- **Screenshot mostra**: Parcela 1/1 com "Valor: R$ 1.200,00 | Pago: R$ 400,00 | Falta: R$ 800,00"
-- **Comportamento esperado**: O valor de R$ 1.200 deveria permanecer intacto, com os R$ 400 mostrados apenas como "Juros já pago"
-
-### Causa Raiz
-
-1. **Fallback Logic**: O código de status da parcela (linhas 11265-11293 do Loans.tsx) tem uma lógica de fallback que usa `total_paid` para calcular quanto foi pago quando não existem tags `[PARTIAL_PAID]`
-
-2. **Tag não reconhecida**: O fallback verifica apenas `[INTEREST_ONLY_PAYMENT]` mas NÃO verifica `[PARTIAL_INTEREST_PAYMENT]`
-
-3. **Cálculo incorreto**: Quando há pagamentos parciais de juros, o `total_paid` inclui esses valores, e o fallback interpreta erroneamente como pagamento da parcela principal
-
-## Solução
-
-### Alteração no arquivo src/pages/Loans.tsx
-
-#### 1. Corrigir a verificação de tags de pagamento de juros
-
-Modificar a condição do fallback para também ignorar quando houver pagamentos parciais de juros:
-
-Linha ~11268:
-```typescript
-// ANTES:
-const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
-
-// DEPOIS:
-const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
+Hoje o código verifica:
+```ts
 const hasPartialInterestTag = (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAYMENT]');
 ```
+Mas como essa tag não está no `loan.notes`, `hasPartialInterestTag` fica falso.
 
-Linha ~11270:
-```typescript
-// ANTES:
-if (!hasAnyTrackingTags && !hasInterestOnlyTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+---
 
-// DEPOIS:
-if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+## O que vou mudar (sem alterar regras financeiras, só o cálculo/visual)
+### 1) Corrigir a detecção de “pagamento parcial de juros” no `loan.notes`
+Em vez de procurar apenas `[PARTIAL_INTEREST_PAYMENT]`, vou considerar que existe tracking de juros parcial se o `notes` contiver qualquer um destes:
+- `[PARTIAL_INTEREST_PAID:` (histórico do que já pagou)
+- `[PARTIAL_INTEREST_PENDING:` (quanto falta de juros naquela parcela)
+- `[INTEREST_CLEARED:` (quando quitou 100% dos juros por parcial e rolou)
+
+Exemplo:
+```ts
+const hasPartialInterestTracking =
+  notes.includes('[PARTIAL_INTEREST_PAID:') ||
+  notes.includes('[PARTIAL_INTEREST_PENDING:') ||
+  notes.includes('[INTEREST_CLEARED:') ||
+  notes.includes('[PARTIAL_INTEREST_PAYMENT]'); // opcional (se existir em algum caso)
 ```
 
-#### 2. Aplicar mesma correção em outras funções getInstallmentStatus
+### 2) Bloquear o fallback de `total_paid` quando houver tracking de juros parcial
+Na função `getInstallmentStatus` (do diálogo “Parcela”):
+- Hoje ele bloqueia fallback só com `hasPartialInterestTag` (errado).
+- Vou trocar para `hasPartialInterestTracking`.
 
-Existem múltiplas cópias da função `getInstallmentStatus` no arquivo. Todas precisam ser corrigidas:
+Resultado:
+- `paidAmount` da parcela permanece 0
+- `remaining` permanece 1200
+- E o box continua mostrando separadamente “Juros já pago” e “Juros pendente”.
 
-- **getInstallmentStatusForDisplay** (~linha 8653): Usada nos cards de empréstimo
-- **getInstallmentStatus** (~linha 11252): Usada no diálogo de pagamento
-- **getInstallmentStatusPartial** (~linha 11664): Usada no pagamento parcial
+### 3) Aplicar a mesma correção em todos os lugares equivalentes
+O arquivo tem mais de uma função de status/visualização de parcelas (ex: `getInstallmentStatusForDisplay`, `getInstallmentStatusPartial`, e outros blocos similares).
+Vou procurar por padrões como:
+- `const hasInterestOnlyTag = ...`
+- `if (!hasAnyTrackingTags && ... && selectedLoan.total_paid ... )`
+e aplicar a mesma regra: **se houver tracking de juros parcial, não usar `total_paid` como pagamento da parcela**.
 
-Para cada uma, adicionar verificação de `[PARTIAL_INTEREST_PAYMENT]`.
+### 4) Evitar que contagens automáticas de parcelas pagas usem juros parcial por engano
+Funções como `getPaidInstallmentsCount` também têm fallback baseado em `loan.total_paid`.
+Vou acrescentar a mesma proteção lá:
+- se existir `[PARTIAL_INTEREST_PAID:`/`[PARTIAL_INTEREST_PENDING:` no notes, **não considerar `total_paid` como pagamento de parcela** para “contar parcelas pagas”.
 
-#### 3. Garantir que o texto exibido seja claro
+---
 
-Quando há pagamentos parciais de juros para uma parcela, a exibição deveria mostrar:
+## Como vou validar (checklist)
+1. Criar empréstimo 1 parcela: **R$ 1.000 + R$ 200 = R$ 1.200**
+2. Fazer pagamento **juros parcial**: R$ 70
+3. Abrir o modal de pagamento → opção **Parcela**
+4. Verificar:
+   - “Valor: R$ 1.200”
+   - “Pago: R$ 0”
+   - “Falta: R$ 1.200”
+   - E abaixo: “Juros já pago: R$ 70” / “Juros pendente: R$ 130”
+5. Pagar os R$ 130 restantes e confirmar que o fluxo de rolar contrato ocorre como esperado (conforme regra já aprovada).
 
-- **Valor da Parcela**: R$ 1.200,00 (principal R$ 1.000 + juros R$ 200)
-- **Juros já pago**: R$ 70 (verde)
-- **Juros pendente**: R$ 130 (amarelo)
-- **Principal a pagar**: R$ 1.000,00
+---
 
-A UI já mostra os pagamentos parciais de juros corretamente (código nas linhas 11424-11447), mas o problema é que a linha 11448-11451 está exibindo o status incorreto porque `status.paidAmount` e `status.remaining` estão errados.
+## Arquivo afetado
+- `src/pages/Loans.tsx` (somente lógica de detecção e exibição/fallback; não muda banco e não muda cálculos financeiros reais do contrato)
 
-## Seção Técnica
+---
 
-### Localizações das alterações
-
-| Linha | Alteração |
-|-------|-----------|
-| ~11268 | Adicionar `const hasPartialInterestTag = ...` |
-| ~11270 | Incluir `&& !hasPartialInterestTag` na condição |
-| ~8653+ | Aplicar mesma correção se houver fallback |
-| ~11664+ | Verificar se precisa da mesma correção |
-
-### Verificar outros locais com lógica similar
-
-Buscar por outros lugares que usam fallback baseado em `total_paid`:
-
-```typescript
-// Padrão a buscar:
-if (!hasAnyTrackingTags && ... && selectedLoan.total_paid
-```
-
-### Fluxo Corrigido
-
-```text
-Empréstimo: R$ 1.000 principal + R$ 200 juros = R$ 1.200 total
-
-Usuário paga R$ 70 de juros parcial
-  -> [PARTIAL_INTEREST_PAYMENT] registrado
-  -> [PARTIAL_INTEREST_PAID:0:70:data] adicionado
-  -> total_paid = 70
-  -> remaining_balance = 1.200 (NÃO MUDA - triggers corrigidos)
-
-Ao abrir diálogo de pagamento:
-  -> hasPartialInterestTag = true
-  -> Fallback é IGNORADO
-  -> partialPayments[0] = undefined (não há [PARTIAL_PAID])
-  -> paidAmount = 0
-  -> remaining = 1.200
-  
-Exibição:
-  -> "Valor: R$ 1.200,00" (correto)
-  -> "Juros já pago: R$ 70" (do breakdown de juros parciais)
-  -> "Juros pendente: R$ 130" (do breakdown)
-```
-
-### Validação
-
-Após a correção:
-1. Criar empréstimo de R$ 1.000 + 20% juros = R$ 1.200
-2. Usar "Pagamento parcial de juros" para pagar R$ 70
-3. Abrir diálogo de pagamento normal
-4. Verificar que mostra "Valor: R$ 1.200" sem redução
-5. Verificar que mostra "Juros já pago: R$ 70" na seção de breakdown
+## Observação importante
+Esse ajuste é especificamente para o que você relatou: **juros parcial não pode ser interpretado como pagamento da parcela**.  
+Ele mantém o “principal total” e o “valor da parcela” intactos até que haja pagamento de parcela (via `[PARTIAL_PAID]` ou pagamento normal/total).
