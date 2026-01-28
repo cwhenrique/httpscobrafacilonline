@@ -1,123 +1,48 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/calculations';
-import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Briefcase, ChevronRight, ChevronDown, Pencil, Lock, Unlock } from 'lucide-react';
+import { Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Briefcase, ChevronRight, ChevronDown, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { CashFlowConfigModal } from './CashFlowConfigModal';
 
 interface CashFlowCardProps {
   initialBalance: number;
+  calculatedInitialBalance: number;
   loanedInPeriod: number;
   totalOnStreet: number;
   receivedInPeriod: number;
   interestReceived: number;
   onUpdateInitialBalance: (value: number) => void;
-  isUnlocked: boolean;
 }
 
 export function CashFlowCard({
   initialBalance,
+  calculatedInitialBalance,
   loanedInPeriod,
   totalOnStreet,
   receivedInPeriod,
   interestReceived,
   onUpdateInitialBalance,
-  isUnlocked,
 }: CashFlowCardProps) {
   const [configOpen, setConfigOpen] = useState(false);
   
+  // Usar valor manual se configurado, senão usar valor calculado
+  const effectiveInitialBalance = initialBalance > 0 
+    ? initialBalance 
+    : calculatedInitialBalance;
+  
+  // Indica se está usando valor calculado ou manual
+  const isUsingCalculatedBalance = initialBalance <= 0 && calculatedInitialBalance > 0;
+  
   // Cálculo do caixa atual
-  const currentBalance = initialBalance - loanedInPeriod + receivedInPeriod;
+  const currentBalance = effectiveInitialBalance - loanedInPeriod + receivedInPeriod;
   
   // Determina se o caixa está positivo ou negativo
   const isPositive = currentBalance >= 0;
   const hasProfit = interestReceived > 0;
 
-  // Estado bloqueado - tela de onboarding
-  if (!isUnlocked) {
-    return (
-      <>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Card className="border-primary/30 bg-card shadow-lg">
-            <CardHeader className="pb-2">
-            <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
-              <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              Fluxo de Caixa
-              <Badge className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 animate-pulse">
-                Novidade
-              </Badge>
-            </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="py-8 text-center space-y-4">
-                <div className="relative inline-block">
-                  <div className="p-6 rounded-full bg-primary/10 inline-block">
-                    <Lock className="w-12 h-12 text-primary/60" />
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-emerald-500/20">
-                    <Unlock className="w-5 h-5 text-emerald-500" />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-foreground">
-                    Desbloqueie o Fluxo de Caixa
-                  </h3>
-                  <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                    Configure seu saldo inicial e acompanhe em tempo real: entradas, saídas, lucro e capital na rua.
-                  </p>
-                </div>
-                
-                <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/50 rounded-full">
-                    <ArrowUpRight className="w-3.5 h-3.5 text-red-500" />
-                    <span>Saídas</span>
-                  </div>
-                  <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/50 rounded-full">
-                    <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Entradas</span>
-                  </div>
-                  <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/50 rounded-full">
-                    <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                    <span>Lucro</span>
-                  </div>
-                  <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/50 rounded-full">
-                    <Briefcase className="w-3.5 h-3.5 text-orange-500" />
-                    <span>Capital na Rua</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  onClick={() => setConfigOpen(true)}
-                  className="mt-4"
-                  size="lg"
-                >
-                  <Unlock className="w-4 h-4 mr-2" />
-                  Desbloquear Agora
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <CashFlowConfigModal
-          open={configOpen}
-          onOpenChange={setConfigOpen}
-          currentBalance={initialBalance}
-          onSave={onUpdateInitialBalance}
-        />
-      </>
-    );
-  }
-
-  // Estado desbloqueado - layout completo
   return (
     <>
       <motion.div
@@ -152,11 +77,17 @@ export function CashFlowCard({
                   <Pencil className="w-4 h-4 text-blue-500" />
                 </div>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-500 tracking-tight">
-                  {formatCurrency(initialBalance)}
+                  {formatCurrency(effectiveInitialBalance)}
                 </p>
-                <p className="text-xs text-blue-500/60 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Clique para editar
-                </p>
+                {isUsingCalculatedBalance ? (
+                  <p className="text-xs text-blue-500/60 mt-1">
+                    Calculado automaticamente
+                  </p>
+                ) : (
+                  <p className="text-xs text-blue-500/60 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Clique para editar
+                  </p>
+                )}
               </button>
 
               {/* Seta */}
@@ -254,6 +185,7 @@ export function CashFlowCard({
         open={configOpen}
         onOpenChange={setConfigOpen}
         currentBalance={initialBalance}
+        suggestedBalance={calculatedInitialBalance}
         onSave={onUpdateInitialBalance}
       />
     </>

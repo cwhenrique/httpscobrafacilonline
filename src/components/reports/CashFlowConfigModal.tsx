@@ -10,12 +10,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wallet } from 'lucide-react';
+import { Wallet, Sparkles } from 'lucide-react';
+import { formatCurrency } from '@/lib/calculations';
 
 interface CashFlowConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentBalance: number;
+  suggestedBalance?: number; // Valor sugerido pelo sistema
   onSave: (value: number) => void;
 }
 
@@ -23,6 +25,7 @@ export function CashFlowConfigModal({
   open,
   onOpenChange,
   currentBalance,
+  suggestedBalance,
   onSave,
 }: CashFlowConfigModalProps) {
   const [value, setValue] = useState('');
@@ -30,7 +33,7 @@ export function CashFlowConfigModal({
   // Atualiza o valor quando o modal abre
   useEffect(() => {
     if (open) {
-      setValue(currentBalance > 0 ? currentBalance.toString() : '');
+      setValue(currentBalance > 0 ? (currentBalance * 100).toString() : '');
     }
   }, [open, currentBalance]);
 
@@ -48,6 +51,12 @@ export function CashFlowConfigModal({
         currency: 'BRL',
       })
     : '';
+
+  const handleUseSuggested = () => {
+    if (suggestedBalance && suggestedBalance > 0) {
+      setValue(Math.round(suggestedBalance * 100).toString());
+    }
+  };
 
   const handleSave = () => {
     const numericValue = value ? parseInt(value) / 100 : 0;
@@ -69,6 +78,28 @@ export function CashFlowConfigModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Sugestão do sistema */}
+          {suggestedBalance !== undefined && suggestedBalance > 0 && (
+            <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-4 h-4 text-blue-500" />
+                <p className="text-sm text-blue-500 font-medium">Sugestão do sistema:</p>
+              </div>
+              <p className="text-lg font-bold text-blue-500">{formatCurrency(suggestedBalance)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Baseado no seu histórico de operações (recebido - capital na rua)
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleUseSuggested}
+                className="mt-2 text-xs border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
+              >
+                Usar este valor
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="balance">Saldo Inicial do Caixa</Label>
             <div className="relative">
