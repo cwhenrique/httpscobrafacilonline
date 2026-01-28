@@ -28,6 +28,8 @@ export interface Profile {
   // PIX key
   pix_key: string | null;
   pix_key_type: string | null;
+  // PIX pre-message
+  pix_pre_message: string | null;
   // Billing signature name
   billing_signature_name: string | null;
   // Company logo for PDFs

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -92,6 +93,7 @@ export default function Profile() {
     payment_link: '',
     pix_key: '',
     pix_key_type: 'cpf',
+    pix_pre_message: '',
     billing_signature_name: '',
   });
   const [passwordData, setPasswordData] = useState({
@@ -158,6 +160,7 @@ export default function Profile() {
         payment_link: profile.payment_link || '',
         pix_key: profile.pix_key || '',
         pix_key_type: profile.pix_key_type || 'cpf',
+        pix_pre_message: profile.pix_pre_message || '',
         billing_signature_name: profile.billing_signature_name || '',
       });
       setSendToClientsEnabled(profile.whatsapp_to_clients_enabled || false);
@@ -564,6 +567,7 @@ export default function Profile() {
       payment_link: profile?.payment_link || '',
       pix_key: profile?.pix_key || '',
       pix_key_type: profile?.pix_key_type || 'cpf',
+      pix_pre_message: profile?.pix_pre_message || '',
       billing_signature_name: profile?.billing_signature_name || '',
     });
     setIsEditing(false);
@@ -639,6 +643,7 @@ export default function Profile() {
     const updates = {
       pix_key: formData.pix_key.trim() || null,
       pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
+      pix_pre_message: formData.pix_pre_message.trim() || null,
     };
     
     // Verificar se é primeiro cadastro (não tinha PIX antes)
@@ -681,6 +686,7 @@ export default function Profile() {
       ...prev,
       pix_key: profile?.pix_key || '',
       pix_key_type: profile?.pix_key_type || 'cpf',
+      pix_pre_message: profile?.pix_pre_message || '',
     }));
     setIsEditingPix(false);
   };
@@ -1246,27 +1252,49 @@ export default function Profile() {
                     }
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pix_pre_message">Mensagem do PIX (opcional)</Label>
+                  <Textarea
+                    id="pix_pre_message"
+                    value={formData.pix_pre_message}
+                    onChange={(e) => setFormData({ ...formData, pix_pre_message: e.target.value.slice(0, 500) })}
+                    placeholder="Ex: Clique no link e coloque seu nome completo e valor"
+                    rows={2}
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Esta mensagem aparecerá junto com a chave PIX em todas as cobranças. ({formData.pix_pre_message.length}/500)
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <QrCode className="w-4 h-4 text-green-500" />
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/10">
+                    <QrCode className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground">Chave Cadastrada</p>
+                    {profile?.pix_key ? (
+                      <div>
+                        <p className="font-medium">
+                          {profile.pix_key}
+                        </p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          Tipo: {profile.pix_key_type || 'Não definido'}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">Nenhuma chave cadastrada</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground">Chave Cadastrada</p>
-                  {profile?.pix_key ? (
-                    <div>
-                      <p className="font-medium">
-                        {profile.pix_key}
-                      </p>
-                      <p className="text-xs text-muted-foreground capitalize">
-                        Tipo: {profile.pix_key_type || 'Não definido'}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">Nenhuma chave cadastrada</p>
-                  )}
-                </div>
+                {profile?.pix_pre_message && (
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground mb-1">📢 Mensagem do PIX</p>
+                    <p className="text-sm">{profile.pix_pre_message}</p>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

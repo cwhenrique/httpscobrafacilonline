@@ -108,7 +108,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     message += `\nQualquer dúvida, estou à disposição! 😊`;
     
@@ -154,7 +154,7 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     }
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     message += `\nQualquer dúvida, estou à disposição! 😊`;
     
