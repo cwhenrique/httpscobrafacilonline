@@ -7297,9 +7297,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 
                 // Detectar pagamentos parciais de juros para estilização
+                // Inclui INTEREST_CLEARED para manter o card roxo após o rollover
                 const hasPartialInterestPayments = 
                   (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
-                  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:');
+                  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:') ||
+                  (loan.notes || '').includes('[INTEREST_CLEARED:');
                 
                 // Total original do contrato (antes de qualquer renegociação)
                 const originalTotal = loan.principal_amount + effectiveTotalInterest;
