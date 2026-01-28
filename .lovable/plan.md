@@ -1,61 +1,79 @@
 
 
-# Plano: Manter Cores Verde e Amarelo no Card Roxo
+# Plano: Card Continua Roxo Após Rolar o Mês
 
 ## Problema
 
-Quando o card tem pagamento parcial de juros, ele fica com estilo roxo (`hasSpecialStyle = true`). Isso faz com que o texto de "Juros já pago" e "Juros pendente" fiquem brancos, perdendo a diferenciação visual verde/amarelo.
+Quando os juros parciais são totalmente pagos, o sistema:
+1. Remove as tags `[PARTIAL_INTEREST_PAID:]` e `[PARTIAL_INTEREST_PENDING:]`
+2. Adiciona a tag `[INTEREST_CLEARED:]` para registrar que os juros foram quitados
+3. Rola o contrato para o próximo mês
+
+O card perde a cor roxa porque a detecção atual (linha 7300-7302) só procura por:
+- `[PARTIAL_INTEREST_PAID:]`
+- `[PARTIAL_INTEREST_PENDING:]`
+
+Mas **não** procura por `[INTEREST_CLEARED:]` que permanece no histórico.
+
+---
 
 ## Solução
 
-Alterar a lógica de cores para **sempre** usar verde para "Juros já pago" e amarelo para "Juros pendente", mesmo quando o card tem estilo especial.
+Adicionar `[INTEREST_CLEARED:]` na detecção de `hasPartialInterestPayments` para que o card continue roxo mesmo após o rollover.
 
 ### Alteração no arquivo src/pages/Loans.tsx
 
-Linhas 8024-8037 - Remover a condição `hasSpecialStyle` para manter as cores fixas:
-
-**Antes:**
-```tsx
-<span className={hasSpecialStyle ? 'text-white/80' : 'text-green-300'}>
-  💵 Juros já pago:
-</span>
-<span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-green-400'}`}>
-  {formatCurrency(paidForCurrent)}
-</span>
-
-<span className={hasSpecialStyle ? 'text-white/80' : 'text-amber-300'}>
-  Juros pendente:
-</span>
-<span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-amber-400'}`}>
-  {formatCurrency(remainingInterest)}
-</span>
+**Linha ~7300-7302 - Antes:**
+```typescript
+const hasPartialInterestPayments = 
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:');
 ```
 
 **Depois:**
-```tsx
-<span className="text-green-300">
-  💵 Juros já pago:
-</span>
-<span className="font-bold text-green-400">
-  {formatCurrency(paidForCurrent)}
-</span>
-
-<span className="text-amber-300">
-  Juros pendente:
-</span>
-<span className="font-bold text-amber-400">
-  {formatCurrency(remainingInterest)}
-</span>
+```typescript
+const hasPartialInterestPayments = 
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:') ||
+  (loan.notes || '').includes('[INTEREST_CLEARED:');
 ```
+
+---
+
+## Fluxo Visual
+
+```text
+Estado 1: Pagamento parcial feito (R$ 70 de R$ 200)
+Tags: [PARTIAL_INTEREST_PAID:0:70:2026-01-28]
+      [PARTIAL_INTEREST_PENDING:0:130:2026-02-28]
+Card: ROXO ✓
+
+Estado 2: Juros restantes pagos (R$ 130)
+Tags antigas removidas, nova tag adicionada:
+      [INTEREST_CLEARED:0:2026-01-28]
+Card: ROXO ✓ (continua roxo por causa do INTEREST_CLEARED)
+
+Estado 3: Próximo mês, novo pagamento parcial
+Tags: [INTEREST_CLEARED:0:2026-01-28]
+      [PARTIAL_INTEREST_PAID:1:50:2026-02-15]
+Card: ROXO ✓
+```
+
+---
 
 ## Resultado Esperado
 
-No card roxo (com pagamento parcial de juros):
+| Situação | Cor do Card |
+|----------|-------------|
+| Pagamento parcial de juros ativo | **Roxo** |
+| Juros quitados, contrato rolou | **Roxo** (histórico de interest-only) |
+| Múltiplos meses de juros-only | **Roxo** (acumula tags CLEARED) |
 
-| Item | Cor |
-|------|-----|
-| 💵 Juros já pago: R$ 70,00 | **Verde** |
-| Juros pendente: R$ 130,00 | **Amarelo** |
+---
 
-Independente do estilo do card, as cores serão mantidas para fácil identificação visual.
+## Resumo
+
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| src/pages/Loans.tsx | ~7300-7302 | Adicionar `[INTEREST_CLEARED:]` na detecção |
 
