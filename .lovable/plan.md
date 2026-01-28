@@ -1,80 +1,105 @@
 
-# Plano: Melhorar UX ao Zerar Saldo Inicial do Fluxo de Caixa
 
-## Situação Atual
+# Plano: Corrigir Saldo Inicial para Total de Principal Emprestado
 
-A lógica já está implementada corretamente:
-- Quando `cash_flow_initial_balance` é `0` ou `null`, o sistema usa o `calculatedInitialBalance` (capital na rua puro)
-- O código em `CashFlowCard.tsx` linha 32-34: `initialBalance > 0 ? initialBalance : calculatedInitialBalance`
+## Problema Identificado
 
-**O que precisa melhorar:** A experiência do usuário ao resetar para o valor automático.
+O cálculo atual do saldo inicial usa apenas o "Capital na Rua" (principal pendente dos empréstimos ativos):
 
-## Alterações Propostas
+```typescript
+// LÓGICA ATUAL (INCORRETA)
+const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+return currentCapitalOnStreet; // R$ 2.600
+```
 
-### 1. Adicionar botão "Resetar" no Modal (CashFlowConfigModal.tsx)
+**Mas o correto é:** O saldo inicial deve representar **todo o dinheiro que o usuário emprestou** (soma do principal de TODOS os empréstimos, ativos e quitados).
 
-Adicionar um botão claro para resetar o valor para automático, junto com uma explicação:
+## Seu Cenário
+
+| Empréstimo | Principal | Status | Capital na Rua |
+|------------|-----------|--------|----------------|
+| Devedor 02 | R$ 1.000 | Ativo | R$ 600 (após pagamentos) |
+| Devedor 02 (diária) | R$ 2.000 | Ativo | R$ 2.000 |
+| Devedor 01 | R$ 500 | Quitado | R$ 0 |
+| **TOTAL** | **R$ 3.500** | - | **R$ 2.600** |
+
+- **Capital na Rua:** R$ 2.600 (correto para esse indicador)
+- **Saldo Inicial do Fluxo de Caixa:** Deveria ser R$ 3.500 (todo principal emprestado)
+
+## Fórmula Corrigida
+
+```text
+Saldo Inicial = Σ principal_amount de TODOS os empréstimos (ativos + quitados)
+```
+
+## Alteração Necessária
+
+### src/pages/ReportsLoans.tsx (linhas 693-706)
+
+**De:**
+```typescript
+const calculatedInitialBalance = useMemo(() => {
+  // ERRADO: só pega empréstimos ativos e capital pendente
+  const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+  const currentCapitalOnStreet = allActiveLoans.reduce((sum, loan) => {
+    const principal = Number(loan.principal_amount);
+    const payments = (loan as any).payments || [];
+    const totalPrincipalPaid = payments.reduce((s: number, p: any) => 
+      s + Number(p.principal_paid || 0), 0);
+    return sum + Math.max(0, principal - totalPrincipalPaid);
+  }, 0);
+  
+  return currentCapitalOnStreet;
+}, [stats.allLoans]);
+```
+
+**Para:**
+```typescript
+const calculatedInitialBalance = useMemo(() => {
+  // CORRETO: soma o principal de TODOS os empréstimos (ativos + quitados)
+  // Representa o capital total que o usuário tinha para emprestar
+  const totalPrincipalEverLoaned = stats.allLoans.reduce((sum, loan) => {
+    return sum + Number(loan.principal_amount);
+  }, 0);
+  
+  return totalPrincipalEverLoaned;
+}, [stats.allLoans]);
+```
+
+## Fluxo de Caixa Resultante
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  📊 Sugestão do sistema: R$ 37.000                      │
-│  Baseado no capital na rua                              │
-│  [Usar este valor]                                      │
-├─────────────────────────────────────────────────────────┤
-│  Saldo Inicial do Caixa                                 │
-│  ┌─────────────────────────────┐                        │
-│  │ R$ ___________________      │                        │
-│  └─────────────────────────────┘                        │
-│  ⚠️ Deixe vazio para usar o valor automático            │
-│                                                         │
-│  [Resetar para automático] ← NOVO BOTÃO                 │
-├─────────────────────────────────────────────────────────┤
-│              [Cancelar]    [Salvar]                     │
+│  Inicial: R$ 3.500 (total emprestado historicamente)    │
+│  → Saídas: R$ 0 (emprestado no período selecionado)     │
+│  → Entradas: R$ 900 (recebido no período)               │
+│  ─────────────────────────────────────────────────────  │
+│  Saldo Atual: R$ 3.500 - R$ 0 + R$ 900 = R$ 4.400       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 2. Mostrar mensagem quando campo vazio
+**Nota:** O saldo atual mostra que o dinheiro recebido voltou para o caixa, aumentando o capital disponível.
 
-Adicionar indicador visual quando o usuário limpar o campo:
+## Atualização do Texto no Modal
 
-- Se o campo estiver vazio, mostrar: "O sistema usará automaticamente o capital na rua (R$ X.XXX)"
+### src/components/reports/CashFlowConfigModal.tsx
 
-### Arquivos a Modificar
+Atualizar a descrição da sugestão:
+
+**De:**
+```text
+"Baseado no capital na rua (principal dos empréstimos ativos)"
+```
+
+**Para:**
+```text
+"Baseado no total de capital emprestado historicamente"
+```
+
+## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/reports/CashFlowConfigModal.tsx` | Adicionar botão "Resetar para automático" e mensagem quando campo vazio |
+| `src/pages/ReportsLoans.tsx` | Mudar `calculatedInitialBalance` para somar o principal de TODOS os empréstimos |
+| `src/components/reports/CashFlowConfigModal.tsx` | Atualizar descrição da sugestão automática |
 
-### Código das Alterações
-
-**CashFlowConfigModal.tsx:**
-
-1. Adicionar botão "Resetar para automático":
-```tsx
-const handleReset = () => {
-  setValue('');
-};
-```
-
-2. Mostrar mensagem dinâmica quando campo vazio:
-```tsx
-{!value && suggestedBalance && suggestedBalance > 0 && (
-  <p className="text-xs text-emerald-500 flex items-center gap-1">
-    <Info className="w-3 h-3" />
-    Será usado automaticamente: {formatCurrency(suggestedBalance)}
-  </p>
-)}
-```
-
-3. Adicionar botão de reset no footer:
-```tsx
-<Button variant="ghost" onClick={handleReset} className="text-muted-foreground">
-  Resetar para automático
-</Button>
-```
-
-## Resultado Esperado
-
-- Usuário entende claramente que ao deixar vazio ou zerar, o sistema usará o capital na rua
-- Botão dedicado para resetar facilita a ação
-- Mensagem confirma qual valor será usado quando o campo estiver vazio
