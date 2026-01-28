@@ -135,6 +135,25 @@ const getPaidAdvanceSubparcelasFromNotes = (notes: string | null): Array<{ origi
   return subparcelas;
 };
 
+// Helper para extrair pagamentos parciais de juros pendentes
+// Formato: [PARTIAL_INTEREST_PENDING:indice:valor:data]
+const getPartialInterestPendingFromNotes = (notes: string | null): Array<{
+  installmentIndex: number;
+  pendingAmount: number;
+  paymentDate: string;
+}> => {
+  const pending: Array<{ installmentIndex: number; pendingAmount: number; paymentDate: string }> = [];
+  const matches = (notes || '').matchAll(/\[PARTIAL_INTEREST_PENDING:(\d+):([0-9.]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    pending.push({
+      installmentIndex: parseInt(match[1]),
+      pendingAmount: parseFloat(match[2]),
+      paymentDate: match[3]
+    });
+  }
+  return pending;
+};
+
 // Helper para extrair pagamentos de "somente juros" por parcela do notes
 // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
 const getInterestOnlyPaymentsFromNotes = (notes: string | null): Array<{ installmentIndex: number; amount: number; paymentDate: string }> => {
@@ -858,6 +877,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     renewal_fee_amount: '',
     new_remaining_with_fee: '',
     renewal_fee_installment: 'next' as 'next' | string, // 'next' = próxima parcela, ou índice específico
+    // Pagamento parcial de juros
+    partial_interest_enabled: false,
+    partial_interest_amount: '',
+    partial_interest_installment: '0',
+    partial_interest_date: format(new Date(), 'yyyy-MM-dd'),
   });
   const [interestOnlyOriginalRemaining, setInterestOnlyOriginalRemaining] = useState(0);
   const [uploadingClientId, setUploadingClientId] = useState<string | null>(null);
@@ -4384,6 +4408,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       renewal_fee_amount: '',
       new_remaining_with_fee: remainingForRenegotiation > 0 ? remainingForRenegotiation.toFixed(2) : '0',
       renewal_fee_installment: 'next',
+      // Pagamento parcial de juros
+      partial_interest_enabled: false,
+      partial_interest_amount: '',
+      partial_interest_installment: '0',
+      partial_interest_date: format(new Date(), 'yyyy-MM-dd'),
     });
     // Guardar o valor original para quando marcar "só juros"
     setInterestOnlyOriginalRemaining(remainingForInterestOnly);
@@ -4645,80 +4674,60 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       setIsPaymentReceiptOpen(true);
       
       return; // Sair da função aqui, não executar o else
-    } else if (renegotiateData.renewal_fee_enabled) {
-      // Aplicar juros extra em parcela específica (sem pagamento de juros)
+    } else if (renegotiateData.partial_interest_enabled && renegotiateData.partial_interest_amount) {
+      // Pagamento parcial de juros - NÃO rola datas, apenas registra pagamento
+      const partialAmount = parseFloat(renegotiateData.partial_interest_amount);
+      const installmentIndex = parseInt(renegotiateData.partial_interest_installment);
+      const paymentDate = renegotiateData.partial_interest_date || format(new Date(), 'yyyy-MM-dd');
+      
+      // Calcular juros por parcela
       const numInstallments = loan.installments || 1;
-      const principalPerInstallment = loan.principal_amount / numInstallments;
-      const totalInterestLoan = loan.total_interest || 0;
-      const interestPerInstallmentLoan = totalInterestLoan / numInstallments;
-      const originalInstallmentValue = principalPerInstallment + interestPerInstallmentLoan;
-      
-      // Extrair pagamentos parciais
-      const partialPayments: Record<number, number> = {};
-      const matches = (loan.notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
-      for (const match of matches) {
-        partialPayments[parseInt(match[1])] = parseFloat(match[2]);
-      }
-      
-      // Determinar parcela alvo
-      let targetInstallment = 0;
-      if (renegotiateData.renewal_fee_installment === 'next') {
-        // Encontrar próxima parcela não totalmente paga
-        for (let i = 0; i < numInstallments; i++) {
-          const paidAmount = partialPayments[i] || 0;
-          if (paidAmount < originalInstallmentValue * 0.99) {
-            targetInstallment = i;
-            break;
-          }
-        }
+      let baseTotalInterest = 0;
+      if (loan.total_interest !== undefined && loan.total_interest !== null && loan.total_interest > 0) {
+        baseTotalInterest = loan.total_interest;
+      } else if (loan.interest_mode === 'on_total') {
+        baseTotalInterest = loan.principal_amount * (loan.interest_rate / 100);
+      } else if (loan.interest_mode === 'compound') {
+        baseTotalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
       } else {
-        targetInstallment = parseInt(renegotiateData.renewal_fee_installment);
+        baseTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
       }
+      const interestPerInstallment = baseTotalInterest / numInstallments;
+      const pendingInterest = Math.max(0, interestPerInstallment - partialAmount);
       
-      // Calcular valor RESTANTE da parcela alvo (considerando pagamentos parciais)
-      const paidOnTarget = partialPayments[targetInstallment] || 0;
-      const remainingOnTarget = originalInstallmentValue - paidOnTarget;
-      
-      // Calcular o novo valor da parcela específica = valor restante + taxa
-      const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
-      const newInstallmentValue = remainingOnTarget + feeAmount;
-      
-      // CORREÇÃO: Usar o remaining_balance atual do banco de dados como base
-      const currentRemaining = loan.remaining_balance || 0;
-      
-      // Se já existia uma taxa anterior, subtrair ela antes de adicionar a nova (para não acumular)
-      const existingFeeMatchNew = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:\d+:[0-9.]+:([0-9.]+)\]/);
-      let existingFeeAmount = 0;
-      if (existingFeeMatchNew) {
-        existingFeeAmount = parseFloat(existingFeeMatchNew[1]);
-      }
-      
-      // Novo saldo = atual - taxa antiga + taxa nova
-      const newRemaining = currentRemaining - existingFeeAmount + feeAmount;
-      
-      // Atualizar notas com tag de renovação
-      let notesText = loan.notes || '';
-      // Remover tag anterior se existir
-      notesText = notesText.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
-      // IMPORTANTE: Limpar o tracking de pagamento parcial desta parcela, pois o novo valor já considera isso
-      notesText = notesText.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallment}:[0-9.]+\\]`, 'g'), '');
-      notesText += `\nTaxa extra: ${renegotiateData.renewal_fee_percentage}% (R$ ${renegotiateData.renewal_fee_amount}) na parcela ${targetInstallment + 1}`;
-      // Armazenar: índice da parcela, novo valor da parcela, e a taxa real aplicada
-      notesText += `\n[RENEWAL_FEE_INSTALLMENT:${targetInstallment}:${newInstallmentValue.toFixed(2)}:${feeAmount.toFixed(2)}]`;
-      
-      await renegotiateLoan(selectedLoanId, {
-        interest_rate: loan.interest_rate,
-        installments: loan.installments || 1,
-        installment_dates: (loan.installment_dates as string[]) || [],
-        due_date: loan.due_date,
-        notes: notesText,
-        remaining_balance: newRemaining,
+      // Registrar pagamento com tag [PARTIAL_INTEREST_PAYMENT]
+      const paymentResult = await registerPayment({
+        loan_id: selectedLoanId,
+        amount: partialAmount,
+        principal_paid: 0, // Não afeta principal
+        interest_paid: partialAmount,
+        payment_date: paymentDate,
+        notes: `[PARTIAL_INTEREST_PAYMENT] Pagamento parcial de juros da parcela ${installmentIndex + 1}`,
+        send_notification: false,
       });
       
-      toast.success(
-        `Taxa extra de ${formatCurrency(feeAmount)} aplicada na parcela ${targetInstallment + 1}. Novo total: ${formatCurrency(newRemaining)}`,
-        { duration: 5000 }
-      );
+      if (paymentResult.error) {
+        console.error('[PARTIAL_INTEREST_ERROR] Falha ao registrar:', paymentResult.error);
+        toast.error('Erro ao registrar pagamento parcial de juros');
+        return;
+      }
+      
+      // Atualizar notas com tag de rastreamento (NÃO alterar remaining_balance nem datas)
+      let notesText = loan.notes || '';
+      notesText += `\n[PARTIAL_INTEREST_PENDING:${installmentIndex}:${pendingInterest.toFixed(2)}:${paymentDate}]`;
+      notesText += `\nPagamento parcial de juros: R$ ${partialAmount.toFixed(2)} em ${formatDate(paymentDate)} (Parcela ${installmentIndex + 1})`;
+      
+      // Apenas atualizar notes, NAO alterar remaining_balance nem datas
+      await supabase.from('loans').update({
+        notes: notesText,
+        updated_at: new Date().toISOString()
+      }).eq('id', selectedLoanId);
+      
+      toast.success(`Pagamento parcial de ${formatCurrency(partialAmount)} registrado. Juros pendente: ${formatCurrency(pendingInterest)}`);
+      
+      setIsRenegotiateDialogOpen(false);
+      setSelectedLoanId(null);
+      return;
     } else {
       // Renegociação normal (não usado atualmente)
       let notesText = renegotiateData.notes;
@@ -12029,7 +12038,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               
               // Estado para controlar qual opção está ativa
               const activeOption = renegotiateData.interest_only_paid ? 'interest' : 
-                                   renegotiateData.renewal_fee_enabled ? 'fee' : null;
+                                   renegotiateData.partial_interest_enabled ? 'partial_interest' : null;
+              
+              // Calcular juros por parcela para o formulário de pagamento parcial
+              const interestPerInstallment = totalInterest / numInstallments;
+              
+              // Obter datas das parcelas
+              const dates = (selectedLoan.installment_dates as string[]) || [];
               
               return (
                 <form onSubmit={handleRenegotiateSubmit} className="space-y-4">
@@ -12128,43 +12143,25 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <button
                           type="button"
                           onClick={() => {
-                            // Encontrar próxima parcela em aberto e usar seu valor restante
-                            const dates = (selectedLoan.installment_dates as string[]) || [];
-                            let nextUnpaidIndex = -1;
-                            for (let i = 0; i < dates.length; i++) {
-                              if (!isInstallmentPaid(i)) {
-                                nextUnpaidIndex = i;
-                                break;
-                              }
-                            }
-                            const baseValue = nextUnpaidIndex >= 0 
-                              ? getInstallmentRemainingValue(nextUnpaidIndex) 
-                              : installmentValue;
-                            
-                            const percentage = 20;
-                            const feeAmount = baseValue * (percentage / 100);
-                            const newTotal = actualRemaining + feeAmount;
                             setRenegotiateData({ 
                               ...renegotiateData, 
                               interest_only_paid: false,
-                              renewal_fee_enabled: true,
-                              renewal_fee_percentage: '20',
-                              renewal_fee_amount: feeAmount.toFixed(2),
-                              new_remaining_with_fee: newTotal.toFixed(2)
+                              renewal_fee_enabled: false,
+                              partial_interest_enabled: true,
+                              partial_interest_installment: '0',
+                              partial_interest_amount: '',
+                              partial_interest_date: format(new Date(), 'yyyy-MM-dd'),
                             });
                           }}
-                          className="p-4 rounded-lg border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-left"
+                          className="p-4 rounded-lg border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors text-left"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-amber-500/20">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
-                              </svg>
+                            <div className="p-2 rounded-full bg-cyan-500/20">
+                              <DollarSign className="h-6 w-6 text-cyan-500" />
                             </div>
                             <div>
-                              <p className="font-semibold text-amber-500">Aplicar juros extra em uma parcela</p>
-                              <p className="text-sm text-muted-foreground">Adicionar taxa de renovação em parcela específica</p>
+                              <p className="font-semibold text-cyan-500">Pagamento parcial de juros</p>
+                              <p className="text-sm text-muted-foreground">Registrar pagamento de parte dos juros de uma parcela</p>
                             </div>
                           </div>
                         </button>
@@ -12261,185 +12258,94 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     </div>
                   )}
                   
-                  {/* Opção 2: Aplicar juros extra em parcela específica */}
-                  {activeOption === 'fee' && (
-                    <div className="space-y-4 border-2 border-amber-500 rounded-lg p-4 bg-amber-950/50">
+                  {/* Opção 2: Pagamento Parcial de Juros */}
+                  {activeOption === 'partial_interest' && (
+                    <div className="space-y-4 border-2 border-cyan-500 rounded-lg p-4 bg-cyan-950/50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
-                          </svg>
-                          <span className="font-semibold text-amber-500">Juros Extra em Parcela</span>
+                          <DollarSign className="h-5 w-5 text-cyan-500" />
+                          <span className="font-semibold text-cyan-500">Pagamento Parcial de Juros</span>
                         </div>
                         <Button 
                           type="button" 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => setRenegotiateData({ ...renegotiateData, renewal_fee_enabled: false })}
+                          onClick={() => setRenegotiateData({ ...renegotiateData, partial_interest_enabled: false })}
                           className="text-muted-foreground hover:text-white"
                         >
                           ← Voltar
                         </Button>
                       </div>
                       
-                      {/* Calcular valor base da parcela selecionada (considerando pagamentos parciais) */}
-                      {(() => {
-                        // Determinar qual parcela está selecionada
-                        let selectedInstallmentIndex = -1;
-                        if (renegotiateData.renewal_fee_installment === 'next') {
-                          // Encontrar próxima parcela em aberto
-                          const dates = (selectedLoan.installment_dates as string[]) || [];
-                          for (let i = 0; i < dates.length; i++) {
-                            if (!isInstallmentPaid(i)) {
-                              selectedInstallmentIndex = i;
-                              break;
-                            }
-                          }
-                        } else if (renegotiateData.renewal_fee_installment) {
-                          selectedInstallmentIndex = parseInt(renegotiateData.renewal_fee_installment);
-                        }
-                        
-                        // Valor restante da parcela selecionada (ou valor original se não há parcela selecionada)
-                        const baseValueForFee = selectedInstallmentIndex >= 0 
-                          ? getInstallmentRemainingValue(selectedInstallmentIndex) 
-                          : installmentValue;
-                        
-                        const paidOnSelected = selectedInstallmentIndex >= 0 
-                          ? (partialPayments[selectedInstallmentIndex] || 0) 
-                          : 0;
-                        const hasPartialPayment = paidOnSelected > 0 && paidOnSelected < installmentValue * 0.99;
-                        
-                        return (
-                          <>
-                            <p className="text-xs text-amber-300/70">
-                              Aplique um acréscimo sobre o valor que falta da parcela {selectedInstallmentIndex >= 0 ? `${selectedInstallmentIndex + 1}` : 'selecionada'}. 
-                              {hasPartialPayment && (
-                                <span className="block mt-1 text-yellow-400">
-                                  ⚠️ Esta parcela já teve pagamento parcial de {formatCurrency(paidOnSelected)}. Base para juros: {formatCurrency(baseValueForFee)}
-                                </span>
-                              )}
-                            </p>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-amber-300 text-xs">Taxa (%):</Label>
-                                <Input 
-                                  type="number" 
-                                  step="0.01" 
-                                  value={renegotiateData.renewal_fee_percentage} 
-                                  onChange={(e) => {
-                                    const percentage = parseFloat(e.target.value) || 0;
-                                    const feeAmount = baseValueForFee * (percentage / 100);
-                                    const newTotal = actualRemaining + feeAmount;
-                                    
-                                    setRenegotiateData({ 
-                                      ...renegotiateData, 
-                                      renewal_fee_percentage: e.target.value,
-                                      renewal_fee_amount: feeAmount.toFixed(2),
-                                      new_remaining_with_fee: newTotal.toFixed(2)
-                                    });
-                                  }} 
-                                  placeholder="20"
-                                  className="bg-amber-950 text-white border-amber-500 font-bold"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-amber-300 text-xs">Acréscimo (R$):</Label>
-                                <Input 
-                                  type="number" 
-                                  step="0.01"
-                                  value={renegotiateData.renewal_fee_amount} 
-                                  onChange={(e) => {
-                                    const feeAmount = parseFloat(e.target.value) || 0;
-                                    const percentage = baseValueForFee > 0 ? (feeAmount / baseValueForFee) * 100 : 0;
-                                    const newTotal = actualRemaining + feeAmount;
-                                    
-                                    setRenegotiateData({ 
-                                      ...renegotiateData, 
-                                      renewal_fee_amount: e.target.value,
-                                      renewal_fee_percentage: percentage.toFixed(2),
-                                      new_remaining_with_fee: newTotal.toFixed(2)
-                                    });
-                                  }}
-                                  placeholder="50,00"
-                                  className="bg-amber-950 text-white border-amber-500 font-bold"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                      
+                      {/* Select de parcela */}
                       <div className="space-y-2">
-                        <Label className="text-amber-300 text-xs">Aplicar em qual parcela?</Label>
+                        <Label className="text-cyan-300 text-xs">Parcela referente:</Label>
                         <Select 
-                          value={renegotiateData.renewal_fee_installment} 
-                          onValueChange={(v) => setRenegotiateData({ ...renegotiateData, renewal_fee_installment: v })}
+                          value={renegotiateData.partial_interest_installment} 
+                          onValueChange={(v) => setRenegotiateData({ ...renegotiateData, partial_interest_installment: v })}
                         >
-                          <SelectTrigger className="bg-amber-950 text-white border-amber-500">
+                          <SelectTrigger className="bg-cyan-950 text-white border-cyan-500">
                             <SelectValue placeholder="Selecione a parcela" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="next">Próxima parcela em aberto</SelectItem>
-                            {(() => {
-                              const dates = (selectedLoan.installment_dates as string[]) || [];
-                              return dates.map((date, index) => {
-                                // Pular parcelas totalmente pagas
-                                if (isInstallmentPaid(index)) return null;
-                                
-                                const remainingValue = getInstallmentRemainingValue(index);
-                                const paidAmount = partialPayments[index] || 0;
-                                const isPartiallyPaid = paidAmount > 0 && paidAmount < installmentValue * 0.99;
-                                
-                                return (
-                                  <SelectItem key={index} value={index.toString()}>
-                                    Parcela {index + 1} - {formatDate(date)} - {isPartiallyPaid 
-                                      ? `Falta: ${formatCurrency(remainingValue)}` 
-                                      : formatCurrency(installmentValue)}
-                                  </SelectItem>
-                                );
-                              });
-                            })()}
+                            {dates.map((date, index) => {
+                              if (isInstallmentPaid(index)) return null;
+                              return (
+                                <SelectItem key={index} value={index.toString()}>
+                                  Parcela {index + 1} - {formatDate(date)} - Juros: {formatCurrency(interestPerInstallment)}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
                       
-                      {(() => {
-                        // Recalcular valor base da parcela selecionada para exibir resumo correto
-                        let selectedIdx = -1;
-                        if (renegotiateData.renewal_fee_installment === 'next') {
-                          const dates = (selectedLoan.installment_dates as string[]) || [];
-                          for (let i = 0; i < dates.length; i++) {
-                            if (!isInstallmentPaid(i)) {
-                              selectedIdx = i;
-                              break;
-                            }
-                          }
-                        } else if (renegotiateData.renewal_fee_installment) {
-                          selectedIdx = parseInt(renegotiateData.renewal_fee_installment);
-                        }
-                        
-                        const baseVal = selectedIdx >= 0 ? getInstallmentRemainingValue(selectedIdx) : installmentValue;
-                        const feeAmount = parseFloat(renegotiateData.renewal_fee_amount) || 0;
-                        
-                        return (
-                          <div className="bg-amber-500/20 rounded-lg p-4 space-y-3 border border-amber-500">
-                            <div className="flex justify-between items-center">
-                              <span className="text-amber-300 font-medium text-sm">Valor restante + juros:</span>
-                              <span className="text-lg font-bold text-white">
-                                {formatCurrency(baseVal + feeAmount)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center border-t border-amber-500/50 pt-3">
-                              <span className="text-amber-400 font-medium text-sm">Novo total a cobrar:</span>
-                              <span className="text-xl font-bold text-amber-400">
-                                {formatCurrency(parseFloat(renegotiateData.new_remaining_with_fee) || 0)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-cyan-300 text-xs">Valor pago (R$) *</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            value={renegotiateData.partial_interest_amount} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_amount: e.target.value })} 
+                            placeholder="Ex: 500,00"
+                            required
+                            className="bg-cyan-950 text-white border-cyan-500 font-bold"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-cyan-300 text-xs">Data do pagamento *</Label>
+                          <Input 
+                            type="date" 
+                            value={renegotiateData.partial_interest_date} 
+                            onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_date: e.target.value })} 
+                            required
+                            className="bg-cyan-950 text-white border-cyan-500"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Resumo */}
+                      <div className="bg-cyan-500/20 rounded-lg p-4 space-y-2 border border-cyan-500">
+                        <div className="flex justify-between items-center">
+                          <span className="text-cyan-300 text-sm">Juros total da parcela:</span>
+                          <span className="font-bold text-white">{formatCurrency(interestPerInstallment)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-cyan-300 text-sm">Valor pago agora:</span>
+                          <span className="font-bold text-green-400">{formatCurrency(parseFloat(renegotiateData.partial_interest_amount) || 0)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-cyan-500/50 pt-2">
+                          <span className="text-cyan-400 font-medium">Juros pendente:</span>
+                          <span className="text-xl font-bold text-amber-400">
+                            {formatCurrency(Math.max(0, interestPerInstallment - (parseFloat(renegotiateData.partial_interest_amount) || 0)))}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-cyan-300/70">
+                        O saldo devedor e datas de vencimento não serão alterados. Apenas será registrado o pagamento parcial dos juros.
+                      </p>
                     </div>
                   )}
                   
@@ -12459,7 +12365,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <div className="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={() => setIsRenegotiateDialogOpen(false)}>Cancelar</Button>
                         <Button type="submit">
-                          {activeOption === 'interest' ? 'Registrar Pagamento de Juros' : 'Aplicar Taxa'}
+                          {activeOption === 'interest' ? 'Registrar Pagamento de Juros' : 'Registrar Pagamento Parcial'}
                         </Button>
                       </div>
                     </>
