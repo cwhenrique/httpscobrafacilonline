@@ -690,11 +690,31 @@ export default function ReportsLoans() {
   // Cash Flow calculations
   const initialCashBalance = profile?.cash_flow_initial_balance || 0;
   
+  // Cálculo do saldo implícito (quando usuário não configurou manualmente)
+  const calculatedInitialBalance = useMemo(() => {
+    // Total recebido de TODOS os empréstimos (histórico completo)
+    const totalReceivedAllTime = stats.allLoans.reduce((sum, loan) => 
+      sum + Number(loan.total_paid || 0), 0);
+    
+    // Capital atualmente na rua
+    const currentCapitalOnStreet = filteredStats.totalOnStreet;
+    
+    // Saldo implícito = O que recebeu - O que está na rua
+    // Representa o dinheiro que "sobrou" e não foi reemprestado
+    return Math.max(0, totalReceivedAllTime - currentCapitalOnStreet);
+  }, [stats.allLoans, filteredStats.totalOnStreet]);
+  
   const cashFlowStats = useMemo(() => {
     const loanedInPeriod = filteredStats.totalLent;
     const receivedInPeriod = filteredStats.totalReceived;
     const interestReceived = filteredStats.realizedProfit;
-    const currentBalance = initialCashBalance - loanedInPeriod + receivedInPeriod;
+    
+    // Usar valor manual se configurado, senão usar valor calculado
+    const effectiveBalance = initialCashBalance > 0 
+      ? initialCashBalance 
+      : calculatedInitialBalance;
+    
+    const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
     
     return {
       initialBalance: initialCashBalance,
@@ -703,7 +723,7 @@ export default function ReportsLoans() {
       interestReceived,
       currentBalance,
     };
-  }, [initialCashBalance, filteredStats]);
+  }, [initialCashBalance, calculatedInitialBalance, filteredStats]);
 
   const handleUpdateCashFlowBalance = async (value: number) => {
     const { error } = await updateProfile({ cash_flow_initial_balance: value });
@@ -1073,12 +1093,12 @@ export default function ReportsLoans() {
         {/* Cash Flow Card */}
         <CashFlowCard
           initialBalance={cashFlowStats.initialBalance}
+          calculatedInitialBalance={calculatedInitialBalance}
           loanedInPeriod={cashFlowStats.loanedInPeriod}
           totalOnStreet={filteredStats.totalOnStreet}
           receivedInPeriod={cashFlowStats.receivedInPeriod}
           interestReceived={cashFlowStats.interestReceived}
           onUpdateInitialBalance={handleUpdateCashFlowBalance}
-          isUnlocked={profile?.cash_flow_initial_balance !== null && profile?.cash_flow_initial_balance !== undefined && profile.cash_flow_initial_balance > 0}
         />
 
         {/* Main Stats Grid - Filtered */}
