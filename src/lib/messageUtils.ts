@@ -140,9 +140,21 @@ export const generateInstallmentStatusList = (options: GenerateInstallmentListOp
 /**
  * Gera a seção de PIX padronizada
  */
-export const generatePixSection = (pixKey: string | null, pixKeyType: string | null): string => {
+export const generatePixSection = (
+  pixKey: string | null, 
+  pixKeyType: string | null,
+  pixPreMessage?: string | null
+): string => {
   if (!pixKey) return '';
-  return `━━━━━━━━━━━━━━━━\n💳 *${getPixKeyTypeLabel(pixKeyType)}:* ${pixKey}\n`;
+  let section = `━━━━━━━━━━━━━━━━\n`;
+  
+  // Adiciona pré-mensagem se configurada
+  if (pixPreMessage && pixPreMessage.trim()) {
+    section += `📢 ${pixPreMessage.trim()}\n\n`;
+  }
+  
+  section += `💳 *${getPixKeyTypeLabel(pixKeyType)}:* ${pixKey}\n`;
+  return section;
 };
 
 /**

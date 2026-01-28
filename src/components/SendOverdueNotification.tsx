@@ -234,7 +234,7 @@ export default function SendOverdueNotification({
     }
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     // Assinatura
     const signatureName = profile?.billing_signature_name || profile?.company_name;
@@ -293,7 +293,7 @@ export default function SendOverdueNotification({
     message += `\n💵 *Total:* ${formatCurrency(totalAmount)}\n`;
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     // Assinatura
     const signatureName = profile?.billing_signature_name || profile?.company_name;

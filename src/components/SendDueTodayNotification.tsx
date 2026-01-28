@@ -140,7 +140,7 @@ export default function SendDueTodayNotification({
     message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     message += `\nEvite juros e multas pagando em dia!`;
     
@@ -181,7 +181,7 @@ export default function SendDueTodayNotification({
     }
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
     message += `\nEvite juros e multas pagando em dia!`;
     

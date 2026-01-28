@@ -60,7 +60,8 @@ const generateClientMessage = (
   paidCount?: number, 
   companyName?: string,
   pixKey?: string | null,
-  pixKeyType?: string | null
+  pixKeyType?: string | null,
+  pixPreMessage?: string | null
 ): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
@@ -118,7 +119,7 @@ const generateClientMessage = (
   }
   
   // PIX
-  message += generatePixSection(pixKey || null, pixKeyType || null);
+  message += generatePixSection(pixKey || null, pixKeyType || null, pixPreMessage || null);
   
   // Assinatura
   const signatureName = data.billingSignatureName || companyName;
@@ -134,7 +135,8 @@ const generateSelfMessage = (
   installmentDates?: string[], 
   paidCount?: number,
   pixKey?: string | null,
-  pixKeyType?: string | null
+  pixKeyType?: string | null,
+  pixPreMessage?: string | null
 ): string => {
   const prefix = getContractPrefix(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
@@ -195,7 +197,7 @@ const generateSelfMessage = (
   }
   
   // PIX
-  message += generatePixSection(pixKey || null, pixKeyType || null);
+  message += generatePixSection(pixKey || null, pixKeyType || null, pixPreMessage || null);
   
   // Assinatura
   message += generateSignature('CobraFácil');
@@ -483,8 +485,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
-        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -495,8 +497,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
-        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -513,8 +515,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
-        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}
