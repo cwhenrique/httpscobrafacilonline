@@ -1,85 +1,161 @@
 
-## Objetivo
-Quando você paga **juros parcial** (ex: R$ 70 de R$ 200), a tela de **Parcelas** não pode diminuir a parcela para R$ 1.130.  
-O correto é:
-- **Valor da parcela continua R$ 1.200**
-- **Pago (da parcela)** continua **R$ 0** (porque não pagou principal/parcela ainda)
-- Mostrar separado: **“Juros já pago: R$ 70”** e **“Juros pendente: R$ 130”**
-- O **Restante do contrato** continua R$ 1.200 até quitar a parcela (ou até rolar quando quitar 100% dos juros, conforme regra já definida).
+# Plano: Card Roxo + Exibição do Juros Parcial Pago
+
+## O que você quer
+
+1. **Card com cor roxa** quando houver pagamento parcial de juros registrado (igual ao estilo "Só Juros")
+2. **Mostrar valor já pago** abaixo de "Só Juros (por parcela)" quando houver pagamentos parciais de juros
 
 ---
 
-## Causa raiz (confirmada no código)
-No `src/pages/Loans.tsx`, no diálogo/box de “Parcela”, existe um **fallback**:
-- Se não tem tags `[PARTIAL_PAID]` no `loan.notes`, ele usa `selectedLoan.total_paid` para “inventar” quanto foi pago na parcela.
-- O problema: no pagamento de juros parcial, o sistema **não grava** `[PARTIAL_INTEREST_PAYMENT]` dentro de `loan.notes` (essa tag fica no `loan_payments.notes`), então o fallback não detecta e interpreta `total_paid=70` como “pago da parcela”, reduzindo para 1130.
+## Alterações no Código
 
-Hoje o código verifica:
-```ts
-const hasPartialInterestTag = (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAYMENT]');
-```
-Mas como essa tag não está no `loan.notes`, `hasPartialInterestTag` fica falso.
+### Arquivo: src/pages/Loans.tsx
 
----
+#### 1. Detectar pagamento parcial de juros para estilização do card
 
-## O que vou mudar (sem alterar regras financeiras, só o cálculo/visual)
-### 1) Corrigir a detecção de “pagamento parcial de juros” no `loan.notes`
-Em vez de procurar apenas `[PARTIAL_INTEREST_PAYMENT]`, vou considerar que existe tracking de juros parcial se o `notes` contiver qualquer um destes:
-- `[PARTIAL_INTEREST_PAID:` (histórico do que já pagou)
-- `[PARTIAL_INTEREST_PENDING:` (quanto falta de juros naquela parcela)
-- `[INTEREST_CLEARED:` (quando quitou 100% dos juros por parcial e rolou)
+Na área onde `isInterestOnlyPayment` é definido (~linha 7297), adicionar:
 
-Exemplo:
-```ts
-const hasPartialInterestTracking =
-  notes.includes('[PARTIAL_INTEREST_PAID:') ||
-  notes.includes('[PARTIAL_INTEREST_PENDING:') ||
-  notes.includes('[INTEREST_CLEARED:') ||
-  notes.includes('[PARTIAL_INTEREST_PAYMENT]'); // opcional (se existir em algum caso)
+```typescript
+const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
+
+// NOVO: Detectar pagamentos parciais de juros
+const hasPartialInterestPayments = 
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:');
 ```
 
-### 2) Bloquear o fallback de `total_paid` quando houver tracking de juros parcial
-Na função `getInstallmentStatus` (do diálogo “Parcela”):
-- Hoje ele bloqueia fallback só com `hasPartialInterestTag` (errado).
-- Vou trocar para `hasPartialInterestTracking`.
+#### 2. Incluir na variável hasSpecialStyle
 
-Resultado:
-- `paidAmount` da parcela permanece 0
-- `remaining` permanece 1200
-- E o box continua mostrando separadamente “Juros já pago” e “Juros pendente”.
+Na linha ~7507, modificar para incluir o novo indicador:
 
-### 3) Aplicar a mesma correção em todos os lugares equivalentes
-O arquivo tem mais de uma função de status/visualização de parcelas (ex: `getInstallmentStatusForDisplay`, `getInstallmentStatusPartial`, e outros blocos similares).
-Vou procurar por padrões como:
-- `const hasInterestOnlyTag = ...`
-- `if (!hasAnyTrackingTags && ... && selectedLoan.total_paid ... )`
-e aplicar a mesma regra: **se houver tracking de juros parcial, não usar `total_paid` como pagamento da parcela**.
+```typescript
+// ANTES:
+const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
 
-### 4) Evitar que contagens automáticas de parcelas pagas usem juros parcial por engano
-Funções como `getPaidInstallmentsCount` também têm fallback baseado em `loan.total_paid`.
-Vou acrescentar a mesma proteção lá:
-- se existir `[PARTIAL_INTEREST_PAID:`/`[PARTIAL_INTEREST_PENDING:` no notes, **não considerar `total_paid` como pagamento de parcela** para “contar parcelas pagas”.
+// DEPOIS:
+const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || hasPartialInterestPayments || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
+```
+
+#### 3. Adicionar caso no getCardStyle() para cards com pagamento parcial
+
+Na função `getCardStyle()` (~linha 7513-7514), adicionar logo após o caso de `isInterestOnlyPayment`:
+
+```typescript
+if (isInterestOnlyPayment && !isOverdue) {
+  return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+}
+// NOVO: Cards com pagamento parcial de juros também ficam roxos
+if (hasPartialInterestPayments && !isOverdue && !isPaid) {
+  return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+}
+```
+
+#### 4. Adicionar linha de juros parcial pago na seção "Só Juros"
+
+Na seção de "Só Juros (por parcela)" (~linhas 7991-8009), adicionar exibição do valor já pago:
+
+```tsx
+{/* Interest only payment option */}
+{!isDaily && !isPaid && (
+  <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-purple-500/10 border border-purple-400/30'}`}>
+    <div className="flex items-center justify-between">
+      <span className={hasSpecialStyle ? 'text-white/80' : 'text-purple-300'}>Só Juros (por parcela):</span>
+      <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-purple-400'}`}>
+        {formatCurrency(calculatedInterestPerInstallment)}
+      </span>
+    </div>
+    
+    {/* NOVO: Mostrar juros já pago parcialmente */}
+    {(() => {
+      const partialPaidList = getPartialInterestPaidFromNotes(loan.notes);
+      const paidCount = getPaidInstallmentsCount(loan);
+      const currentInstallmentIndex = paidCount; // índice da parcela atual
+      const paidForCurrent = partialPaidList
+        .filter(p => p.installmentIndex === currentInstallmentIndex)
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+      
+      if (paidForCurrent > 0) {
+        const remainingInterest = Math.max(0, calculatedInterestPerInstallment - paidForCurrent);
+        return (
+          <div className="mt-1.5 pt-1.5 border-t border-purple-400/30 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className={hasSpecialStyle ? 'text-white/80' : 'text-green-300'}>
+                💵 Juros já pago:
+              </span>
+              <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-green-400'}`}>
+                {formatCurrency(paidForCurrent)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={hasSpecialStyle ? 'text-white/80' : 'text-amber-300'}>
+                Juros pendente:
+              </span>
+              <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-amber-400'}`}>
+                {formatCurrency(remainingInterest)}
+              </span>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    })()}
+    
+    {extraInterest > 0 && (
+      <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-purple-400/30">
+        <span className={hasSpecialStyle ? 'text-white/80' : 'text-orange-300'}>Juros Extra Adicionado:</span>
+        <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-orange-400'}`}>
+          +{formatCurrency(extraInterest)}
+        </span>
+      </div>
+    )}
+  </div>
+)}
+```
 
 ---
 
-## Como vou validar (checklist)
-1. Criar empréstimo 1 parcela: **R$ 1.000 + R$ 200 = R$ 1.200**
-2. Fazer pagamento **juros parcial**: R$ 70
-3. Abrir o modal de pagamento → opção **Parcela**
-4. Verificar:
-   - “Valor: R$ 1.200”
-   - “Pago: R$ 0”
-   - “Falta: R$ 1.200”
-   - E abaixo: “Juros já pago: R$ 70” / “Juros pendente: R$ 130”
-5. Pagar os R$ 130 restantes e confirmar que o fluxo de rolar contrato ocorre como esperado (conforme regra já aprovada).
+## Resultado Esperado
+
+Após pagamento parcial de juros (ex: R$ 120 de R$ 200):
+
+| Antes | Depois |
+|-------|--------|
+| Card com cor normal | Card com fundo **roxo** |
+| "Só Juros: R$ 200" | "Só Juros: R$ 200" |
+| (nada) | "💵 Juros já pago: R$ 120" (verde) |
+| (nada) | "Juros pendente: R$ 80" (amarelo) |
 
 ---
 
-## Arquivo afetado
-- `src/pages/Loans.tsx` (somente lógica de detecção e exibição/fallback; não muda banco e não muda cálculos financeiros reais do contrato)
+## Fluxo Visual
+
+```text
+Card do Empréstimo (ROXO quando há juros parcial pago)
+┌─────────────────────────────────────────────┐
+│  Cliente: devedor 02                        │
+│  Pendente  MENSAL                           │
+│  R$ 1.200,00                               │
+│  restante a receber                         │
+│                                             │
+│  ┌─────────────────────────────────────┐   │
+│  │ Só Juros (por parcela):   R$ 200,00 │   │
+│  │ ─────────────────────────────────── │   │
+│  │ 💵 Juros já pago:          R$ 120,00│   │
+│  │ Juros pendente:            R$ 80,00 │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  [Pagar] [Pagar Juros] [...]               │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
-## Observação importante
-Esse ajuste é especificamente para o que você relatou: **juros parcial não pode ser interpretado como pagamento da parcela**.  
-Ele mantém o “principal total” e o “valor da parcela” intactos até que haja pagamento de parcela (via `[PARTIAL_PAID]` ou pagamento normal/total).
+## Resumo das Alterações
+
+| Local | Alteração |
+|-------|-----------|
+| ~linha 7297 | Adicionar variável `hasPartialInterestPayments` |
+| ~linha 7507 | Incluir `hasPartialInterestPayments` em `hasSpecialStyle` |
+| ~linha 7514 | Adicionar caso no `getCardStyle()` para estilo roxo |
+| ~linhas 7999-8000 | Adicionar exibição de juros já pago e pendente |
