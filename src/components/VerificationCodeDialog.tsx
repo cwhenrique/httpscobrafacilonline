@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,6 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, ShieldCheck, Clock, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-
 interface VerificationCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,9 +34,19 @@ export default function VerificationCodeDialog({
   const [resendCooldown, setResendCooldown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const hasRequestedCode = useRef(false);
+  const pendingUpdatesRef = useRef(pendingUpdates);
+  // Keep pendingUpdates ref updated
+  useEffect(() => {
+    pendingUpdatesRef.current = pendingUpdates;
+  }, [pendingUpdates]);
 
   // Request verification code
-  const requestCode = useCallback(async () => {
+  const requestCode = useCallback(async (isResend = false) => {
+    // Prevent duplicate requests on initial open
+    if (!isResend && hasRequestedCode.current) return;
+    hasRequestedCode.current = true;
+    
     setStep('sending');
     setCode('');
     setErrorMessage(null);
@@ -46,7 +55,7 @@ export default function VerificationCodeDialog({
     try {
       const { data, error } = await supabase.functions.invoke('request-verification-code', {
         body: {
-          updates: pendingUpdates,
+          updates: pendingUpdatesRef.current,
           userAgent: navigator.userAgent,
         },
       });
@@ -84,7 +93,7 @@ export default function VerificationCodeDialog({
       setErrorMessage(err instanceof Error ? err.message : 'Erro ao solicitar código');
       setStep('error');
     }
-  }, [pendingUpdates, onSuccess, onOpenChange]);
+  }, [onSuccess, onOpenChange]);
 
   // Verify code
   const verifyCode = async () => {
@@ -146,12 +155,15 @@ export default function VerificationCodeDialog({
     return () => clearInterval(timer);
   }, [open, step]);
 
-  // Request code on open
+  // Request code on open - only once
   useEffect(() => {
     if (open) {
-      requestCode();
+      // Reset the flag when dialog opens
+      hasRequestedCode.current = false;
+      requestCode(false);
     } else {
       // Reset state on close
+      hasRequestedCode.current = false;
       setStep('sending');
       setCode('');
       setVerificationId(null);
@@ -161,7 +173,8 @@ export default function VerificationCodeDialog({
       setErrorMessage(null);
       setWhatsappError(null);
     }
-  }, [open, requestCode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Format time
   const formatTime = (seconds: number) => {
@@ -250,7 +263,7 @@ export default function VerificationCodeDialog({
 
                 <Button
                   variant="outline"
-                  onClick={requestCode}
+                  onClick={() => requestCode(true)}
                   disabled={resendCooldown > 0}
                   className="w-full"
                 >
