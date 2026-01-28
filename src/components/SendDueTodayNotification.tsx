@@ -25,6 +25,9 @@ interface DueTodayData {
   // NOVO: Campos para status das parcelas com emojis
   installmentDates?: string[];
   paidCount?: number;
+  // NOVO: Pagamento parcial de juros
+  partialInterestPaid?: number;
+  partialInterestPending?: number;
 }
 
 interface SendDueTodayNotificationProps {
@@ -126,6 +129,13 @@ export default function SendDueTodayNotification({
       });
     }
     
+    // Pagamento parcial de juros (se houver)
+    if (data.partialInterestPaid && data.partialInterestPaid > 0) {
+      message += `\n💜 *JUROS PARCIAL:*\n`;
+      message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
+      message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
+    }
+    
     // Opções de pagamento
     message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
     
@@ -162,6 +172,13 @@ export default function SendDueTodayNotification({
     message += `📌 *Parcela:* ${installmentInfo}\n`;
     message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
     message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    
+    // Pagamento parcial de juros (se houver)
+    if (data.partialInterestPaid && data.partialInterestPaid > 0) {
+      message += `\n💜 *JUROS PARCIAL:*\n`;
+      message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
+      message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
+    }
     
     // PIX
     message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);

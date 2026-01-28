@@ -51,6 +51,9 @@ interface OverdueData {
   paidCount?: number;
   // NOVO: Juros por atraso (calculado por dia - separado da multa)
   overdueInterestAmount?: number;
+  // NOVO: Pagamento parcial de juros
+  partialInterestPaid?: number;
+  partialInterestPending?: number;
 }
 
 interface SendOverdueNotificationProps {
@@ -212,6 +215,13 @@ export default function SendOverdueNotification({
         });
       }
       
+      // Pagamento parcial de juros (se houver)
+      if (data.partialInterestPaid && data.partialInterestPaid > 0) {
+        message += `\n💜 *JUROS PARCIAL:*\n`;
+        message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
+        message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
+      }
+      
       // Opções de pagamento (só juros + multa)
       message += generatePaymentOptions(
         totalAmount,
@@ -271,6 +281,13 @@ export default function SendOverdueNotification({
     }
     if (appliedPenalty > 0) {
       message += `⚠️ *Multa:* +${formatCurrency(appliedPenalty)}\n`;
+    }
+    
+    // Pagamento parcial de juros (se houver)
+    if (data.partialInterestPaid && data.partialInterestPaid > 0) {
+      message += `\n💜 *JUROS PARCIAL:*\n`;
+      message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
+      message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
     }
     
     message += `\n💵 *Total:* ${formatCurrency(totalAmount)}\n`;
