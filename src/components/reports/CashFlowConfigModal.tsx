@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wallet, Sparkles } from 'lucide-react';
+import { Wallet, Sparkles, RotateCcw, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 
 interface CashFlowConfigModalProps {
@@ -56,6 +56,10 @@ export function CashFlowConfigModal({
     if (suggestedBalance && suggestedBalance > 0) {
       setValue(Math.round(suggestedBalance * 100).toString());
     }
+  };
+
+  const handleReset = () => {
+    setValue('');
   };
 
   const handleSave = () => {
@@ -116,10 +120,30 @@ export function CashFlowConfigModal({
                 className="pl-10 text-lg font-medium"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Este valor representa quanto dinheiro você tem disponível para empréstimos.
-            </p>
+            {!value && suggestedBalance && suggestedBalance > 0 ? (
+              <p className="text-xs text-emerald-500 flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                Será usado automaticamente: {formatCurrency(suggestedBalance)}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Este valor representa quanto dinheiro você tem disponível para empréstimos.
+              </p>
+            )}
           </div>
+
+          {/* Botão de Reset */}
+          {value && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleReset}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Resetar para automático
+            </Button>
+          )}
 
           <div className="bg-muted/50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-medium">Como funciona:</p>
