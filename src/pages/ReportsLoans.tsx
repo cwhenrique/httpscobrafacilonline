@@ -692,17 +692,24 @@ export default function ReportsLoans() {
   
   // Cálculo do saldo implícito (quando usuário não configurou manualmente)
   const calculatedInitialBalance = useMemo(() => {
-    // Total recebido de TODOS os empréstimos (histórico completo)
+    // Total recebido de TODOS os empréstimos (histórico completo, sem filtro)
     const totalReceivedAllTime = stats.allLoans.reduce((sum, loan) => 
       sum + Number(loan.total_paid || 0), 0);
     
-    // Capital atualmente na rua
-    const currentCapitalOnStreet = filteredStats.totalOnStreet;
+    // Capital atualmente na rua - calculado de TODOS os empréstimos ativos (sem filtro)
+    const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
+    const currentCapitalOnStreet = allActiveLoans.reduce((sum, loan) => {
+      const principal = Number(loan.principal_amount);
+      const payments = (loan as any).payments || [];
+      const totalPrincipalPaid = payments.reduce((s: number, p: any) => 
+        s + Number(p.principal_paid || 0), 0);
+      return sum + Math.max(0, principal - totalPrincipalPaid);
+    }, 0);
     
-    // Saldo implícito = O que recebeu - O que está na rua
-    // Representa o dinheiro que "sobrou" e não foi reemprestado
+    // Saldo implícito = O que recebeu - O que ainda está emprestado
+    // Representa o capital que voltou e não foi reemprestado
     return Math.max(0, totalReceivedAllTime - currentCapitalOnStreet);
-  }, [stats.allLoans, filteredStats.totalOnStreet]);
+  }, [stats.allLoans]);
   
   const cashFlowStats = useMemo(() => {
     const loanedInPeriod = filteredStats.totalLent;
