@@ -7296,6 +7296,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 // Check if this is an interest-only payment
                 const isInterestOnlyPayment = loan.notes?.includes('[INTEREST_ONLY_PAYMENT]');
                 
+                // Detectar pagamentos parciais de juros para estilização
+                const hasPartialInterestPayments = 
+                  (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+                  (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:');
+                
                 // Total original do contrato (antes de qualquer renegociação)
                 const originalTotal = loan.principal_amount + effectiveTotalInterest;
                 
@@ -7504,13 +7509,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 
                 const isCompound = loan.interest_mode === 'compound';
                 const hasDueTodayStyle = isDueToday && !isOverdue;
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
+                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || hasPartialInterestPayments || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
                 
                 const getCardStyle = () => {
                   if (isPaid) {
                     return 'bg-primary border-primary';
                   }
                   if (isInterestOnlyPayment && !isOverdue) {
+                    return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+                  }
+                  // Cards com pagamento parcial de juros também ficam roxos
+                  if (hasPartialInterestPayments && !isOverdue && !isPaid) {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
@@ -7997,6 +8006,42 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               {formatCurrency(calculatedInterestPerInstallment)}
                             </span>
                           </div>
+                          
+                          {/* Mostrar juros já pago parcialmente */}
+                          {(() => {
+                            const partialPaidList = getPartialInterestPaidFromNotes(loan.notes);
+                            const paidCount = getPaidInstallmentsCount(loan);
+                            const currentInstallmentIndex = paidCount;
+                            const paidForCurrent = partialPaidList
+                              .filter(p => p.installmentIndex === currentInstallmentIndex)
+                              .reduce((sum, p) => sum + p.amountPaid, 0);
+                            
+                            if (paidForCurrent > 0) {
+                              const remainingInterest = Math.max(0, calculatedInterestPerInstallment - paidForCurrent);
+                              return (
+                                <div className="mt-1.5 pt-1.5 border-t border-purple-400/30 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className={hasSpecialStyle ? 'text-white/80' : 'text-green-300'}>
+                                      💵 Juros já pago:
+                                    </span>
+                                    <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-green-400'}`}>
+                                      {formatCurrency(paidForCurrent)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className={hasSpecialStyle ? 'text-white/80' : 'text-amber-300'}>
+                                      Juros pendente:
+                                    </span>
+                                    <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-amber-400'}`}>
+                                      {formatCurrency(remainingInterest)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
                           {extraInterest > 0 && (
                             <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-purple-400/30">
                               <span className={hasSpecialStyle ? 'text-white/80' : 'text-orange-300'}>Juros Extra Adicionado:</span>
