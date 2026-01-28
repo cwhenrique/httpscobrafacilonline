@@ -91,7 +91,7 @@ export function CashFlowConfigModal({
               </div>
               <p className="text-lg font-bold text-blue-500">{formatCurrency(suggestedBalance)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Baseado no capital na rua (principal dos empréstimos ativos)
+                Baseado no total de capital emprestado historicamente
               </p>
               <Button 
                 variant="outline" 
