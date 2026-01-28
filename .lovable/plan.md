@@ -1,98 +1,80 @@
 
+# Plano: Melhorar UX ao Zerar Saldo Inicial do Fluxo de Caixa
 
-# Plano: Corrigir Saldo Inicial Padrão para Capital na Rua Puro
+## Situação Atual
 
-## Entendimento da Lógica
+A lógica já está implementada corretamente:
+- Quando `cash_flow_initial_balance` é `0` ou `null`, o sistema usa o `calculatedInitialBalance` (capital na rua puro)
+- O código em `CashFlowCard.tsx` linha 32-34: `initialBalance > 0 ? initialBalance : calculatedInitialBalance`
 
-O capital inicial padrão deve representar o **total de dinheiro que o usuário colocou na rua** - ou seja, o principal total dos empréstimos ativos.
+**O que precisa melhorar:** A experiência do usuário ao resetar para o valor automático.
 
-**Lógica:**
-- Se o usuário tem R$ 50.000 emprestado na rua, significa que ele **tinha pelo menos** R$ 50.000 de capital inicial
-- O saldo inicial padrão deve ser exatamente esse valor: **o capital na rua puro**
+## Alterações Propostas
 
-## Fórmula Corrigida
+### 1. Adicionar botão "Resetar" no Modal (CashFlowConfigModal.tsx)
 
-**De:**
-```typescript
-calculatedInitialBalance = Total Recebido - Capital na Rua (INCORRETO)
-```
-
-**Para:**
-```typescript
-calculatedInitialBalance = Capital na Rua (principal dos empréstimos ativos)
-```
-
-## Alteração Necessária
-
-### src/pages/ReportsLoans.tsx
-
-**De:**
-```typescript
-const calculatedInitialBalance = useMemo(() => {
-  const totalReceivedAllTime = stats.allLoans.reduce((sum, loan) => 
-    sum + Number(loan.total_paid || 0), 0);
-  
-  const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-  const currentCapitalOnStreet = allActiveLoans.reduce((sum, loan) => {
-    const principal = Number(loan.principal_amount);
-    const payments = (loan as any).payments || [];
-    const totalPrincipalPaid = payments.reduce((s: number, p: any) => 
-      s + Number(p.principal_paid || 0), 0);
-    return sum + Math.max(0, principal - totalPrincipalPaid);
-  }, 0);
-  
-  return Math.max(0, totalReceivedAllTime - currentCapitalOnStreet);
-}, [stats.allLoans]);
-```
-
-**Para:**
-```typescript
-const calculatedInitialBalance = useMemo(() => {
-  // Capital inicial padrão = Capital na Rua Puro
-  // Representa o total de principal emprestado que ainda está ativo
-  const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-  const currentCapitalOnStreet = allActiveLoans.reduce((sum, loan) => {
-    const principal = Number(loan.principal_amount);
-    const payments = (loan as any).payments || [];
-    const totalPrincipalPaid = payments.reduce((s: number, p: any) => 
-      s + Number(p.principal_paid || 0), 0);
-    return sum + Math.max(0, principal - totalPrincipalPaid);
-  }, 0);
-  
-  return currentCapitalOnStreet;
-}, [stats.allLoans]);
-```
-
-## Exemplo Prático
-
-**Cenário:**
-- Usuário tem 3 empréstimos ativos:
-  - Empréstimo A: R$ 20.000 (R$ 5.000 já pago do principal)
-  - Empréstimo B: R$ 15.000 (R$ 0 pago do principal)
-  - Empréstimo C: R$ 10.000 (R$ 3.000 já pago do principal)
-
-**Cálculo do Capital na Rua Puro:**
-- A: R$ 20.000 - R$ 5.000 = R$ 15.000
-- B: R$ 15.000 - R$ 0 = R$ 15.000
-- C: R$ 10.000 - R$ 3.000 = R$ 7.000
-- **Total: R$ 37.000** (Capital Inicial Padrão)
-
-## Fluxo de Caixa Resultante
+Adicionar um botão claro para resetar o valor para automático, junto com uma explicação:
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  Inicial: R$ 37.000 (capital na rua)                    │
-│  → Saídas: R$ 3.500 (emprestado no período)             │
-│  → Entradas: R$ 1.900 (recebido no período)             │
-│  ─────────────────────────────────────────────────────  │
-│  Saldo Atual: R$ 37.000 - R$ 3.500 + R$ 1.900           │
-│             = R$ 35.400                                  │
+│  📊 Sugestão do sistema: R$ 37.000                      │
+│  Baseado no capital na rua                              │
+│  [Usar este valor]                                      │
+├─────────────────────────────────────────────────────────┤
+│  Saldo Inicial do Caixa                                 │
+│  ┌─────────────────────────────┐                        │
+│  │ R$ ___________________      │                        │
+│  └─────────────────────────────┘                        │
+│  ⚠️ Deixe vazio para usar o valor automático            │
+│                                                         │
+│  [Resetar para automático] ← NOVO BOTÃO                 │
+├─────────────────────────────────────────────────────────┤
+│              [Cancelar]    [Salvar]                     │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Resumo das Alterações
+### 2. Mostrar mensagem quando campo vazio
+
+Adicionar indicador visual quando o usuário limpar o campo:
+
+- Se o campo estiver vazio, mostrar: "O sistema usará automaticamente o capital na rua (R$ X.XXX)"
+
+### Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/ReportsLoans.tsx` | Simplificar `calculatedInitialBalance` para retornar apenas o capital na rua puro (principal pendente dos empréstimos ativos) |
+| `src/components/reports/CashFlowConfigModal.tsx` | Adicionar botão "Resetar para automático" e mensagem quando campo vazio |
 
+### Código das Alterações
+
+**CashFlowConfigModal.tsx:**
+
+1. Adicionar botão "Resetar para automático":
+```tsx
+const handleReset = () => {
+  setValue('');
+};
+```
+
+2. Mostrar mensagem dinâmica quando campo vazio:
+```tsx
+{!value && suggestedBalance && suggestedBalance > 0 && (
+  <p className="text-xs text-emerald-500 flex items-center gap-1">
+    <Info className="w-3 h-3" />
+    Será usado automaticamente: {formatCurrency(suggestedBalance)}
+  </p>
+)}
+```
+
+3. Adicionar botão de reset no footer:
+```tsx
+<Button variant="ghost" onClick={handleReset} className="text-muted-foreground">
+  Resetar para automático
+</Button>
+```
+
+## Resultado Esperado
+
+- Usuário entende claramente que ao deixar vazio ou zerar, o sistema usará o capital na rua
+- Botão dedicado para resetar facilita a ação
+- Mensagem confirma qual valor será usado quando o campo estiver vazio
