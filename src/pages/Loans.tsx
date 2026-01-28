@@ -8322,6 +8322,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 // Status das parcelas com emojis
                                 installmentDates: (loan.installment_dates as string[]) || [],
                                 paidCount: getPaidInstallmentsCount(loan),
+                                // Pagamento parcial de juros
+                                partialInterestPaid: (() => {
+                                  const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                  const currentIndex = getPaidInstallmentsCount(loan);
+                                  return paidList
+                                    .filter(p => p.installmentIndex === currentIndex)
+                                    .reduce((sum, p) => sum + p.amountPaid, 0);
+                                })(),
+                                partialInterestPending: (() => {
+                                  const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                  const currentIndex = getPaidInstallmentsCount(loan);
+                                  const paidForCurrent = paidList
+                                    .filter(p => p.installmentIndex === currentIndex)
+                                    .reduce((sum, p) => sum + p.amountPaid, 0);
+                                  return paidForCurrent > 0 ? Math.max(0, calculatedInterestPerInstallment - paidForCurrent) : undefined;
+                                })(),
                               }}
                               className="w-full mt-2"
                             />
@@ -8349,6 +8365,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
                                   paidCount: getPaidInstallmentsCount(loan),
+                                  // Pagamento parcial de juros
+                                  partialInterestPaid: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    const currentIndex = getPaidInstallmentsCount(loan);
+                                    return paidList
+                                      .filter(p => p.installmentIndex === currentIndex)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                  })(),
+                                  partialInterestPending: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    const currentIndex = getPaidInstallmentsCount(loan);
+                                    const paidForCurrent = paidList
+                                      .filter(p => p.installmentIndex === currentIndex)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                    return paidForCurrent > 0 ? Math.max(0, calculatedInterestPerInstallment - paidForCurrent) : undefined;
+                                  })(),
                                 }}
                                 className="w-full mt-2"
                               />
@@ -8390,6 +8422,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
                                   principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
                                   isDaily: loan.payment_type === 'daily',
+                                  // Pagamento parcial de juros
+                                  partialInterestPaid: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    const currentIndex = getPaidInstallmentsCount(loan);
+                                    return paidList
+                                      .filter(p => p.installmentIndex === currentIndex)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                  })(),
+                                  partialInterestPending: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    const currentIndex = getPaidInstallmentsCount(loan);
+                                    const paidForCurrent = paidList
+                                      .filter(p => p.installmentIndex === currentIndex)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                    return paidForCurrent > 0 ? Math.max(0, calculatedInterestPerInstallment - paidForCurrent) : undefined;
+                                  })(),
                                 }}
                                 className="w-full mt-2"
                               />
@@ -8429,6 +8477,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
                                   paidCount: paidCount,
+                                  // Pagamento parcial de juros
+                                  partialInterestPaid: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    return paidList
+                                      .filter(p => p.installmentIndex === paidCount)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                  })(),
+                                  partialInterestPending: (() => {
+                                    const paidList = getPartialInterestPaidFromNotes(loan.notes);
+                                    const paidForCurrent = paidList
+                                      .filter(p => p.installmentIndex === paidCount)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                    return paidForCurrent > 0 ? Math.max(0, calculatedInterestPerInstallment - paidForCurrent) : undefined;
+                                  })(),
                                 }}
                                 className="w-full"
                               />
