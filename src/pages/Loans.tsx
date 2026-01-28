@@ -312,9 +312,19 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   
   // Só usar fallback se não houver NENHUMA tag de tracking (nem partial, nem interest-only)
   if (!hasTrackingTags && !hasInterestOnlyTags && totalPaid > 0 && baseInstallmentValue > 0) {
-    // Calcular quantas parcelas completas foram pagas
-    const paidByValue = Math.floor(totalPaid / baseInstallmentValue);
-    return Math.min(paidByValue, numInstallments);
+    // Usar tolerância de 1% para lidar com diferenças de centavos
+    // Se pagou 99% ou mais de uma parcela, considerar como paga
+    let paidCount = 0;
+    let remaining = totalPaid;
+    for (let i = 0; i < numInstallments && remaining > 0; i++) {
+      if (remaining >= baseInstallmentValue * 0.99) {
+        paidCount++;
+        remaining -= baseInstallmentValue;
+      } else {
+        break;
+      }
+    }
+    return paidCount;
   }
   
   // Extrair sub-parcelas de adiantamento - se houver sub-parcela pendente para um índice, 
