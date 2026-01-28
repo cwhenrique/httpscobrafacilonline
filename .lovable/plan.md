@@ -1,105 +1,169 @@
 
+# Plano: Adicionar Pré-Mensagem PIX nas Cobranças
 
-# Plano: Corrigir Saldo Inicial para Total de Principal Emprestado
+## Objetivo
 
-## Problema Identificado
+Permitir que o usuário configure uma mensagem personalizada que será exibida junto com a chave PIX em todas as cobranças enviadas via WhatsApp. Por exemplo:
+- "Clique no link e coloque seu nome completo e valor"
+- "Pagamento via PIX para [Nome]"
 
-O cálculo atual do saldo inicial usa apenas o "Capital na Rua" (principal pendente dos empréstimos ativos):
+Esta mensagem aparecerá automaticamente em todas as cobranças (vencendo hoje, atrasadas, antecipadas, comprovantes de pagamento, etc).
 
-```typescript
-// LÓGICA ATUAL (INCORRETA)
-const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-return currentCapitalOnStreet; // R$ 2.600
-```
+## Exemplo do Resultado
 
-**Mas o correto é:** O saldo inicial deve representar **todo o dinheiro que o usuário emprestou** (soma do principal de TODOS os empréstimos, ativos e quitados).
-
-## Seu Cenário
-
-| Empréstimo | Principal | Status | Capital na Rua |
-|------------|-----------|--------|----------------|
-| Devedor 02 | R$ 1.000 | Ativo | R$ 600 (após pagamentos) |
-| Devedor 02 (diária) | R$ 2.000 | Ativo | R$ 2.000 |
-| Devedor 01 | R$ 500 | Quitado | R$ 0 |
-| **TOTAL** | **R$ 3.500** | - | **R$ 2.600** |
-
-- **Capital na Rua:** R$ 2.600 (correto para esse indicador)
-- **Saldo Inicial do Fluxo de Caixa:** Deveria ser R$ 3.500 (todo principal emprestado)
-
-## Fórmula Corrigida
-
+### Mensagem de Cobrança (Atual)
 ```text
-Saldo Inicial = Σ principal_amount de TODOS os empréstimos (ativos + quitados)
+━━━━━━━━━━━━━━━━
+💳 *Chave PIX CPF:* 000.000.000-00
 ```
 
-## Alteração Necessária
+### Mensagem de Cobrança (Após alteração - com pré-mensagem)
+```text
+━━━━━━━━━━━━━━━━
+📢 Clique no link e coloque seu nome completo e valor
 
-### src/pages/ReportsLoans.tsx (linhas 693-706)
+💳 *Chave PIX CPF:* 000.000.000-00
+```
 
-**De:**
+---
+
+## Alterações Técnicas
+
+### 1. Banco de Dados - Nova Coluna
+
+Adicionar nova coluna `pix_pre_message` na tabela `profiles`:
+
+```sql
+ALTER TABLE profiles 
+ADD COLUMN pix_pre_message text;
+
+COMMENT ON COLUMN profiles.pix_pre_message IS 
+'Mensagem personalizada exibida junto com a chave PIX nas cobranças';
+```
+
+### 2. Hook useProfile (src/hooks/useProfile.ts)
+
+Adicionar o campo `pix_pre_message` à interface `Profile`:
+
 ```typescript
-const calculatedInitialBalance = useMemo(() => {
-  // ERRADO: só pega empréstimos ativos e capital pendente
-  const allActiveLoans = stats.allLoans.filter(loan => loan.status !== 'paid');
-  const currentCapitalOnStreet = allActiveLoans.reduce((sum, loan) => {
-    const principal = Number(loan.principal_amount);
-    const payments = (loan as any).payments || [];
-    const totalPrincipalPaid = payments.reduce((s: number, p: any) => 
-      s + Number(p.principal_paid || 0), 0);
-    return sum + Math.max(0, principal - totalPrincipalPaid);
-  }, 0);
-  
-  return currentCapitalOnStreet;
-}, [stats.allLoans]);
+// Adicionar na interface Profile (linha ~30)
+pix_pre_message: string | null;
 ```
 
-**Para:**
-```typescript
-const calculatedInitialBalance = useMemo(() => {
-  // CORRETO: soma o principal de TODOS os empréstimos (ativos + quitados)
-  // Representa o capital total que o usuário tinha para emprestar
-  const totalPrincipalEverLoaned = stats.allLoans.reduce((sum, loan) => {
-    return sum + Number(loan.principal_amount);
-  }, 0);
-  
-  return totalPrincipalEverLoaned;
-}, [stats.allLoans]);
-```
+### 3. Página de Perfil (src/pages/Profile.tsx)
 
-## Fluxo de Caixa Resultante
+Adicionar campo Textarea no card de PIX, abaixo do input da chave PIX:
 
+**Visual do Card PIX Atualizado:**
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  Inicial: R$ 3.500 (total emprestado historicamente)    │
-│  → Saídas: R$ 0 (emprestado no período selecionado)     │
-│  → Entradas: R$ 900 (recebido no período)               │
-│  ─────────────────────────────────────────────────────  │
-│  Saldo Atual: R$ 3.500 - R$ 0 + R$ 900 = R$ 4.400       │
+│  🔑 Chave PIX para Cobranças                     [✏️]  │
+├─────────────────────────────────────────────────────────┤
+│  Configure sua chave PIX. Ela será incluída            │
+│  automaticamente nas mensagens de cobrança.            │
+│                                                         │
+│  📌 Tipo da Chave: [CPF ▼]                             │
+│  ┌─────────────────────────────────┐                   │
+│  │ 000.000.000-00                  │                   │
+│  └─────────────────────────────────┘                   │
+│                                                         │
+│  📝 Mensagem do PIX (opcional)  ← NOVO CAMPO           │
+│  ┌─────────────────────────────────┐                   │
+│  │ Clique no link e coloque seu   │                   │
+│  │ nome completo e valor          │                   │
+│  └─────────────────────────────────┘                   │
+│  Esta mensagem aparecerá junto com a chave PIX         │
+│  em todas as cobranças.                                │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Nota:** O saldo atual mostra que o dinheiro recebido voltou para o caixa, aumentando o capital disponível.
+**Alterações específicas:**
+- Adicionar `pix_pre_message: ''` ao `formData` state (linha 88)
+- Importar componente `Textarea`
+- Adicionar campo Textarea no modo de edição do PIX (após linha 1248)
+- Mostrar a mensagem configurada no modo de visualização
+- Salvar `pix_pre_message` junto com os outros dados do PIX no `handleSavePix`
 
-## Atualização do Texto no Modal
+### 4. Utilitário de Mensagens (src/lib/messageUtils.ts)
 
-### src/components/reports/CashFlowConfigModal.tsx
+Atualizar a função `generatePixSection` para aceitar a pré-mensagem como terceiro parâmetro:
 
-Atualizar a descrição da sugestão:
-
-**De:**
-```text
-"Baseado no capital na rua (principal dos empréstimos ativos)"
+**De (linhas 143-146):**
+```typescript
+export const generatePixSection = (
+  pixKey: string | null, 
+  pixKeyType: string | null
+): string => {
+  if (!pixKey) return '';
+  return `━━━━━━━━━━━━━━━━\n💳 *${getPixKeyTypeLabel(pixKeyType)}:* ${pixKey}\n`;
+};
 ```
 
 **Para:**
-```text
-"Baseado no total de capital emprestado historicamente"
+```typescript
+export const generatePixSection = (
+  pixKey: string | null, 
+  pixKeyType: string | null,
+  pixPreMessage?: string | null
+): string => {
+  if (!pixKey) return '';
+  let section = `━━━━━━━━━━━━━━━━\n`;
+  
+  // Adiciona pré-mensagem se configurada
+  if (pixPreMessage && pixPreMessage.trim()) {
+    section += `📢 ${pixPreMessage.trim()}\n\n`;
+  }
+  
+  section += `💳 *${getPixKeyTypeLabel(pixKeyType)}:* ${pixKey}\n`;
+  return section;
+};
 ```
 
-## Resumo das Alterações
+### 5. Componentes de Notificação
+
+Atualizar as chamadas de `generatePixSection` nos seguintes componentes para incluir a pré-mensagem:
+
+| Componente | Arquivo | Alteração |
+|------------|---------|-----------|
+| SendDueTodayNotification | `src/components/SendDueTodayNotification.tsx` | Linhas 143 e 184 |
+| SendOverdueNotification | `src/components/SendOverdueNotification.tsx` | Linhas 237 e 296 |
+| SendEarlyNotification | `src/components/SendEarlyNotification.tsx` | Linhas 111 e 157 |
+| PaymentReceiptPrompt | `src/components/PaymentReceiptPrompt.tsx` | Linhas 121 e 198 |
+
+**Alteração em cada chamada (de):**
+```typescript
+message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null);
+```
+
+**Para:**
+```typescript
+message += generatePixSection(
+  profile?.pix_key || null, 
+  profile?.pix_key_type || null,
+  profile?.pix_pre_message || null
+);
+```
+
+---
+
+## Resumo dos Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/ReportsLoans.tsx` | Mudar `calculatedInitialBalance` para somar o principal de TODOS os empréstimos |
-| `src/components/reports/CashFlowConfigModal.tsx` | Atualizar descrição da sugestão automática |
+| Migration SQL | Adicionar coluna `pix_pre_message` à tabela `profiles` |
+| `src/hooks/useProfile.ts` | Adicionar `pix_pre_message` à interface Profile |
+| `src/pages/Profile.tsx` | Adicionar Textarea no card de PIX + lógica de save |
+| `src/lib/messageUtils.ts` | Atualizar `generatePixSection` para aceitar pré-mensagem |
+| `src/components/SendDueTodayNotification.tsx` | Passar `pix_pre_message` para `generatePixSection` |
+| `src/components/SendOverdueNotification.tsx` | Passar `pix_pre_message` para `generatePixSection` |
+| `src/components/SendEarlyNotification.tsx` | Passar `pix_pre_message` para `generatePixSection` |
+| `src/components/PaymentReceiptPrompt.tsx` | Passar `pix_pre_message` para função de geração de mensagem |
 
+---
+
+## Validações
+
+- Limite de 500 caracteres para a pré-mensagem
+- Trim de espaços em branco antes de salvar e exibir
+- Campo opcional (pode ficar vazio)
+- Não requer 2FA (não é campo sensível como a chave PIX em si)
