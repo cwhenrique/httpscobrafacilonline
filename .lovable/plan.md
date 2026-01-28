@@ -1,163 +1,126 @@
 
+# Plano: Calcular Saldo Inicial Automático para Fluxo de Caixa
 
-# Plano: Incluir Pagamento Parcial de Juros nas Mensagens de Cobrança
+## Entendimento da Lógica
 
-## O que você quer
+Quando o usuário **não configurou manualmente** um saldo inicial, o sistema deve calcular um valor padrão baseado no histórico de operações:
 
-Quando houver pagamento parcial de juros registrado, as mensagens de WhatsApp de cobrança (atraso, vence hoje, antes do prazo) devem incluir:
-- Quanto foi pago de juros parcialmente
-- Quanto ainda falta pagar de juros
+**Fórmula:**
+```
+Saldo Implícito = Total Recebido (histórico) - Capital na Rua (atual)
+```
+
+**Exemplo prático:**
+- Usuário emprestou R$ 100.000 ao longo do tempo
+- Recebeu de volta R$ 80.000
+- Atualmente tem R$ 50.000 ainda na rua (empréstimos ativos)
+- O que ele "não voltou a emprestar": R$ 80.000 - R$ 50.000 = **R$ 30.000 em caixa**
+
+Ou seja, a diferença entre o que ele recebeu e o que ele recolocou na rua representa o dinheiro que ficou "parado" no caixa.
 
 ---
 
 ## Alterações Necessárias
 
-### 1. Adicionar campos nas interfaces de dados dos componentes
+### 1. Modificar CashFlowCard.tsx
 
-#### SendDueTodayNotification.tsx (linhas 13-28)
-
-Adicionar na interface `DueTodayData`:
-```typescript
-// NOVO: Pagamento parcial de juros
-partialInterestPaid?: number;    // Valor já pago de juros parcialmente
-partialInterestPending?: number; // Valor que ainda falta de juros
-```
-
-#### SendOverdueNotification.tsx (linhas 13-54)
-
-Adicionar na interface `OverdueData`:
-```typescript
-// NOVO: Pagamento parcial de juros
-partialInterestPaid?: number;
-partialInterestPending?: number;
-```
-
-#### SendEarlyNotification.tsx (linhas 13-29)
-
-Adicionar na interface `EarlyNotificationData`:
-```typescript
-// NOVO: Pagamento parcial de juros
-partialInterestPaid?: number;
-partialInterestPending?: number;
-```
-
----
-
-### 2. Modificar as funções de geração de mensagem
-
-#### Em SendDueTodayNotification.tsx
-
-Nas funções `generateDueTodayMessage()` e `generateSimpleDueTodayMessage()`, adicionar seção:
+Adicionar prop `calculatedInitialBalance` para receber o valor calculado automaticamente:
 
 ```typescript
-// Pagamento parcial de juros (se houver)
-if (data.partialInterestPaid && data.partialInterestPaid > 0) {
-  message += `\n💜 *JUROS PARCIAL:*\n`;
-  message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
-  message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
+interface CashFlowCardProps {
+  initialBalance: number;           // Valor configurado manualmente
+  calculatedInitialBalance: number; // NOVO: Valor calculado automaticamente
+  loanedInPeriod: number;
+  totalOnStreet: number;
+  receivedInPeriod: number;
+  interestReceived: number;
+  onUpdateInitialBalance: (value: number) => void;
+  isUnlocked: boolean;
 }
 ```
 
-#### Em SendOverdueNotification.tsx
-
-Nas funções `generateOverdueMessage()` e `generateSimpleOverdueMessage()`, adicionar seção similar:
+Usar o valor calculado como fallback quando não há valor manual:
 
 ```typescript
-// Pagamento parcial de juros (se houver)
-if (data.partialInterestPaid && data.partialInterestPaid > 0) {
-  message += `\n💜 *JUROS PARCIAL:*\n`;
-  message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
-  message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
-}
+// Usar valor manual se configurado, senão usar valor calculado
+const effectiveInitialBalance = initialBalance > 0 
+  ? initialBalance 
+  : calculatedInitialBalance;
+
+const currentBalance = effectiveInitialBalance - loanedInPeriod + receivedInPeriod;
 ```
 
-#### Em SendEarlyNotification.tsx
+**Remover estado bloqueado** - o card sempre mostra dados, mesmo sem configuração manual.
 
-Nas funções `generateEarlyMessage()` e `generateSimpleEarlyMessage()`, adicionar seção similar:
+### 2. Modificar ReportsLoans.tsx
+
+Calcular o saldo inicial implícito:
 
 ```typescript
-// Pagamento parcial de juros (se houver)
-if (data.partialInterestPaid && data.partialInterestPaid > 0) {
-  message += `\n💜 *JUROS PARCIAL:*\n`;
-  message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
-  message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
-}
+// Cálculo do saldo implícito
+const calculatedInitialBalance = useMemo(() => {
+  // Total recebido de TODOS os empréstimos (histórico completo)
+  const totalReceivedAllTime = stats.allLoans.reduce((sum, loan) => 
+    sum + Number(loan.total_paid || 0), 0);
+  
+  // Capital atualmente na rua
+  const currentCapitalOnStreet = stats.totalOnStreet;
+  
+  // Saldo implícito = O que recebeu - O que está na rua
+  // Representa o dinheiro que "sobrou" e não foi reemprestado
+  return Math.max(0, totalReceivedAllTime - currentCapitalOnStreet);
+}, [stats]);
 ```
 
----
-
-### 3. Atualizar chamadas em Loans.tsx
-
-Passar os novos dados de pagamento parcial em cada chamada dos componentes de notificação.
-
-#### SendOverdueNotification (linha ~8297)
+Passar para o CashFlowCard:
 
 ```typescript
-<SendOverdueNotification
-  data={{
-    // ... campos existentes ...
-    // NOVO: Calcular e passar pagamento parcial de juros
-    partialInterestPaid: (() => {
-      const paidList = getPartialInterestPaidFromNotes(loan.notes);
-      const currentIndex = getPaidInstallmentsCount(loan);
-      return paidList
-        .filter(p => p.installmentIndex === currentIndex)
-        .reduce((sum, p) => sum + p.amountPaid, 0);
-    })(),
-    partialInterestPending: (() => {
-      const paidList = getPartialInterestPaidFromNotes(loan.notes);
-      const currentIndex = getPaidInstallmentsCount(loan);
-      const paidForCurrent = paidList
-        .filter(p => p.installmentIndex === currentIndex)
-        .reduce((sum, p) => sum + p.amountPaid, 0);
-      return Math.max(0, calculatedInterestPerInstallment - paidForCurrent);
-    })(),
-  }}
+<CashFlowCard
+  initialBalance={cashFlowStats.initialBalance}
+  calculatedInitialBalance={calculatedInitialBalance}
+  loanedInPeriod={cashFlowStats.loanedInPeriod}
+  totalOnStreet={filteredStats.totalOnStreet}
+  receivedInPeriod={cashFlowStats.receivedInPeriod}
+  interestReceived={cashFlowStats.interestReceived}
+  onUpdateInitialBalance={handleUpdateCashFlowBalance}
+  isUnlocked={true}  // Sempre desbloqueado agora
 />
 ```
 
-#### SendDueTodayNotification (linhas ~8336, ~8380)
+### 3. Modificar CashFlowConfigModal.tsx
 
-Mesma lógica para calcular e passar `partialInterestPaid` e `partialInterestPending`.
+Mostrar o valor calculado como sugestão para o usuário:
 
-#### SendEarlyNotification (linha ~8415)
-
-Mesma lógica para calcular e passar os valores.
-
----
-
-## Exemplo de Mensagem Resultante
-
-### Antes (sem pagamento parcial):
-```
-⚠️ *Atenção João*
-━━━━━━━━━━━━━━━━
-
-💵 *Valor da Parcela:* R$ 1.200,00
-📊 *Parcela 2/6*
-📅 *Vencimento:* 25/01/2026
-⏰ *Dias em Atraso:* 3
-
-━━━━━━━━━━━━━━━━
-_Empresa XYZ_
+```typescript
+interface CashFlowConfigModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentBalance: number;
+  suggestedBalance?: number;  // NOVO: Valor sugerido pelo sistema
+  onSave: (value: number) => void;
+}
 ```
 
-### Depois (com pagamento parcial de R$ 70 de R$ 200):
-```
-⚠️ *Atenção João*
-━━━━━━━━━━━━━━━━
+Adicionar botão "Usar valor sugerido":
 
-💵 *Valor da Parcela:* R$ 1.200,00
-📊 *Parcela 2/6*
-📅 *Vencimento:* 25/01/2026
-⏰ *Dias em Atraso:* 3
-
-💜 *JUROS PARCIAL:*
-✅ Já pago: R$ 70,00
-⏳ Pendente: R$ 130,00
-
-━━━━━━━━━━━━━━━━
-_Empresa XYZ_
+```typescript
+{suggestedBalance && suggestedBalance > 0 && (
+  <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+    <p className="text-sm text-blue-500 font-medium">💡 Sugestão do sistema:</p>
+    <p className="text-lg font-bold text-blue-500">{formatCurrency(suggestedBalance)}</p>
+    <p className="text-xs text-muted-foreground mt-1">
+      Baseado no seu histórico de operações
+    </p>
+    <Button 
+      variant="outline" 
+      size="sm" 
+      onClick={() => setValue((suggestedBalance * 100).toString())}
+      className="mt-2 text-xs border-blue-500/30 text-blue-500"
+    >
+      Usar este valor
+    </Button>
+  </div>
+)}
 ```
 
 ---
@@ -165,21 +128,28 @@ _Empresa XYZ_
 ## Fluxo Visual
 
 ```text
-EMPRÉSTIMO COM PAGAMENTO PARCIAL DE JUROS
-┌─────────────────────────────────────────────────┐
-│  Cliente pagou R$ 70 de R$ 200 de juros        │
-│  ↓                                              │
-│  Card fica ROXO (já implementado)               │
-│  ↓                                              │
-│  Usuário clica "Enviar Cobrança"               │
-│  ↓                                              │
-│  Mensagem WhatsApp inclui:                      │
-│  ┌─────────────────────────────────────────┐   │
-│  │ 💜 *JUROS PARCIAL:*                     │   │
-│  │ ✅ Já pago: R$ 70,00                    │   │
-│  │ ⏳ Pendente: R$ 130,00                  │   │
-│  └─────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────┘
+USUÁRIO NOVO (sem saldo configurado)
+┌─────────────────────────────────────────────────────────┐
+│  Sistema calcula automaticamente:                        │
+│  - Total Recebido: R$ 80.000                            │
+│  - Capital na Rua: R$ 50.000                            │
+│  - Saldo Implícito: R$ 30.000                           │
+│  ↓                                                       │
+│  CashFlowCard mostra:                                    │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Inicial: R$ 30.000 (calculado)                    │  │
+│  │ → Saídas → Entradas                               │  │
+│  │ Saldo Atual: R$ X                                 │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                          │
+│  Se usuário clica para editar:                          │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ 💡 Sugestão do sistema: R$ 30.000                 │  │
+│  │ [Usar este valor]                                 │  │
+│  │                                                   │  │
+│  │ Ou digite seu próprio valor: [________]           │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -188,8 +158,17 @@ EMPRÉSTIMO COM PAGAMENTO PARCIAL DE JUROS
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/SendDueTodayNotification.tsx` | Adicionar campos `partialInterestPaid/Pending` na interface e nas funções de mensagem |
-| `src/components/SendOverdueNotification.tsx` | Adicionar campos `partialInterestPaid/Pending` na interface e nas funções de mensagem |
-| `src/components/SendEarlyNotification.tsx` | Adicionar campos `partialInterestPaid/Pending` na interface e nas funções de mensagem |
-| `src/pages/Loans.tsx` | Calcular e passar os valores de pagamento parcial nas chamadas dos componentes (~8297, ~8336, ~8380, ~8415) |
+| `src/components/reports/CashFlowCard.tsx` | Adicionar `calculatedInitialBalance` prop, remover estado bloqueado, usar valor calculado como fallback |
+| `src/components/reports/CashFlowConfigModal.tsx` | Adicionar `suggestedBalance` prop e botão "Usar este valor" |
+| `src/pages/ReportsLoans.tsx` | Calcular `calculatedInitialBalance` e passar para os componentes |
 
+---
+
+## Resultado Final
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Usuário novo sem histórico | Mostra R$ 0,00 como inicial |
+| Usuário com histórico, sem config manual | Calcula automaticamente baseado em (Recebido - Na Rua) |
+| Usuário com config manual | Usa o valor configurado manualmente |
+| Usuário edita o saldo | Modal mostra sugestão + permite valor personalizado |
