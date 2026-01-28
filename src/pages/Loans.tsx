@@ -4746,19 +4746,63 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Registrar o que foi pago
       notesText += `\n[PARTIAL_INTEREST_PAID:${installmentIndex}:${partialAmount.toFixed(2)}:${paymentDate}]`;
       
-      // Atualizar tag de pendente (apenas se ainda houver valor pendente)
-      if (pendingInterest > 0.01) {
+      // Verificar se os juros da parcela foram COMPLETAMENTE quitados
+      if (pendingInterest <= 0.01) {
+        // JUROS COMPLETAMENTE QUITADOS: Rolar contrato igual ao "pagou só os juros"
+        console.log('[PARTIAL_INTEREST] Juros da parcela completamente quitados! Rolando contrato...');
+        
+        // Helper para rolar data baseado no tipo de pagamento
+        const rollDateForward = (date: Date, paymentType: string): Date => {
+          if (paymentType === 'weekly') {
+            const newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + 7);
+            return newDate;
+          } else if (paymentType === 'biweekly') {
+            const newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + 15);
+            return newDate;
+          } else {
+            return addMonths(date, 1);
+          }
+        };
+        
+        // Calcular novas datas
+        const currentDates = (loan.installment_dates as string[]) || [];
+        const newDates = currentDates.map(d => format(rollDateForward(new Date(d + 'T12:00:00'), loan.payment_type), 'yyyy-MM-dd'));
+        const newDueDate = newDates[newDates.length - 1] || format(rollDateForward(new Date(loan.due_date + 'T12:00:00'), loan.payment_type), 'yyyy-MM-dd');
+        
+        // Limpar tags PARTIAL_INTEREST_PAID e PARTIAL_INTEREST_PENDING da parcela quitada
+        notesText = notesText.replace(new RegExp(`\\[PARTIAL_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]\\n?`, 'g'), '');
+        notesText = notesText.replace(new RegExp(`\\[PARTIAL_INTEREST_PENDING:${installmentIndex}:[^\\]]+\\]\\n?`, 'g'), '');
+        notesText += `\n[INTEREST_CLEARED:${installmentIndex}:${paymentDate}] Juros da parcela ${installmentIndex + 1} quitado via pagamentos parciais`;
+        
+        // Atualizar empréstimo com novas datas E notas
+        await supabase.from('loans').update({
+          notes: notesText,
+          installment_dates: newDates,
+          due_date: newDueDate,
+          updated_at: new Date().toISOString()
+        }).eq('id', selectedLoanId);
+        
+        // Forçar recarga dos dados
+        invalidateLoans();
+        
+        toast.success(`Juros da parcela ${installmentIndex + 1} totalmente quitado! Contrato rolado para próximo período.`);
+      } else {
+        // Juros ainda pendente - apenas atualizar notes com tag de pendente
         notesText += `\n[PARTIAL_INTEREST_PENDING:${installmentIndex}:${pendingInterest.toFixed(2)}:${paymentDate}]`;
+        notesText += `\nPagamento parcial de juros: R$ ${partialAmount.toFixed(2)} em ${formatDate(paymentDate)} (Parcela ${installmentIndex + 1})`;
+        
+        await supabase.from('loans').update({
+          notes: notesText,
+          updated_at: new Date().toISOString()
+        }).eq('id', selectedLoanId);
+        
+        // Forçar recarga dos dados
+        invalidateLoans();
+        
+        toast.success(`Pagamento parcial de ${formatCurrency(partialAmount)} registrado. Juros pendente: ${formatCurrency(pendingInterest)}`);
       }
-      notesText += `\nPagamento parcial de juros: R$ ${partialAmount.toFixed(2)} em ${formatDate(paymentDate)} (Parcela ${installmentIndex + 1})`;
-      
-      // Apenas atualizar notes, NAO alterar remaining_balance nem datas
-      await supabase.from('loans').update({
-        notes: notesText,
-        updated_at: new Date().toISOString()
-      }).eq('id', selectedLoanId);
-      
-      toast.success(`Pagamento parcial de ${formatCurrency(partialAmount)} registrado. Juros pendente: ${formatCurrency(pendingInterest)}`);
       
       setIsRenegotiateDialogOpen(false);
       setSelectedLoanId(null);
@@ -11376,6 +11420,31 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                           ))}
                                         </div>
                                       )}
+                                      {/* Exibir breakdown de pagamentos parciais de juros */}
+                                      {(() => {
+                                        const partialInterestPaid = getPartialInterestPaidFromNotes(selectedLoan.notes);
+                                        const paidForThisInstallment = partialInterestPaid
+                                          .filter(p => p.installmentIndex === index)
+                                          .reduce((sum, p) => sum + p.amountPaid, 0);
+                                        const interestPerInst = (selectedLoan.total_interest || 0) / (selectedLoan.installments || 1);
+                                        const pendingInterestForThis = Math.max(0, interestPerInst - paidForThisInstallment);
+                                        
+                                        if (paidForThisInstallment > 0.01 && !status.isPaid) {
+                                          return (
+                                            <div className="flex flex-col gap-0.5 text-xs">
+                                              <span className="text-emerald-500 font-medium">
+                                                💵 Juros já pago: {formatCurrency(paidForThisInstallment)}
+                                              </span>
+                                              {pendingInterestForThis > 0.01 && (
+                                                <span className="text-amber-500">
+                                                  Juros pendente: {formatCurrency(pendingInterestForThis)}
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                       {status.isPartial && !hasSubparcelas && !status.isInterestOnlyPaid && (
                                         <span className="text-xs text-yellow-600 dark:text-yellow-400">
                                           Valor: {formatCurrency(installmentValue)} | Pago: {formatCurrency(status.paidAmount)} | Falta: {formatCurrency(status.remaining)}
