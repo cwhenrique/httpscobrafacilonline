@@ -154,6 +154,25 @@ const getPartialInterestPendingFromNotes = (notes: string | null): Array<{
   return pending;
 };
 
+// Helper para extrair pagamentos parciais de juros JÁ REALIZADOS por parcela
+// Formato: [PARTIAL_INTEREST_PAID:indice:valor:data]
+const getPartialInterestPaidFromNotes = (notes: string | null): Array<{
+  installmentIndex: number;
+  amountPaid: number;
+  paymentDate: string;
+}> => {
+  const paid: Array<{ installmentIndex: number; amountPaid: number; paymentDate: string }> = [];
+  const matches = (notes || '').matchAll(/\[PARTIAL_INTEREST_PAID:(\d+):([0-9.]+):([^\]]+)\]/g);
+  for (const match of matches) {
+    paid.push({
+      installmentIndex: parseInt(match[1]),
+      amountPaid: parseFloat(match[2]),
+      paymentDate: match[3]
+    });
+  }
+  return paid;
+};
+
 // Helper para extrair pagamentos de "somente juros" por parcela do notes
 // Formato: [INTEREST_ONLY_PAID:índice_parcela:valor:data]
 const getInterestOnlyPaymentsFromNotes = (notes: string | null): Array<{ installmentIndex: number; amount: number; paymentDate: string }> => {
@@ -4693,7 +4712,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         baseTotalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
       }
       const interestPerInstallment = baseTotalInterest / numInstallments;
-      const pendingInterest = Math.max(0, interestPerInstallment - partialAmount);
+      
+      // Buscar pagamentos parciais anteriores desta parcela
+      const previousPartialPaid = getPartialInterestPaidFromNotes(loan.notes);
+      const totalPreviouslyPaidForInstallment = previousPartialPaid
+        .filter(p => p.installmentIndex === installmentIndex)
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+      
+      // Calcular juros pendente considerando pagamentos anteriores
+      const remainingInterestBeforePayment = Math.max(0, interestPerInstallment - totalPreviouslyPaidForInstallment);
+      const pendingInterest = Math.max(0, remainingInterestBeforePayment - partialAmount);
       
       // Registrar pagamento com tag [PARTIAL_INTEREST_PAYMENT]
       const paymentResult = await registerPayment({
@@ -4712,9 +4740,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         return;
       }
       
-      // Atualizar notas com tag de rastreamento (NÃO alterar remaining_balance nem datas)
+      // Atualizar notas com AMBAS as tags (PAID e PENDING)
       let notesText = loan.notes || '';
-      notesText += `\n[PARTIAL_INTEREST_PENDING:${installmentIndex}:${pendingInterest.toFixed(2)}:${paymentDate}]`;
+      
+      // Registrar o que foi pago
+      notesText += `\n[PARTIAL_INTEREST_PAID:${installmentIndex}:${partialAmount.toFixed(2)}:${paymentDate}]`;
+      
+      // Atualizar tag de pendente (apenas se ainda houver valor pendente)
+      if (pendingInterest > 0.01) {
+        notesText += `\n[PARTIAL_INTEREST_PENDING:${installmentIndex}:${pendingInterest.toFixed(2)}:${paymentDate}]`;
+      }
       notesText += `\nPagamento parcial de juros: R$ ${partialAmount.toFixed(2)} em ${formatDate(paymentDate)} (Parcela ${installmentIndex + 1})`;
       
       // Apenas atualizar notes, NAO alterar remaining_balance nem datas
@@ -12278,74 +12313,132 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </div>
                       
                       {/* Select de parcela */}
-                      <div className="space-y-2">
-                        <Label className="text-cyan-300 text-xs">Parcela referente:</Label>
-                        <Select 
-                          value={renegotiateData.partial_interest_installment} 
-                          onValueChange={(v) => setRenegotiateData({ ...renegotiateData, partial_interest_installment: v })}
-                        >
-                          <SelectTrigger className="bg-cyan-950 text-white border-cyan-500">
-                            <SelectValue placeholder="Selecione a parcela" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {dates.map((date, index) => {
-                              if (isInstallmentPaid(index)) return null;
-                              return (
-                                <SelectItem key={index} value={index.toString()}>
-                                  Parcela {index + 1} - {formatDate(date)} - Juros: {formatCurrency(interestPerInstallment)}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-cyan-300 text-xs">Valor pago (R$) *</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            value={renegotiateData.partial_interest_amount} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_amount: e.target.value })} 
-                            placeholder="Ex: 500,00"
-                            required
-                            className="bg-cyan-950 text-white border-cyan-500 font-bold"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-cyan-300 text-xs">Data do pagamento *</Label>
-                          <Input 
-                            type="date" 
-                            value={renegotiateData.partial_interest_date} 
-                            onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_date: e.target.value })} 
-                            required
-                            className="bg-cyan-950 text-white border-cyan-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Resumo */}
-                      <div className="bg-cyan-500/20 rounded-lg p-4 space-y-2 border border-cyan-500">
-                        <div className="flex justify-between items-center">
-                          <span className="text-cyan-300 text-sm">Juros total da parcela:</span>
-                          <span className="font-bold text-white">{formatCurrency(interestPerInstallment)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-cyan-300 text-sm">Valor pago agora:</span>
-                          <span className="font-bold text-green-400">{formatCurrency(parseFloat(renegotiateData.partial_interest_amount) || 0)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-t border-cyan-500/50 pt-2">
-                          <span className="text-cyan-400 font-medium">Juros pendente:</span>
-                          <span className="text-xl font-bold text-amber-400">
-                            {formatCurrency(Math.max(0, interestPerInstallment - (parseFloat(renegotiateData.partial_interest_amount) || 0)))}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <p className="text-xs text-cyan-300/70">
-                        O saldo devedor e datas de vencimento não serão alterados. Apenas será registrado o pagamento parcial dos juros.
-                      </p>
+                      {(() => {
+                        const selectedIndex = parseInt(renegotiateData.partial_interest_installment) || 0;
+                        
+                        // Buscar pagamentos parciais anteriores desta parcela
+                        const partialPaidList = getPartialInterestPaidFromNotes(selectedLoan.notes);
+                        const previousPaymentsForInstallment = partialPaidList
+                          .filter(p => p.installmentIndex === selectedIndex);
+                        const totalPreviouslyPaid = previousPaymentsForInstallment
+                          .reduce((sum, p) => sum + p.amountPaid, 0);
+                        
+                        // Juros total menos o que já foi pago
+                        const remainingInterestForInstallment = Math.max(0, interestPerInstallment - totalPreviouslyPaid);
+                        
+                        return (
+                          <>
+                            <div className="space-y-2">
+                              <Label className="text-cyan-300 text-xs">Parcela referente:</Label>
+                              <Select 
+                                value={renegotiateData.partial_interest_installment} 
+                                onValueChange={(v) => {
+                                  const idx = parseInt(v);
+                                  const paidList = getPartialInterestPaidFromNotes(selectedLoan.notes);
+                                  const totalPaidForThis = paidList
+                                    .filter(p => p.installmentIndex === idx)
+                                    .reduce((sum, p) => sum + p.amountPaid, 0);
+                                  const remaining = Math.max(0, interestPerInstallment - totalPaidForThis);
+                                  
+                                  setRenegotiateData({ 
+                                    ...renegotiateData, 
+                                    partial_interest_installment: v,
+                                    // Pré-preencher com o que falta
+                                    partial_interest_amount: remaining > 0 ? remaining.toFixed(2) : ''
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="bg-cyan-950 text-white border-cyan-500">
+                                  <SelectValue placeholder="Selecione a parcela" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {dates.map((date, index) => {
+                                    if (isInstallmentPaid(index)) return null;
+                                    const paidForThis = partialPaidList
+                                      .filter(p => p.installmentIndex === index)
+                                      .reduce((sum, p) => sum + p.amountPaid, 0);
+                                    const remainingForThis = Math.max(0, interestPerInstallment - paidForThis);
+                                    return (
+                                      <SelectItem key={index} value={index.toString()}>
+                                        Parcela {index + 1} - {formatDate(date)} - Juros: {formatCurrency(interestPerInstallment)}
+                                        {paidForThis > 0 && ` (Já pago: ${formatCurrency(paidForThis)})`}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            {/* Mostrar pagamentos anteriores se existirem */}
+                            {totalPreviouslyPaid > 0 && (
+                              <div className="bg-amber-500/20 rounded-lg p-3 border border-amber-500/50">
+                                <p className="text-amber-300 text-sm font-medium">Pagamentos anteriores desta parcela:</p>
+                                {previousPaymentsForInstallment.map((p, i) => (
+                                  <p key={i} className="text-amber-200 text-xs">
+                                    R$ {formatCurrency(p.amountPaid)} em {formatDate(p.paymentDate)}
+                                  </p>
+                                ))}
+                                <p className="text-amber-400 font-bold mt-1">
+                                  Total já pago: {formatCurrency(totalPreviouslyPaid)}
+                                </p>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-cyan-300 text-xs">Valor pago agora (R$) *</Label>
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  value={renegotiateData.partial_interest_amount} 
+                                  onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_amount: e.target.value })} 
+                                  placeholder="Ex: 500,00"
+                                  required
+                                  className="bg-cyan-950 text-white border-cyan-500 font-bold"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-cyan-300 text-xs">Data do pagamento *</Label>
+                                <Input 
+                                  type="date" 
+                                  value={renegotiateData.partial_interest_date} 
+                                  onChange={(e) => setRenegotiateData({ ...renegotiateData, partial_interest_date: e.target.value })} 
+                                  required
+                                  className="bg-cyan-950 text-white border-cyan-500"
+                                />
+                              </div>
+                            </div>
+                            
+                            {/* Resumo atualizado */}
+                            <div className="bg-cyan-500/20 rounded-lg p-4 space-y-2 border border-cyan-500">
+                              <div className="flex justify-between items-center">
+                                <span className="text-cyan-300 text-sm">Juros total da parcela:</span>
+                                <span className="font-bold text-white">{formatCurrency(interestPerInstallment)}</span>
+                              </div>
+                              {totalPreviouslyPaid > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-cyan-300 text-sm">Já pago anteriormente:</span>
+                                  <span className="font-bold text-amber-400">- {formatCurrency(totalPreviouslyPaid)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center">
+                                <span className="text-cyan-300 text-sm">Valor pago agora:</span>
+                                <span className="font-bold text-green-400">- {formatCurrency(parseFloat(renegotiateData.partial_interest_amount) || 0)}</span>
+                              </div>
+                              <div className="flex justify-between items-center border-t border-cyan-500/50 pt-2">
+                                <span className="text-cyan-400 font-medium">Juros pendente final:</span>
+                                <span className="text-xl font-bold text-amber-400">
+                                  {formatCurrency(Math.max(0, remainingInterestForInstallment - (parseFloat(renegotiateData.partial_interest_amount) || 0)))}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <p className="text-xs text-cyan-300/70">
+                              O saldo devedor e datas de vencimento não serão alterados. Apenas será registrado o pagamento parcial dos juros.
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                   
