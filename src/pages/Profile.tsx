@@ -646,39 +646,25 @@ export default function Profile() {
       pix_pre_message: formData.pix_pre_message.trim() || null,
     };
     
-    // Verificar se é primeiro cadastro (não tinha PIX antes)
-    const isFirstTimeSetup = !profile?.pix_key || profile.pix_key.trim() === '';
     const pixChanged = updates.pix_key !== (profile?.pix_key || null);
     const typeChanged = updates.pix_key_type !== (profile?.pix_key_type || null);
+    const preMessageChanged = updates.pix_pre_message !== (profile?.pix_pre_message || null);
     
-    if (pixChanged || typeChanged) {
-      if (isFirstTimeSetup && updates.pix_key) {
-        // Primeiro cadastro: salvar direto sem verificação
-        setSavingPix(true);
-        const { error } = await updateProfile(updates);
-        if (error) {
-          toast.error('Erro ao salvar chave PIX');
-        } else {
-          toast.success('Chave PIX cadastrada com sucesso!');
-          setIsEditingPix(false);
-          refetch();
-        }
-        setSavingPix(false);
+    if (pixChanged || typeChanged || preMessageChanged) {
+      setSavingPix(true);
+      const { error } = await updateProfile(updates);
+      if (error) {
+        toast.error('Erro ao salvar chave PIX');
       } else {
-        // Alteração ou remoção: exige verificação por código
-        setPendingVerificationUpdates(updates);
-        setVerificationFieldName('Chave PIX');
-        setVerificationDialogOpen(true);
+        toast.success('Chave PIX atualizada com sucesso!');
+        setIsEditingPix(false);
+        refetch();
       }
+      setSavingPix(false);
     } else {
       // Sem mudanças, apenas fechar
       setIsEditingPix(false);
     }
-  };
-
-  const handlePixVerificationSuccess = () => {
-    setIsEditingPix(false);
-    refetch();
   };
 
   const handleCancelPix = () => {
@@ -1850,10 +1836,8 @@ export default function Profile() {
         pendingUpdates={pendingVerificationUpdates}
         fieldDisplayName={verificationFieldName}
         onSuccess={() => {
-          // Determine which field was being edited and call appropriate success handler
-          if (verificationFieldName === 'Chave PIX') {
-            handlePixVerificationSuccess();
-          } else if (verificationFieldName === 'Link de Pagamento') {
+          // Link de Pagamento ainda usa 2FA
+          if (verificationFieldName === 'Link de Pagamento') {
             handlePaymentLinkVerificationSuccess();
           }
         }}
