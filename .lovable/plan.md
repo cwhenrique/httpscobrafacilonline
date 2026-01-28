@@ -1,257 +1,187 @@
 
-# Plano: Correcoes no Pagamento Parcial de Juros
+# Plano: Correções no Pagamento Parcial de Juros
 
-## Problema Identificado
+## Problemas Identificados
 
-Ao analisar o codigo, identifiquei os seguintes problemas:
+Analisando o código, encontrei os seguintes problemas:
 
-1. **Pagamento parcial esta abatendo do saldo devedor**: Os triggers do banco (`update_loan_on_payment` e `recalculate_loan_total_paid`) nao reconhecem a tag `[PARTIAL_INTEREST_PAYMENT]`, entao o pagamento esta sendo tratado como pagamento normal e reduzindo o `remaining_balance`.
+1. **Dados não atualizam após pagamento parcial**: Após registrar o pagamento parcial, o código atualiza as notas diretamente no banco mas **não chama `invalidateLoans()`**, então ao reabrir o diálogo, os dados antigos ainda estão em memória.
 
-2. **Nao mostra pagamentos parciais anteriores**: Quando o usuario reabre a tela de pagamento parcial, nao e exibido quanto ja foi pago anteriormente para aquela parcela.
+2. **Não rola o contrato quando juros são completamente quitados**: Quando o usuário paga os R$ 130 restantes (completando os R$ 200), o sistema deveria automaticamente "rolar" o contrato para o próximo mês, igual ao "Cliente pagou só os juros".
 
-3. **O total_paid tambem nao deveria somar** (conforme solicitado): O pagamento parcial de juros deve apenas registrar o abatimento do juros daquele mes, sem afetar metricas do contrato.
+3. **Falta exibição do breakdown na visualização da parcela**: Na lista de parcelas, deveria mostrar separadamente quanto de juros já foi pago parcialmente e quanto ainda falta.
 
-## Solucao Proposta
+## Solução Proposta
 
-### 1. Atualizar Triggers do Banco de Dados
+### Correção 1: Chamar invalidateLoans() após pagamento parcial
 
-Modificar os dois triggers para reconhecer `[PARTIAL_INTEREST_PAYMENT]` como pagamento que NAO afeta o `remaining_balance`:
+Adicionar chamada a `invalidateLoans()` após o update das notas para forçar recarga dos dados.
 
-**Trigger `update_loan_on_payment`:**
-- Adicionar verificacao para `[PARTIAL_INTEREST_PAYMENT]`
-- Quando for pagamento parcial de juros, comportar-se como `[INTEREST_ONLY_PAYMENT]` (nao reduz remaining_balance)
+### Correção 2: Detectar quando juros foram completamente quitados
 
-**Trigger `recalculate_loan_total_paid`:**
-- Adicionar `[PARTIAL_INTEREST_PAYMENT]` na lista de pagamentos excluidos do calculo de `balance_reducing_payments`
+Quando `pendingInterest <= 0.01`:
+- Rolar as datas do contrato para o próximo período (semana/quinzena/mês)
+- Comportar-se igual ao "Cliente pagou só os juros"
+- Limpar as tags de pagamento parcial daquela parcela específica
 
-### 2. Exibir Pagamentos Parciais Anteriores na UI
+### Correção 3: Exibir breakdown de juros na visualização
 
-Modificar o formulario de pagamento parcial para:
-- Extrair pagamentos parciais anteriores usando `getPartialInterestPendingFromNotes()`
-- Calcular o total ja pago para a parcela selecionada
-- Mostrar resumo: "Juros total", "Ja pago anteriormente", "Valor pago agora", "Juros pendente final"
-
-### 3. Logica de Juros por Periodo
-
-O comportamento correto e:
-- Pagamento parcial abate dos juros daquele mes/parcela especifica
-- No proximo periodo, os juros sao calculados normalmente sobre o principal (sem considerar pagamentos parciais anteriores)
-- A tag `[PARTIAL_INTEREST_PENDING]` rastreia quanto falta quitar dos juros daquela parcela especifica
+No card de parcelas do empréstimo, quando houver pagamentos parciais de juros:
+- Mostrar badge com "Juros já pago: R$ 70"
+- Mostrar "Juros pendente: R$ 130"
+- Manter exibição do principal a receber
 
 ---
 
-## Secao Tecnica
+## Seção Técnica
 
-### Arquivo 1: Migracao SQL para Triggers
+### Arquivo: src/pages/Loans.tsx
 
-Atualizar os dois triggers para reconhecer `[PARTIAL_INTEREST_PAYMENT]`:
-
-```sql
--- Trigger update_loan_on_payment
--- Adicionar verificacao para PARTIAL_INTEREST_PAYMENT junto com INTEREST_ONLY_PAYMENT:
-
-IF NEW.notes LIKE '%[INTEREST_ONLY_PAYMENT]%' OR NEW.notes LIKE '%[PARTIAL_INTEREST_PAYMENT]%' THEN
-  -- Nao reduz remaining_balance
-  UPDATE public.loans
-  SET 
-    total_paid = COALESCE(total_paid, 0) + NEW.amount,
-    status = CASE 
-      WHEN remaining_balance - NEW.amount <= 0 THEN 'paid'::payment_status
-      WHEN due_date >= CURRENT_DATE THEN 'pending'::payment_status
-      ELSE status
-    END
-  WHERE id = NEW.loan_id;
-...
-
--- Trigger recalculate_loan_total_paid
--- Adicionar PARTIAL_INTEREST_PAYMENT na exclusao:
-
-SELECT COALESCE(SUM(amount), 0) INTO balance_reducing_payments
-FROM public.loan_payments
-WHERE loan_id = COALESCE(NEW.loan_id, OLD.loan_id)
-  AND (notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[PARTIAL_INTEREST_PAYMENT]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[AMORTIZATION]%' OR notes IS NULL);
-```
-
-### Arquivo 2: src/pages/Loans.tsx
-
-#### Modificacao 1: Adicionar Helper para Extrair Pagamentos Parciais JA REALIZADOS
-
-A funcao `getPartialInterestPendingFromNotes` ja existe mas rastreia o que FALTA pagar. Precisamos tambem buscar o historico de pagamentos parciais ja feitos para aquela parcela.
-
-Novo helper (linha ~155):
+#### Alteração 1: Adicionar invalidateLoans após pagamento parcial (~linha 4759)
 
 ```typescript
-// Helper para extrair pagamentos parciais de juros JA REALIZADOS por parcela
-// Formato: [PARTIAL_INTEREST_PAID:indice:valor:data]
-const getPartialInterestPaidFromNotes = (notes: string | null): Array<{
-  installmentIndex: number;
-  amountPaid: number;
-  paymentDate: string;
-}> => {
-  const paid: Array<{ installmentIndex: number; amountPaid: number; paymentDate: string }> = [];
-  const matches = (notes || '').matchAll(/\[PARTIAL_INTEREST_PAID:(\d+):([0-9.]+):([^\]]+)\]/g);
-  for (const match of matches) {
-    paid.push({
-      installmentIndex: parseInt(match[1]),
-      amountPaid: parseFloat(match[2]),
-      paymentDate: match[3]
-    });
-  }
-  return paid;
-};
+// Após o update das notes, invalidar para recarregar dados
+await supabase.from('loans').update({
+  notes: notesText,
+  updated_at: new Date().toISOString()
+}).eq('id', selectedLoanId);
+
+// ADICIONAR: Forçar recarga dos dados
+invalidateLoans();
 ```
 
-#### Modificacao 2: Atualizar Logica de Submit (~linha 4700)
+#### Alteração 2: Detectar quitação completa dos juros e rolar contrato (~linha 4724)
 
-Ao registrar pagamento parcial:
-1. Adicionar tag `[PARTIAL_INTEREST_PAID:indice:valor:data]` para rastrear o que foi pago
-2. Atualizar ou adicionar tag `[PARTIAL_INTEREST_PENDING:indice:valor:data]` com o valor que falta
-3. Se o valor pendente for zero, remover a tag PENDING
+Modificar a lógica para detectar quando os juros da parcela foram completamente quitados:
 
 ```typescript
-// Atualizar notas com AMBAS as tags
-let notesText = loan.notes || '';
+// Após calcular pendingInterest
+const pendingInterest = Math.max(0, remainingInterestBeforePayment - partialAmount);
 
-// Registrar o que foi pago
-notesText += `\n[PARTIAL_INTEREST_PAID:${installmentIndex}:${partialAmount.toFixed(2)}:${paymentDate}]`;
-
-// Atualizar ou adicionar tag de pendente
-if (pendingInterest > 0.01) {
-  notesText += `\n[PARTIAL_INTEREST_PENDING:${installmentIndex}:${pendingInterest.toFixed(2)}:${paymentDate}]`;
+// SE JUROS COMPLETAMENTE QUITADOS: Rolar contrato igual ao "pagou só os juros"
+if (pendingInterest <= 0.01) {
+  // Lógica para rolar datas igual ao "Cliente pagou só os juros"
+  const rollDateForward = (date: Date, paymentType: string): Date => {
+    if (paymentType === 'weekly') {
+      const newDate = new Date(date);
+      newDate.setDate(newDate.getDate() + 7);
+      return newDate;
+    } else if (paymentType === 'biweekly') {
+      const newDate = new Date(date);
+      newDate.setDate(newDate.getDate() + 15);
+      return newDate;
+    } else {
+      return addMonths(date, 1);
+    }
+  };
+  
+  // Calcular novas datas
+  const currentDates = (loan.installment_dates as string[]) || [];
+  const newDates = currentDates.map(d => format(rollDateForward(new Date(d + 'T12:00:00'), loan.payment_type), 'yyyy-MM-dd'));
+  const newDueDate = newDates[newDates.length - 1] || format(rollDateForward(new Date(loan.due_date + 'T12:00:00'), loan.payment_type), 'yyyy-MM-dd');
+  
+  // Limpar tags PARTIAL_INTEREST_PAID e PARTIAL_INTEREST_PENDING da parcela quitada
+  notesText = notesText.replace(new RegExp(`\\[PARTIAL_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]\\n?`, 'g'), '');
+  notesText = notesText.replace(new RegExp(`\\[PARTIAL_INTEREST_PENDING:${installmentIndex}:[^\\]]+\\]\\n?`, 'g'), '');
+  notesText += `\n[INTEREST_CLEARED:${installmentIndex}:${paymentDate}] Juros da parcela ${installmentIndex + 1} quitado via pagamentos parciais`;
+  
+  // Atualizar empréstimo com novas datas E notas
+  await supabase.from('loans').update({
+    notes: notesText,
+    installment_dates: newDates,
+    due_date: newDueDate,
+    updated_at: new Date().toISOString()
+  }).eq('id', selectedLoanId);
+  
+  toast.success(`Juros da parcela ${installmentIndex + 1} totalmente quitado! Contrato rolado para próximo período.`);
+} else {
+  // Apenas atualizar notes (comportamento atual)
+  await supabase.from('loans').update({
+    notes: notesText,
+    updated_at: new Date().toISOString()
+  }).eq('id', selectedLoanId);
+  
+  toast.success(`Pagamento parcial de ${formatCurrency(partialAmount)} registrado. Juros pendente: ${formatCurrency(pendingInterest)}`);
 }
-notesText += `\nPagamento parcial de juros: R$ ${partialAmount.toFixed(2)} em ${formatDate(paymentDate)} (Parcela ${installmentIndex + 1})`;
 ```
 
-#### Modificacao 3: Atualizar UI do Formulario (~linha 12262)
+#### Alteração 3: Exibir breakdown de juros nos cards de parcela
 
-Mostrar pagamentos anteriores quando usuario seleciona uma parcela:
+Localizar onde os cards de parcelas são renderizados e adicionar exibição dos pagamentos parciais de juros:
 
 ```tsx
-{activeOption === 'partial_interest' && (() => {
-  const selectedIndex = parseInt(renegotiateData.partial_interest_installment);
-  
-  // Buscar pagamentos parciais anteriores desta parcela
-  const partialPaidList = getPartialInterestPaidFromNotes(selectedLoan.notes);
-  const previousPaymentsForInstallment = partialPaidList
-    .filter(p => p.installmentIndex === selectedIndex);
-  const totalPreviouslyPaid = previousPaymentsForInstallment
+{/* Dentro do card de cada parcela */}
+{(() => {
+  const partialPaidList = getPartialInterestPaidFromNotes(loan.notes);
+  const paidForThisInstallment = partialPaidList
+    .filter(p => p.installmentIndex === installmentIndex)
     .reduce((sum, p) => sum + p.amountPaid, 0);
+  const interestPerInst = (loan.total_interest || 0) / (loan.installments || 1);
+  const pendingInterestForThis = Math.max(0, interestPerInst - paidForThisInstallment);
   
-  // Juros total menos o que ja foi pago
-  const remainingInterestForInstallment = Math.max(0, interestPerInstallment - totalPreviouslyPaid);
-  
-  return (
-    <div className="space-y-4 border-2 border-cyan-500 rounded-lg p-4 bg-cyan-950/50">
-      {/* ... header existente ... */}
-      
-      {/* Mostrar pagamentos anteriores se existirem */}
-      {totalPreviouslyPaid > 0 && (
-        <div className="bg-amber-500/20 rounded-lg p-3 border border-amber-500/50">
-          <p className="text-amber-300 text-sm font-medium">Pagamentos anteriores desta parcela:</p>
-          {previousPaymentsForInstallment.map((p, i) => (
-            <p key={i} className="text-amber-200 text-xs">
-              R$ {formatCurrency(p.amountPaid)} em {formatDate(p.paymentDate)}
-            </p>
-          ))}
-          <p className="text-amber-400 font-bold mt-1">
-            Total ja pago: {formatCurrency(totalPreviouslyPaid)}
-          </p>
-        </div>
-      )}
-      
-      {/* Resumo atualizado */}
-      <div className="bg-cyan-500/20 rounded-lg p-4 space-y-2 border border-cyan-500">
-        <div className="flex justify-between items-center">
-          <span className="text-cyan-300 text-sm">Juros total da parcela:</span>
-          <span className="font-bold text-white">{formatCurrency(interestPerInstallment)}</span>
-        </div>
-        {totalPreviouslyPaid > 0 && (
-          <div className="flex justify-between items-center">
-            <span className="text-cyan-300 text-sm">Ja pago anteriormente:</span>
-            <span className="font-bold text-amber-400">{formatCurrency(totalPreviouslyPaid)}</span>
-          </div>
+  if (paidForThisInstallment > 0) {
+    return (
+      <div className="text-xs mt-1 space-y-0.5">
+        <p className="text-green-400">Juros já pago: {formatCurrency(paidForThisInstallment)}</p>
+        {pendingInterestForThis > 0 && (
+          <p className="text-amber-400">Juros pendente: {formatCurrency(pendingInterestForThis)}</p>
         )}
-        <div className="flex justify-between items-center">
-          <span className="text-cyan-300 text-sm">Valor pago agora:</span>
-          <span className="font-bold text-green-400">{formatCurrency(parseFloat(renegotiateData.partial_interest_amount) || 0)}</span>
-        </div>
-        <div className="flex justify-between items-center border-t border-cyan-500/50 pt-2">
-          <span className="text-cyan-400 font-medium">Juros pendente final:</span>
-          <span className="text-xl font-bold text-amber-400">
-            {formatCurrency(Math.max(0, remainingInterestForInstallment - (parseFloat(renegotiateData.partial_interest_amount) || 0)))}
-          </span>
-        </div>
       </div>
-    </div>
-  );
+    );
+  }
+  return null;
 })()}
 ```
 
-#### Modificacao 4: Pre-carregar Valor Pendente ao Selecionar Parcela
-
-Quando usuario troca de parcela, calcular automaticamente quanto ainda falta:
-
-```typescript
-// No onValueChange do Select de parcela:
-onValueChange={(v) => {
-  const idx = parseInt(v);
-  const partialPaidList = getPartialInterestPaidFromNotes(selectedLoan.notes);
-  const totalPaidForThis = partialPaidList
-    .filter(p => p.installmentIndex === idx)
-    .reduce((sum, p) => sum + p.amountPaid, 0);
-  const remaining = Math.max(0, interestPerInstallment - totalPaidForThis);
-  
-  setRenegotiateData({ 
-    ...renegotiateData, 
-    partial_interest_installment: v,
-    // Pre-preencher com o que falta (opcional)
-    partial_interest_amount: remaining > 0 ? remaining.toFixed(2) : ''
-  });
-}}
-```
-
-### Resumo das Alteracoes
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| Migracao SQL | Atualizar 2 triggers para reconhecer `[PARTIAL_INTEREST_PAYMENT]` |
-| src/pages/Loans.tsx | Adicionar helper `getPartialInterestPaidFromNotes` |
-| src/pages/Loans.tsx | Atualizar logica de submit para gravar tag `[PARTIAL_INTEREST_PAID]` |
-| src/pages/Loans.tsx | Atualizar UI para mostrar pagamentos anteriores |
-| src/pages/Loans.tsx | Pre-carregar valor pendente ao selecionar parcela |
-
-### Fluxo Completo
+### Fluxo Corrigido
 
 ```text
-Usuario abre "Pagamento parcial de juros"
+Usuário paga R$ 70 de juros da Parcela 1 (juros total: R$ 200)
          |
          v
-Seleciona parcela (ex: Parcela 1)
+Sistema registra:
+  - loan_payment com amount=70, notes=[PARTIAL_INTEREST_PAYMENT]
+  - [PARTIAL_INTEREST_PAID:0:70:2026-01-07]
+  - [PARTIAL_INTEREST_PENDING:0:130:2026-01-07]
+  - CHAMA invalidateLoans() para recarregar dados
          |
          v
-Sistema busca pagamentos anteriores desta parcela
-  - [PARTIAL_INTEREST_PAID:0:300:2026-01-07] = R$ 300 ja pago
+Usuário reabre tela de pagamento parcial
          |
          v
-Exibe: "Juros total: R$ 1000 | Ja pago: R$ 300 | Falta: R$ 700"
+Sistema exibe corretamente:
+  - "Juros total: R$ 200"
+  - "Já pago anteriormente: R$ 70"
+  - "Falta: R$ 130"
          |
          v
-Usuario digita valor: R$ 200
+Usuário paga os R$ 130 restantes
          |
          v
-Sistema calcula: Pendente = 700 - 200 = R$ 500
+Sistema detecta: pendingInterest = 0
          |
          v
-Ao submeter:
-  - Registra loan_payment (NAO afeta remaining_balance)
-  - Adiciona [PARTIAL_INTEREST_PAID:0:200:2026-01-10]
-  - Adiciona [PARTIAL_INTEREST_PENDING:0:500:2026-01-10]
+Sistema ROLA O CONTRATO:
+  - Nova data de vencimento = +1 mês
+  - Limpa tags de pagamento parcial da parcela 1
+  - Toast: "Juros da parcela 1 quitado! Contrato rolado."
          |
          v
-Proximo mes (Parcela 2):
-  - Juros calculado normalmente (ex: R$ 1000)
-  - Nenhum abatimento de pagamentos da Parcela 1
+Próximo mês (Parcela 2):
+  - Juros volta ao normal: R$ 200
+  - Ciclo recomeça
 ```
+
+### Resumo das Alterações
+
+| Local | Alteração |
+|-------|-----------|
+| ~linha 4759 | Adicionar `invalidateLoans()` após update |
+| ~linha 4724-4765 | Lógica para detectar quitação completa e rolar contrato |
+| Cards de parcela | Exibir breakdown de juros pagos/pendentes |
+
+### Validações Adicionais
+
+1. Se valor pago > juros pendente, avisar usuário e usar o valor exato do pendente
+2. Ao rolar contrato, recalcular corretamente as datas baseado no tipo (semanal/quinzenal/mensal)
+3. Preservar histórico de pagamentos parciais nas notas para auditoria
