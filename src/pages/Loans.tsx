@@ -8020,22 +8020,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               const remainingInterest = Math.max(0, calculatedInterestPerInstallment - paidForCurrent);
                               return (
                                 <div className="mt-1.5 pt-1.5 border-t border-purple-400/30 space-y-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className={hasSpecialStyle ? 'text-white/80' : 'text-green-300'}>
-                                      💵 Juros já pago:
-                                    </span>
-                                    <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-green-400'}`}>
-                                      {formatCurrency(paidForCurrent)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className={hasSpecialStyle ? 'text-white/80' : 'text-amber-300'}>
-                                      Juros pendente:
-                                    </span>
-                                    <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-amber-400'}`}>
-                                      {formatCurrency(remainingInterest)}
-                                    </span>
-                                  </div>
+            <div className="flex items-center justify-between">
+              <span className="text-green-300">
+                💵 Juros já pago:
+              </span>
+              <span className="font-bold text-green-400">
+                {formatCurrency(paidForCurrent)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-amber-300">
+                Juros pendente:
+              </span>
+              <span className="font-bold text-amber-400">
+                {formatCurrency(remainingInterest)}
+              </span>
+            </div>
                                 </div>
                               );
                             }
