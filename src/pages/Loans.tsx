@@ -11266,8 +11266,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       // MAS ignorar pagamentos de "somente juros" (não devem abater da parcela)
                       const hasAnyTrackingTags = Object.keys(partialPayments).length > 0;
                       const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
+                      const hasPartialInterestTag = (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAYMENT]');
                       
-                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+                      // IMPORTANTE: Não usar fallback se há pagamentos parciais de juros, pois esses NÃO devem abater da parcela
+                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
                         // Calcular quantas parcelas completas foram pagas
                         const paidInstallmentsCount = Math.floor(selectedLoan.total_paid / totalPerInstallment);
                         if (index < paidInstallmentsCount) {
