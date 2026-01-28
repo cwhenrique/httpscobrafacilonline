@@ -343,13 +343,18 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   
   // 🆕 FALLBACK: Se não há tags de tracking mas há pagamentos registrados,
   // calcular parcelas pagas baseado no total_paid dividido pelo valor da parcela
-  // MAS: Verificar se há tags de [INTEREST_ONLY_PAID] - se sim, NÃO usar o fallback
+  // MAS: Verificar se há tags de [INTEREST_ONLY_PAID] ou pagamentos parciais de juros - se sim, NÃO usar o fallback
   const hasTrackingTags = Object.keys(partialPayments).length > 0;
   const hasInterestOnlyTags = (loan.notes || '').includes('[INTEREST_ONLY_PAID:');
+  // 🆕 CORREÇÃO: Detectar tags de pagamentos parciais de juros (que estão no loan.notes)
+  const hasPartialInterestTracking = 
+    (loan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+    (loan.notes || '').includes('[PARTIAL_INTEREST_PENDING:') ||
+    (loan.notes || '').includes('[INTEREST_CLEARED:');
   const totalPaid = loan.total_paid || 0;
   
-  // Só usar fallback se não houver NENHUMA tag de tracking (nem partial, nem interest-only)
-  if (!hasTrackingTags && !hasInterestOnlyTags && totalPaid > 0 && baseInstallmentValue > 0) {
+  // Só usar fallback se não houver NENHUMA tag de tracking (nem partial, nem interest-only, nem juros parcial)
+  if (!hasTrackingTags && !hasInterestOnlyTags && !hasPartialInterestTracking && totalPaid > 0 && baseInstallmentValue > 0) {
     // Usar tolerância de 1% para lidar com diferenças de centavos
     // Se pagou 99% ou mais de uma parcela, considerar como paga
     let paidCount = 0;
@@ -11266,10 +11271,14 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       // MAS ignorar pagamentos de "somente juros" (não devem abater da parcela)
                       const hasAnyTrackingTags = Object.keys(partialPayments).length > 0;
                       const hasInterestOnlyTag = (selectedLoan.notes || '').includes('[INTEREST_ONLY_PAYMENT]');
-                      const hasPartialInterestTag = (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAYMENT]');
+                      // 🆕 CORREÇÃO: Detectar tags reais de pagamentos parciais de juros (não [PARTIAL_INTEREST_PAYMENT] que não existe)
+                      const hasPartialInterestTracking = 
+                        (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
+                        (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PENDING:') ||
+                        (selectedLoan.notes || '').includes('[INTEREST_CLEARED:');
                       
                       // IMPORTANTE: Não usar fallback se há pagamentos parciais de juros, pois esses NÃO devem abater da parcela
-                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTag && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTracking && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
                         // Calcular quantas parcelas completas foram pagas
                         const paidInstallmentsCount = Math.floor(selectedLoan.total_paid / totalPerInstallment);
                         if (index < paidInstallmentsCount) {
