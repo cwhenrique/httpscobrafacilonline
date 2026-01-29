@@ -1046,6 +1046,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const [penaltyMode, setPenaltyMode] = useState<'percentage' | 'fixed' | 'manual'>('manual');
   const [penaltyUnifiedValue, setPenaltyUnifiedValue] = useState('');
   
+  // Dialog para adicionar multa em qualquer parcela (independente de atraso)
+  const [addPenaltyDialog, setAddPenaltyDialog] = useState<{
+    isOpen: boolean;
+    loanId: string;
+    currentNotes: string | null;
+    installments: Array<{
+      index: number;
+      dueDate: string;
+      installmentValue: number;
+      isPaid: boolean;
+      existingPenalty: number;
+    }>;
+  } | null>(null);
+  const [selectedPenaltyInstallment, setSelectedPenaltyInstallment] = useState<number | null>(null);
+  const [penaltyAmount, setPenaltyAmount] = useState('');
+  
   // Overdue interest dialog state (juros por atraso automático)
   const [overdueInterestDialog, setOverdueInterestDialog] = useState<{
     isOpen: boolean;
@@ -1272,6 +1288,63 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       console.error('Error updating penalty:', error);
       toast.error('Erro ao atualizar multa');
     }
+  };
+  
+  // Função para abrir o diálogo de adicionar multa em qualquer parcela
+  const openAddPenaltyDialog = (loan: any, installmentValue: number) => {
+    const dates = (loan.installment_dates as string[]) || [];
+    const paidCount = getPaidInstallmentsCount(loan);
+    const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
+    
+    const installments = dates.map((date, index) => ({
+      index,
+      dueDate: date,
+      installmentValue,
+      isPaid: index < paidCount,
+      existingPenalty: existingPenalties[index] || 0
+    }));
+    
+    // Se não houver datas, criar pelo menos uma parcela
+    if (installments.length === 0) {
+      installments.push({
+        index: 0,
+        dueDate: loan.due_date,
+        installmentValue,
+        isPaid: loan.status === 'paid',
+        existingPenalty: existingPenalties[0] || 0
+      });
+    }
+    
+    setAddPenaltyDialog({
+      isOpen: true,
+      loanId: loan.id,
+      currentNotes: loan.notes,
+      installments
+    });
+    setSelectedPenaltyInstallment(null);
+    setPenaltyAmount('');
+  };
+  
+  // Função para salvar a multa adicionada
+  const handleSaveAddPenalty = async () => {
+    if (!addPenaltyDialog || selectedPenaltyInstallment === null) return;
+    
+    const amount = parseFloat(penaltyAmount || '0');
+    if (amount <= 0) {
+      toast.error('Informe um valor válido para a multa');
+      return;
+    }
+    
+    await handleEditDailyPenalty(
+      addPenaltyDialog.loanId,
+      selectedPenaltyInstallment,
+      amount,
+      addPenaltyDialog.currentNotes
+    );
+    
+    setAddPenaltyDialog(null);
+    setSelectedPenaltyInstallment(null);
+    setPenaltyAmount('');
   };
   
   // Function to save manual penalties (multa manual fixa por parcela)
@@ -8678,6 +8751,24 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 </TooltipContent>
                               </Tooltip>
                             )}
+                            {/* Botão para adicionar multa em qualquer parcela */}
+                            {!isPaid && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    size="icon" 
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
+                                    onClick={() => openAddPenaltyDialog(loan, totalPerInstallment)}
+                                  >
+                                    <DollarSign className="w-3 h-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p>Adicionar multa a uma parcela</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             {/* Espaçador para separar edição de ações destrutivas */}
                             <div className="w-2" />
                             {/* Botão de Renegociação - Cria novo contrato baseado no saldo devedor */}
@@ -13818,6 +13909,96 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 </Button>
                 <Button onClick={handleSaveOverdueInterest} className="flex-1">
                   Salvar Juros
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog para adicionar multa em qualquer parcela */}
+        <Dialog open={!!addPenaltyDialog} onOpenChange={() => {
+          setAddPenaltyDialog(null);
+          setSelectedPenaltyInstallment(null);
+          setPenaltyAmount('');
+        }}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Adicionar Multa</DialogTitle>
+              <DialogDescription>
+                Selecione a parcela e informe o valor da multa a ser aplicada.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Lista de parcelas para selecionar */}
+              <div className="space-y-2">
+                <Label>Selecione a parcela</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {addPenaltyDialog?.installments.map((inst) => (
+                    <div 
+                      key={inst.index}
+                      onClick={() => !inst.isPaid && setSelectedPenaltyInstallment(inst.index)}
+                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                        inst.isPaid 
+                          ? 'bg-green-500/10 opacity-50 cursor-not-allowed' 
+                          : selectedPenaltyInstallment === inst.index 
+                            ? 'bg-orange-500/20 border border-orange-400' 
+                            : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">
+                          Parcela {inst.index + 1} {inst.isPaid && '(Paga)'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Venc: {formatDate(inst.dueDate)} • Valor: {formatCurrency(inst.installmentValue)}
+                        </p>
+                      </div>
+                      {inst.existingPenalty > 0 && (
+                        <span className="text-xs text-orange-500 font-medium">
+                          Multa: +{formatCurrency(inst.existingPenalty)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Campo de valor da multa */}
+              {selectedPenaltyInstallment !== null && (
+                <div className="space-y-2">
+                  <Label>Valor da multa (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Ex: 50.00"
+                    value={penaltyAmount}
+                    onChange={(e) => setPenaltyAmount(e.target.value)}
+                  />
+                  {parseFloat(penaltyAmount || '0') > 0 && (
+                    <p className="text-sm text-orange-500">
+                      Nova multa: +{formatCurrency(parseFloat(penaltyAmount))}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Botões */}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  setAddPenaltyDialog(null);
+                  setSelectedPenaltyInstallment(null);
+                  setPenaltyAmount('');
+                }} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSaveAddPenalty} 
+                  className="flex-1"
+                  disabled={selectedPenaltyInstallment === null || parseFloat(penaltyAmount || '0') <= 0}
+                >
+                  Aplicar Multa
                 </Button>
               </div>
             </div>
