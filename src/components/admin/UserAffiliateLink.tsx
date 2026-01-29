@@ -67,13 +67,20 @@ export function UserAffiliateDialog({
     setSaving(true);
     try {
       const newAffiliateEmail = selectedAffiliate === 'none' ? null : selectedAffiliate;
-      
-      const { error } = await supabase
+
+      // IMPORTANT: In modo Clauclau (sem sessão), um UPDATE bloqueado por RLS pode “não dar erro”
+      // mas também não atualizar nenhuma linha. Por isso, pedimos retorno da linha atualizada.
+      const { data: updated, error } = await supabase
         .from('profiles')
         .update({ affiliate_email: newAffiliateEmail })
-        .eq('id', userId);
+        .eq('id', userId)
+        .select('affiliate_email')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!updated) {
+        throw new Error('Não foi possível salvar a afiliação (sem permissão ou usuário não encontrado).');
+      }
 
       const affiliateName = affiliates.find(a => a.email === newAffiliateEmail)?.name;
       
