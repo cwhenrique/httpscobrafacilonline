@@ -4313,9 +4313,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       for (const idx of paymentData.selected_installments) {
         totalPenaltyPaid += loanPenalties[idx] || 0;
       }
-    } else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null && paymentData.partial_installment_index >= 0) {
-      // Multa da parcela específica sendo paga parcialmente
-      totalPenaltyPaid = loanPenalties[paymentData.partial_installment_index] || 0;
+    } else if (paymentData.payment_type === 'partial') {
+      // Usar targetInstallmentIndex para pagamentos parciais (já calculado anteriormente)
+      // Cobre tanto seleção explícita quanto auto-detecção
+      totalPenaltyPaid = loanPenalties[targetInstallmentIndex] || 0;
     } else if (paymentData.payment_type === 'total') {
       // Pagamento total - somar todas as multas
       totalPenaltyPaid = getTotalDailyPenalties(selectedLoan.notes);
