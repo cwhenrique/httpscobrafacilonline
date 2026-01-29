@@ -518,7 +518,12 @@ serve(async (req) => {
     const customerPhone = customerData?.phone || payload.phone || customerData?.cellphone;
     const transactionStatus = payload.data?.status || payload.status || payload.event;
 
+    // Extract affiliate data (email of the affiliate who referred this customer)
+    const affiliateData = payload.data?.affiliate || payload.affiliate || payload.data?.producer || payload.producer;
+    const affiliateEmail = affiliateData?.email || payload.affiliate_email || payload.data?.affiliate_email || null;
+    
     console.log('Extracted customer data:', { email: customerEmail, name: customerName, phone: customerPhone, status: transactionStatus });
+    console.log('Extracted affiliate data:', { affiliateEmail });
 
     // Only process approved/paid transactions
     const validStatuses = ['approved', 'paid', 'completed', 'active', 'subscription_created'];
@@ -783,14 +788,31 @@ Obrigado pela confiança! 💚`;
       }
       
       // Update subscription - ALWAYS clear trial_expires_at when converting to paid
+      // Also save affiliate_email if present (only if not already set)
+      const updateData: Record<string, any> = { 
+        is_active: true,
+        subscription_plan: plan,
+        subscription_expires_at: expiresAt,
+        trial_expires_at: null, // IMPORTANT: Clear trial when converting to paid
+      };
+      
+      // Only set affiliate_email if it's present and not already set on profile
+      if (affiliateEmail) {
+        const { data: profileCheck } = await supabase
+          .from('profiles')
+          .select('affiliate_email')
+          .eq('id', existingUser.id)
+          .single();
+        
+        if (!profileCheck?.affiliate_email) {
+          updateData.affiliate_email = affiliateEmail;
+          console.log('Setting affiliate_email for existing user:', affiliateEmail);
+        }
+      }
+      
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ 
-          is_active: true,
-          subscription_plan: plan,
-          subscription_expires_at: expiresAt,
-          trial_expires_at: null, // IMPORTANT: Clear trial when converting to paid
-        })
+        .update(updateData)
         .eq('id', existingUser.id);
 
       if (updateError) {
@@ -884,15 +906,23 @@ Obrigado por continuar com a gente! 💚`;
 
     // Update profile with phone and subscription info
     if (newUser.user) {
+      const profileUpdateData: Record<string, any> = { 
+        phone: customerPhone || null,
+        full_name: customerName || null,
+        subscription_plan: plan,
+        subscription_expires_at: newUserExpiresAt,
+        is_active: true,
+      };
+      
+      // Set affiliate_email for new user if present
+      if (affiliateEmail) {
+        profileUpdateData.affiliate_email = affiliateEmail;
+        console.log('Setting affiliate_email for new user:', affiliateEmail);
+      }
+      
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ 
-          phone: customerPhone || null,
-          full_name: customerName || null,
-          subscription_plan: plan,
-          subscription_expires_at: newUserExpiresAt,
-          is_active: true,
-        })
+        .update(profileUpdateData)
         .eq('id', newUser.user.id);
 
       if (profileError) {
