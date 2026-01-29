@@ -141,6 +141,14 @@ export interface ContractReceiptData {
     paymentDate: string;
     remainingBalance: number;
   };
+  // Multas aplicadas ao empréstimo
+  appliedPenalties?: {
+    total: number;
+    details?: Array<{
+      installmentIndex: number;
+      amount: number;
+    }>;
+  };
 }
 
 export interface PaymentReceiptData {
@@ -410,15 +418,25 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
 
   negY += 8;
 
-  // Third row - Total with highlight
+  // Third row - Total with highlight (incluindo multas se houver)
+  const totalWithPenalties = data.negotiation.totalToReceive + (data.appliedPenalties?.total || 0);
+  const hasPenalties = data.appliedPenalties && data.appliedPenalties.total > 0;
+  
   doc.setFillColor(LIGHT_GREEN_BG.r, LIGHT_GREEN_BG.g, LIGHT_GREEN_BG.b);
-  doc.roundedRect(col1X - 2, negY - 5, 85, 10, 1, 1, 'F');
+  doc.roundedRect(col1X - 2, negY - 5, hasPenalties ? 110 : 85, 10, 1, 1, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
   doc.text('Total a Receber:', col1X, negY);
   doc.setFontSize(10);
-  doc.text(formatCurrency(data.negotiation.totalToReceive), col1X + 40, negY);
+  doc.text(formatCurrency(totalWithPenalties), col1X + 40, negY);
+
+  // Se houver multas, mostrar nota explicativa
+  if (hasPenalties) {
+    doc.setFontSize(7);
+    doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
+    doc.text(`(inclui ${formatCurrency(data.appliedPenalties!.total)} em multas)`, col1X + 75, negY);
+  }
 
   if (data.negotiation.downPayment && data.negotiation.downPayment > 0) {
     doc.setFontSize(9);
@@ -430,6 +448,27 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   }
 
   currentY += 52;
+
+  // === MULTAS APLICADAS (se houver) ===
+  if (data.appliedPenalties && data.appliedPenalties.total > 0) {
+    const ORANGE = { r: 234, g: 88, b: 12 }; // #ea580c
+    const LIGHT_ORANGE_BG = { r: 255, g: 237, b: 213 }; // #fed7aa
+    
+    doc.setDrawColor(ORANGE.r, ORANGE.g, ORANGE.b);
+    doc.setFillColor(LIGHT_ORANGE_BG.r, LIGHT_ORANGE_BG.g, LIGHT_ORANGE_BG.b);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 22, 2, 2, 'FD');
+
+    doc.setTextColor(ORANGE.r, ORANGE.g, ORANGE.b);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('⚠️ MULTAS APLICADAS', margin + 5, currentY + 8);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de Multas: ${formatCurrency(data.appliedPenalties.total)}`, margin + 5, currentY + 16);
+
+    currentY += 28;
+  }
 
   // === INTEREST ONLY PAYMENT INFO (if applicable) ===
   if (data.interestOnlyPayment) {

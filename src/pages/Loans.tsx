@@ -4552,6 +4552,21 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       totalToReceive = loan.principal_amount + totalInterest;
       installmentValue = totalToReceive / numInstallments;
     }
+    // Calcular multas aplicadas
+    const appliedPenalties = (() => {
+      const penalties = getDailyPenaltiesFromNotes(loan.notes);
+      const total = Object.values(penalties).reduce((sum, val) => sum + val, 0);
+      if (total <= 0) return undefined;
+      
+      return {
+        total,
+        details: Object.entries(penalties).map(([idx, amount]) => ({
+          installmentIndex: parseInt(idx),
+          amount
+        }))
+      };
+    })();
+
     const receiptData: ContractReceiptData = {
       type: 'loan',
       contractId: loan.id,
@@ -4590,6 +4605,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         paymentDate: format(new Date(), 'yyyy-MM-dd'),
         remainingBalance: interestOnlyPayment.remainingBalance,
       } : undefined,
+      appliedPenalties,
     };
     
     setReceiptPreviewData(receiptData);
