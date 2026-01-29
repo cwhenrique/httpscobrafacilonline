@@ -1439,6 +1439,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      debug_auth_uid: {
+        Args: never
+        Returns: {
+          current_uid: string
+          is_authenticated: boolean
+        }[]
+      }
       get_dashboard_stats: {
         Args: { p_user_id: string }
         Returns: {

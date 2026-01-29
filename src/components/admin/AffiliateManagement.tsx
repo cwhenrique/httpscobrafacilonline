@@ -105,6 +105,38 @@ export function AffiliateManagement() {
 
     setSaving(true);
     try {
+      // Debug: verificar sessão atual
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log('[AffiliateManagement] Current session:', sessionData?.session?.user?.id, sessionData?.session?.user?.email);
+      
+      if (!sessionData?.session?.user) {
+        toast({
+          title: 'Sessão expirada',
+          description: 'Faça login novamente para continuar',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Debug: verificar se é admin
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', sessionData.session.user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      console.log('[AffiliateManagement] Role check:', { roleData, roleError, userId: sessionData.session.user.id });
+      
+      if (!roleData) {
+        toast({
+          title: 'Sem permissão',
+          description: 'Você precisa ser administrador para gerenciar afiliados',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (editingAffiliate) {
         // Update
         const { error } = await supabase
@@ -118,7 +150,10 @@ export function AffiliateManagement() {
           })
           .eq('id', editingAffiliate.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('[AffiliateManagement] Update error:', error);
+          throw error;
+        }
 
         toast({
           title: 'Afiliado atualizado!',
@@ -136,7 +171,10 @@ export function AffiliateManagement() {
             link_anual: formData.link_anual,
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('[AffiliateManagement] Insert error:', error);
+          throw error;
+        }
 
         toast({
           title: 'Afiliado cadastrado!',
