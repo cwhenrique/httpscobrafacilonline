@@ -1710,14 +1710,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }
     // Para mensal/semanal/quinzenal: só atualiza a parcela específica (sem cascata)
 
-    // Atualizar due_date para a última data do array
-    const newDueDateForLoan = updatedDates[updatedDates.length - 1];
+    // ORDENAR cronologicamente para evitar inconsistências entre Calendário e Empréstimos
+    const sortedDates = [...updatedDates].sort((a, b) => 
+      new Date(a + 'T12:00:00').getTime() - new Date(b + 'T12:00:00').getTime()
+    );
+
+    // Atualizar due_date para a última data do array ordenado
+    const newDueDateForLoan = sortedDates[sortedDates.length - 1];
 
     try {
       const { error } = await supabase
         .from('loans')
         .update({
-          installment_dates: updatedDates,
+          installment_dates: sortedDates,
           due_date: newDueDateForLoan,
         })
         .eq('id', loanId);
@@ -1728,9 +1733,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }
 
       // Mensagem de sucesso diferente para diário (com cascata) vs outros (sem cascata)
-      if (isDaily && updatedDates.length > index + 1) {
+      if (isDaily && sortedDates.length > index + 1) {
         const diffText = diffDays > 0 ? `+${diffDays}` : `${diffDays}`;
-        toast.success(`Data atualizada! (${diffText} dias aplicado às ${updatedDates.length - index - 1} parcelas seguintes)`);
+        toast.success(`Data atualizada! (${diffText} dias aplicado às ${sortedDates.length - index - 1} parcelas seguintes)`);
       } else {
         toast.success('Data da parcela atualizada!');
       }

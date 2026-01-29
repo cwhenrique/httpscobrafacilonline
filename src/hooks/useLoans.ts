@@ -434,11 +434,16 @@ export function useLoans() {
       .replace(/\n{2,}/g, '\n')  // Limpa linhas vazias extras
       .trim();
 
+    // ORDENAR datas cronologicamente para evitar inconsistências
+    const sortedDates = [...data.installment_dates].sort((a, b) => 
+      new Date(a + 'T12:00:00').getTime() - new Date(b + 'T12:00:00').getTime()
+    );
+
     const updatePayload: Record<string, any> = {
       interest_rate: data.interest_rate,
       installments: data.installments,
-      installment_dates: data.installment_dates,
-      due_date: data.due_date,
+      installment_dates: sortedDates,
+      due_date: sortedDates[sortedDates.length - 1] || data.due_date,
       notes: cleanedNotes || null,
       status: 'pending',
     };
