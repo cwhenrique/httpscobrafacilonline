@@ -1,105 +1,82 @@
 
-# Plano: Corrigir Exibição de Multa no Comprovante PDF e Mensagens
+# Plano: Corrigir Exibição de Multa no PDF de Pagamento
 
 ## Problema Identificado
 
-Quando o usuário registra um pagamento de parcela que inclui multa, o comprovante PDF e as mensagens de WhatsApp não mostram o valor da multa - apenas o valor total pago.
+Quando o usuário registra um pagamento de parcela que inclui multa, o comprovante PDF pode não mostrar a multa corretamente devido a **dois problemas**:
 
-### Causa Raiz
+1. **Altura fixa da caixa**: A caixa "DADOS DO PAGAMENTO" tem altura fixa de 70px, mas quando há multa, total do contrato e total pago, os campos ultrapassam o espaço disponível.
 
-O cálculo de `totalPenaltyPaid` (multa paga) nas linhas 4309-4322 do arquivo `Loans.tsx` tem uma falha lógica:
-
-```javascript
-let totalPenaltyPaid = 0;
-if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-  // Somar multas das parcelas selecionadas - FUNCIONA ✓
-  for (const idx of paymentData.selected_installments) {
-    totalPenaltyPaid += loanPenalties[idx] || 0;
-  }
-} else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null && paymentData.partial_installment_index >= 0) {
-  // Multa da parcela específica - SÓ FUNCIONA SE USUÁRIO SELECIONOU PARCELA EXPLÍCITA ✗
-  totalPenaltyPaid = loanPenalties[paymentData.partial_installment_index] || 0;
-} else if (paymentData.payment_type === 'total') {
-  // Pagamento total - somar todas as multas - FUNCIONA ✓
-  totalPenaltyPaid = getTotalDailyPenalties(selectedLoan.notes);
-}
-```
-
-**O problema**: Quando o usuário faz pagamento parcial **sem selecionar uma parcela explícita** (o sistema auto-detecta qual parcela está sendo paga usando `targetInstallmentIndex`), a condição `paymentData.partial_installment_index !== null` falha e a multa **não é incluída**.
-
-A variável `targetInstallmentIndex` é calculada corretamente mais acima no código (linhas 3846-3886), mas não é usada para calcular a multa.
+2. **Posicionamento `currentY` fixo**: O incremento `currentY += 80` não considera os campos extras, causando sobreposição de elementos.
 
 ## Solução
 
-Modificar a lógica de cálculo da multa para usar `targetInstallmentIndex` quando `paymentData.partial_installment_index` não está definido:
+Tornar a altura da caixa de pagamento **dinâmica**, calculando-a baseada nos campos presentes:
 
-### Alteração Técnica
+- Campos base: Cliente, Parcela, Data, Valor Pago, Saldo Restante (~70px)
+- Multa Inclusa: +10px
+- Total do Contrato: +10px  
+- Total Pago: +10px
 
-**Arquivo**: `src/pages/Loans.tsx`
-**Linhas**: ~4309-4322
+## Alterações Técnicas
 
-**Antes**:
-```javascript
-let totalPenaltyPaid = 0;
-if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-  for (const idx of paymentData.selected_installments) {
-    totalPenaltyPaid += loanPenalties[idx] || 0;
-  }
-} else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null && paymentData.partial_installment_index >= 0) {
-  totalPenaltyPaid = loanPenalties[paymentData.partial_installment_index] || 0;
-} else if (paymentData.payment_type === 'total') {
-  totalPenaltyPaid = getTotalDailyPenalties(selectedLoan.notes);
-}
+### Arquivo: `src/lib/pdfGenerator.ts`
+
+**Linhas ~628-720** - Função `generatePaymentReceipt`
+
+**Antes:**
+```typescript
+// === PAYMENT INFO ===
+doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+doc.setLineWidth(0.5);
+doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 70, 2, 2, 'S');
+// ... campos ...
+currentY += 80;
 ```
 
-**Depois**:
-```javascript
-let totalPenaltyPaid = 0;
-if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-  // Somar multas das parcelas selecionadas
-  for (const idx of paymentData.selected_installments) {
-    totalPenaltyPaid += loanPenalties[idx] || 0;
-  }
-} else if (paymentData.payment_type === 'partial') {
-  // Usar targetInstallmentIndex para pagamentos parciais (já calculado anteriormente)
-  // Cobre tanto seleção explícita quanto auto-detecção
-  totalPenaltyPaid = loanPenalties[targetInstallmentIndex] || 0;
-} else if (paymentData.payment_type === 'total') {
-  // Pagamento total - somar todas as multas
-  totalPenaltyPaid = getTotalDailyPenalties(selectedLoan.notes);
+**Depois:**
+```typescript
+// === PAYMENT INFO ===
+// Calcular altura dinâmica baseada nos campos presentes
+let paymentBoxHeight = 70; // Altura base
+if (data.penaltyAmount && data.penaltyAmount > 0) {
+  paymentBoxHeight += 10;
 }
+if (data.totalContract) {
+  paymentBoxHeight += 10;
+}
+if (data.totalPaid) {
+  paymentBoxHeight += 10;
+}
+
+doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+doc.setLineWidth(0.5);
+doc.roundedRect(margin, currentY, pageWidth - 2 * margin, paymentBoxHeight, 2, 2, 'S');
+// ... campos ...
+currentY += paymentBoxHeight + 10; // Usar altura calculada + margem
 ```
 
-## Por que esta solução funciona?
+## Comportamento Esperado
 
-A variável `targetInstallmentIndex` já é calculada corretamente no código (linhas 3846-3886):
-
-1. Se `paymentData.partial_installment_index` está definido → `targetInstallmentIndex = paymentData.partial_installment_index`
-2. Se não está definido → sistema detecta automaticamente a próxima parcela não paga
-
-Usar `targetInstallmentIndex` em vez de `paymentData.partial_installment_index` unifica a lógica e garante que a multa sempre seja calculada corretamente.
-
-## Comportamento Esperado Após Correção
-
-| Cenário | Antes | Depois |
-|---------|-------|--------|
-| Pagamento de parcela com multa (parcela explícita) | Multa aparece | Multa aparece |
-| Pagamento de parcela com multa (auto-detecção) | Multa NÃO aparece | Multa aparece |
-| PDF mostra "Multa Inclusa: R$ X" | Às vezes | Sempre (quando há multa) |
-| WhatsApp mostra "Multa: R$ X" | Às vezes | Sempre (quando há multa) |
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| Apenas campos base | Caixa 70px | Caixa 70px |
+| Com multa | Conteúdo fora da caixa | Caixa 80px |
+| Com multa + totais | Muito conteúdo cortado | Caixa 100px |
+| PDF completo | Elementos sobrepostos | Espaçamento correto |
 
 ## Arquivos Afetados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Loans.tsx` | Corrigir cálculo de `totalPenaltyPaid` (linhas ~4309-4322) |
+| `src/lib/pdfGenerator.ts` | Calcular altura dinâmica da caixa de pagamento (~linhas 628-720) |
 
-## Impacto
+## Estimativa
 
 - **Complexidade**: Baixa
-- **Linhas alteradas**: ~5
-- **Risco**: Mínimo (apenas corrige lógica de exibição, não afeta valores reais de pagamento)
+- **Linhas alteradas**: ~10
+- **Risco**: Mínimo (apenas visual do PDF)
 - **Testes recomendados**: 
-  - Registrar pagamento de parcela com multa aplicada
-  - Verificar se PDF mostra "Multa Inclusa"
-  - Verificar se mensagem WhatsApp mostra "Multa"
+  - Gerar PDF de pagamento SEM multa
+  - Gerar PDF de pagamento COM multa
+  - Verificar se todos os campos ficam dentro da caixa
