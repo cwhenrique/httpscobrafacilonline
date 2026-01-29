@@ -120,7 +120,15 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
   const firstDueDate = data.negotiation.firstDueDate || data.negotiation.startDate;
   message += `📅 Data do Contrato: ${formatDate(contractDate)}\n`;
   message += `🗓️ 1ª Parcela: ${formatDate(firstDueDate)}\n`;
-  message += `\n✅ *TOTAL A RECEBER: ${formatCurrency(data.negotiation.totalToReceive)}*\n`;
+  
+  // Total a receber (incluindo multas se houver)
+  const totalWithPenalties = data.negotiation.totalToReceive + (data.appliedPenalties?.total || 0);
+  message += `\n✅ *TOTAL A RECEBER: ${formatCurrency(totalWithPenalties)}*\n`;
+  
+  // Mostrar multas aplicadas se houver
+  if (data.appliedPenalties && data.appliedPenalties.total > 0) {
+    message += `⚠️ _Inclui ${formatCurrency(data.appliedPenalties.total)} em multas aplicadas_\n`;
+  }
   
   if (data.type === 'vehicle' && data.vehicleInfo) {
     message += `\n🚗 *VEÍCULO*\n`;
@@ -473,13 +481,36 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
                 </div>
               </div>
               
+              {/* Total a Receber (incluindo multas) */}
               <div className="bg-primary/10 rounded-lg p-2 mt-2">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-primary">Total a Receber:</span>
-                  <span className="font-bold text-primary text-lg">{formatCurrency(data.negotiation.totalToReceive)}</span>
+                  <span className="font-bold text-primary text-lg">
+                    {formatCurrency(data.negotiation.totalToReceive + (data.appliedPenalties?.total || 0))}
+                  </span>
                 </div>
+                {data.appliedPenalties && data.appliedPenalties.total > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1 text-right">
+                    (inclui {formatCurrency(data.appliedPenalties.total)} em multas)
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Multas Aplicadas (se houver) */}
+            {data.appliedPenalties && data.appliedPenalties.total > 0 && (
+              <div className="border border-orange-500/50 bg-orange-500/10 rounded-lg p-3 space-y-2">
+                <h5 className="font-semibold text-orange-600 dark:text-orange-400 text-sm flex items-center gap-2">
+                  ⚠️ MULTAS APLICADAS
+                </h5>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Total de Multas:</span>
+                  <span className="font-bold text-orange-600 dark:text-orange-400">
+                    {formatCurrency(data.appliedPenalties.total)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Due Dates */}
             {data.dueDates.length > 0 && (
