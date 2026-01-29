@@ -17,15 +17,6 @@ import { toast } from 'sonner';
 import { Loader2, AlertCircle, CreditCard } from 'lucide-react';
 import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
 
-// Affiliate links mapping
-const AFFILIATE_LINKS: Record<string, { mensal: string; trimestral: string; anual: string }> = {
-  'contatodiegoreiis@gmail.com': {
-    mensal: 'https://pay.cakto.com.br/35qwwgz?affiliate=R4mXbwjS',
-    trimestral: 'https://pay.cakto.com.br/eb6ern9?affiliate=PjLMiAKd',
-    anual: 'https://pay.cakto.com.br/fhwfptb?affiliate=SShduj8y',
-  },
-};
-
 // Default links (no affiliate)
 const DEFAULT_LINKS = {
   mensal: 'https://pay.cakto.com.br/35qwwgz?sck=renew',
@@ -33,9 +24,19 @@ const DEFAULT_LINKS = {
   anual: 'https://pay.cakto.com.br/fhwfptb?sck=renew',
 };
 
-const getPlanOptions = (affiliateEmail: string | null) => {
-  const links = affiliateEmail && AFFILIATE_LINKS[affiliateEmail] 
-    ? AFFILIATE_LINKS[affiliateEmail] 
+interface AffiliateLinks {
+  link_mensal: string;
+  link_trimestral: string;
+  link_anual: string;
+}
+
+const getPlanOptions = (affiliateLinks: AffiliateLinks | null) => {
+  const links = affiliateLinks 
+    ? {
+        mensal: affiliateLinks.link_mensal,
+        trimestral: affiliateLinks.link_trimestral,
+        anual: affiliateLinks.link_anual,
+      }
     : DEFAULT_LINKS;
 
   return [
@@ -70,9 +71,41 @@ export default function Auth() {
   const [resetEmail, setResetEmail] = useState('');
   const [showExpiredDialog, setShowExpiredDialog] = useState(false);
   const [showTrialExpiredMessage, setShowTrialExpiredMessage] = useState(false);
-  const [affiliateEmail, setAffiliateEmail] = useState<string | null>(null);
+  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLinks | null>(null);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Fetch affiliate links from database
+  const fetchAffiliateLinks = async (affiliateEmail: string | null) => {
+    if (!affiliateEmail) {
+      setAffiliateLinks(null);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('affiliates')
+        .select('link_mensal, link_trimestral, link_anual')
+        .eq('email', affiliateEmail)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching affiliate links:', error);
+        setAffiliateLinks(null);
+        return;
+      }
+
+      if (data) {
+        setAffiliateLinks(data);
+      } else {
+        setAffiliateLinks(null);
+      }
+    } catch (err) {
+      console.error('Exception fetching affiliate links:', err);
+      setAffiliateLinks(null);
+    }
+  };
 
   // Check if user had a paid subscription (not just trial)
   const checkIfPaidSubscription = (profile: { subscription_plan: string | null; subscription_expires_at: string | null }) => {
@@ -110,8 +143,8 @@ export default function Auth() {
         if (data.is_active === false) {
           await supabase.auth.signOut();
           
-          // Store affiliate email for the dialog
-          setAffiliateEmail(data.affiliate_email || null);
+          // Fetch affiliate links from database
+          await fetchAffiliateLinks(data.affiliate_email);
           
           // Check if user had a paid subscription
           if (checkIfPaidSubscription(data)) {
@@ -176,8 +209,8 @@ export default function Auth() {
       if (profile.is_active === false) {
         await supabase.auth.signOut();
         
-        // Store affiliate email for the dialog
-        setAffiliateEmail(profile.affiliate_email || null);
+        // Fetch affiliate links from database
+        await fetchAffiliateLinks(profile.affiliate_email);
         
         // Check if user had a paid subscription
         if (checkIfPaidSubscription(profile)) {
@@ -337,7 +370,7 @@ export default function Auth() {
           </DialogHeader>
 
           <div className="mt-4 space-y-3">
-            {getPlanOptions(affiliateEmail).map((plan) => (
+            {getPlanOptions(affiliateLinks).map((plan) => (
               <button
                 key={plan.name}
                 onClick={() => handleSelectPlan(plan.link)}
