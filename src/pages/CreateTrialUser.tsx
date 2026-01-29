@@ -5,14 +5,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX, KeyRound, Download } from 'lucide-react';
+import { Loader2, UserPlus, ArrowLeft, RefreshCw, Copy, Lock, Search, Users, Pencil, UserCheck, UserX, KeyRound, Download, Link as LinkIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AffiliateManagement } from '@/components/admin/AffiliateManagement';
+import { UserAffiliateDialog } from '@/components/admin/UserAffiliateLink';
 
 interface User {
   id: string;
@@ -25,6 +28,7 @@ interface User {
   subscription_plan: string | null;
   subscription_expires_at: string | null;
   created_at: string | null;
+  affiliate_email: string | null;
 }
 
 const ADMIN_USER = 'Clauclau';
@@ -49,6 +53,7 @@ export default function CreateTrialUser() {
   const [newPlan, setNewPlan] = useState<'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'>('trial');
   const [updatingPlan, setUpdatingPlan] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [affiliateLinkUser, setAffiliateLinkUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -603,7 +608,22 @@ export default function CreateTrialUser() {
           <h1 className="text-2xl font-bold">Gerenciamento de Usuários</h1>
         </div>
 
-        <div className={`grid gap-6 ${isTrialCreatorOnly ? 'max-w-md mx-auto' : 'lg:grid-cols-3'}`}>
+        {/* Tabs for admin - show affiliates tab */}
+        {!isTrialCreatorOnly ? (
+          <Tabs defaultValue="users" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="users" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Usuários
+              </TabsTrigger>
+              <TabsTrigger value="affiliates" className="flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Afiliados
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="users">
+              <div className="grid gap-6 lg:grid-cols-3">
           {/* Create Form */}
           <Card className={`border-primary ${isTrialCreatorOnly ? '' : ''}`}>
             <CardHeader className="text-center">
@@ -856,6 +876,7 @@ export default function CreateTrialUser() {
                         <TableHead>Email</TableHead>
                         <TableHead>Telefone</TableHead>
                         <TableHead>Senha</TableHead>
+                        <TableHead>Afiliado</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
                         <TableHead>Status</TableHead>
@@ -917,6 +938,21 @@ export default function CreateTrialUser() {
                                 )}
                               </div>
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-auto py-1 px-2 text-xs ${user.affiliate_email ? 'text-primary' : 'text-muted-foreground'}`}
+                                onClick={() => setAffiliateLinkUser(user)}
+                              >
+                                <LinkIcon className="w-3 h-3 mr-1" />
+                                {user.affiliate_email ? (
+                                  <span className="truncate max-w-[100px]">{user.affiliate_email}</span>
+                                ) : (
+                                  'Vincular'
+                                )}
+                              </Button>
+                            </TableCell>
                             <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                               {user.created_at 
                                 ? format(new Date(user.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
@@ -935,7 +971,7 @@ export default function CreateTrialUser() {
                                   onCheckedChange={() => handleToggleUserActive(user)}
                                 />
                                 {user.is_active ? (
-                                  <UserCheck className="w-4 h-4 text-green-500" />
+                                  <UserCheck className="w-4 h-4 text-primary" />
                                 ) : (
                                   <UserX className="w-4 h-4 text-destructive" />
                                 )}
@@ -962,6 +998,101 @@ export default function CreateTrialUser() {
           </Card>
           )}
         </div>
+              </TabsContent>
+
+              <TabsContent value="affiliates">
+                <AffiliateManagement />
+              </TabsContent>
+            </Tabs>
+        ) : (
+          // Trial creator only - no tabs, just the form
+          <div className="max-w-md mx-auto">
+            {/* Create Form */}
+            <Card className="border-primary">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+                  <UserPlus className="w-6 h-6 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">Criar Usuário Trial</CardTitle>
+                <CardDescription>
+                  Crie usuários de teste com acesso de 24 horas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name_trial">Nome Completo</Label>
+                    <Input
+                      id="full_name_trial"
+                      type="text"
+                      placeholder="Nome do usuário"
+                      value={formData.full_name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email_trial">Email</Label>
+                    <Input
+                      id="email_trial"
+                      type="email"
+                      placeholder="email@exemplo.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone_trial">Telefone (WhatsApp)</Label>
+                    <Input
+                      id="phone_trial"
+                      type="tel"
+                      placeholder="17999999999"
+                      value={formData.phone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password_trial">Senha</Label>
+                    <Input
+                      id="password_trial"
+                      type="text"
+                      placeholder="Mínimo 6 caracteres"
+                      value={formData.password}
+                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tipo de Plano</Label>
+                    <div className="p-3 bg-muted rounded-md text-sm">
+                      🧪 Trial (24 horas) - <span className="text-muted-foreground">Único plano disponível</span>
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        Criar Usuário Trial
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Edit Plan Dialog - hidden for trial creator only */}
@@ -1047,6 +1178,19 @@ export default function CreateTrialUser() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
+
+      {/* User Affiliate Link Dialog */}
+      {affiliateLinkUser && (
+        <UserAffiliateDialog
+          open={!!affiliateLinkUser}
+          onOpenChange={(open) => !open && setAffiliateLinkUser(null)}
+          userId={affiliateLinkUser.id}
+          userName={affiliateLinkUser.full_name}
+          userEmail={affiliateLinkUser.email}
+          currentAffiliateEmail={affiliateLinkUser.affiliate_email}
+          onSuccess={fetchUsers}
+        />
       )}
     </div>
   );

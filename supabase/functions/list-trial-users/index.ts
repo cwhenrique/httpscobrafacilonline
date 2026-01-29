@@ -21,7 +21,7 @@ serve(async (req) => {
     // Fetch all users (not just trial users)
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active, subscription_plan, subscription_expires_at, created_at')
+      .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active, subscription_plan, subscription_expires_at, created_at, affiliate_email')
       .order('created_at', { ascending: false });
 
     if (error) {
