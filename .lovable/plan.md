@@ -1,51 +1,47 @@
 
 
-# Plano: Corrigir Empréstimo da TAHINA (ID Específico)
+# Plano: Remover Data 25/01 do Calendário (TAHINA)
 
-## Problema Encontrado
+## Contexto
 
-O UPDATE anterior **não foi aplicado** porque usamos o `client_id` como filtro, mas no banco:
-- O empréstimo tem ID: `c850300d-6a85-467c-b093-e9f199d3ef2f`
-- O cliente TAHINA tem ID: `052d702b-6c79-465e-94fa-5cebaf5afb6f`
+O usuário identificou que a data 25/01 no empréstimo da TAHINA é um bug visual e deseja removê-la do calendário, mantendo o empréstimo como está.
 
-**Estado atual do empréstimo:**
+## Estado Atual do Empréstimo
+
 ```
 id: c850300d-6a85-467c-b093-e9f199d3ef2f
-client_id: 052d702b-6c79-465e-94fa-5cebaf5afb6f
-installment_dates: ["2026-01-22", "2026-02-06", "2026-01-25"]  ❌ Fora de ordem
-status: pending  ❌ Deveria ser overdue
+installment_dates: ["2026-01-22", "2026-01-25", "2026-02-06"]
+installments: 3
+due_date: 2026-01-25
+status: overdue
 ```
 
 ## Solução
 
-Executar UPDATE diretamente pelo ID do empréstimo:
+Executar UPDATE para remover a data 25/01 do array e ajustar campos relacionados:
 
 ```sql
 UPDATE loans 
 SET 
-  installment_dates = '["2026-01-22", "2026-01-25", "2026-02-06"]'::jsonb,
-  status = 'overdue'
+  installment_dates = '["2026-01-22", "2026-02-06"]'::jsonb,
+  installments = 2,
+  due_date = '2026-02-06',
+  status = 'pending'
 WHERE id = 'c850300d-6a85-467c-b093-e9f199d3ef2f';
 ```
 
+## Alterações
+
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| installment_dates | ["2026-01-22", "2026-01-25", "2026-02-06"] | ["2026-01-22", "2026-02-06"] |
+| installments | 3 | 2 |
+| due_date | 2026-01-25 | 2026-02-06 |
+| status | overdue | pending |
+
 ## Resultado Esperado
 
-Após a correção:
-```
-installment_dates: ["2026-01-22", "2026-01-25", "2026-02-06"]
-                        ↑ PAGO        ↑ ATRASADO    ↑ ABERTO
-status: overdue
-```
-
-- O empréstimo aparecerá na página de Empréstimos com status "Atrasado"
-- O Calendário continuará mostrando corretamente
-- Ambas as visualizações estarão sincronizadas
-
-## Impacto
-
-| Local | Antes | Depois |
-|-------|-------|--------|
-| Calendário | ✅ Mostra 25/01 atrasado | ✅ Mantém |
-| Página Empréstimos | ❌ Não mostra atraso | ✅ Mostrará atraso |
-| Status no banco | pending | overdue |
+- A data 25/01 não aparecerá mais no Calendário de Cobranças
+- O empréstimo continuará visível na página de Empréstimos
+- A próxima parcela será 06/02 (status: pendente)
 
