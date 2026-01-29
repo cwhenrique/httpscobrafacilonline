@@ -39,6 +39,8 @@ export interface Profile {
   max_employees: number;
   // Cash flow feature
   cash_flow_initial_balance: number | null;
+  // Affiliate
+  affiliate_email: string | null;
 }
 
 export function useProfile() {
