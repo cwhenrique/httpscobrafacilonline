@@ -1,113 +1,106 @@
 
+# Plano: Corrigir Inconsistência de Datas de Parcelas Fora de Ordem
 
-# Plano: Remover Verificação 2FA para Alteração de Chave PIX
+## Problema Identificado
 
-## Problema Reportado
+O empréstimo da cliente TAHINA possui datas de parcelas fora de ordem cronológica:
 
-O sistema de verificação por código no celular (2FA via WhatsApp) para alteração de chave PIX está causando muitos problemas para os usuários.
-
-## Solução
-
-Remover completamente a necessidade de verificação por código ao alterar a chave PIX. A alteração será salva diretamente, assim como era antes da implementação do 2FA.
-
-## Alterações Necessárias
-
-### 1. src/pages/Profile.tsx - Função handleSavePix
-
-**Código atual (linhas 642-677):**
-```typescript
-const handleSavePix = async () => {
-  const updates = {
-    pix_key: formData.pix_key.trim() || null,
-    pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
-    pix_pre_message: formData.pix_pre_message.trim() || null,
-  };
-  
-  // Verificar se é primeiro cadastro
-  const isFirstTimeSetup = !profile?.pix_key || profile.pix_key.trim() === '';
-  const pixChanged = updates.pix_key !== (profile?.pix_key || null);
-  const typeChanged = updates.pix_key_type !== (profile?.pix_key_type || null);
-  
-  if (pixChanged || typeChanged) {
-    if (isFirstTimeSetup && updates.pix_key) {
-      // Primeiro cadastro: salvar direto
-      // ...
-    } else {
-      // Alteração ou remoção: exige verificação ← PROBLEMA
-      setPendingVerificationUpdates(updates);
-      setVerificationFieldName('Chave PIX');
-      setVerificationDialogOpen(true);
-    }
-  }
-  // ...
-};
+**Array atual no banco:**
+```
+["2026-01-22", "2026-02-06", "2026-01-25"]
 ```
 
-**Código simplificado (sem verificação):**
-```typescript
-const handleSavePix = async () => {
-  const updates = {
-    pix_key: formData.pix_key.trim() || null,
-    pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
-    pix_pre_message: formData.pix_pre_message.trim() || null,
-  };
-  
-  const pixChanged = updates.pix_key !== (profile?.pix_key || null);
-  const typeChanged = updates.pix_key_type !== (profile?.pix_key_type || null);
-  const preMessageChanged = updates.pix_pre_message !== (profile?.pix_pre_message || null);
-  
-  if (pixChanged || typeChanged || preMessageChanged) {
-    setSavingPix(true);
-    const { error } = await updateProfile(updates);
-    if (error) {
-      toast.error('Erro ao salvar chave PIX');
-    } else {
-      toast.success('Chave PIX atualizada com sucesso!');
-      setIsEditingPix(false);
-      refetch();
-    }
-    setSavingPix(false);
-  } else {
-    // Sem mudanças, apenas fechar
-    setIsEditingPix(false);
-  }
-};
+**Problema:** A parcela do dia 25/01 está no índice 2 (última posição), mas deveria estar no índice 1 para manter a ordem cronológica.
+
+### Impacto:
+- **Calendário de Cobranças**: Itera por todas as datas e identifica a data 25/01 como em atraso (correto visualmente)
+- **Página de Empréstimos**: Usa o `status` do empréstimo e lógica de índices sequenciais. Como a parcela 0 (22/01) está paga e a parcela 1 (06/02) é futura, não detecta atraso
+
+## Solução em 2 Partes
+
+### Parte 1: Correção de Dados (Empréstimo da TAHINA)
+
+Executar SQL para corrigir o empréstimo específico:
+
+```sql
+-- Corrigir array de datas (ordem cronológica)
+UPDATE loans 
+SET 
+  installment_dates = '["2026-01-22", "2026-01-25", "2026-02-06"]'::jsonb,
+  status = 'overdue',
+  notes = REPLACE(
+    notes, 
+    '[INSTALLMENT_DATE_CHANGE:1:2026-02-06:2026-01-22]',
+    '[INSTALLMENT_DATE_CHANGE:0:2026-01-22:2026-01-22][DATES_REORDERED]'
+  )
+WHERE client_id = 'c850300d-6a85-467c-b093-e9f199d3ef2f'
+  AND status != 'paid'
+  AND installment_dates::text LIKE '%2026-01-22%'
+  AND installment_dates::text LIKE '%2026-02-06%';
 ```
 
-### 2. Limpeza de código não utilizado (opcional)
+### Parte 2: Correção no Código (Prevenção Futura)
 
-Como o Link de Pagamento ainda usa a verificação, os seguintes elementos serão mantidos:
-- `VerificationCodeDialog` component (usado pelo payment_link)
-- Estados `verificationDialogOpen`, `pendingVerificationUpdates`, `verificationFieldName`
-- Função `handlePixVerificationSuccess` (pode ser removida pois não será mais usada)
+Garantir que ao alterar uma data de parcela, o array seja SEMPRE ordenado cronologicamente.
 
-A função `handlePixVerificationSuccess` (linhas 679-682) pode ser removida:
+**Arquivo: `src/pages/Loans.tsx`**
+
+**Função `handleUpdateSpecificDate` (linha ~1684):**
+
 ```typescript
-// REMOVER - não mais necessária
-const handlePixVerificationSuccess = () => {
-  setIsEditingPix(false);
-  refetch();
-};
+// Após atualizar a data no array (linha 1695)
+updatedDates[index] = newDateStr;
+
+// 🆕 NOVO: Ordenar o array cronologicamente
+const sortedDates = [...updatedDates].sort((a, b) => 
+  new Date(a + 'T12:00:00').getTime() - new Date(b + 'T12:00:00').getTime()
+);
+
+// Usar sortedDates em vez de updatedDates no restante da função
 ```
 
-## Impacto
+**Considerações para empréstimos diários:**
+- Empréstimos diários têm lógica de "cascata" (mover parcelas seguintes)
+- Após a cascata, também deve ordenar para garantir consistência
 
-| Item | Status |
-|------|--------|
-| Chave PIX | ✅ Salva diretamente (sem 2FA) |
-| Link de Pagamento | Mantém 2FA |
-| Primeiro cadastro | Continua funcionando igual |
-| Auditoria | Mantida (via edge function update-profile-audited) |
+**Atualização no arquivo `src/hooks/useLoans.ts`:**
+
+Na função `renegotiateLoan` (linha ~410), também garantir ordenação:
+
+```typescript
+// Antes de salvar installment_dates
+installment_dates: data.installment_dates.sort((a, b) => 
+  new Date(a + 'T12:00:00').getTime() - new Date(b + 'T12:00:00').getTime()
+),
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Profile.tsx` | Simplificar `handleSavePix` para salvar direto, remover `handlePixVerificationSuccess` |
+| **Banco de Dados** | Corrigir dados do empréstimo da TAHINA |
+| `src/pages/Loans.tsx` | Função `handleUpdateSpecificDate` - ordenar array após alteração |
+| `src/pages/Loans.tsx` | Função `handleUpdateDueDate` - ordenar array após alteração |
+| `src/hooks/useLoans.ts` | Função `renegotiateLoan` - ordenar array antes de salvar |
 
-## Observações
+## Resultado Esperado
 
-- O sistema de auditoria (`profile_audit_log`) continua funcionando normalmente via `update-profile-audited`
-- Apenas a exigência do código de verificação via WhatsApp é removida
-- O Link de Pagamento continua exigindo verificação (se desejado, posso remover também)
+### Empréstimo TAHINA após correção:
+```
+installment_dates: ["2026-01-22", "2026-01-25", "2026-02-06"]
+                        ↑ PAGO        ↑ ATRASADO    ↑ ABERTO
+```
 
+- ✅ Calendário mostra 25/01 em atraso
+- ✅ Página de Empréstimos mostra contrato em atraso
+- ✅ Status do empréstimo: `overdue`
+
+### Prevenção Futura:
+- Qualquer alteração de data manterá o array em ordem cronológica
+- Evita inconsistências entre Calendário e Página de Empréstimos
+
+## Observações Técnicas
+
+- As tags `[PARTIAL_PAID:index:value]` precisam ser reconsideradas se usarmos ordenação dinâmica
+- Para manter compatibilidade, a tag `[PARTIAL_PAID:0:...]` continuará referenciando a primeira data **ordenada**
+- O pagamento de 22/01 deve continuar marcado como pago (índice 0 no array ordenado)
