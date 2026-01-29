@@ -17,28 +17,50 @@ import { toast } from 'sonner';
 import { Loader2, AlertCircle, CreditCard } from 'lucide-react';
 import cobraFacilLogo from '@/assets/cobrafacil-logo.png';
 
-const PLAN_OPTIONS = [
-  {
-    name: 'Mensal',
-    price: 'R$ 55,90/mês',
-    link: 'https://pay.cakto.com.br/35qwwgz?sck=renew',
-    description: 'Acesso por 30 dias',
+// Affiliate links mapping
+const AFFILIATE_LINKS: Record<string, { mensal: string; trimestral: string; anual: string }> = {
+  'contatodiegoreiis@gmail.com': {
+    mensal: 'https://pay.cakto.com.br/35qwwgz?affiliate=R4mXbwjS',
+    trimestral: 'https://pay.cakto.com.br/eb6ern9?affiliate=PjLMiAKd',
+    anual: 'https://pay.cakto.com.br/fhwfptb?affiliate=SShduj8y',
   },
-  {
-    name: 'Trimestral',
-    price: 'R$ 149,90/trimestre',
-    link: 'https://pay.cakto.com.br/eb6ern9?sck=renew',
-    description: 'Acesso por 90 dias',
-    badge: 'Economia de 10%',
-  },
-  {
-    name: 'Anual',
-    price: 'R$ 479,90/ano',
-    link: 'https://pay.cakto.com.br/fhwfptb?sck=renew',
-    description: 'Acesso por 365 dias',
-    badge: 'Melhor custo-benefício',
-  },
-];
+};
+
+// Default links (no affiliate)
+const DEFAULT_LINKS = {
+  mensal: 'https://pay.cakto.com.br/35qwwgz?sck=renew',
+  trimestral: 'https://pay.cakto.com.br/eb6ern9?sck=renew',
+  anual: 'https://pay.cakto.com.br/fhwfptb?sck=renew',
+};
+
+const getPlanOptions = (affiliateEmail: string | null) => {
+  const links = affiliateEmail && AFFILIATE_LINKS[affiliateEmail] 
+    ? AFFILIATE_LINKS[affiliateEmail] 
+    : DEFAULT_LINKS;
+
+  return [
+    {
+      name: 'Mensal',
+      price: 'R$ 55,90/mês',
+      link: links.mensal,
+      description: 'Acesso por 30 dias',
+    },
+    {
+      name: 'Trimestral',
+      price: 'R$ 149,90/trimestre',
+      link: links.trimestral,
+      description: 'Acesso por 90 dias',
+      badge: 'Economia de 10%',
+    },
+    {
+      name: 'Anual',
+      price: 'R$ 479,90/ano',
+      link: links.anual,
+      description: 'Acesso por 365 dias',
+      badge: 'Melhor custo-benefício',
+    },
+  ];
+};
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +70,7 @@ export default function Auth() {
   const [resetEmail, setResetEmail] = useState('');
   const [showExpiredDialog, setShowExpiredDialog] = useState(false);
   const [showTrialExpiredMessage, setShowTrialExpiredMessage] = useState(false);
+  const [affiliateEmail, setAffiliateEmail] = useState<string | null>(null);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
 
@@ -69,7 +92,7 @@ export default function Auth() {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('is_active, subscription_plan, subscription_expires_at')
+          .select('is_active, subscription_plan, subscription_expires_at, affiliate_email')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -86,6 +109,9 @@ export default function Auth() {
 
         if (data.is_active === false) {
           await supabase.auth.signOut();
+          
+          // Store affiliate email for the dialog
+          setAffiliateEmail(data.affiliate_email || null);
           
           // Check if user had a paid subscription
           if (checkIfPaidSubscription(data)) {
@@ -134,7 +160,7 @@ export default function Auth() {
     if (data?.user) {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('is_active, subscription_plan, subscription_expires_at')
+        .select('is_active, subscription_plan, subscription_expires_at, affiliate_email')
         .eq('id', data.user.id)
         .maybeSingle();
 
@@ -149,6 +175,9 @@ export default function Auth() {
 
       if (profile.is_active === false) {
         await supabase.auth.signOut();
+        
+        // Store affiliate email for the dialog
+        setAffiliateEmail(profile.affiliate_email || null);
         
         // Check if user had a paid subscription
         if (checkIfPaidSubscription(profile)) {
@@ -308,7 +337,7 @@ export default function Auth() {
           </DialogHeader>
 
           <div className="mt-4 space-y-3">
-            {PLAN_OPTIONS.map((plan) => (
+            {getPlanOptions(affiliateEmail).map((plan) => (
               <button
                 key={plan.name}
                 onClick={() => handleSelectPlan(plan.link)}
