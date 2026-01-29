@@ -626,9 +626,21 @@ export const generatePaymentReceipt = async (data: PaymentReceiptData): Promise<
   currentY += 28;
 
   // === PAYMENT INFO ===
+  // Calcular altura dinâmica baseada nos campos presentes
+  let paymentBoxHeight = 70; // Altura base para campos obrigatórios
+  if (data.penaltyAmount && data.penaltyAmount > 0) {
+    paymentBoxHeight += 10; // +10px para linha de multa
+  }
+  if (data.totalContract) {
+    paymentBoxHeight += 10; // +10px para total do contrato
+  }
+  if (data.totalPaid) {
+    paymentBoxHeight += 10; // +10px para total pago
+  }
+
   doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setLineWidth(0.5);
-  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 70, 2, 2, 'S');
+  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, paymentBoxHeight, 2, 2, 'S');
 
   doc.setTextColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setFontSize(11);
@@ -717,7 +729,7 @@ export const generatePaymentReceipt = async (data: PaymentReceiptData): Promise<
   doc.setFont('helvetica', 'normal');
   doc.text(formatCurrency(data.remainingBalance), col1X + 42, payY);
 
-  currentY += 80;
+  currentY += paymentBoxHeight + 10; // Usar altura calculada + margem
 
   // === STATUS MESSAGE ===
   const isTotallyPaid = data.remainingBalance <= 0;
