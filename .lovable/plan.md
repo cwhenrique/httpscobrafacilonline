@@ -1,150 +1,99 @@
 
 
-# Plano: Exibir Multas Aplicadas no PDF do Comprovante de Empréstimo
+# Plano: Corrigir Erro de Criação de Contrato (is_historical)
 
 ## Problema Identificado
 
-Quando você baixa o PDF do comprovante de empréstimo, as multas aplicadas às parcelas (R$ 150,00 neste caso) **não aparecem** no documento. 
+O erro **"Could not find the 'is_historical' column of 'contracts' in the schema cache"** ocorre porque o código está tentando inserir campos que **não existem na tabela `contracts`** do banco de dados:
 
-Isso acontece porque:
-1. O PDF de comprovante de empréstimo não foi programado para incluir multas
-2. Os dados das multas não são passados para a função que gera o PDF
-3. A função não renderiza uma seção de multas
+- `is_historical` - campo usado internamente para marcar contratos históricos
+- `historical_paid_installments` - array de parcelas já pagas em contratos históricos
+- `send_creation_notification` - flag para enviar notificação
+- Campos de veículo (vehicle_*) - não são colunas da tabela contracts
+
+**Colunas que existem na tabela `contracts`:**
+`id`, `user_id`, `client_name`, `contract_type`, `total_amount`, `amount_to_receive`, `frequency`, `installments`, `first_payment_date`, `payment_method`, `notes`, `status`, `created_at`, `updated_at`, `bill_type`, `client_phone`, `client_cpf`, `client_rg`, `client_email`, `client_address`, `contract_date`
+
+## Causa Raiz
+
+No arquivo `src/hooks/useContracts.ts`, linha 151-154:
+
+```typescript
+const { data: contract, error: contractError } = await supabase
+  .from('contracts')
+  .insert({
+    user_id: effectiveUserId,
+    ...contractData,  // <-- Isto inclui TODOS os campos, inclusive os que não existem na tabela!
+  })
+```
+
+O spread `...contractData` está enviando todos os campos do formulário, incluindo campos que são usados apenas internamente (como `is_historical`, `historical_paid_installments`, `send_creation_notification`) e que não são colunas da tabela.
 
 ## Solução
 
-Adicionar uma nova seção no PDF de empréstimo mostrando as multas aplicadas e atualizar o "Total a Receber" para incluí-las.
+Filtrar os campos antes de enviar ao banco, usando **destructuring** para separar os campos internos dos campos válidos da tabela:
 
-## Alterações Necessárias
-
-### 1. Atualizar Interface `ContractReceiptData`
-
-**Arquivo**: `src/lib/pdfGenerator.ts` (linhas ~99-144)
-
-Adicionar campo para multas aplicadas:
+**Arquivo**: `src/hooks/useContracts.ts`
+**Linhas**: ~145-158
 
 ```typescript
-export interface ContractReceiptData {
-  // ... campos existentes ...
-  appliedPenalties?: {
-    total: number;
-    details?: Array<{
-      installmentIndex: number;
-      amount: number;
-    }>;
-  };
-}
-```
+const createContract = useMutation({
+  mutationFn: async (contractData: CreateContractData) => {
+    if (!effectiveUserId) throw new Error('User not authenticated');
 
-### 2. Passar Multas nos Dados do Comprovante
+    // Separar campos internos dos campos da tabela
+    const {
+      is_historical,
+      historical_paid_installments,
+      send_creation_notification,
+      vehicle_plate,
+      vehicle_brand,
+      vehicle_model,
+      vehicle_color,
+      vehicle_km_start,
+      vehicle_km_end,
+      vehicle_year,
+      vehicle_renavam,
+      ...tableFields  // <-- Apenas os campos válidos da tabela
+    } = contractData;
 
-**Arquivo**: `src/pages/Loans.tsx` (linhas ~4555-4593)
+    // Create the contract usando apenas campos válidos
+    const { data: contract, error: contractError } = await supabase
+      .from('contracts')
+      .insert({
+        user_id: effectiveUserId,
+        ...tableFields,  // <-- Agora só vai os campos corretos
+      })
+      .select()
+      .single();
 
-Adicionar o cálculo das multas ao preparar os dados:
-
-```typescript
-const receiptData: ContractReceiptData = {
-  // ... campos existentes ...
-  appliedPenalties: (() => {
-    const penalties = getDailyPenaltiesFromNotes(loan.notes);
-    const total = Object.values(penalties).reduce((sum, val) => sum + val, 0);
-    if (total <= 0) return undefined;
-    
-    return {
-      total,
-      details: Object.entries(penalties).map(([idx, amount]) => ({
-        installmentIndex: parseInt(idx),
-        amount
-      }))
-    };
-  })(),
-};
-```
-
-### 3. Renderizar Multas no PDF
-
-**Arquivo**: `src/lib/pdfGenerator.ts` (após a seção "DADOS DA NEGOCIAÇÃO", ~linha 432)
-
-Adicionar nova seção quando houver multas:
-
-```typescript
-// === MULTAS APLICADAS (se houver) ===
-if (data.appliedPenalties && data.appliedPenalties.total > 0) {
-  const ORANGE = { r: 234, g: 88, b: 12 }; // #ea580c
-  const LIGHT_ORANGE_BG = { r: 255, g: 237, b: 213 }; // #fed7aa
-  
-  doc.setDrawColor(ORANGE.r, ORANGE.g, ORANGE.b);
-  doc.setFillColor(LIGHT_ORANGE_BG.r, LIGHT_ORANGE_BG.g, LIGHT_ORANGE_BG.b);
-  doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 22, 2, 2, 'FD');
-
-  doc.setTextColor(ORANGE.r, ORANGE.g, ORANGE.b);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('MULTAS APLICADAS', margin + 5, currentY + 8);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Total de Multas: ${formatCurrency(data.appliedPenalties.total)}`, margin + 5, currentY + 16);
-
-  currentY += 28;
-}
-```
-
-### 4. Atualizar Total a Receber
-
-Na seção "DADOS DA NEGOCIAÇÃO", atualizar o valor total para incluir multas:
-
-```typescript
-// Total a Receber (incluindo multas se houver)
-const totalWithPenalties = data.negotiation.totalToReceive + (data.appliedPenalties?.total || 0);
-doc.text('Total a Receber:', col1X, negY);
-doc.text(formatCurrency(totalWithPenalties), col1X + 40, negY);
-
-// Se houver multas, mostrar nota explicativa
-if (data.appliedPenalties && data.appliedPenalties.total > 0) {
-  doc.setFontSize(7);
-  doc.setTextColor(MUTED_TEXT.r, MUTED_TEXT.g, MUTED_TEXT.b);
-  doc.text(`(inclui ${formatCurrency(data.appliedPenalties.total)} em multas)`, col1X + 90, negY);
-}
-```
-
-### 5. Atualizar Mensagem WhatsApp (ReceiptPreviewDialog)
-
-**Arquivo**: `src/components/ReceiptPreviewDialog.tsx` (função `generateWhatsAppMessage`, ~linhas 71-171)
-
-Adicionar multas na mensagem:
-
-```typescript
-// Após o Total a Receber
-if (data.appliedPenalties && data.appliedPenalties.total > 0) {
-  message += `⚠️ *Multas Aplicadas: ${formatCurrency(data.appliedPenalties.total)}*\n`;
-}
+    // ... resto do código continua igual ...
+  },
+  // ...
+});
 ```
 
 ## Resultado Esperado
 
-| Campo | Antes | Depois |
-|-------|-------|--------|
-| PDF mostra multas | ❌ Não | ✅ Seção "MULTAS APLICADAS" |
-| Total a Receber | R$ 1.599,99 | R$ 1.749,99 (com multa R$ 150) |
-| Mensagem WhatsApp | Sem multas | Inclui "Multas Aplicadas: R$ 150" |
-| Nota explicativa | - | "(inclui R$ 150 em multas)" |
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Criar contrato normal | Erro is_historical | Funciona |
+| Criar contrato histórico | Erro is_historical | Funciona (parcelas marcadas como pagas) |
+| Formulário de aluguel | Erro | Funciona |
 
 ## Arquivos Afetados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/lib/pdfGenerator.ts` | Adicionar campo na interface + renderizar seção de multas |
-| `src/pages/Loans.tsx` | Calcular e passar multas nos dados do comprovante |
-| `src/components/ReceiptPreviewDialog.tsx` | Incluir multas na mensagem WhatsApp e preview |
+| `src/hooks/useContracts.ts` | Filtrar campos antes do insert (~linhas 145-158) |
 
 ## Estimativa
 
-- **Complexidade**: Média
-- **Linhas adicionadas**: ~50
-- **Risco**: Baixo (adiciona funcionalidade nova, não altera comportamento existente)
+- **Complexidade**: Baixa
+- **Linhas alteradas**: ~20
+- **Risco**: Mínimo (corrige bug sem afetar funcionalidade)
 - **Testes recomendados**: 
-  - Baixar PDF de empréstimo COM multas → verificar se aparece a seção
-  - Baixar PDF de empréstimo SEM multas → verificar se não aparece seção extra
-  - Verificar se o Total a Receber inclui as multas
+  - Criar contrato de aluguel
+  - Criar contrato normal
+  - Criar contrato histórico com parcelas já pagas
 
