@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
-import { format } from 'date-fns';
-import { History } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { format, addMonths } from 'date-fns';
+import { History, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatCurrency, formatDate } from '@/lib/calculations';
@@ -14,56 +15,95 @@ interface HistoricalInstallment {
 }
 
 interface HistoricalInterestRecordsProps {
-  installmentDates: string[];
+  startDate: string;
+  paymentFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
   principalAmount: number;
   interestRate: number;
   interestMode: 'per_installment' | 'on_total' | 'compound';
-  paymentType: string;
   dailyAmount?: number;
   selectedIndices: number[];
   onSelectionChange: (indices: number[]) => void;
+  customInterestAmounts: Record<number, number>;
+  onInterestChange: (index: number, amount: number) => void;
   maxInstallments?: number;
 }
 
 export function HistoricalInterestRecords({
-  installmentDates,
+  startDate,
+  paymentFrequency,
   principalAmount,
   interestRate,
   interestMode,
-  paymentType,
   dailyAmount,
   selectedIndices,
   onSelectionChange,
+  customInterestAmounts,
+  onInterestChange,
   maxInstallments = 60,
 }: HistoricalInterestRecordsProps) {
-  // Calculate past installments with interest amounts
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Calculate past installments automatically based on start date and frequency
   const historicalData = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const numInstallments = installmentDates.length;
-    if (numInstallments === 0 || principalAmount <= 0) {
-      return { installments: [], totalInterest: 0, interestPerInstallment: 0 };
+    // Validate start date
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      return { installments: [], defaultInterestPerInstallment: 0 };
     }
     
-    // Filter dates in the past
-    const pastDates = installmentDates.filter(d => {
-      const date = new Date(d + 'T12:00:00');
-      return date < today;
-    });
+    const start = new Date(startDate + 'T12:00:00');
+    if (isNaN(start.getTime()) || start >= today) {
+      return { installments: [], defaultInterestPerInstallment: 0 };
+    }
     
-    // Limit to maxInstallments for performance
-    const limitedPastDates = pastDates.slice(0, maxInstallments);
+    if (principalAmount <= 0) {
+      return { installments: [], defaultInterestPerInstallment: 0 };
+    }
     
-    // Calculate interest per installment based on loan type
-    let interestPerInstallment = 0;
+    // Generate installments from start date until today
+    const installments: HistoricalInstallment[] = [];
+    let currentDate = new Date(start);
+    let index = 0;
     
-    const isDaily = paymentType === 'daily';
+    while (currentDate < today && index < maxInstallments) {
+      installments.push({
+        index,
+        date: format(currentDate, 'yyyy-MM-dd'),
+        interestAmount: 0, // Will be calculated below
+      });
+      
+      // Advance to next installment based on frequency
+      if (paymentFrequency === 'daily') {
+        currentDate.setDate(currentDate.getDate() + 1);
+      } else if (paymentFrequency === 'weekly') {
+        currentDate.setDate(currentDate.getDate() + 7);
+      } else if (paymentFrequency === 'biweekly') {
+        currentDate.setDate(currentDate.getDate() + 14);
+      } else {
+        // monthly
+        currentDate = addMonths(currentDate, 1);
+      }
+      
+      index++;
+    }
+    
+    // Calculate default interest per installment
+    let defaultInterestPerInstallment = 0;
+    const numInstallments = installments.length;
+    
+    if (numInstallments === 0) {
+      return { installments: [], defaultInterestPerInstallment: 0 };
+    }
+    
+    const isDaily = paymentFrequency === 'daily';
     
     if (isDaily && dailyAmount) {
       // For daily loans: interest = daily_amount - (principal / installments)
       const principalPerInstallment = principalAmount / numInstallments;
-      interestPerInstallment = dailyAmount - principalPerInstallment;
+      defaultInterestPerInstallment = dailyAmount - principalPerInstallment;
     } else {
       // For regular loans, calculate based on interest mode
       let totalInterest = 0;
@@ -77,31 +117,35 @@ export function HistoricalInterestRecords({
         totalInterest = principalAmount * (interestRate / 100);
       }
       
-      interestPerInstallment = totalInterest / numInstallments;
+      defaultInterestPerInstallment = totalInterest / numInstallments;
     }
     
     // Ensure positive interest
-    interestPerInstallment = Math.max(0, interestPerInstallment);
+    defaultInterestPerInstallment = Math.max(0, defaultInterestPerInstallment);
     
-    // Build installment list
-    const installments: HistoricalInstallment[] = limitedPastDates.map((date) => {
-      const originalIndex = installmentDates.indexOf(date);
-      return {
-        index: originalIndex >= 0 ? originalIndex : 0,
-        date,
-        interestAmount: interestPerInstallment,
-      };
+    // Set interest amount for each installment
+    installments.forEach(inst => {
+      inst.interestAmount = defaultInterestPerInstallment;
     });
-    
-    // Calculate total selected interest
-    const selectedTotal = selectedIndices.length * interestPerInstallment;
     
     return {
       installments,
-      totalInterest: selectedTotal,
-      interestPerInstallment,
+      defaultInterestPerInstallment,
     };
-  }, [installmentDates, principalAmount, interestRate, interestMode, paymentType, dailyAmount, selectedIndices, maxInstallments]);
+  }, [startDate, paymentFrequency, principalAmount, interestRate, interestMode, dailyAmount, maxInstallments]);
+  
+  // Get effective interest for an installment (custom or default)
+  const getInterestAmount = (index: number): number => {
+    if (customInterestAmounts[index] !== undefined) {
+      return customInterestAmounts[index];
+    }
+    return historicalData.defaultInterestPerInstallment;
+  };
+  
+  // Calculate total selected interest
+  const totalSelectedInterest = useMemo(() => {
+    return selectedIndices.reduce((sum, idx) => sum + getInterestAmount(idx), 0);
+  }, [selectedIndices, customInterestAmounts, historicalData.defaultInterestPerInstallment]);
   
   // Don't render if no past installments
   if (historicalData.installments.length === 0) {
@@ -121,6 +165,31 @@ export function HistoricalInterestRecords({
       onSelectionChange([...selectedIndices, index]);
     } else {
       onSelectionChange(selectedIndices.filter(i => i !== index));
+    }
+  };
+  
+  const handleEditStart = (index: number) => {
+    setEditingIndex(index);
+    setEditValue(getInterestAmount(index).toFixed(2));
+  };
+  
+  const handleEditSave = (index: number) => {
+    const value = parseFloat(editValue) || 0;
+    onInterestChange(index, Math.max(0, value));
+    setEditingIndex(null);
+    setEditValue('');
+  };
+  
+  const handleEditCancel = () => {
+    setEditingIndex(null);
+    setEditValue('');
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter') {
+      handleEditSave(index);
+    } else if (e.key === 'Escape') {
+      handleEditCancel();
     }
   };
   
@@ -161,9 +230,9 @@ export function HistoricalInterestRecords({
       <ScrollArea className="h-48">
         <div className="space-y-1 pr-2">
           {historicalData.installments.map((installment) => (
-            <label 
+            <div 
               key={installment.index} 
-              className="flex items-center gap-3 p-2 rounded hover:bg-purple-500/10 cursor-pointer transition-colors"
+              className="flex items-center gap-3 p-2 rounded hover:bg-purple-500/10 transition-colors"
             >
               <Checkbox
                 checked={selectedIndices.includes(installment.index)}
@@ -173,10 +242,32 @@ export function HistoricalInterestRecords({
               <span className="text-sm text-purple-200 flex-1">
                 Parcela {installment.index + 1} - {formatDate(installment.date)}
               </span>
-              <span className="text-sm text-purple-300 font-medium">
-                Juros: {formatCurrency(installment.interestAmount)}
-              </span>
-            </label>
+              
+              {editingIndex === installment.index ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-purple-300">R$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, installment.index)}
+                    onBlur={() => handleEditSave(installment.index)}
+                    autoFocus
+                    className="w-24 h-7 text-sm bg-purple-500/20 border-purple-400/50 text-purple-100"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleEditStart(installment.index)}
+                  className="flex items-center gap-1 text-sm text-purple-300 font-medium hover:text-purple-100 transition-colors group"
+                >
+                  <span>Juros: {formatCurrency(getInterestAmount(installment.index))}</span>
+                  <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </ScrollArea>
@@ -187,7 +278,7 @@ export function HistoricalInterestRecords({
             Total de Juros Históricos:
           </p>
           <p className="text-lg font-bold text-purple-100">
-            {formatCurrency(historicalData.totalInterest)}
+            {formatCurrency(totalSelectedInterest)}
           </p>
         </div>
         <p className="text-xs text-purple-300/70">
