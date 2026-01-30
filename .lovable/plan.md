@@ -1,211 +1,119 @@
 
-# Plano: Controle de Visibilidade de Clientes por Funcionário
+# Plano: Corrigir Empréstimos com Pagamentos de Juros Indo para Filtro de Quitados
 
-## Resumo do Pedido
+## Problema Identificado
 
-Você quer implementar:
-1. **Funcionário A cadastra cliente** → Só ele e o dono veem esse cliente
-2. **Funcionário B não vê** clientes cadastrados pelo Funcionário A (e vice-versa)
-3. **Dono (conta principal)** vê TODOS os clientes
-4. **Dono pode atribuir** quais clientes cada funcionário pode acessar
+Quando você paga vários juros em um empréstimo antigo, ele está aparecendo no filtro de "Quitados" quando deveria permanecer em "Aberto".
 
-## Arquitetura Proposta
+**Exemplo do banco de dados encontrado:**
+- Principal: R$ 1.000
+- Juros: R$ 300
+- Total a Receber: R$ 1.300
+- Total Pago: R$ 1.800 (6 pagamentos de juros de R$ 300)
+- Saldo Restante: R$ 1.300 (correto no banco!)
+- Status no banco: `pending` (correto!)
 
-### Nova Tabela: `client_assignments`
-
-Tabela de relacionamento entre funcionários e clientes:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│                 client_assignments                  │
-├─────────────────────────────────────────────────────┤
-│ id            │ uuid (PK)                           │
-│ client_id     │ uuid (FK → clients)                 │
-│ employee_id   │ uuid (FK → employees)               │
-│ assigned_by   │ uuid (FK → auth.users) - quem atribuiu
-│ created_at    │ timestamp                           │
-└─────────────────────────────────────────────────────┘
+**Problema**: O frontend calcula `isPaid` como:
+```typescript
+const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+// = 1300 - 1800 = -500
+const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
+// = false || true = TRUE (ERRADO!)
 ```
 
-### Novo Campo: `created_by` na tabela `clients`
+O `total_paid` inclui TODOS os pagamentos, inclusive os de "somente juros" que **não reduzem o saldo devedor**. O banco já calcula corretamente o `remaining_balance` excluindo esses pagamentos, mas o frontend ignora esse valor.
 
-Similar ao que já existe em `loans`, para saber quem cadastrou o cliente:
+## Solução
 
-```text
-ALTER TABLE clients ADD COLUMN created_by uuid;
+Alterar a função `getLoanStatus` no frontend para usar `remaining_balance` do banco como fonte de verdade, ao invés de recalcular localmente.
+
+## Alteração Necessária
+
+**Arquivo**: `src/pages/Loans.tsx`
+**Função**: `getLoanStatus` (linhas ~2337-2498)
+
+### Antes (código problemático):
+```typescript
+const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+// ... mais código ...
+const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
 ```
 
-## Lógica de Visibilidade
-
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                    QUEM PODE VER O CLIENTE?                      │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  DONO (owner)                                                    │
-│  └── Vê TODOS os clientes                                        │
-│                                                                  │
-│  FUNCIONÁRIO A                                                   │
-│  └── Vê clientes que ELE cadastrou (created_by = employee_id)   │
-│  └── Vê clientes ATRIBUÍDOS a ele pelo dono                     │
-│  └── Se tiver permissão "view_all_clients" → vê todos           │
-│                                                                  │
-│  FUNCIONÁRIO B                                                   │
-│  └── Vê clientes que ELE cadastrou (created_by = employee_id)   │
-│  └── Vê clientes ATRIBUÍDOS a ele pelo dono                     │
-│  └── NÃO VÊ clientes do Funcionário A                           │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+### Depois (código corrigido):
+```typescript
+// USAR remaining_balance do banco como fonte de verdade
+// O banco já exclui pagamentos de somente juros do cálculo
+const remainingToReceive = loan.remaining_balance ?? (totalToReceive - (loan.total_paid || 0));
+// ... mais código ...
+const isPaid = loan.status === 'paid' || remainingToReceive <= 0.01;
 ```
 
-## Alterações Necessárias
+## Lógica Completa da Correção
 
-### 1. Banco de Dados (Migrations)
+A função `getLoanStatus` será atualizada para:
 
-**Adicionar coluna `created_by` em `clients`:**
+1. **Usar `remaining_balance` do banco** quando disponível (todos os empréstimos têm esse campo)
+2. Fazer fallback para o cálculo manual apenas se `remaining_balance` não estiver definido (casos edge impossíveis)
+3. Usar tolerância de 0.01 para evitar problemas de arredondamento
+
+```typescript
+const getLoanStatus = (loan: typeof loans[0]) => {
+  // ... código existente de cálculo de totalToReceive ...
+  
+  // CORREÇÃO: Usar remaining_balance do banco como fonte de verdade
+  // O banco já exclui corretamente os pagamentos de "somente juros" do saldo
+  const remainingToReceive = loan.remaining_balance;
+  
+  // ... código existente ...
+  
+  // Usar o status do banco OU remaining_balance como fonte de verdade
+  const isPaid = loan.status === 'paid' || remainingToReceive <= 0.01;
+  
+  // ... resto da função ...
+};
+```
+
+## Por Que Isso Funciona
+
+O trigger `recalculate_loan_total_paid` no banco de dados já faz a lógica correta:
+
 ```sql
-ALTER TABLE clients ADD COLUMN created_by uuid;
-
--- Popular dados existentes (clientes antigos foram criados pelo dono)
-UPDATE clients SET created_by = user_id WHERE created_by IS NULL;
-
--- Tornar NOT NULL depois de popular
-ALTER TABLE clients ALTER COLUMN created_by SET NOT NULL;
-ALTER TABLE clients ALTER COLUMN created_by SET DEFAULT auth.uid();
+-- Sum only balance-reducing payments (excluding interest-only, partial interest, etc.)
+SELECT COALESCE(SUM(amount), 0) INTO balance_reducing_payments
+FROM loan_payments
+WHERE loan_id = ...
+  AND notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%'
+  AND notes NOT LIKE '%[PARTIAL_INTEREST_PAYMENT]%'
+  -- outros filtros...
 ```
 
-**Criar tabela `client_assignments`:**
+O `remaining_balance` no banco já é calculado como:
 ```sql
-CREATE TABLE client_assignments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-  employee_id uuid NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  assigned_by uuid NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(client_id, employee_id)
-);
-
-ALTER TABLE client_assignments ENABLE ROW LEVEL SECURITY;
+remaining_balance = total_to_receive - balance_reducing_payments
 ```
 
-**Nova função `can_view_client`:**
-```sql
-CREATE OR REPLACE FUNCTION can_view_client(_user_id uuid, _client_user_id uuid, _client_created_by uuid, _client_id uuid)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT 
-    -- Caso 1: É o dono
-    _user_id = _client_user_id
-    OR
-    -- Caso 2: Funcionário que CRIOU este cliente
-    (get_employee_owner_id(_user_id) = _client_user_id AND _client_created_by = _user_id)
-    OR
-    -- Caso 3: Cliente ATRIBUÍDO ao funcionário
-    (get_employee_owner_id(_user_id) = _client_user_id AND EXISTS (
-      SELECT 1 FROM client_assignments 
-      WHERE client_id = _client_id 
-      AND employee_id IN (SELECT id FROM employees WHERE employee_user_id = _user_id)
-    ))
-    OR
-    -- Caso 4: Funcionário com permissão view_all_clients
-    (get_employee_owner_id(_user_id) = _client_user_id AND has_employee_permission(_user_id, 'view_all_clients'))
-$$;
-```
+Portanto, já desconta corretamente os pagamentos que não reduzem o saldo.
 
-**Atualizar RLS policies de `clients`:**
-```sql
--- Substituir política de SELECT para funcionários
-DROP POLICY IF EXISTS "Employees can view owner clients" ON clients;
+## Resultado Esperado
 
-CREATE POLICY "Employees can view allowed clients" ON clients
-  FOR SELECT USING (
-    auth.uid() = user_id 
-    OR can_view_client(auth.uid(), user_id, created_by, id)
-  );
-```
-
-### 2. Nova Permissão
-
-Adicionar ao enum `employee_permission`:
-
-| Permissão | Descrição |
-|-----------|-----------|
-| `view_all_clients` | Funcionário vê TODOS os clientes do dono |
-
-### 3. Código Frontend
-
-**`src/hooks/useClients.ts`**
-- Passar `created_by: user.id` ao criar cliente
-- Incluir `created_by` nos dados retornados
-
-**`src/components/EmployeeManagement.tsx`**
-- Adicionar checkbox para permissão `view_all_clients`
-- Interface para atribuir clientes a funcionários
-
-**Nova seção na UI de funcionários:**
-```text
-┌─────────────────────────────────────────────────────┐
-│  📋 Clientes Atribuídos ao Funcionário              │
-├─────────────────────────────────────────────────────┤
-│  [✓] Cliente João Silva                             │
-│  [ ] Cliente Maria Santos                           │
-│  [ ] Cliente Pedro Oliveira                         │
-│  [✓] Cliente Ana Costa                              │
-├─────────────────────────────────────────────────────┤
-│  [Salvar Atribuições]                               │
-└─────────────────────────────────────────────────────┘
-```
-
-### 4. Interface do Dono para Atribuir Clientes
-
-No modal de edição do funcionário, adicionar aba/seção para gerenciar clientes:
-
-**Arquivo**: `src/components/EmployeeManagement.tsx`
-
-- Nova aba "Clientes" no dialog de edição
-- Lista todos os clientes do dono com checkboxes
-- Salvar atribuições na tabela `client_assignments`
-
-## Fluxo de Uso
-
-### Cenário 1: Funcionário cadastra cliente novo
-1. Funcionário A cria cliente "João Silva"
-2. Sistema salva com `created_by = funcionario_a_id`
-3. Funcionário A vê o cliente
-4. Funcionário B NÃO vê o cliente
-5. Dono vê o cliente
-
-### Cenário 2: Dono atribui cliente ao funcionário
-1. Dono acessa gerenciamento de funcionários
-2. Edita "Funcionário B"
-3. Vai na aba "Clientes"
-4. Marca checkbox do cliente "João Silva"
-5. Salva
-6. Agora Funcionário B também vê "João Silva"
-
-### Cenário 3: Funcionário com view_all_clients
-1. Dono habilita permissão "Ver todos os clientes" para Funcionário C
-2. Funcionário C agora vê TODOS os clientes (como se fosse o dono)
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Empréstimo com 6 pagamentos de "só juros" | Vai para "Quitados" | Permanece em "Aberto" |
+| Empréstimo quitado normalmente | Vai para "Quitados" | Vai para "Quitados" |
+| Empréstimo com pagamentos mistos | Comportamento incorreto | Comportamento correto |
 
 ## Arquivos Afetados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| **Migration SQL** | Criar tabela `client_assignments`, adicionar `created_by` em `clients`, nova função `can_view_client`, atualizar RLS |
-| `src/hooks/useClients.ts` | Passar `created_by` ao criar cliente |
-| `src/hooks/useEmployeeContext.tsx` | Adicionar `view_all_clients` ao tipo de permissão |
-| `src/components/EmployeeManagement.tsx` | Adicionar UI para atribuir clientes e nova permissão |
-| `src/components/PermissionRoute.tsx` | Adicionar label para nova permissão |
+| `src/pages/Loans.tsx` | Alterar função `getLoanStatus` (~linha 2366-2371) |
 
 ## Estimativa
 
-- **Complexidade**: Média-Alta
-- **Migrations SQL**: ~50 linhas
-- **Código Frontend**: ~150 linhas
-- **Risco**: Médio (alteração de RLS afeta acesso a dados)
-- **Testes recomendados**:
-  - Criar cliente como funcionário → verificar que outro funcionário não vê
-  - Atribuir cliente pelo dono → verificar que funcionário passou a ver
-  - Habilitar `view_all_clients` → verificar acesso total
+- **Complexidade**: Baixa
+- **Linhas alteradas**: ~5
+- **Risco**: Mínimo (apenas corrige o cálculo, usa dados que já existem no banco)
+- **Testes recomendados**: 
+  - Verificar empréstimo com vários pagamentos de juros → deve aparecer em "Aberto"
+  - Verificar empréstimo quitado normalmente → deve aparecer em "Quitados"
+  - Verificar filtros funcionando corretamente
