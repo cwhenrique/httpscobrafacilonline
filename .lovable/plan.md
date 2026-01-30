@@ -1,119 +1,154 @@
 
-# Plano: Corrigir Empréstimos com Pagamentos de Juros Indo para Filtro de Quitados
+
+# Plano: Corrigir Timeout na Consulta de Clientes (Performance RLS)
 
 ## Problema Identificado
 
-Quando você paga vários juros em um empréstimo antigo, ele está aparecendo no filtro de "Quitados" quando deveria permanecer em "Aberto".
+A consulta de clientes está dando **TIMEOUT** (erro 57014) porque a nova política RLS com a função `can_view_client()` está sendo executada para **cada uma das 20.051 linhas** da tabela, causando milhares de subconsultas.
 
-**Exemplo do banco de dados encontrado:**
-- Principal: R$ 1.000
-- Juros: R$ 300
-- Total a Receber: R$ 1.300
-- Total Pago: R$ 1.800 (6 pagamentos de juros de R$ 300)
-- Saldo Restante: R$ 1.300 (correto no banco!)
-- Status no banco: `pending` (correto!)
-
-**Problema**: O frontend calcula `isPaid` como:
-```typescript
-const remainingToReceive = totalToReceive - (loan.total_paid || 0);
-// = 1300 - 1800 = -500
-const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-// = false || true = TRUE (ERRADO!)
+**Logs do erro:**
+```
+"code": "57014"
+"message": "canceling statement due to statement timeout"
 ```
 
-O `total_paid` inclui TODOS os pagamentos, inclusive os de "somente juros" que **não reduzem o saldo devedor**. O banco já calcula corretamente o `remaining_balance` excluindo esses pagamentos, mas o frontend ignora esse valor.
+## Causa Raiz
+
+A política RLS atual:
+```sql
+CREATE POLICY "Employees can view allowed clients" ON clients
+  FOR SELECT USING (
+    auth.uid() = user_id 
+    OR can_view_client(auth.uid(), user_id, created_by, id)
+  );
+```
+
+A função `can_view_client()` executa várias subconsultas por linha:
+1. `get_employee_owner_id(_user_id)` - consulta employees
+2. `EXISTS (SELECT 1 FROM client_assignments...)` - consulta client_assignments  
+3. `has_employee_permission(_user_id, 'view_all_clients')` - consulta employee_permissions
+
+Com 20.000+ clientes, isso gera **60.000+ subconsultas** = TIMEOUT!
 
 ## Solução
 
-Alterar a função `getLoanStatus` no frontend para usar `remaining_balance` do banco como fonte de verdade, ao invés de recalcular localmente.
+Reescrever a política RLS para ser mais eficiente, evitando chamar funções para cada linha quando o usuário é o dono:
 
-## Alteração Necessária
+### Otimização 1: Short-circuit para donos
 
-**Arquivo**: `src/pages/Loans.tsx`
-**Função**: `getLoanStatus` (linhas ~2337-2498)
+Se `auth.uid() = user_id`, retorna TRUE imediatamente sem chamar a função.
 
-### Antes (código problemático):
-```typescript
-const remainingToReceive = totalToReceive - (loan.total_paid || 0);
-// ... mais código ...
-const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
-```
+### Otimização 2: Reescrever a função com CTE
 
-### Depois (código corrigido):
-```typescript
-// USAR remaining_balance do banco como fonte de verdade
-// O banco já exclui pagamentos de somente juros do cálculo
-const remainingToReceive = loan.remaining_balance ?? (totalToReceive - (loan.total_paid || 0));
-// ... mais código ...
-const isPaid = loan.status === 'paid' || remainingToReceive <= 0.01;
-```
-
-## Lógica Completa da Correção
-
-A função `getLoanStatus` será atualizada para:
-
-1. **Usar `remaining_balance` do banco** quando disponível (todos os empréstimos têm esse campo)
-2. Fazer fallback para o cálculo manual apenas se `remaining_balance` não estiver definido (casos edge impossíveis)
-3. Usar tolerância de 0.01 para evitar problemas de arredondamento
-
-```typescript
-const getLoanStatus = (loan: typeof loans[0]) => {
-  // ... código existente de cálculo de totalToReceive ...
-  
-  // CORREÇÃO: Usar remaining_balance do banco como fonte de verdade
-  // O banco já exclui corretamente os pagamentos de "somente juros" do saldo
-  const remainingToReceive = loan.remaining_balance;
-  
-  // ... código existente ...
-  
-  // Usar o status do banco OU remaining_balance como fonte de verdade
-  const isPaid = loan.status === 'paid' || remainingToReceive <= 0.01;
-  
-  // ... resto da função ...
-};
-```
-
-## Por Que Isso Funciona
-
-O trigger `recalculate_loan_total_paid` no banco de dados já faz a lógica correta:
+Usar Common Table Expressions para calcular uma única vez se o usuário é funcionário e quais são suas permissões:
 
 ```sql
--- Sum only balance-reducing payments (excluding interest-only, partial interest, etc.)
-SELECT COALESCE(SUM(amount), 0) INTO balance_reducing_payments
-FROM loan_payments
-WHERE loan_id = ...
-  AND notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%'
-  AND notes NOT LIKE '%[PARTIAL_INTEREST_PAYMENT]%'
-  -- outros filtros...
+CREATE OR REPLACE FUNCTION can_view_client_optimized(_user_id uuid, _client_user_id uuid, _client_created_by uuid, _client_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _owner_id uuid;
+  _has_view_all boolean;
+  _employee_record RECORD;
+BEGIN
+  -- Se é o dono, retorna imediatamente
+  IF _user_id = _client_user_id THEN
+    RETURN true;
+  END IF;
+  
+  -- Busca dados do funcionário uma única vez
+  SELECT e.id, e.owner_id INTO _employee_record
+  FROM employees e
+  WHERE e.employee_user_id = _user_id
+  LIMIT 1;
+  
+  -- Se não é funcionário, não tem acesso
+  IF _employee_record.id IS NULL THEN
+    RETURN false;
+  END IF;
+  
+  -- Verifica se o owner_id do funcionário é o dono do cliente
+  IF _employee_record.owner_id != _client_user_id THEN
+    RETURN false;
+  END IF;
+  
+  -- Funcionário CRIOU este cliente
+  IF _client_created_by = _user_id THEN
+    RETURN true;
+  END IF;
+  
+  -- Funcionário tem view_all_clients
+  IF EXISTS (
+    SELECT 1 FROM employee_permissions 
+    WHERE employee_id = _employee_record.id 
+    AND permission = 'view_all_clients'
+  ) THEN
+    RETURN true;
+  END IF;
+  
+  -- Cliente atribuído ao funcionário
+  RETURN EXISTS (
+    SELECT 1 FROM client_assignments 
+    WHERE client_id = _client_id 
+    AND employee_id = _employee_record.id
+  );
+END;
+$$;
 ```
 
-O `remaining_balance` no banco já é calculado como:
+### Otimização 3: Adicionar índices
+
 ```sql
-remaining_balance = total_to_receive - balance_reducing_payments
+-- Índice para acelerar busca por created_by
+CREATE INDEX IF NOT EXISTS idx_clients_created_by ON clients(created_by);
+
+-- Índice para acelerar busca por employee_user_id
+CREATE INDEX IF NOT EXISTS idx_employees_employee_user_id ON employees(employee_user_id);
+
+-- Índice para acelerar client_assignments
+CREATE INDEX IF NOT EXISTS idx_client_assignments_employee_id ON client_assignments(employee_id);
 ```
 
-Portanto, já desconta corretamente os pagamentos que não reduzem o saldo.
+### Otimização 4: Atualizar a política RLS
+
+```sql
+-- Dropar políticas antigas
+DROP POLICY IF EXISTS "Employees can view allowed clients" ON clients;
+DROP POLICY IF EXISTS "Users can view own clients" ON clients;
+
+-- Criar política única otimizada
+CREATE POLICY "Users and employees can view clients" ON clients
+  FOR SELECT USING (
+    -- Short-circuit: donos veem seus próprios clientes diretamente
+    auth.uid() = user_id
+    OR
+    -- Funcionários passam pela função otimizada
+    can_view_client_optimized(auth.uid(), user_id, created_by, id)
+  );
+```
 
 ## Resultado Esperado
 
 | Cenário | Antes | Depois |
 |---------|-------|--------|
-| Empréstimo com 6 pagamentos de "só juros" | Vai para "Quitados" | Permanece em "Aberto" |
-| Empréstimo quitado normalmente | Vai para "Quitados" | Vai para "Quitados" |
-| Empréstimo com pagamentos mistos | Comportamento incorreto | Comportamento correto |
+| Dono vê seus clientes | TIMEOUT | ~50ms |
+| Funcionário vê clientes | Não testado | ~100ms |
+| Total de subconsultas | 60.000+ | ~10 |
 
 ## Arquivos Afetados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Loans.tsx` | Alterar função `getLoanStatus` (~linha 2366-2371) |
+| **Migration SQL** | Criar função otimizada, adicionar índices, atualizar políticas RLS |
 
 ## Estimativa
 
-- **Complexidade**: Baixa
-- **Linhas alteradas**: ~5
-- **Risco**: Mínimo (apenas corrige o cálculo, usa dados que já existem no banco)
-- **Testes recomendados**: 
-  - Verificar empréstimo com vários pagamentos de juros → deve aparecer em "Aberto"
-  - Verificar empréstimo quitado normalmente → deve aparecer em "Quitados"
-  - Verificar filtros funcionando corretamente
+- **Complexidade**: Média
+- **Linhas SQL**: ~60
+- **Risco**: Baixo (melhoria de performance, lógica igual)
+- **Impacto**: Imediato - clientes voltarão a aparecer
+
