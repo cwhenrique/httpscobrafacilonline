@@ -3051,15 +3051,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
-      // 🆕 CORREÇÃO: Para contratos históricos com juros, o installment_dates contém APENAS a data de hoje
-      // As datas históricas são apenas para registro nos pagamentos, não no contrato
-      // Isso evita que o sistema marque o contrato como atrasado baseado em datas antigas
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const updatedDates = [todayStr]; // APENAS a data de hoje, não as datas passadas
+      // 🆕 CORREÇÃO: Calcular a PRÓXIMA data do ciclo baseada na última parcela histórica paga
+      // Em vez de usar a data de HOJE, calculamos a próxima parcela após a última selecionada
+      const maxSelectedIndex = Math.max(...selectedHistoricalInterestInstallments);
+      const nextInstallmentIndex = maxSelectedIndex + 1;
+      // Para empréstimos diários, a próxima data é simplesmente o próximo dia útil após a última parcela paga
+      const startDate = new Date(formData.start_date + 'T12:00:00');
+      const nextDate = new Date(startDate);
+      nextDate.setDate(nextDate.getDate() + nextInstallmentIndex);
+      const nextDueDate = format(nextDate, 'yyyy-MM-dd');
+      const updatedDates = [nextDueDate];
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
-        due_date: todayStr,
+        due_date: nextDueDate,
         installment_dates: updatedDates
       }).eq('id', loanId);
       
@@ -3660,15 +3665,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
-      // 🆕 CORREÇÃO: Para contratos históricos com juros, o installment_dates contém APENAS a data de hoje
-      // As datas históricas são apenas para registro nos pagamentos, não no contrato
-      // Isso evita que o sistema marque o contrato como atrasado baseado em datas antigas
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const updatedDates = [todayStr]; // APENAS a data de hoje, não as datas passadas
+      // 🆕 CORREÇÃO: Calcular a PRÓXIMA data do ciclo baseada na última parcela histórica paga
+      // Em vez de usar a data de HOJE, calculamos a próxima parcela após a última selecionada
+      const maxSelectedIndex = Math.max(...selectedHistoricalInterestInstallments);
+      const nextInstallmentIndex = maxSelectedIndex + 1;
+      const nextDueDate = generateInstallmentDate(formData.start_date, nextInstallmentIndex, frequency);
+      const updatedDates = [nextDueDate];
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
-        due_date: todayStr,
+        due_date: nextDueDate,
         installment_dates: updatedDates
       }).eq('id', loanId);
       
