@@ -3062,10 +3062,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const nextDueDate = format(nextDate, 'yyyy-MM-dd');
       const updatedDates = [nextDueDate];
       
+      // 🆕 CORREÇÃO: Calcular total_interest e remaining_balance corretos
+      // Total de parcelas = históricas pagas + 1 futura
+      const totalInstallmentsCount = selectedHistoricalInterestInstallments.length + 1;
+      // Para diários: remaining_balance = (dailyAmount × totalInstallments) - juros já pagos
+      const correctedRemainingBalance = (dailyAmount * totalInstallmentsCount) - totalHistoricalInterest;
+      
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
         due_date: nextDueDate,
-        installment_dates: updatedDates
+        installment_dates: updatedDates,
+        remaining_balance: correctedRemainingBalance,
+        installments: totalInstallmentsCount,
       }).eq('id', loanId);
       
       await fetchLoans();
@@ -3672,10 +3680,31 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const nextDueDate = generateInstallmentDate(formData.start_date, nextInstallmentIndex, frequency);
       const updatedDates = [nextDueDate];
       
+      // 🆕 CORREÇÃO: Calcular total_interest e remaining_balance corretos
+      // Total de parcelas = históricas pagas + 1 futura
+      const totalInstallmentsCount = selectedHistoricalInterestInstallments.length + 1;
+      
+      // Calcular juros total baseado no interest_mode
+      let correctedTotalInterest: number;
+      if (formData.interest_mode === 'per_installment') {
+        correctedTotalInterest = principal * (rate / 100) * totalInstallmentsCount;
+      } else if (formData.interest_mode === 'compound') {
+        correctedTotalInterest = principal * Math.pow(1 + (rate / 100), totalInstallmentsCount) - principal;
+      } else {
+        // on_total - juros único sobre o principal
+        correctedTotalInterest = principal * (rate / 100);
+      }
+      
+      // remaining_balance = principal + juros totais - juros já pagos
+      const correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
+      
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
         due_date: nextDueDate,
-        installment_dates: updatedDates
+        installment_dates: updatedDates,
+        total_interest: correctedTotalInterest,
+        remaining_balance: correctedRemainingBalance,
+        installments: totalInstallmentsCount,
       }).eq('id', loanId);
       
       await fetchLoans();
