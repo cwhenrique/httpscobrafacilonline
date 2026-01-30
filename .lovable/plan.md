@@ -1,96 +1,97 @@
 
-# Plano: Corrigir Contratos Históricos com Juros
+# Plano: Corrigir Data de Vencimento para Contratos Historicos
 
-## ✅ IMPLEMENTADO
+## Problema Identificado
 
-### Alteração 1: Salvar APENAS a data de HOJE no installment_dates (Criação)
-**Status:** ✅ Concluído
+Quando o usuario cria um emprestimo com data de inicio 15/01/2025 (mensal) e seleciona TODAS as parcelas historicas (incluindo 15/01/2026 que ja passou), o sistema esta definindo o vencimento como a data de HOJE (31/01/2026).
 
-Nas funções `handleSubmit` e `handleDailySubmit`, ao criar contrato com juros históricos, agora o `installment_dates` contém APENAS a data de hoje:
+**Comportamento errado:**
+- Data inicio: 15/01/2025
+- Parcelas historicas incluem: 15/01/2025, 15/02/2025, ..., 15/01/2026 (13 parcelas)
+- Usuario seleciona todas as 13 parcelas como juros recebidos
+- Sistema define `due_date = "2026-01-31"` (hoje)
 
+**Comportamento esperado:**
+- Se a parcela de 15/01/2026 foi paga, a proxima parcela deveria ser 15/02/2026
+- Sistema deveria definir `due_date = "2026-02-15"`
+
+## Causa Raiz
+
+Na linha 3666-3667 do `handleSubmit`:
 ```typescript
-const updatedDates = [todayStr]; // APENAS a data de hoje, não as datas passadas
+const todayStr = format(new Date(), 'yyyy-MM-dd');
+const updatedDates = [todayStr]; // Usa a data de HOJE
 ```
 
-### Alteração 2: getCardStyle para garantir roxo ANTES da verificação de atraso
-**Status:** ✅ Concluído
+O codigo usa a data de HOJE em vez de calcular a **proxima data do ciclo** baseada na frequencia.
 
-Movemos a verificação de `isHistoricalInterestContract` para ANTES da lógica de `isOverdue`, garantindo que o card fique roxo independente do status de atraso:
+## Solucao
+
+### Logica Correta
+
+1. Encontrar a ULTIMA parcela historica selecionada
+2. Calcular a PROXIMA data apos essa parcela baseada na frequencia
+3. Usar essa data como `due_date` e `installment_dates`
+
+### Exemplo Pratico
+
+| Data Inicio | Frequencia | Ultima Parcela Paga | Proxima Parcela |
+|-------------|------------|---------------------|-----------------|
+| 15/01/2025 | Mensal | 15/01/2026 | 15/02/2026 |
+| 15/01/2025 | Semanal | 22/01/2026 | 29/01/2026 |
+| 15/01/2025 | Quinzenal | 15/01/2026 | 29/01/2026 |
+
+### Codigo Corrigido
 
 ```typescript
-// 🆕 Contratos históricos com juros ficam ROXOS SEMPRE (não vermelhos)
-// Verificar ANTES da lógica de isOverdue para garantir cor roxa
-if (isHistoricalInterestContract && !isPaid) {
-  return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
-}
+// Encontrar o maior indice selecionado (ultima parcela paga)
+const maxSelectedIndex = Math.max(...selectedHistoricalInterestInstallments);
+
+// Calcular a data da PROXIMA parcela (indice seguinte)
+const nextInstallmentIndex = maxSelectedIndex + 1;
+const nextDueDate = generateInstallmentDate(formData.start_date, nextInstallmentIndex, frequency);
+
+const updatedDates = [nextDueDate];
+
+await supabase.from('loans').update({
+  notes: currentNotes.trim(),
+  due_date: nextDueDate,
+  installment_dates: updatedDates
+}).eq('id', loanId);
 ```
 
-### Alteração 3: Ajustar lógica de rollamento para contratos históricos
-**Status:** ✅ Concluído
+## Arquivos Afetados
 
-Quando o usuário paga juros de um contrato histórico, agora usamos a data de HOJE como base para rolar:
-
-```typescript
-if (isHistoricalInterestContract) {
-  const todayDate = new Date();
-  todayDate.setHours(12, 0, 0, 0);
-  
-  let nextDate: Date;
-  if (loan.payment_type === 'weekly') {
-    nextDate = new Date(todayDate);
-    nextDate.setDate(nextDate.getDate() + 7);
-  } else if (loan.payment_type === 'biweekly') {
-    nextDate = new Date(todayDate);
-    nextDate.setDate(nextDate.getDate() + 15);
-  } else {
-    nextDate = addMonths(todayDate, 1);
-  }
-  
-  // APENAS a próxima data, não rolar datas antigas
-  newInstallmentDates = [format(nextDate, 'yyyy-MM-dd')];
-}
-```
-
-### Alteração 4: getLoanStatus já estava correta
-**Status:** ✅ Já funcionava
-
-A lógica do `getLoanStatus` já estava preparada para contratos históricos - verifica se há datas >= hoje e só marca como atrasado se `today > nextValidDateObj`.
+| Arquivo | Localizacao | Alteracao |
+|---------|-------------|-----------|
+| src/pages/Loans.tsx | handleSubmit (linhas 3666-3673) | Calcular proxima data do ciclo |
+| src/pages/Loans.tsx | handleDailySubmit | Mesma correcao para emprestimos diarios |
 
 ## Fluxo Corrigido
 
-### Criação de contrato histórico:
-1. Usuário define data início: 30/01/2025
-2. Sistema detecta 12 meses passados
-3. Usuário seleciona todas as parcelas de juros
-4. Sistema registra 12 pagamentos de `[INTEREST_ONLY_PAYMENT]`
-5. ✅ **NOVO:** `installment_dates = ["2026-01-30"]` (só hoje)
-6. ✅ `due_date = "2026-01-30"`
-7. ✅ Card aparece ROXO, vencimento = 30/01/2026, não está atrasado
+### Antes (errado):
+1. Inicio: 15/01/2025, mensal
+2. Hoje: 31/01/2026
+3. Parcelas historicas: 13 (15/01/25 ate 15/01/26)
+4. Usuario seleciona todas
+5. `due_date = "2026-01-31"` (ERRADO)
 
-### Pagamento de juros da parcela de hoje:
-1. Usuário registra pagamento de juros
-2. Sistema detecta `[HISTORICAL_INTEREST_CONTRACT]`
-3. ✅ **NOVO:** Usa data de HOJE como base: `2026-01-30 + 1 mês = 2026-02-28`
-4. ✅ `installment_dates = ["2026-02-28"]`
-5. ✅ `due_date = "2026-02-28"`
-6. ✅ Card continua ROXO, vencimento = 28/02/2026
-
-## Arquivos Modificados
-
-| Arquivo | Linha | Alteração |
-|---------|-------|-----------|
-| `src/pages/Loans.tsx` | 3031-3043 | handleDailySubmit - salvar só data de hoje |
-| `src/pages/Loans.tsx` | 3639-3651 | handleSubmit - salvar só data de hoje |
-| `src/pages/Loans.tsx` | 5012-5051 | handleRenegotiateConfirm - usar data atual para rolar |
-| `src/pages/Loans.tsx` | 7845-7859 | getCardStyle (regular) - roxo antes de atraso |
-| `src/pages/Loans.tsx` | 9977-9984 | getCardStyle (daily) - roxo antes de atraso |
+### Depois (correto):
+1. Inicio: 15/01/2025, mensal
+2. Hoje: 31/01/2026
+3. Parcelas historicas: 13 (15/01/25 ate 15/01/26)
+4. Usuario seleciona todas
+5. Maior indice selecionado: 12 (parcela 15/01/2026)
+6. Proxima parcela: indice 13 = 15/02/2026
+7. `due_date = "2026-02-15"` (CORRETO)
 
 ## Testes Recomendados
 
-1. ✅ Criar novo contrato histórico com 12 meses de juros → verificar que installment_dates tem só 1 data
-2. ✅ Verificar que o card é ROXO e não vermelho
-3. ✅ Verificar que "Venc:" mostra data de hoje (30/01/2026)
-4. ✅ Verificar que NÃO aparece badge "Atrasado"
-5. ✅ Registrar pagamento de juros → verificar que próximo vencimento é 28/02/2026
-6. ✅ Verificar que o card continua ROXO
-7. ⚠️ Testar com contrato semanal e quinzenal também (lógica implementada, precisa testar)
+1. Criar emprestimo mensal com inicio 15/01/2025, selecionar TODAS as parcelas
+   - Esperado: vencimento = 15/02/2026
+
+2. Criar emprestimo mensal com inicio 15/01/2025, selecionar apenas as 12 primeiras (ate 15/12/2025)
+   - Esperado: vencimento = 15/01/2026
+
+3. Criar emprestimo semanal com inicio 01/01/2026, selecionar todas as 4 parcelas
+   - Esperado: vencimento = 05/02/2026 (7 dias apos 29/01/2026)
