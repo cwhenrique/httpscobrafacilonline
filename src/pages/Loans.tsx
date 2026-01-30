@@ -6503,8 +6503,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         </div>
                       )}
                       
-                      {/* 🆕 Nova seção de Registros Históricos de Juros */}
-                      {formData.is_historical_contract && formData.start_date && (
+                      {/* 🆕 Nova seção de Registros Históricos de Juros - apenas para 1 parcela */}
+                      {formData.is_historical_contract && formData.start_date && parseInt(formData.installments) === 1 && (
                         <HistoricalInterestRecords
                           startDate={formData.start_date}
                           paymentFrequency="daily"
@@ -7081,8 +7081,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </div>
                     )}
                       
-                    {/* 🆕 Nova seção de Registros Históricos de Juros */}
-                    {formData.is_historical_contract && formData.start_date && (
+                    {/* 🆕 Nova seção de Registros Históricos de Juros - apenas para 1 parcela */}
+                    {formData.is_historical_contract && formData.start_date && parseInt(formData.installments) === 1 && (
                       <HistoricalInterestRecords
                         startDate={formData.start_date}
                         paymentFrequency={formData.payment_type === 'daily' ? 'daily' : 
