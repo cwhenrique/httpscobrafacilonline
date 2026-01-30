@@ -2363,12 +2363,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       totalToReceive = loan.principal_amount + totalInterest;
     }
     
-    const remainingToReceive = totalToReceive - (loan.total_paid || 0);
+    // CORREÇÃO: Usar remaining_balance do banco como fonte de verdade
+    // O banco já exclui corretamente os pagamentos de "somente juros" do cálculo
+    // Isso evita que empréstimos com múltiplos pagamentos de juros apareçam como quitados
+    const remainingToReceive = loan.remaining_balance;
     const principalPerInstallment = loan.principal_amount / numInstallments;
     const interestPerInstallment = totalInterest / numInstallments;
     const totalPerInstallment = principalPerInstallment + interestPerInstallment;
     
-    const isPaid = loan.status === 'paid' || remainingToReceive <= 0;
+    // Usar tolerância de 0.01 para evitar problemas de arredondamento
+    const isPaid = loan.status === 'paid' || remainingToReceive <= 0.01;
     const isRenegotiated = loan.notes?.includes('Valor prometido') || loan.notes?.includes('[RENEGOTIATED]');
     const isHistoricalContract = loan.notes?.includes('[HISTORICAL_CONTRACT]');
     const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
