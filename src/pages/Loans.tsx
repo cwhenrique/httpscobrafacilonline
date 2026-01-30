@@ -7892,6 +7892,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 // Detectar contrato histórico com juros
                 const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
                 
+                // 🆕 Calcular status de exibição baseado na lógica calculada, NÃO no banco
+                const displayStatus = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
+                
                 const getCardStyle = () => {
                   if (isPaid) {
                     return 'bg-primary border-primary';
@@ -8027,8 +8030,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           
                           {/* LINHA 2: Badges de status e tipo */}
                           <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
-                            <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
-                              {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
+                            <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
+                              hasSpecialStyle ? 'bg-white/20 text-white border-white/30' 
+                              : isHistoricalInterestContract && !isPaid && !isOverdue 
+                                ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
+                                : getPaymentStatusColor(displayStatus)
+                            }`}>
+                              {isHistoricalInterestContract && !isPaid && !isOverdue 
+                                ? 'Juros Antigos' 
+                                : isInterestOnlyPayment && !isOverdue 
+                                  ? 'Só Juros' 
+                                  : isRenegotiated && !isOverdue 
+                                    ? 'Reneg.' 
+                                    : getPaymentStatusLabel(displayStatus)}
                             </Badge>
                             {loan.interest_mode === 'compound' && (
                               <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-500/20 text-purple-300 border-purple-500/30">
