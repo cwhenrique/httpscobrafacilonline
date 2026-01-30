@@ -2235,8 +2235,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
 
   // Generate monthly installment dates
   const generateMonthlyDates = (startDateStr: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    // Validação: retorna array vazio se data inválida
+    if (!startDateStr || typeof startDateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDateStr)) {
+      return [];
+    }
+    
     const dates: string[] = [];
     const startDate = new Date(startDateStr + 'T12:00:00');
+    
+    // Validação adicional: verificar se a data é válida
+    if (isNaN(startDate.getTime())) {
+      return [];
+    }
+    
     const startDay = startDate.getDate();
     
     for (let i = 0; i < count; i++) {
