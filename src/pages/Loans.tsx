@@ -2461,13 +2461,32 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           nextDueDate.setHours(0, 0, 0, 0);
           
           if (isHistoricalContract || isHistoricalInterestContract) {
+            const todayStr = format(today, 'yyyy-MM-dd');
+            
+            // Para contratos com juros históricos, verificar se há parcela >= hoje
             const futureDates = dates.filter(d => {
               const date = new Date(d + 'T12:00:00');
               date.setHours(0, 0, 0, 0);
-              return date > today;
+              return date >= today; // >= para incluir "vence hoje"
             });
             
-            if (futureDates.length === 0 && paidInstallments < dates.length) {
+            // 🆕 CORREÇÃO: Se há uma data que é HOJE ou no futuro, NÃO está em atraso
+            if (isHistoricalInterestContract && futureDates.length > 0) {
+              // Buscar a próxima data não paga que seja >= hoje
+              const nextValidDate = dates.slice(paidInstallments).find(d => d >= todayStr);
+              if (nextValidDate) {
+                const nextValidDateObj = new Date(nextValidDate + 'T12:00:00');
+                nextValidDateObj.setHours(0, 0, 0, 0);
+                // Só está em atraso se hoje > próxima data válida não paga
+                isOverdue = today > nextValidDateObj;
+                if (isOverdue) {
+                  overdueDate = nextValidDate;
+                  overdueInstallmentIndex = dates.indexOf(nextValidDate);
+                  daysOverdue = Math.ceil((today.getTime() - nextValidDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                }
+              }
+              // Se não há data não paga >= hoje, não está em atraso (juros históricos já cobrem)
+            } else if (futureDates.length === 0 && paidInstallments < dates.length) {
               const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
               overdueCheckDate.setHours(0, 0, 0, 0);
               isOverdue = today > overdueCheckDate;
@@ -2475,7 +2494,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 overdueDate = dates[paidInstallments];
                 daysOverdue = Math.ceil((today.getTime() - overdueCheckDate.getTime()) / (1000 * 60 * 60 * 24));
               }
-            } else if (futureDates.length > 0) {
+            } else if (futureDates.length > 0 && !isHistoricalInterestContract) {
               if (paidInstallments < dates.length) {
                 const nextUnpaidDate = dates[paidInstallments];
                 const nextUnpaidDateObj = new Date(nextUnpaidDate + 'T12:00:00');
@@ -3012,8 +3031,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
+      // 🆕 CORREÇÃO: Adicionar a data de HOJE ao installment_dates para que o vencimento seja atual
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const currentInstallmentDates = installmentDates || [];
+      const updatedDates = [...currentInstallmentDates, todayStr].sort();
+      
       await supabase.from('loans').update({
-        notes: currentNotes.trim()
+        notes: currentNotes.trim(),
+        due_date: todayStr,
+        installment_dates: updatedDates
       }).eq('id', loanId);
       
       await fetchLoans();
@@ -3613,8 +3639,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
+      // 🆕 CORREÇÃO: Adicionar a data de HOJE ao installment_dates para que o vencimento seja atual
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      
+      // Gerar datas passadas das parcelas históricas + data de hoje
+      const historicalDates = selectedHistoricalInterestInstallments.map(idx => 
+        generateInstallmentDate(formData.start_date, idx, frequency)
+      );
+      const updatedDates = [...historicalDates, todayStr].sort();
+      
       await supabase.from('loans').update({
-        notes: currentNotes.trim()
+        notes: currentNotes.trim(),
+        due_date: todayStr,
+        installment_dates: updatedDates
       }).eq('id', loanId);
       
       await fetchLoans();
@@ -7802,6 +7839,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const hasDueTodayStyle = isDueToday && !isOverdue;
                 const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || hasPartialInterestPayments || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
                 
+                // Detectar contrato histórico com juros
+                const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+                
                 const getCardStyle = () => {
                   if (isPaid) {
                     return 'bg-primary border-primary';
@@ -7811,6 +7851,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   }
                   // Cards com pagamento parcial de juros também ficam roxos
                   if (hasPartialInterestPayments && !isOverdue && !isPaid) {
+                    return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+                  }
+                  // 🆕 Contratos históricos com juros ficam ROXOS (não vermelhos)
+                  if (isHistoricalInterestContract && !isOverdue && !isPaid) {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
@@ -8125,6 +8169,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 Venc: {(() => {
                                   const dates = (loan.installment_dates as string[]) || [];
                                   const paidCount = getPaidInstallmentsCount(loan);
+                                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                                  const isHistorical = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+                                  
+                                  // Para contratos históricos, buscar próxima data >= hoje
+                                  if (isHistorical && dates.length > 0) {
+                                    const nextValidDate = dates.slice(paidCount).find(d => d >= todayStr);
+                                    if (nextValidDate) return formatDate(nextValidDate);
+                                  }
+                                  
                                   const nextDate = dates[paidCount] || loan.due_date;
                                   return formatDate(nextDate);
                                 })()}
@@ -9918,8 +9971,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   
                   const displayNotes = cleanNotes(loan.notes);
                   
+                  // Detectar contrato histórico com juros
+                  const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+                  
                   const getCardStyle = () => {
                     if (isPaid) return 'bg-gradient-to-r from-emerald-500 to-primary text-white border-emerald-400';
+                    // 🆕 Contratos históricos com juros ficam ROXOS (não vermelhos)
+                    if (isHistoricalInterestContract && !isOverdue && !isPaid) {
+                      return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+                    }
                     if (isOverdue) return 'bg-gradient-to-r from-red-500/70 to-blue-500/70 text-white border-red-400 dark:from-red-500/80 dark:to-blue-500/80';
                     if (isDueToday) return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
@@ -10121,6 +10181,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   Venc: {(() => {
                                     const dates = (loan.installment_dates as string[]) || [];
                                     const paidCount = getPaidInstallmentsCount(loan);
+                                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                                    const isHistorical = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+                                    
+                                    // Para contratos históricos, buscar próxima data >= hoje
+                                    if (isHistorical && dates.length > 0) {
+                                      const nextValidDate = dates.slice(paidCount).find(d => d >= todayStr);
+                                      if (nextValidDate) return formatDate(nextValidDate);
+                                    }
+                                    
                                     const nextDate = dates[paidCount] || loan.due_date;
                                     return formatDate(nextDate);
                                   })()}
