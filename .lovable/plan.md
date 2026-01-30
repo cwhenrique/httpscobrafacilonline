@@ -1,125 +1,168 @@
 
-# Plano: Corrigir Badge "Atrasado" em Contratos Historicos
+
+# Plano: Atualizar Total a Receber com Juros Históricos
 
 ## Problema Identificado
 
-O badge "Atrasado" aparece incorretamente porque o codigo esta usando `loan.status` do banco de dados em vez do `isOverdue` calculado pela funcao `getLoanStatus()`.
+Quando o usuário cria um contrato histórico com juros antigos, o sistema:
 
-### Evidencia
+1. Cria o empréstimo com `total_interest` calculado para **apenas 1 parcela futura**
+2. Registra os pagamentos de juros históricos na tabela `loan_payments`
+3. Atualiza as notas (`notes`) com as tags
+4. **NÃO atualiza** o campo `total_interest` no banco para refletir TODOS os juros (históricos + futuros)
 
-Na imagem fornecida:
-- Card esta ROXO (correto - `getCardStyle` funciona)
-- Data de vencimento mostra **15/02/2026** (futuro)
-- Badge mostra "Atrasado" (incorreto)
+### Exemplo:
+- Empréstimo de R$ 1.000 com 10% de juros mensais
+- Data início: 15/01/2025 (13 meses atrás)
+- Usuário seleciona 13 parcelas de juros históricos (R$ 100 cada = R$ 1.300 total)
+- Próxima parcela: 15/02/2026 (1 parcela futura)
 
-### Causa Raiz
+**Comportamento atual:**
+- `total_interest` = R$ 100 (apenas 1 parcela futura)
+- `total_paid` = R$ 1.300 (juros históricos registrados)
+- "Total a Receber" exibe: R$ 1.000 + R$ 100 = R$ 1.100 ❌
 
-Linha 8030-8031 do `src/pages/Loans.tsx`:
-```tsx
-<Badge className={...getPaymentStatusColor(loan.status)}>
-  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : ... : getPaymentStatusLabel(loan.status)}
-</Badge>
+**Comportamento esperado:**
+- `total_interest` = R$ 1.400 (13 históricos + 1 futuro = 14 parcelas)
+- `total_paid` = R$ 1.300
+- "Total a Receber" exibe: R$ 1.000 + R$ 1.400 = R$ 2.400 ✓
+
+## Causa Raiz
+
+No `handleSubmit` (linhas 3675-3679) e `handleDailySubmit` (linhas 3065-3069), o update só atualiza:
+- `notes`
+- `due_date`
+- `installment_dates`
+
+Falta atualizar:
+- `total_interest` (com o valor total de juros: históricos + futuros)
+
+## Solução
+
+### Lógica de Cálculo
+
+O `total_interest` correto deve incluir:
+
+1. Juros históricos pagos: `totalHistoricalInterest` (soma dos juros das parcelas selecionadas)
+2. Juros futuros: juros da próxima parcela (mesma taxa por parcela)
+
+**Fórmula:**
+```typescript
+// Número total de parcelas = históricas + 1 futura
+const totalInstallments = selectedHistoricalInterestInstallments.length + 1;
+
+// Calcular juros total baseado no interest_mode
+let correctedTotalInterest: number;
+if (formData.interest_mode === 'per_installment') {
+  correctedTotalInterest = principal * (rate / 100) * totalInstallments;
+} else if (formData.interest_mode === 'compound') {
+  correctedTotalInterest = principal * Math.pow(1 + (rate / 100), totalInstallments) - principal;
+} else {
+  // on_total - juros único sobre o principal
+  correctedTotalInterest = principal * (rate / 100);
+}
+
+// Também ajustar o remaining_balance
+const correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
 ```
 
-O codigo usa `loan.status` do banco de dados (que tem valor `'overdue'`) em vez de usar o `isOverdue` calculado pela funcao `getLoanStatus()` (que retorna `false` corretamente para contratos historicos com data futura).
+### Alterações no Código
 
-### Por que o status no banco esta errado?
+Atualizar o `supabase.from('loans').update(...)` para incluir:
 
-O campo `status` no banco foi definido como `'overdue'` em algum momento anterior (talvez durante a criacao ou por uma trigger antiga) e nao foi atualizado quando corrigimos a logica de datas.
-
-## Solucao
-
-### Opcao 1: Corrigir o Badge no Frontend (Recomendada)
-
-Alterar o badge para usar a logica calculada `isOverdue` em vez de `loan.status`:
-
-```tsx
-// ANTES (linha 8030-8031):
-<Badge className={`... ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
-  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
-</Badge>
-
-// DEPOIS:
-// Calcular o status CORRETO baseado em isOverdue/isPaid calculados
-const displayStatus = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
-
-<Badge className={`... ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(displayStatus)}`}>
-  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(displayStatus)}
-</Badge>
-```
-
-### Opcao 2: Adicionar Logica Especifica para Historical Interest Contracts
-
-Para contratos historicos com juros, sempre mostrar "Só Juros" no badge quando nao estiver realmente em atraso:
-
-```tsx
-// Logica especial para contratos historicos
-const badgeLabel = (() => {
-  if (isPaid) return 'Pago';
-  if (isHistoricalInterestContract && !isOverdue) return 'Juros Antigos';
-  if (isInterestOnlyPayment && !isOverdue) return 'Só Juros';
-  if (isRenegotiated && !isOverdue) return 'Reneg.';
-  if (isOverdue) return 'Atrasado';
-  return 'Pendente';
-})();
-
-const badgeStyle = (() => {
-  if (isPaid) return 'bg-primary/20 text-primary border-primary/30';
-  if (isHistoricalInterestContract && !isOverdue) return 'bg-purple-600/30 text-purple-300 border-purple-500/50';
-  if (isOverdue) return 'bg-destructive text-destructive-foreground';
-  return 'bg-secondary text-secondary-foreground';
-})();
+```typescript
+await supabase.from('loans').update({
+  notes: currentNotes.trim(),
+  due_date: nextDueDate,
+  installment_dates: updatedDates,
+  total_interest: correctedTotalInterest,
+  remaining_balance: correctedRemainingBalance,
+  installments: totalInstallments, // Total de parcelas incluindo históricas
+}).eq('id', loanId);
 ```
 
 ## Arquivos Afetados
 
-| Arquivo | Localizacao | Alteracao |
-|---------|-------------|-----------|
-| src/pages/Loans.tsx | Linha 8030-8031 | Usar displayStatus em vez de loan.status |
+| Arquivo | Função | Localização | Alteração |
+|---------|--------|-------------|-----------|
+| src/pages/Loans.tsx | handleDailySubmit | ~linhas 3050-3070 | Calcular e atualizar total_interest e remaining_balance |
+| src/pages/Loans.tsx | handleSubmit | ~linhas 3665-3680 | Calcular e atualizar total_interest e remaining_balance |
 
-## Codigo Detalhado
+## Código Detalhado
 
-Adicionar antes do JSX (aproximadamente linha 7890, junto com outras variaveis):
+### Para handleSubmit (empréstimos regulares - semanal/quinzenal/mensal):
 
-```tsx
-// 🆕 Calcular status de exibição baseado na lógica calculada, NÃO no banco
-const displayStatus = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
+```typescript
+// ANTES da linha do update (após linha 3666)
+// Calcular o total_interest CORRETO incluindo todas as parcelas (históricos + futura)
+const totalInstallments = selectedHistoricalInterestInstallments.length + 1;
+
+let correctedTotalInterest: number;
+if (formData.interest_mode === 'per_installment') {
+  correctedTotalInterest = principal * (rate / 100) * totalInstallments;
+} else if (formData.interest_mode === 'compound') {
+  correctedTotalInterest = principal * Math.pow(1 + (rate / 100), totalInstallments) - principal;
+} else {
+  // on_total
+  correctedTotalInterest = principal * (rate / 100);
+}
+
+// remaining_balance = principal + juros totais - juros já pagos
+const correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
+
+// ALTERAR o update para incluir total_interest e remaining_balance
+await supabase.from('loans').update({
+  notes: currentNotes.trim(),
+  due_date: nextDueDate,
+  installment_dates: updatedDates,
+  total_interest: correctedTotalInterest,
+  remaining_balance: correctedRemainingBalance,
+  installments: totalInstallments,
+}).eq('id', loanId);
 ```
 
-Alterar o Badge (linha 8030-8031):
+### Para handleDailySubmit (empréstimos diários):
 
-```tsx
-<Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
-  hasSpecialStyle ? 'bg-white/20 text-white border-white/30' 
-  : isHistoricalInterestContract && !isPaid && !isOverdue 
-    ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
-    : getPaymentStatusColor(displayStatus)
-}`}>
-  {isHistoricalInterestContract && !isPaid && !isOverdue 
-    ? 'Juros Antigos' 
-    : isInterestOnlyPayment && !isOverdue 
-      ? 'Só Juros' 
-      : isRenegotiated && !isOverdue 
-        ? 'Reneg.' 
-        : getPaymentStatusLabel(displayStatus)}
-</Badge>
+```typescript
+// ANTES da linha do update (após linha 3052)
+// Para diários: total_interest armazena o valor da parcela diária
+// Mas precisamos garantir que o remaining_balance reflete o total correto
+const totalInstallments = selectedHistoricalInterestInstallments.length + 1;
+const dailyAmount = parseFloat(formData.daily_amount) || 0;
+const correctedRemainingBalance = dailyAmount * totalInstallments - totalHistoricalInterest;
+
+// ALTERAR o update
+await supabase.from('loans').update({
+  notes: currentNotes.trim(),
+  due_date: nextDueDate,
+  installment_dates: updatedDates,
+  remaining_balance: correctedRemainingBalance,
+  installments: totalInstallments,
+}).eq('id', loanId);
 ```
 
 ## Resultado Esperado
 
-| Antes | Depois |
-|-------|--------|
-| Badge: "Atrasado" (vermelho) | Badge: "Juros Antigos" (roxo) |
-| Cor do badge: vermelho | Cor do badge: roxo |
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| total_interest | R$ 100 (1 parcela) | R$ 1.400 (14 parcelas) |
+| remaining_balance | R$ 1.000 + R$ 100 = R$ 1.100 | R$ 1.000 + R$ 1.400 - R$ 1.300 = R$ 1.100 |
+| "Total a Receber" UI | R$ 1.100 | R$ 2.400 |
+
+**Nota:** O `remaining_balance` fica igual em valor numérico, mas agora o cálculo está correto!
+
+O "Total a Receber" na UI é calculado como:
+- `principal_amount + total_interest` (linha 7683)
+
+Então, ao corrigir `total_interest`, o valor exibido será correto.
 
 ## Testes Recomendados
 
-1. Verificar contrato historico com juros criado com data 15/01/2025
-   - Badge deve mostrar "Juros Antigos" em roxo
-   - Nao deve aparecer "Atrasado"
+1. Criar empréstimo mensal com data 15/01/2025, selecionar todas 13 parcelas históricas
+   - Verificar se "Total a Receber" = principal + (juros × 14 parcelas)
 
-2. Verificar contrato normal em atraso
-   - Badge deve continuar mostrando "Atrasado" em vermelho
+2. Criar empréstimo diário com data há 10 dias, selecionar todas as parcelas
+   - Verificar se "Falta Receber" = (valor diário × total parcelas) - juros pagos
 
-3. Verificar contrato quitado
-   - Badge deve mostrar "Pago"
+3. Verificar que o card mostra valores corretos após refetch
+
