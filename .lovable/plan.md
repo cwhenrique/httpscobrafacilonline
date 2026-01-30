@@ -1,184 +1,105 @@
 
-# Plano: Corrigir Registros Históricos de Juros
+# Plano: Corrigir Exibicao de Contratos com Juros Historicos
 
 ## Problemas Identificados
 
-### Problema 1: Só aparece 1 parcela
-O componente `HistoricalInterestRecords` está usando `installmentDates` que vem do campo "Número de Parcelas" do formulário. Se o usuário define apenas 1 parcela, só 1 data é gerada, mesmo que o empréstimo tenha começado há 1 ano.
+Com base na imagem e na analise do codigo, os seguintes problemas foram encontrados:
 
-**Exemplo atual:**
-- Data início: 30/01/2025
-- Data atual: 30/01/2026
-- Número de parcelas: 1 (definido pelo usuário)
-- Resultado: 1 parcela histórica (incorreto - deveria mostrar 12)
+### 1. Card mostrando "Atrasado" incorretamente
+O emprestimo esta aparecendo como atrasado porque a primeira parcela nao paga esta no passado (30/01/2025). Porem, para contratos com juros historicos, isso e esperado - os juros JA foram pagos, e o principal deve vencer HOJE.
 
-### Problema 2: Juros não é editável
-O valor do juros é calculado automaticamente e não há campo para o usuário editar individualmente.
+### 2. Data de vencimento mostrando 30/01/2025
+O campo "Venc:" mostra a data da primeira parcela do array `installment_dates`, que e a data de inicio do emprestimo antigo. Deveria mostrar a proxima data de vencimento real (hoje: 30/01/2026).
 
-## Solução Proposta
+### 3. Card deveria ser roxo
+Contratos com `[HISTORICAL_INTEREST_CONTRACT]` deveriam ter estilo roxo para indicar que sao contratos especiais com juros historicos ja recebidos, similar aos contratos de "So Juros".
 
-### 1. Calcular Parcelas Passadas Automaticamente
+## Causa Raiz
 
-Em vez de depender do número de parcelas informado pelo usuário, o sistema deve calcular quantas parcelas **cabem no período passado** desde a data de início até hoje.
+Quando o usuario cria um emprestimo historico com juros:
+- O sistema registra pagamentos de juros para cada parcela passada com `[INTEREST_ONLY_PAYMENT]`
+- Porem, o `installment_dates` ainda contem apenas as datas do passado
+- O `due_date` e definido como a ultima data do passado
+- O sistema considera o emprestimo em atraso porque a proxima data nao paga esta no passado
 
-**Nova lógica:**
-```
-parcelas_passadas = diferença_em_meses(data_inicio, hoje)
-```
+## Solucao
 
-Por exemplo, se o empréstimo começou em 30/01/2025 e hoje é 30/01/2026:
-- Diferença: 12 meses
-- Parcelas passadas: 12
+### Alteracao 1: Adicionar data atual ao installment_dates
 
-### 2. Tornar Juros Editável por Parcela
-
-Adicionar um estado para armazenar valores de juros editados por parcela:
-```typescript
-const [customInterestAmounts, setCustomInterestAmounts] = useState<Record<number, number>>({});
-```
-
-Permitir que o usuário clique no valor de juros de cada parcela e edite-o.
-
-## Alterações Necessárias
-
-### Arquivo: src/components/HistoricalInterestRecords.tsx
-
-**Alteração 1**: Receber `startDate` e `paymentFrequency` como props em vez de `installmentDates`
-
-**Alteração 2**: Calcular internamente as datas das parcelas passadas desde a data de início até hoje
-
-**Alteração 3**: Adicionar prop para juros editáveis:
-- `customInterestAmounts: Record<number, number>`
-- `onInterestChange: (index: number, amount: number) => void`
-
-**Alteração 4**: Renderizar input editável para cada parcela
-
-### Arquivo: src/pages/Loans.tsx
-
-**Alteração 1**: Adicionar estado para juros customizados:
-```typescript
-const [customHistoricalInterestAmounts, setCustomHistoricalInterestAmounts] = useState<Record<number, number>>({});
-```
-
-**Alteração 2**: Passar novas props para o componente `HistoricalInterestRecords`:
-```tsx
-<HistoricalInterestRecords
-  startDate={formData.start_date}
-  paymentFrequency={formData.payment_type === 'daily' ? 'daily' : 
-                   formData.payment_type === 'weekly' ? 'weekly' :
-                   formData.payment_type === 'biweekly' ? 'biweekly' : 'monthly'}
-  principalAmount={...}
-  interestRate={...}
-  customInterestAmounts={customHistoricalInterestAmounts}
-  onInterestChange={(idx, amount) => setCustomHistoricalInterestAmounts(prev => ({...prev, [idx]: amount}))}
-  selectedIndices={selectedHistoricalInterestInstallments}
-  onSelectionChange={setSelectedHistoricalInterestInstallments}
-/>
-```
-
-**Alteração 3**: Atualizar `handleSubmit` para usar os valores de juros customizados ao registrar pagamentos
-
-## Nova Interface de Registros Históricos
-
-```text
-+------------------------------------------------------------------+
-|  REGISTROS HISTÓRICOS DE JUROS                                   |
-|  Este contrato possui 12 parcelas anteriores à data atual        |
-+------------------------------------------------------------------+
-|                                                                   |
-|  [Todas]  [Nenhuma]                                              |
-|                                                                   |
-|  +--------------------------------------------------------------+|
-|  | [x] Parcela 1 - 30/01/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
-|  | [x] Parcela 2 - 28/02/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
-|  | [x] Parcela 3 - 30/03/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
-|  | ...                                                          ||
-|  | [x] Parcela 12 - 30/12/2025   Juros: [R$ 100,00]  ← EDITÁVEL ||
-|  +--------------------------------------------------------------+|
-|                                                                   |
-|  Total de Juros Históricos: R$ 1.200,00                          |
-+------------------------------------------------------------------+
-```
-
-## Lógica de Cálculo de Datas
-
-A função para calcular datas passadas baseado na frequência:
+Quando criar um contrato com juros historicos, alem das datas passadas (para registro), adicionar a DATA ATUAL como a proxima parcela de vencimento do principal.
 
 ```typescript
-const calculatePastInstallments = (
-  startDateStr: string, 
-  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly'
-): { date: string; index: number }[] => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const startDate = new Date(startDateStr + 'T12:00:00');
-  if (isNaN(startDate.getTime()) || startDate >= today) {
-    return [];
-  }
-  
-  const installments: { date: string; index: number }[] = [];
-  let currentDate = new Date(startDate);
-  let index = 0;
-  
-  // Limitar a 60 parcelas (5 anos mensal, ou ~2 meses diário)
-  while (currentDate < today && index < 60) {
-    installments.push({
-      date: format(currentDate, 'yyyy-MM-dd'),
-      index,
-    });
-    
-    // Avançar para próxima parcela
-    if (frequency === 'daily') {
-      currentDate.setDate(currentDate.getDate() + 1);
-    } else if (frequency === 'weekly') {
-      currentDate.setDate(currentDate.getDate() + 7);
-    } else if (frequency === 'biweekly') {
-      currentDate.setDate(currentDate.getDate() + 14);
-    } else {
-      // monthly
-      currentDate = addMonths(currentDate, 1);
-    }
-    
-    index++;
-  }
-  
-  return installments;
-};
+// Apos registrar todos os juros historicos
+// Atualizar o emprestimo para ter vencimento HOJE
+await supabase.from('loans').update({
+  due_date: format(new Date(), 'yyyy-MM-dd'),
+  installment_dates: [...datasHistoricas, format(new Date(), 'yyyy-MM-dd')]
+}).eq('id', loanId);
 ```
 
-## Fluxo de Uso
+### Alteracao 2: Card roxo para contratos historicos
 
-### Cenário: Usuário cadastra empréstimo mensal de 1 ano atrás
+Adicionar verificacao em `getCardStyle()`:
 
-1. Usuário abre formulário de novo empréstimo
-2. Seleciona cliente e digita R$ 1.000 a 10% ao mês
-3. Define data início: 30/01/2025 (1 ano atrás)
-4. Marca checkbox "Este é um contrato antigo"
-5. Sistema calcula automaticamente: 12 parcelas passadas
-6. Lista de 12 parcelas aparece, cada uma com juros editável
-7. Usuário pode alterar o juros de qualquer parcela individualmente
-8. Usuário clica "Selecionar Todas"
-9. Resumo mostra total de juros históricos baseado nos valores editados
-10. Usuário clica "Criar Empréstimo"
+```typescript
+// Adicionar apos a verificacao de isInterestOnlyPayment
+const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+if (isHistoricalInterestContract && !isOverdue && !isPaid) {
+  return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+}
+```
+
+### Alteracao 3: Logica de vencimento para contratos historicos
+
+O campo "Venc:" deve mostrar a proxima data NAO PAGA que seja hoje ou no futuro:
+
+```typescript
+// No calculo do Venc:
+const dates = (loan.installment_dates as string[]) || [];
+const paidCount = getPaidInstallmentsCount(loan);
+const today = format(new Date(), 'yyyy-MM-dd');
+
+// Encontrar proxima data nao paga >= hoje
+const nextDueDate = dates.slice(paidCount).find(d => d >= today) || dates[paidCount] || loan.due_date;
+```
+
+### Alteracao 4: Nao mostrar "Atrasado" se tem juros historicos e vencimento e hoje
+
+Na funcao `getLoanStatus()`, para contratos `[HISTORICAL_INTEREST_CONTRACT]`:
+- Se os juros historicos foram pagos (verificar pelo numero de pagamentos de juros)
+- E a proxima data de vencimento e HOJE ou no futuro
+- Entao NAO marcar como atrasado
 
 ## Arquivos Afetados
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/HistoricalInterestRecords.tsx` | Reescrever para calcular datas internamente e suportar juros editável |
-| `src/pages/Loans.tsx` | Adicionar estado para juros customizados, atualizar props e handleSubmit |
+| `src/pages/Loans.tsx` | handleSubmit/handleDailySubmit - adicionar data atual ao installment_dates |
+| `src/pages/Loans.tsx` | getCardStyle() - adicionar estilo roxo para HISTORICAL_INTEREST_CONTRACT |
+| `src/pages/Loans.tsx` | getLoanStatus() - ajustar logica de atraso para contratos historicos |
+| `src/pages/Loans.tsx` | Display de "Venc:" - mostrar proxima data valida |
 
-## Estimativa
+## Resultado Esperado
 
-- **Complexidade**: Média
-- **Linhas de código**: ~150
-- **Risco**: Baixo (melhoria de funcionalidade existente)
+Apos as alteracoes, o card do emprestimo devera mostrar:
+
+- **Cor**: Roxo (bg-purple-500/20) indicando contrato com juros historicos
+- **Badge**: "📜 JUROS ANTIGOS" (ja existe)
+- **Status**: "Pendente" ou "Vence Hoje" (NAO "Atrasado")
+- **Venc**: 30/01/2026 (data atual, nao a data de inicio)
+- **Restante a Receber**: R$ 1.100,00 (principal + 1 mes de juros)
+- **Lucro Realizado**: R$ 1.300,00 (juros historicos ja recebidos)
+
+## Complexidade
+
+- **Estimativa**: Media
+- **Linhas de codigo**: ~80-100
+- **Risco**: Baixo (ajuste de logica de exibicao)
 
 ## Testes Recomendados
 
-1. Criar empréstimo mensal com data de 1 ano atrás → deve mostrar 12 parcelas
-2. Criar empréstimo diário com data de 30 dias atrás → deve mostrar 30 parcelas
-3. Editar o valor de juros de uma parcela → o total deve recalcular
-4. Selecionar apenas algumas parcelas → apenas essas devem ser registradas
-5. Verificar que os valores editados são salvos corretamente no banco
+1. Criar emprestimo com data inicio 12 meses atras, selecionar todos os juros historicos
+2. Verificar que o card fica ROXO (nao vermelho)
+3. Verificar que "Venc:" mostra a data de HOJE
+4. Verificar que NAO aparece badge "Atrasado"
+5. Verificar que o restante a receber mostra o valor correto (principal + juros do periodo atual)
