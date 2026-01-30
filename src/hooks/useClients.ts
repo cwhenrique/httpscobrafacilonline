@@ -68,6 +68,7 @@ export function useClients() {
       .insert({
         ...client,
         user_id: effectiveUserId,
+        created_by: user.id, // Track who created the client
       })
       .select()
       .single();

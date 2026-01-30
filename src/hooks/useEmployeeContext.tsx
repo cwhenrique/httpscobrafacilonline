@@ -9,6 +9,7 @@ export type EmployeePermission =
   | 'adjust_dates'
   | 'delete_loans'
   | 'view_clients'
+  | 'view_all_clients'
   | 'create_clients'
   | 'edit_clients'
   | 'delete_clients'
