@@ -119,7 +119,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let sentCount = 0;
-    const notifications: any[] = [];
 
     for (const profile of profiles || []) {
       // Fetch contract payments due TODAY
@@ -210,46 +209,14 @@ const handler = async (req: Request): Promise<Response> => {
         if (sent) sentCount++;
       }
 
-      // Create in-app notifications (even without phone)
-      if (receivables.length > 0) {
-        const totalReceivable = receivables.reduce((sum, r) => sum + Number(r.amount), 0);
-        notifications.push({
-          user_id: profile.id,
-          title: '💰 Contas a Receber Hoje',
-          message: `${receivables.length} cobrança(s) vencem hoje - Total: ${formatCurrency(totalReceivable)}`,
-          type: 'warning',
-        });
-      }
-
-      if (payables.length > 0) {
-        const totalPayable = payables.reduce((sum, p) => sum + Number(p.amount), 0);
-        notifications.push({
-          user_id: profile.id,
-          title: '💸 Contas a Pagar Hoje',
-          message: `${payables.length} conta(s) vencem hoje - Total: ${formatCurrency(totalPayable)}`,
-          type: 'warning',
-        });
-      }
     }
 
-    // Create in-app notifications
-    if (notifications.length > 0) {
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (notifError) {
-        console.error("Error creating notifications:", notifError);
-      }
-    }
-
-    console.log(`Sent ${sentCount} contract reminder messages, created ${notifications.length} notifications`);
+    console.log(`Sent ${sentCount} contract reminder messages`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         sentCount,
-        notificationsCreated: notifications.length,
       }),
       {
         status: 200,

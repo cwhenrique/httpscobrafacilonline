@@ -148,7 +148,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let sentCount = 0;
-    const notifications: any[] = [];
 
     for (const [userId, userPayments] of userPaymentsMap) {
       const { data: profile, error: profileError } = await supabase
@@ -207,24 +206,7 @@ const handler = async (req: Request): Promise<Response> => {
         const sent = await sendWhatsApp(profile.phone, message);
         if (sent) {
           sentCount++;
-          notifications.push({
-            user_id: userId,
-            title: `🚗 Veículo Vence Hoje - ${contractId}`,
-            message: `${clientName} - ${vehicleName}: ${formatCurrency(payment.amount)}`,
-            type: 'info',
-          });
         }
-      }
-    }
-
-    // Create in-app notifications
-    if (notifications.length > 0) {
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (notifError) {
-        console.error("Error creating notifications:", notifError);
       }
     }
 

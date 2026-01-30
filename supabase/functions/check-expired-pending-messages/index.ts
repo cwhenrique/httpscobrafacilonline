@@ -53,8 +53,7 @@ serve(async (req) => {
       throw updateError;
     }
 
-    // Optionally notify users about expired messages
-    // Group by user_id to send one notification per user
+    // Log expired messages per user (no in-app notifications)
     const userExpiredCounts: Record<string, { count: number; names: string[] }> = {};
     for (const msg of expiredMessages) {
       if (!userExpiredCounts[msg.user_id]) {
@@ -64,17 +63,8 @@ serve(async (req) => {
       userExpiredCounts[msg.user_id].names.push(msg.client_name);
     }
 
-    // Create notifications for users
     for (const [userId, data] of Object.entries(userExpiredCounts)) {
-      const clientNames = data.names.slice(0, 3).join(', ');
-      const moreCount = data.count > 3 ? ` e mais ${data.count - 3}` : '';
-      
-      await supabase.from('notifications').insert({
-        user_id: userId,
-        title: 'Mensagens expiradas',
-        message: `${data.count} mensagem(ns) expiraram sem confirmação: ${clientNames}${moreCount}`,
-        type: 'warning',
-      });
+      console.log(`User ${userId}: ${data.count} message(s) expired - ${data.names.slice(0, 3).join(', ')}`);
     }
 
     console.log(`Marked ${expiredMessages.length} messages as expired`);

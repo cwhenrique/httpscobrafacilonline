@@ -40,7 +40,6 @@ import {
   Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { NotificationCenter } from '@/components/NotificationCenter';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 interface DashboardLayoutProps {
@@ -299,7 +298,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="flex items-center gap-1">
-            <NotificationCenter />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -364,7 +362,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <NotificationCenter />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2">

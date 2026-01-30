@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
-import { useOverdueNotifications } from '@/hooks/useOverdueNotifications';
+
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, getNextUnpaidInstallmentDate } from '@/lib/calculations';
 import { Badge } from '@/components/ui/badge';
@@ -48,9 +48,6 @@ export default function Dashboard() {
     setShowEmployeeBanner(false);
   };
   
-  
-  // Enable browser notifications for overdue loans
-  useOverdueNotifications(loans, loansLoading);
 
   const recentLoans = loans.slice(0, 5);
   
