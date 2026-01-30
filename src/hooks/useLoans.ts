@@ -140,7 +140,8 @@ export function useLoans() {
     queryKey: ['loans', effectiveUserId],
     queryFn: () => fetchLoansFromDB(effectiveUserId!),
     enabled: !!user && !employeeLoading && !!effectiveUserId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 segundos - dados considerados frescos por menos tempo
+    refetchInterval: 1000 * 60, // 60 segundos - atualiza automaticamente em background
     refetchOnWindowFocus: true, // Recarrega ao voltar para a aba
     refetchOnMount: 'always', // Sempre recarrega ao montar o componente
   });
