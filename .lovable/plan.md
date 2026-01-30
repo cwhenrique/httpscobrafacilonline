@@ -1,97 +1,52 @@
 
 
-# Plano: Corrigir Sub-Parcela de Maria do Rosário
+# Plano: Remover Sistema de Notificações In-App
 
-## Diagnóstico Confirmado
+## Contexto do Problema
 
-**Usuário:** Ray Dias (nadinbnd53@gmail.com)
-**Cliente:** Maria do Rosário
-**Empréstimo ID:** `0000e142-b05c-44a2-b775-c17200eaad65`
+O sistema atual cria notificações in-app (dentro do aplicativo) que ficam alertando sobre atrasos mesmo quando os empréstimos não estão realmente em atraso. As mensagens do WhatsApp **NÃO** serão afetadas.
 
-### Estado Atual das Notes
+## O que será removido
 
-```
-[OVERDUE_CONSOLIDATED:130.00:2026-01-20:13]
-[OVERDUE_CONFIG:fixed:10]
-[HISTORICAL_CONTRACT] 
-[PARTIAL_PAID:0:1278] 
-[PARTIAL_PAID:1:1278] 
-[PARTIAL_PAID:2:1278] 
-[PARTIAL_PAID:3:1278]
-[PARTIAL_PAID:4:1278.00]
-[ADVANCE_SUBPARCELA:4:478.00:2026-01-07:1768918367648]  ← Sub-parcela PENDENTE (deveria ser _PAID)
-[PARTIAL_PAID:-1:1278.00]  ← Tag INVÁLIDA (índice -1)
-```
+### 1. Componente NotificationCenter
+O ícone de sino (🔔) no header que mostra as notificações será removido.
 
-### Problema
+### 2. Hook useOverdueNotifications
+O código que detecta empréstimos em atraso e cria notificações in-app no Dashboard.
 
-| Sintoma | Causa |
-|---------|-------|
-| Sub-parcela aparece como paga na tela de pagamento | Pagamento de R$ 1.278,00 foi registrado |
-| Parcela 5 aparece em atraso | Tag `ADVANCE_SUBPARCELA` não foi renomeada para `_PAID` |
-| Tag com índice -1 | Bug no código ao processar sub-parcela |
+### 3. Notificações das Edge Functions
+Remover a criação de notificações in-app das seguintes funções (mantendo os envios de WhatsApp):
 
-## Solução
+| Edge Function | O que faz | O que será removido |
+|---------------|-----------|---------------------|
+| check-overdue-loans | Verifica empréstimos em atraso | Notificações in-app |
+| check-overdue-contracts | Verifica contratos em atraso | Notificações in-app |
+| check-overdue-vehicles | Verifica veículos em atraso | Notificações in-app |
+| check-bills-due | Verifica contas vencendo | Notificações in-app |
+| check-loan-reminders | Lembretes de empréstimos | Notificações in-app |
+| check-contract-reminders | Lembretes de contratos | Notificações in-app |
+| check-vehicle-reminders | Lembretes de veículos | Notificações in-app |
+| check-subscription-expiring | Assinatura expirando | Notificações in-app |
+| check-expired-pending-messages | Mensagens expiradas | Notificações in-app |
 
-### Parte 1: Correção de Dados (SQL)
+## O que NÃO será afetado
 
-Executar migração para corrigir as notes do empréstimo:
-
-```sql
-UPDATE loans 
-SET notes = REPLACE(
-  REPLACE(
-    notes, 
-    '[ADVANCE_SUBPARCELA:4:478.00:2026-01-07:1768918367648]', 
-    '[ADVANCE_SUBPARCELA_PAID:4:478.00:2026-01-07:1768918367648]'
-  ),
-  '[PARTIAL_PAID:-1:1278.00]', 
-  ''
-)
-WHERE id = '0000e142-b05c-44a2-b775-c17200eaad65';
-```
-
-**Resultado esperado das notes:**
-```
-[OVERDUE_CONSOLIDATED:130.00:2026-01-20:13]
-[OVERDUE_CONFIG:fixed:10]
-[HISTORICAL_CONTRACT] 
-[PARTIAL_PAID:0:1278] 
-[PARTIAL_PAID:1:1278] 
-[PARTIAL_PAID:2:1278] 
-[PARTIAL_PAID:3:1278]
-[PARTIAL_PAID:4:1278.00]
-[ADVANCE_SUBPARCELA_PAID:4:478.00:2026-01-07:1768918367648]  ← Agora marcada como PAGA
-```
-
-### Parte 2: Correção Preventiva no Código
-
-**Arquivo:** `src/pages/Loans.tsx`
-
-#### Alteração 1: Buscar dados frescos antes de processar pagamento
-
-No início de `handlePaymentSubmit`, buscar dados atualizados do empréstimo para evitar race conditions.
-
-#### Alteração 2: Validar se sub-parcela existe
-
-Quando `isAdvanceSubparcelaPayment` é `true`, verificar se `targetSubparcela` foi encontrada. Se não, exibir erro e abortar.
-
-#### Alteração 3: Bloquear índice negativo
-
-Adicionar validação para impedir que `targetInstallmentIndex` seja negativo no bloco de pagamento parcial.
+- ✅ Mensagens de WhatsApp continuarão funcionando normalmente
+- ✅ Toasts (avisos temporários na tela) continuarão funcionando
+- ✅ Todas as demais funcionalidades do sistema
 
 ## Arquivos Afetados
 
-| Arquivo | Tipo de Alteração |
-|---------|-------------------|
-| Migração SQL | Corrigir dados do empréstimo específico |
-| src/pages/Loans.tsx | Adicionar validações preventivas |
+| Arquivo | Ação |
+|---------|------|
+| src/components/NotificationCenter.tsx | Excluir |
+| src/hooks/useNotifications.ts | Excluir |
+| src/hooks/useOverdueNotifications.ts | Excluir |
+| src/components/layout/DashboardLayout.tsx | Remover referências |
+| src/pages/Dashboard.tsx | Remover uso do hook |
+| Todas as 9 edge functions listadas | Remover inserções em `notifications` |
 
-## Resultado Esperado
+## Observação sobre a tabela `notifications`
 
-| Antes | Depois |
-|-------|--------|
-| Sub-parcela mostra pendente | Sub-parcela mostra como paga |
-| Parcela 5 em atraso | Parcela 5 com status correto |
-| Tags inválidas nas notes | Notes limpas e consistentes |
+A tabela `notifications` no banco de dados permanecerá intacta. Você pode optar por limpar os dados antigos posteriormente ou manter para histórico.
 
