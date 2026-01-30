@@ -561,6 +561,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   // 🆕 Estado para parcelas de juros históricos selecionadas (novo sistema)
   const [selectedHistoricalInterestInstallments, setSelectedHistoricalInterestInstallments] = useState<number[]>([]);
   
+  // 🆕 Estado para valores de juros customizados por parcela
+  const [customHistoricalInterestAmounts, setCustomHistoricalInterestAmounts] = useState<Record<number, number>>({});
+  
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
   
@@ -2955,8 +2958,75 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }
     
     
-    // 🆕 Registrar juros históricos como valor único (simplificado)
-    if (formData.is_historical_contract && parseFloat(historicalInterestReceived) > 0) {
+    // 🆕 Registrar pagamentos de juros históricos por parcela para empréstimos diários (novo sistema)
+    if (result?.data && formData.is_historical_contract && selectedHistoricalInterestInstallments.length > 0) {
+      const loanId = result.data.id;
+      
+      // Buscar notas atuais
+      const { data: currentLoan } = await supabase
+        .from('loans')
+        .select('notes')
+        .eq('id', loanId)
+        .single();
+      
+      let currentNotes = currentLoan?.notes || '';
+      
+      // Adicionar tag de contrato histórico com juros
+      if (!currentNotes.includes('[HISTORICAL_INTEREST_CONTRACT]')) {
+        currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
+      }
+      
+      // Calcular juros padrão por parcela para empréstimos diários
+      const principalPerInstallment = principalAmount / numDays;
+      const defaultInterestPerInstallment = Math.max(0, dailyAmount - principalPerInstallment);
+      
+      // Registrar pagamento de juros para cada parcela selecionada
+      const successfulPayments: number[] = [];
+      let totalHistoricalInterest = 0;
+      
+      for (const idx of selectedHistoricalInterestInstallments) {
+        // Usar valor customizado se existir, senão usar padrão
+        const interestAmount = customHistoricalInterestAmounts[idx] !== undefined 
+          ? customHistoricalInterestAmounts[idx] 
+          : defaultInterestPerInstallment;
+        
+        const installmentDate = installmentDates[idx] || format(addMonths(new Date(formData.start_date + 'T12:00:00'), idx), 'yyyy-MM-dd');
+        
+        const paymentResult = await registerPayment({
+          loan_id: loanId,
+          amount: interestAmount,
+          principal_paid: 0,  // NÃO reduz principal
+          interest_paid: interestAmount,  // Apenas juros
+          payment_date: installmentDate,
+          notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${interestAmount.toFixed(2)}:${installmentDate}] Juros parcela ${idx + 1}`,
+        });
+        
+        if (!paymentResult.error) {
+          successfulPayments.push(idx);
+          totalHistoricalInterest += interestAmount;
+        } else {
+          console.error(`[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros parcela ${idx + 1}:`, paymentResult.error);
+        }
+      }
+      
+      // Adicionar tags ao empréstimo
+      currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
+      
+      await supabase.from('loans').update({
+        notes: currentNotes.trim()
+      }).eq('id', loanId);
+      
+      await fetchLoans();
+      
+      if (successfulPayments.length === selectedHistoricalInterestInstallments.length) {
+        toast.success(`${successfulPayments.length} pagamento(s) de juros históricos registrado(s): ${formatCurrency(totalHistoricalInterest)}`);
+      } else if (successfulPayments.length > 0) {
+        toast.warning(`${successfulPayments.length} de ${selectedHistoricalInterestInstallments.length} pagamento(s) registrado(s)`);
+      }
+    }
+    
+    // 🆕 Fallback: Registrar juros históricos como valor único (sistema antigo - mantido para compatibilidade)
+    else if (formData.is_historical_contract && parseFloat(historicalInterestReceived) > 0) {
       // Buscar o empréstimo recém-criado
       const { data: newLoans } = await supabase
         .from('loans')
@@ -2987,7 +3057,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           principal_paid: 0,
           interest_paid: parseFloat(historicalInterestReceived),
           payment_date: formData.start_date,
-          notes: `[JUROS_HISTORICO] Total de juros antigos já recebidos`,
+          notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO] Total de juros antigos já recebidos`,
         });
         
         if (histInterestResult.error) {
@@ -3457,7 +3527,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // 🆕 Registrar pagamentos de juros históricos por parcela (novo sistema)
     if (result?.data && formData.is_historical_contract && selectedHistoricalInterestInstallments.length > 0) {
       const loanId = result.data.id;
-      const interestPerInstallment = historicalInterestData.interestPerInstallment;
       
       // Buscar notas atuais
       const { data: currentLoan } = await supabase
@@ -3473,30 +3542,75 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
       }
       
+      // Calcular juros padrão por parcela (para quando não houver valor customizado)
+      const principal = parseFloat(formData.principal_amount) || 0;
+      const rate = parseFloat(formData.interest_rate) || 0;
+      const numInstallments = selectedHistoricalInterestInstallments.length;
+      let defaultInterestPerInstallment = 0;
+      
+      if (numInstallments > 0 && principal > 0) {
+        let totalInterest = 0;
+        if (formData.interest_mode === 'per_installment') {
+          totalInterest = principal * (rate / 100) * numInstallments;
+        } else if (formData.interest_mode === 'compound') {
+          totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        } else {
+          totalInterest = principal * (rate / 100);
+        }
+        defaultInterestPerInstallment = Math.max(0, totalInterest / numInstallments);
+      }
+      
+      // Gerar datas das parcelas baseado na frequência
+      const generateInstallmentDate = (startDateStr: string, index: number, frequency: string): string => {
+        const start = new Date(startDateStr + 'T12:00:00');
+        let date = new Date(start);
+        
+        if (frequency === 'daily') {
+          date.setDate(date.getDate() + index);
+        } else if (frequency === 'weekly') {
+          date.setDate(date.getDate() + (index * 7));
+        } else if (frequency === 'biweekly') {
+          date.setDate(date.getDate() + (index * 14));
+        } else {
+          date = addMonths(start, index);
+        }
+        
+        return format(date, 'yyyy-MM-dd');
+      };
+      
+      const frequency = formData.payment_type === 'weekly' ? 'weekly' :
+                       formData.payment_type === 'biweekly' ? 'biweekly' : 'monthly';
+      
       // Registrar pagamento de juros para cada parcela selecionada
       const successfulPayments: number[] = [];
+      let totalHistoricalInterest = 0;
+      
       for (const idx of selectedHistoricalInterestInstallments) {
-        const installment = historicalInterestData.installments.find(i => i.index === idx);
-        if (!installment) continue;
+        // Usar valor customizado se existir, senão usar padrão
+        const interestAmount = customHistoricalInterestAmounts[idx] !== undefined 
+          ? customHistoricalInterestAmounts[idx] 
+          : defaultInterestPerInstallment;
+        
+        const installmentDate = generateInstallmentDate(formData.start_date, idx, frequency);
         
         const paymentResult = await registerPayment({
           loan_id: loanId,
-          amount: installment.interestAmount,
+          amount: interestAmount,
           principal_paid: 0,  // NÃO reduz principal
-          interest_paid: installment.interestAmount,  // Apenas juros
-          payment_date: installment.date,
-          notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${installment.interestAmount.toFixed(2)}:${installment.date}] Juros parcela ${idx + 1}`,
+          interest_paid: interestAmount,  // Apenas juros
+          payment_date: installmentDate,
+          notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${interestAmount.toFixed(2)}:${installmentDate}] Juros parcela ${idx + 1}`,
         });
         
         if (!paymentResult.error) {
           successfulPayments.push(idx);
+          totalHistoricalInterest += interestAmount;
         } else {
           console.error(`[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros parcela ${idx + 1}:`, paymentResult.error);
         }
       }
       
       // Adicionar tags ao empréstimo
-      const totalHistoricalInterest = successfulPayments.length * interestPerInstallment;
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
       await supabase.from('loans').update({
@@ -4513,6 +4627,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setHistoricalInterestReceived('');
     setHistoricalInterestNotes('');
     setSelectedHistoricalInterestInstallments([]);
+    setCustomHistoricalInterestAmounts({});
     
     // Limpar do sessionStorage
     const keysToRemove = [
@@ -6273,16 +6388,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       )}
                       
                       {/* 🆕 Nova seção de Registros Históricos de Juros */}
-                      {formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
+                      {formData.is_historical_contract && formData.start_date && (
                         <HistoricalInterestRecords
-                          installmentDates={installmentDates}
+                          startDate={formData.start_date}
+                          paymentFrequency="daily"
                           principalAmount={parseFloat(formData.principal_amount) || 0}
-                          interestRate={parseFloat(formData.interest_rate || formData.daily_interest_rate) || 0}
+                          interestRate={parseFloat(formData.daily_interest_rate) || 0}
                           interestMode={formData.interest_mode as 'per_installment' | 'on_total' | 'compound'}
-                          paymentType={formData.payment_type === 'daily' || isDailyDialogOpen ? 'daily' : formData.payment_type}
                           dailyAmount={parseFloat(formData.daily_amount) || 0}
                           selectedIndices={selectedHistoricalInterestInstallments}
                           onSelectionChange={setSelectedHistoricalInterestInstallments}
+                          customInterestAmounts={customHistoricalInterestAmounts}
+                          onInterestChange={(idx, amount) => setCustomHistoricalInterestAmounts(prev => ({...prev, [idx]: amount}))}
                         />
                       )}
                     </div>
@@ -6849,15 +6966,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     )}
                       
                     {/* 🆕 Nova seção de Registros Históricos de Juros */}
-                    {formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
+                    {formData.is_historical_contract && formData.start_date && (
                       <HistoricalInterestRecords
-                        installmentDates={installmentDates}
+                        startDate={formData.start_date}
+                        paymentFrequency={formData.payment_type === 'daily' ? 'daily' : 
+                                         formData.payment_type === 'weekly' ? 'weekly' :
+                                         formData.payment_type === 'biweekly' ? 'biweekly' : 'monthly'}
                         principalAmount={parseFloat(formData.principal_amount) || 0}
                         interestRate={parseFloat(formData.interest_rate) || 0}
                         interestMode={formData.interest_mode as 'per_installment' | 'on_total' | 'compound'}
-                        paymentType={formData.payment_type}
                         selectedIndices={selectedHistoricalInterestInstallments}
                         onSelectionChange={setSelectedHistoricalInterestInstallments}
+                        customInterestAmounts={customHistoricalInterestAmounts}
+                        onInterestChange={(idx, amount) => setCustomHistoricalInterestAmounts(prev => ({...prev, [idx]: amount}))}
                       />
                     )}
                   </div>
