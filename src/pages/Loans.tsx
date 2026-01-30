@@ -3031,10 +3031,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
-      // 🆕 CORREÇÃO: Adicionar a data de HOJE ao installment_dates para que o vencimento seja atual
+      // 🆕 CORREÇÃO: Para contratos históricos com juros, o installment_dates contém APENAS a data de hoje
+      // As datas históricas são apenas para registro nos pagamentos, não no contrato
+      // Isso evita que o sistema marque o contrato como atrasado baseado em datas antigas
       const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const currentInstallmentDates = installmentDates || [];
-      const updatedDates = [...currentInstallmentDates, todayStr].sort();
+      const updatedDates = [todayStr]; // APENAS a data de hoje, não as datas passadas
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
@@ -3639,14 +3640,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Adicionar tags ao empréstimo
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
-      // 🆕 CORREÇÃO: Adicionar a data de HOJE ao installment_dates para que o vencimento seja atual
+      // 🆕 CORREÇÃO: Para contratos históricos com juros, o installment_dates contém APENAS a data de hoje
+      // As datas históricas são apenas para registro nos pagamentos, não no contrato
+      // Isso evita que o sistema marque o contrato como atrasado baseado em datas antigas
       const todayStr = format(new Date(), 'yyyy-MM-dd');
-      
-      // Gerar datas passadas das parcelas históricas + data de hoje
-      const historicalDates = selectedHistoricalInterestInstallments.map(idx => 
-        generateInstallmentDate(formData.start_date, idx, frequency)
-      );
-      const updatedDates = [...historicalDates, todayStr].sort();
+      const updatedDates = [todayStr]; // APENAS a data de hoje, não as datas passadas
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
@@ -5009,22 +5007,48 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }
       notesText += `\nValor que falta: R$ ${safeRemaining.toFixed(2)}`;
       
-      // ROLAR TODAS AS DATAS DAS PARCELAS PARA FRENTE baseado no tipo de pagamento
-      let newInstallmentDates = currentDates.map(dateStr => {
-        const date = new Date(dateStr + 'T12:00:00');
-        let newDate: Date;
+      // 🆕 CORREÇÃO: Para contratos históricos, usar a data de HOJE como base para rolar
+      // NÃO usar as datas históricas que podem estar no passado
+      const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
+      
+      let newInstallmentDates: string[];
+      
+      if (isHistoricalInterestContract) {
+        // Para contratos históricos, calcular a próxima data a partir de HOJE
+        const todayDate = new Date();
+        todayDate.setHours(12, 0, 0, 0);
+        
+        let nextDate: Date;
         if (loan.payment_type === 'weekly') {
-          newDate = new Date(date);
-          newDate.setDate(newDate.getDate() + 7);  // +1 semana
+          nextDate = new Date(todayDate);
+          nextDate.setDate(nextDate.getDate() + 7);
         } else if (loan.payment_type === 'biweekly') {
-          newDate = new Date(date);
-          newDate.setDate(newDate.getDate() + 15); // +15 dias (quinzenal)
+          nextDate = new Date(todayDate);
+          nextDate.setDate(nextDate.getDate() + 15);
         } else {
-          // Usar addMonths do date-fns para evitar bugs na virada de ano
-          newDate = addMonths(date, 1);
+          nextDate = addMonths(todayDate, 1);
         }
-        return format(newDate, 'yyyy-MM-dd');
-      });
+        
+        // APENAS a próxima data, não rolar datas antigas
+        newInstallmentDates = [format(nextDate, 'yyyy-MM-dd')];
+      } else {
+        // ROLAR TODAS AS DATAS DAS PARCELAS PARA FRENTE baseado no tipo de pagamento
+        newInstallmentDates = currentDates.map(dateStr => {
+          const date = new Date(dateStr + 'T12:00:00');
+          let newDate: Date;
+          if (loan.payment_type === 'weekly') {
+            newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + 7);  // +1 semana
+          } else if (loan.payment_type === 'biweekly') {
+            newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + 15); // +15 dias (quinzenal)
+          } else {
+            // Usar addMonths do date-fns para evitar bugs na virada de ano
+            newDate = addMonths(date, 1);
+          }
+          return format(newDate, 'yyyy-MM-dd');
+        });
+      }
       
       // Se a data prometida foi especificada, usar como base para a próxima parcela em aberto
       if (renegotiateData.promised_date && paidInstallmentsCount < newInstallmentDates.length) {
@@ -7846,15 +7870,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   if (isPaid) {
                     return 'bg-primary border-primary';
                   }
+                  // 🆕 Contratos históricos com juros ficam ROXOS SEMPRE (não vermelhos)
+                  // Verificar ANTES da lógica de isOverdue para garantir cor roxa
+                  if (isHistoricalInterestContract && !isPaid) {
+                    return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
+                  }
                   if (isInterestOnlyPayment && !isOverdue) {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   // Cards com pagamento parcial de juros também ficam roxos
                   if (hasPartialInterestPayments && !isOverdue && !isPaid) {
-                    return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
-                  }
-                  // 🆕 Contratos históricos com juros ficam ROXOS (não vermelhos)
-                  if (isHistoricalInterestContract && !isOverdue && !isPaid) {
                     return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                   }
                   if (isRenegotiated && !isOverdue) {
@@ -9976,8 +10001,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   
                   const getCardStyle = () => {
                     if (isPaid) return 'bg-gradient-to-r from-emerald-500 to-primary text-white border-emerald-400';
-                    // 🆕 Contratos históricos com juros ficam ROXOS (não vermelhos)
-                    if (isHistoricalInterestContract && !isOverdue && !isPaid) {
+                    // 🆕 Contratos históricos com juros ficam ROXOS SEMPRE (não vermelhos)
+                    // Verificar ANTES da lógica de isOverdue para garantir cor roxa
+                    if (isHistoricalInterestContract && !isPaid) {
                       return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                     }
                     if (isOverdue) return 'bg-gradient-to-r from-red-500/70 to-blue-500/70 text-white border-red-400 dark:from-red-500/80 dark:to-blue-500/80';
