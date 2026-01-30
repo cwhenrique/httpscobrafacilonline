@@ -2,6 +2,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useOperationalStats } from '@/hooks/useOperationalStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 
@@ -34,6 +35,7 @@ import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 export default function Dashboard() {
   const { stats, loading: statsLoading } = useDashboardStats();
+  const { stats: opStats, refetch: refetchOpStats } = useOperationalStats();
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
   const { isEmployee, isOwner, hasPermission, loading: employeeLoading } = useEmployeeContext();
@@ -135,36 +137,37 @@ export default function Dashboard() {
     },
   ];
 
+  // Usar useOperationalStats para métricas financeiras (mesma fonte que ReportsLoans)
   const financialCards = [
     {
-      title: 'A Receber',
-      value: formatCurrency(stats.totalToReceive),
-      subtitle: 'com juros de atraso',
+      title: 'Total a Receber',
+      value: formatCurrency(opStats.pendingAmount),
+      subtitle: 'incluindo multas e juros',
       icon: TrendingUp,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
     {
       title: 'Recebido',
-      value: formatCurrency(stats.totalReceived),
+      value: formatCurrency(opStats.totalReceivedAllTime),
       subtitle: 'total histórico',
       icon: Receipt,
       color: 'text-success',
       bg: 'bg-success/10',
     },
     {
-      title: 'Pendente',
-      value: formatCurrency(stats.totalPending),
-      subtitle: 'falta receber',
-      icon: Clock,
+      title: 'Capital na Rua',
+      value: formatCurrency(opStats.totalOnStreet),
+      subtitle: 'principal emprestado',
+      icon: DollarSign,
       color: 'text-warning',
       bg: 'bg-warning/10',
     },
     {
-      title: 'Ticket Médio',
-      value: formatCurrency(averageTicket),
-      subtitle: 'empréstimos ativos',
-      icon: TrendingUp,
+      title: 'Juros a Receber',
+      value: formatCurrency(opStats.pendingInterest),
+      subtitle: 'juros pendentes',
+      icon: Clock,
       color: 'text-purple-500',
       bg: 'bg-purple-500/10',
     },
