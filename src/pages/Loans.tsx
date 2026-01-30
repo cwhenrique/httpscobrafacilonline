@@ -804,8 +804,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   
   // Generate weekly dates (7 days apart, optionally skipping weekends and holidays)
   const generateWeeklyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    // Validar data antes de processar
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      return [];
+    }
+    
     const dates: string[] = [];
     let currentDate = new Date(startDate + 'T12:00:00');
+    
+    // Verificar se a data é válida
+    if (isNaN(currentDate.getTime())) {
+      return [];
+    }
     
     for (let i = 0; i < count; i++) {
       // Avançar para a próxima data válida se cair em dia pulado
@@ -827,8 +837,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   
   // Generate biweekly dates (15 days apart, optionally skipping weekends and holidays)
   const generateBiweeklyDates = (startDate: string, count: number, skipSat = false, skipSun = false, skipHol = false): string[] => {
+    // Validar data antes de processar
+    if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      return [];
+    }
+    
     const dates: string[] = [];
     let currentDate = new Date(startDate + 'T12:00:00');
+    
+    // Verificar se a data é válida
+    if (isNaN(currentDate.getTime())) {
+      return [];
+    }
     
     for (let i = 0; i < count; i++) {
       // Avançar para a próxima data válida se cair em dia pulado
