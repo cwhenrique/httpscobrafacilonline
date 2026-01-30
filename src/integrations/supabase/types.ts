@@ -1482,6 +1482,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      can_view_client_optimized: {
+        Args: {
+          _client_created_by: string
+          _client_id: string
+          _client_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       can_view_loan: {
         Args: {
           _loan_created_by: string
