@@ -4198,12 +4198,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     
     if (isAdvanceSubparcelaPayment) {
       // Pagamento de sub-parcela de adiantamento
+      // IMPORTANTE: Usar freshLoanData.notes para evitar race conditions
       const subIdx = Math.abs(paymentData.partial_installment_index!) - 1;
-      const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
+      const advanceSubparcelas = getAdvanceSubparcelasFromNotes(freshLoanData.notes || selectedLoan.notes);
       targetSubparcela = advanceSubparcelas[subIdx] || null;
-      if (targetSubparcela) {
-        targetInstallmentIndex = targetSubparcela.originalIndex;
+      
+      if (!targetSubparcela) {
+        // SUB-PARCELA NÃO ENCONTRADA - abortar e informar usuário
+        console.error('[PAYMENT_ERROR] Sub-parcela não encontrada:', {
+          subIdx,
+          advanceSubparcelas,
+          freshNotes: freshLoanData.notes,
+          selectedLoanNotes: selectedLoan.notes
+        });
+        toast.error('Sub-parcela não encontrada. Os dados podem ter sido alterados. Atualize a página e tente novamente.');
+        paymentLockRef.current = false;
+        setIsPaymentSubmitting(false);
+        return;
       }
+      
+      targetInstallmentIndex = targetSubparcela.originalIndex;
     } else if (paymentData.payment_type === 'partial' && paymentData.partial_installment_index !== null) {
       // Se o usuário selecionou uma parcela específica, usar ela
       targetInstallmentIndex = paymentData.partial_installment_index;
@@ -4292,6 +4306,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_paid = amount * interestRatio;
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'partial') {
+      // VALIDAÇÃO: Se targetInstallmentIndex é negativo, algo deu errado
+      // (provavelmente uma sub-parcela que não foi encontrada corretamente)
+      if (targetInstallmentIndex < 0) {
+        console.error('[PAYMENT_ERROR] targetInstallmentIndex negativo:', {
+          targetInstallmentIndex,
+          paymentType: paymentData.payment_type,
+          partialInstallmentIndex: paymentData.partial_installment_index
+        });
+        toast.error('Erro ao processar pagamento. Por favor, atualize a página e tente novamente.');
+        paymentLockRef.current = false;
+        setIsPaymentSubmitting(false);
+        return;
+      }
+      
       // Pagamento parcial - atualizar tracking da parcela selecionada
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
       const dates = (selectedLoan.installment_dates as string[]) || [];
