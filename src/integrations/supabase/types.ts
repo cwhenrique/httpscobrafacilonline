@@ -107,6 +107,45 @@ export type Database = {
         }
         Relationships: []
       }
+      client_assignments: {
+        Row: {
+          assigned_by: string
+          client_id: string
+          created_at: string | null
+          employee_id: string
+          id: string
+        }
+        Insert: {
+          assigned_by: string
+          client_id: string
+          created_at?: string | null
+          employee_id: string
+          id?: string
+        }
+        Update: {
+          assigned_by?: string
+          client_id?: string
+          created_at?: string | null
+          employee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_documents: {
         Row: {
           client_id: string
@@ -161,6 +200,7 @@ export type Database = {
           complement: string | null
           cpf: string | null
           created_at: string
+          created_by: string
           email: string | null
           facebook: string | null
           full_name: string
@@ -192,6 +232,7 @@ export type Database = {
           complement?: string | null
           cpf?: string | null
           created_at?: string
+          created_by?: string
           email?: string | null
           facebook?: string | null
           full_name: string
@@ -223,6 +264,7 @@ export type Database = {
           complement?: string | null
           cpf?: string | null
           created_at?: string
+          created_by?: string
           email?: string | null
           facebook?: string | null
           full_name?: string
@@ -1431,6 +1473,15 @@ export type Database = {
         Args: { p_late: number; p_on_time: number; p_total_loans: number }
         Returns: number
       }
+      can_view_client: {
+        Args: {
+          _client_created_by: string
+          _client_id: string
+          _client_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       can_view_loan: {
         Args: {
           _loan_created_by: string
@@ -1510,6 +1561,7 @@ export type Database = {
         | "view_settings"
         | "view_all_loans"
         | "view_dashboard"
+        | "view_all_clients"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
@@ -1665,6 +1717,7 @@ export const Constants = {
         "view_settings",
         "view_all_loans",
         "view_dashboard",
+        "view_all_clients",
       ],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],

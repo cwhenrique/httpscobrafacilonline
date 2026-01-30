@@ -10,9 +10,10 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle, KeyRound } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle, KeyRound, UserCog } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
+import { ClientAssignmentDialog } from '@/components/ClientAssignmentDialog';
 
 interface Employee {
   id: string;
@@ -34,7 +35,8 @@ const PERMISSION_GROUPS = {
     { key: 'delete_loans' as EmployeePermission, label: 'Excluir empréstimos' },
   ],
   'Clientes': [
-    { key: 'view_clients' as EmployeePermission, label: 'Ver clientes' },
+    { key: 'view_clients' as EmployeePermission, label: 'Ver clientes próprios' },
+    { key: 'view_all_clients' as EmployeePermission, label: 'Ver TODOS os clientes' },
     { key: 'create_clients' as EmployeePermission, label: 'Cadastrar clientes' },
     { key: 'edit_clients' as EmployeePermission, label: 'Editar clientes' },
     { key: 'delete_clients' as EmployeePermission, label: 'Excluir clientes' },
@@ -63,6 +65,8 @@ export default function EmployeeManagement() {
   const [deleting, setDeleting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [maxEmployees, setMaxEmployees] = useState(3);
+  const [showClientAssignmentDialog, setShowClientAssignmentDialog] = useState(false);
+  const [employeeForAssignment, setEmployeeForAssignment] = useState<Employee | null>(null);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -508,6 +512,17 @@ export default function EmployeeManagement() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    title="Atribuir clientes"
+                    onClick={() => {
+                      setEmployeeForAssignment(employee);
+                      setShowClientAssignmentDialog(true);
+                    }}
+                  >
+                    <UserCog className="w-4 h-4 text-primary" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => openEditDialog(employee)}
                   >
                     <Edit className="w-4 h-4" />
@@ -652,6 +667,19 @@ export default function EmployeeManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de atribuição de clientes */}
+      {employeeForAssignment && (
+        <ClientAssignmentDialog
+          open={showClientAssignmentDialog}
+          onOpenChange={(open) => {
+            setShowClientAssignmentDialog(open);
+            if (!open) setEmployeeForAssignment(null);
+          }}
+          employeeId={employeeForAssignment.id}
+          employeeName={employeeForAssignment.name}
+        />
+      )}
     </Card>
   );
 }

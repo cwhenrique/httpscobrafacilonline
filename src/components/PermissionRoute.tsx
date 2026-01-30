@@ -16,6 +16,7 @@ const PERMISSION_LABELS: Record<EmployeePermission, string> = {
   adjust_dates: 'Ajustar Datas',
   delete_loans: 'Excluir Empréstimos',
   view_clients: 'Visualizar Clientes',
+  view_all_clients: 'Ver Todos os Clientes',
   create_clients: 'Criar Clientes',
   edit_clients: 'Editar Clientes',
   delete_clients: 'Excluir Clientes',
