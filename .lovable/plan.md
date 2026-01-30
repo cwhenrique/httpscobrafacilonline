@@ -1,263 +1,184 @@
 
+# Plano: Corrigir Registros Históricos de Juros
 
-# Plano: Registros Historicos com Pagamentos de Juros Automaticos
+## Problemas Identificados
 
-## Entendendo o Cenario
+### Problema 1: Só aparece 1 parcela
+O componente `HistoricalInterestRecords` está usando `installmentDates` que vem do campo "Número de Parcelas" do formulário. Se o usuário define apenas 1 parcela, só 1 data é gerada, mesmo que o empréstimo tenha começado há 1 ano.
 
-**Exemplo do usuario:**
-- Emprestimo de R$ 1.000 a 10% ao mes
-- Data inicio: 10/01/2025
-- Data atual: 10/01/2026 (1 ano depois)
-- Resultado esperado: 12 parcelas de juros de R$ 100 cada
+**Exemplo atual:**
+- Data início: 30/01/2025
+- Data atual: 30/01/2026
+- Número de parcelas: 1 (definido pelo usuário)
+- Resultado: 1 parcela histórica (incorreto - deveria mostrar 12)
 
-**Comportamento desejado:**
-1. Sistema detecta que ha 12 meses passados
-2. Mostra TODAS as 12 parcelas de juros (R$ 100 cada)
-3. Ao criar o emprestimo:
-   - Total a Receber: R$ 1.100 (principal + 1 mes de juros)
-   - Lucro Realizado: R$ 1.200 (12 x R$ 100 ja recebidos como juros)
-   - Pago: R$ 1.200 (valor total ja recebido)
-   - Restante a Receber: R$ 1.100 (valor cheio - principal nao foi tocado)
+### Problema 2: Juros não é editável
+O valor do juros é calculado automaticamente e não há campo para o usuário editar individualmente.
 
-**Diferenca do sistema atual:**
-- Hoje: Usuario marca parcelas como "pagas" (principal + juros) e digita juros antigos manualmente
-- Novo: Sistema gera automaticamente pagamentos de "somente juros" para cada mes passado
+## Solução Proposta
 
-## Arquitetura da Solucao
+### 1. Calcular Parcelas Passadas Automaticamente
 
-### Nova Interface de Registros Historicos
+Em vez de depender do número de parcelas informado pelo usuário, o sistema deve calcular quantas parcelas **cabem no período passado** desde a data de início até hoje.
 
-Substituir a caixa amarela atual por uma nova interface roxa mais completa:
+**Nova lógica:**
+```
+parcelas_passadas = diferença_em_meses(data_inicio, hoje)
+```
+
+Por exemplo, se o empréstimo começou em 30/01/2025 e hoje é 30/01/2026:
+- Diferença: 12 meses
+- Parcelas passadas: 12
+
+### 2. Tornar Juros Editável por Parcela
+
+Adicionar um estado para armazenar valores de juros editados por parcela:
+```typescript
+const [customInterestAmounts, setCustomInterestAmounts] = useState<Record<number, number>>({});
+```
+
+Permitir que o usuário clique no valor de juros de cada parcela e edite-o.
+
+## Alterações Necessárias
+
+### Arquivo: src/components/HistoricalInterestRecords.tsx
+
+**Alteração 1**: Receber `startDate` e `paymentFrequency` como props em vez de `installmentDates`
+
+**Alteração 2**: Calcular internamente as datas das parcelas passadas desde a data de início até hoje
+
+**Alteração 3**: Adicionar prop para juros editáveis:
+- `customInterestAmounts: Record<number, number>`
+- `onInterestChange: (index: number, amount: number) => void`
+
+**Alteração 4**: Renderizar input editável para cada parcela
+
+### Arquivo: src/pages/Loans.tsx
+
+**Alteração 1**: Adicionar estado para juros customizados:
+```typescript
+const [customHistoricalInterestAmounts, setCustomHistoricalInterestAmounts] = useState<Record<number, number>>({});
+```
+
+**Alteração 2**: Passar novas props para o componente `HistoricalInterestRecords`:
+```tsx
+<HistoricalInterestRecords
+  startDate={formData.start_date}
+  paymentFrequency={formData.payment_type === 'daily' ? 'daily' : 
+                   formData.payment_type === 'weekly' ? 'weekly' :
+                   formData.payment_type === 'biweekly' ? 'biweekly' : 'monthly'}
+  principalAmount={...}
+  interestRate={...}
+  customInterestAmounts={customHistoricalInterestAmounts}
+  onInterestChange={(idx, amount) => setCustomHistoricalInterestAmounts(prev => ({...prev, [idx]: amount}))}
+  selectedIndices={selectedHistoricalInterestInstallments}
+  onSelectionChange={setSelectedHistoricalInterestInstallments}
+/>
+```
+
+**Alteração 3**: Atualizar `handleSubmit` para usar os valores de juros customizados ao registrar pagamentos
+
+## Nova Interface de Registros Históricos
 
 ```text
 +------------------------------------------------------------------+
-|  REGISTROS HISTORICOS DE JUROS                                   |
-|  Este contrato possui 12 parcelas anteriores a data atual        |
+|  REGISTROS HISTÓRICOS DE JUROS                                   |
+|  Este contrato possui 12 parcelas anteriores à data atual        |
 +------------------------------------------------------------------+
 |                                                                   |
-|  [ ] Selecionar Todas   [ ] Nenhuma                              |
+|  [Todas]  [Nenhuma]                                              |
 |                                                                   |
 |  +--------------------------------------------------------------+|
-|  | [x] Parcela 1 - 10/01/2025 - Juros: R$ 100,00               ||
-|  | [x] Parcela 2 - 10/02/2025 - Juros: R$ 100,00               ||
-|  | [x] Parcela 3 - 10/03/2025 - Juros: R$ 100,00               ||
+|  | [x] Parcela 1 - 30/01/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
+|  | [x] Parcela 2 - 28/02/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
+|  | [x] Parcela 3 - 30/03/2025    Juros: [R$ 100,00]  ← EDITÁVEL ||
 |  | ...                                                          ||
-|  | [x] Parcela 12 - 10/12/2025 - Juros: R$ 100,00              ||
+|  | [x] Parcela 12 - 30/12/2025   Juros: [R$ 100,00]  ← EDITÁVEL ||
 |  +--------------------------------------------------------------+|
 |                                                                   |
-|  Total de Juros Historicos: R$ 1.200,00                          |
+|  Total de Juros Históricos: R$ 1.200,00                          |
 +------------------------------------------------------------------+
 ```
 
-### Logica de Calculo
+## Lógica de Cálculo de Datas
 
-Para cada parcela passada marcada como "juros recebidos":
-- Registrar um pagamento de `[INTEREST_ONLY_PAYMENT]` 
-- `amount`: valor do juros da parcela
-- `principal_paid`: 0 (nao reduz principal)
-- `interest_paid`: valor do juros
-- Adicionar tag `[HISTORICAL_INTEREST_ONLY_PAID:indice:valor:data]`
-
-### Valores Resultantes
-
-| Campo | Calculo | Exemplo |
-|-------|---------|---------|
-| Principal | Valor emprestado | R$ 1.000 |
-| Total Interest | Juros de 1 periodo (proximo) | R$ 100 |
-| Remaining Balance | Principal + 1 periodo de juros | R$ 1.100 |
-| Total Paid | Soma de todos pagamentos de juros | R$ 1.200 |
-| Lucro Realizado | Soma de interest_paid | R$ 1.200 |
-
-## Alteracoes Necessarias
-
-### 1. Estado do Formulario
-
-**Arquivo:** `src/pages/Loans.tsx`
-
-Adicionar novo estado para rastrear parcelas de juros historicos selecionadas:
+A função para calcular datas passadas baseado na frequência:
 
 ```typescript
-// Estado para parcelas de juros historicos selecionadas
-const [selectedHistoricalInterestInstallments, setSelectedHistoricalInterestInstallments] = useState<number[]>([]);
-```
-
-### 2. Calcular Juros por Parcela (useMemo)
-
-Criar/atualizar `pastInstallmentsData` para calcular juros por parcela:
-
-```typescript
-const historicalInterestData = useMemo(() => {
-  // Calcular juros por parcela baseado no tipo de emprestimo
-  // Para mensal: juros = principal * taxa
-  // Para diario: juros = (valor_parcela - principal_por_parcela)
+const calculatePastInstallments = (
+  startDateStr: string, 
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly'
+): { date: string; index: number }[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   
-  return {
-    installments: [
-      { index: 0, date: '2025-01-10', interestAmount: 100 },
-      { index: 1, date: '2025-02-10', interestAmount: 100 },
-      // ...
-    ],
-    totalHistoricalInterest: 1200,
-    interestPerInstallment: 100,
-  };
-}, [formData, installmentDates]);
-```
-
-### 3. Nova UI de Registros Historicos
-
-Substituir a secao atual de "Parcelas passadas" por nova interface:
-
-```tsx
-{formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
-  <div className="p-4 rounded-lg bg-purple-500/20 border border-purple-400/30 space-y-3">
-    <div className="flex justify-between items-center">
-      <Label className="text-sm text-purple-200 flex items-center gap-2">
-        <History className="h-4 w-4" />
-        Registros Historicos de Juros
-      </Label>
-      <div className="flex gap-2">
-        <Button type="button" variant="ghost" size="sm" 
-          onClick={() => setSelectedHistoricalInterestInstallments(
-            historicalInterestData.installments.map(i => i.index)
-          )}>
-          Todas
-        </Button>
-        <Button type="button" variant="ghost" size="sm"
-          onClick={() => setSelectedHistoricalInterestInstallments([])}>
-          Nenhuma
-        </Button>
-      </div>
-    </div>
-    
-    <ScrollArea className="h-48">
-      {historicalInterestData.installments.map((installment) => (
-        <label key={installment.index} className="flex items-center gap-2 p-2">
-          <Checkbox
-            checked={selectedHistoricalInterestInstallments.includes(installment.index)}
-            onCheckedChange={(checked) => {
-              // toggle selection
-            }}
-          />
-          <span>Parcela {installment.index + 1} - {formatDate(installment.date)}</span>
-          <span className="ml-auto text-purple-300">
-            Juros: {formatCurrency(installment.interestAmount)}
-          </span>
-        </label>
-      ))}
-    </ScrollArea>
-    
-    <div className="p-3 rounded bg-purple-500/10 border border-purple-400/20">
-      <p className="text-sm text-purple-200 font-medium">
-        Total de Juros Historicos: {formatCurrency(
-          selectedHistoricalInterestInstallments.length * historicalInterestData.interestPerInstallment
-        )}
-      </p>
-      <p className="text-xs text-purple-300/70 mt-1">
-        Estes valores serao registrados como juros ja recebidos (principal nao sera alterado)
-      </p>
-    </div>
-  </div>
-)}
-```
-
-### 4. Logica de Criacao (handleSubmit / handleDailySubmit)
-
-Apos criar o emprestimo, registrar pagamentos de juros historicos:
-
-```typescript
-// Registrar pagamentos de juros historicos
-if (formData.is_historical_contract && selectedHistoricalInterestInstallments.length > 0) {
-  const loanId = result.data.id;
-  const interestPerInstallment = historicalInterestData.interestPerInstallment;
-  
-  for (const idx of selectedHistoricalInterestInstallments) {
-    const installment = historicalInterestData.installments.find(i => i.index === idx);
-    if (!installment) continue;
-    
-    await registerPayment({
-      loan_id: loanId,
-      amount: installment.interestAmount,
-      principal_paid: 0,  // NAO reduz principal
-      interest_paid: installment.interestAmount,  // Apenas juros
-      payment_date: installment.date,
-      notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${installment.interestAmount}:${installment.date}] Juros parcela ${idx + 1}`,
-    });
+  const startDate = new Date(startDateStr + 'T12:00:00');
+  if (isNaN(startDate.getTime()) || startDate >= today) {
+    return [];
   }
   
-  // Adicionar tag ao emprestimo
-  const totalHistoricalInterest = selectedHistoricalInterestInstallments.length * interestPerInstallment;
-  await supabase.from('loans').update({
-    notes: currentNotes + ` [HISTORICAL_INTEREST_CONTRACT] [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest}]`
-  }).eq('id', loanId);
-}
+  const installments: { date: string; index: number }[] = [];
+  let currentDate = new Date(startDate);
+  let index = 0;
+  
+  // Limitar a 60 parcelas (5 anos mensal, ou ~2 meses diário)
+  while (currentDate < today && index < 60) {
+    installments.push({
+      date: format(currentDate, 'yyyy-MM-dd'),
+      index,
+    });
+    
+    // Avançar para próxima parcela
+    if (frequency === 'daily') {
+      currentDate.setDate(currentDate.getDate() + 1);
+    } else if (frequency === 'weekly') {
+      currentDate.setDate(currentDate.getDate() + 7);
+    } else if (frequency === 'biweekly') {
+      currentDate.setDate(currentDate.getDate() + 14);
+    } else {
+      // monthly
+      currentDate = addMonths(currentDate, 1);
+    }
+    
+    index++;
+  }
+  
+  return installments;
+};
 ```
-
-### 5. Manter Sistema Antigo como Fallback
-
-A opcao de digitar manualmente o valor de juros antigos ainda existira, mas como campo secundario para casos onde o usuario nao quer detalhar parcela por parcela.
-
-### 6. Exibicao nos Cards
-
-Quando um emprestimo tiver juros historicos:
-- Mostrar badge roxo "Juros Historicos"
-- Na area expandida, mostrar lista de juros recebidos por data
 
 ## Fluxo de Uso
 
-### Cenario: Usuario cadastra emprestimo de 1 ano atras
+### Cenário: Usuário cadastra empréstimo mensal de 1 ano atrás
 
-1. Usuario abre formulario de novo emprestimo
-2. Seleciona cliente e digita R$ 1.000 a 10% ao mes
-3. Define data inicio: 10/01/2025 (1 ano atras)
-4. Sistema detecta 12 parcelas no passado
-5. Checkbox "Este e um contrato antigo" aparece
-6. Usuario marca o checkbox
-7. Lista de 12 parcelas de juros aparece (R$ 100 cada)
-8. Usuario clica "Selecionar Todas"
-9. Resumo mostra: "Total Juros Historicos: R$ 1.200"
-10. Usuario clica "Criar Emprestimo"
-
-### Resultado no Sistema:
-
-```
-Emprestimo Criado:
-- Principal: R$ 1.000
-- Juros do Periodo: R$ 100
-- Total a Receber: R$ 1.100
-- Status: Pendente
-
-Pagamentos Registrados (automaticamente):
-- 10/01/2025: R$ 100 (juros parcela 1) [INTEREST_ONLY]
-- 10/02/2025: R$ 100 (juros parcela 2) [INTEREST_ONLY]
-- ... (12 registros)
-
-Metricas Resultantes:
-- Pago: R$ 1.200
-- Lucro Realizado: R$ 1.200
-- Restante: R$ 1.100
-```
+1. Usuário abre formulário de novo empréstimo
+2. Seleciona cliente e digita R$ 1.000 a 10% ao mês
+3. Define data início: 30/01/2025 (1 ano atrás)
+4. Marca checkbox "Este é um contrato antigo"
+5. Sistema calcula automaticamente: 12 parcelas passadas
+6. Lista de 12 parcelas aparece, cada uma com juros editável
+7. Usuário pode alterar o juros de qualquer parcela individualmente
+8. Usuário clica "Selecionar Todas"
+9. Resumo mostra total de juros históricos baseado nos valores editados
+10. Usuário clica "Criar Empréstimo"
 
 ## Arquivos Afetados
 
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Loans.tsx` | Novo estado, novo useMemo para calculo, nova UI de selecao, logica de criacao |
-
-## Consideracoes Tecnicas
-
-1. **Performance**: Limitar lista a 60 parcelas (5 anos de emprestimo mensal)
-2. **Tags**: Usar `[INTEREST_ONLY_PAYMENT]` para que o trigger do banco nao reduza o principal
-3. **Compatibilidade**: Manter campo de "juros antigos manual" para usuarios que preferem o metodo antigo
-4. **Anti-duplicacao**: Usar a mesma logica de skip para pagamentos historicos que ja existe
+| `src/components/HistoricalInterestRecords.tsx` | Reescrever para calcular datas internamente e suportar juros editável |
+| `src/pages/Loans.tsx` | Adicionar estado para juros customizados, atualizar props e handleSubmit |
 
 ## Estimativa
 
-- **Complexidade**: Media
-- **Linhas de codigo**: ~200-300
-- **Risco**: Baixo (adiciona funcionalidade sem quebrar existente)
-- **Testes recomendados**:
-  - Criar emprestimo com 12 meses passados, selecionar todas as parcelas de juros
-  - Verificar que "Lucro Realizado" mostra soma correta
-  - Verificar que "Restante a Receber" mostra principal + 1 periodo de juros
-  - Verificar que principal nao foi reduzido (remaining_balance correto)
+- **Complexidade**: Média
+- **Linhas de código**: ~150
+- **Risco**: Baixo (melhoria de funcionalidade existente)
 
+## Testes Recomendados
+
+1. Criar empréstimo mensal com data de 1 ano atrás → deve mostrar 12 parcelas
+2. Criar empréstimo diário com data de 30 dias atrás → deve mostrar 30 parcelas
+3. Editar o valor de juros de uma parcela → o total deve recalcular
+4. Selecionar apenas algumas parcelas → apenas essas devem ser registradas
+5. Verificar que os valores editados são salvos corretamente no banco
