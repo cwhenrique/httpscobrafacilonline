@@ -1,49 +1,64 @@
-# Plano: Remover Sistema de Notificações In-App ✅ CONCLUÍDO
 
-## Contexto do Problema
 
-O sistema anterior criava notificações in-app (dentro do aplicativo) que ficavam alertando sobre atrasos mesmo quando os empréstimos não estavam realmente em atraso. As mensagens do WhatsApp **NÃO** foram afetadas.
+# Plano: Atualização Automática do Calendário de Cobranças
 
-## O que foi removido
+## Problema Identificado
 
-### 1. Componente NotificationCenter ✅
-O ícone de sino (🔔) no header que mostrava as notificações foi removido.
+O Calendário de Cobranças está exibindo dados incorretos de empréstimos em atraso porque:
 
-### 2. Hook useOverdueNotifications ✅
-O código que detectava empréstimos em atraso e criava notificações in-app no Dashboard foi removido.
+1. **Cache de 5 minutos**: Os dados do `useLoans` ficam em cache por até 5 minutos
+2. **Dados desatualizados**: Quando um pagamento é registrado, o cache pode não refletir imediatamente
+3. **Sem atualização automática**: O calendário não atualiza os dados periodicamente
 
-### 3. Notificações das Edge Functions ✅
-Removida a criação de notificações in-app das seguintes funções (mantendo os envios de WhatsApp):
+## Solução: Atualização Automática em Background
 
-| Edge Function | O que faz | Status |
-|---------------|-----------|--------|
-| check-overdue-loans | Verifica empréstimos em atraso | ✅ Removido |
-| check-overdue-contracts | Verifica contratos em atraso | ✅ Removido |
-| check-overdue-vehicles | Verifica veículos em atraso | ✅ Removido |
-| check-bills-due | Verifica contas vencendo | ✅ Removido |
-| check-loan-reminders | Lembretes de empréstimos | ✅ Removido |
-| check-contract-reminders | Lembretes de contratos | ✅ Removido |
-| check-vehicle-reminders | Lembretes de veículos | ✅ Removido |
-| check-subscription-expiring | Assinatura expirando | ✅ Removido |
-| check-expired-pending-messages | Mensagens expiradas | ✅ Removido |
+### Parte 1: Reduzir Cache e Adicionar Polling Automático
 
-## O que NÃO foi afetado
+**Arquivo:** `src/hooks/useLoans.ts`
 
-- ✅ Mensagens de WhatsApp continuam funcionando normalmente
-- ✅ Toasts (avisos temporários na tela) continuam funcionando
-- ✅ Todas as demais funcionalidades do sistema
+| Configuração | Antes | Depois |
+|--------------|-------|--------|
+| staleTime | 5 minutos | 30 segundos |
+| refetchInterval | Não existia | 60 segundos |
+
+Isso fará com que:
+- Os dados sejam considerados "frescos" por apenas 30 segundos
+- A cada 60 segundos, o sistema busca dados novos automaticamente em background
+
+### Parte 2: Forçar Atualização ao Abrir o Calendário
+
+**Arquivo:** `src/pages/CalendarView.tsx`
+
+Adicionar um `useEffect` que força a busca de dados frescos sempre que o usuário navegar para o calendário:
+
+```typescript
+useEffect(() => {
+  refetch();
+}, []);
+```
 
 ## Arquivos Afetados
 
-| Arquivo | Ação | Status |
-|---------|------|--------|
-| src/components/NotificationCenter.tsx | Excluído | ✅ |
-| src/hooks/useNotifications.ts | Excluído | ✅ |
-| src/hooks/useOverdueNotifications.ts | Excluído | ✅ |
-| src/components/layout/DashboardLayout.tsx | Atualizado | ✅ |
-| src/pages/Dashboard.tsx | Atualizado | ✅ |
-| Todas as 9 edge functions listadas | Atualizadas | ✅ |
+| Arquivo | Alteração |
+|---------|-----------|
+| src/hooks/useLoans.ts | Reduzir staleTime para 30s, adicionar refetchInterval de 60s |
+| src/pages/CalendarView.tsx | Adicionar refetch automático ao montar componente |
 
-## Observação sobre a tabela `notifications`
+## Fluxo de Atualização
 
-A tabela `notifications` no banco de dados permanece intacta. Você pode optar por limpar os dados antigos posteriormente ou manter para histórico.
+```text
+Usuário abre Calendário
+       ↓
+Refetch imediato (dados mais recentes)
+       ↓
+A cada 60 segundos → Atualização automática silenciosa
+       ↓
+Se sair e voltar → Refetch novamente
+```
+
+## Resultado Esperado
+
+- O calendário sempre mostrará dados atualizados
+- Atualizações acontecem automaticamente em background sem intervenção do usuário
+- Ao navegar para o calendário, os dados são sempre recarregados
+
