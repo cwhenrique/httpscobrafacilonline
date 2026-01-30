@@ -165,7 +165,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let sentCount = 0;
-    const notifications: any[] = [];
 
     // Send notifications to each user
     for (const [userId, userBills] of userBillsMap) {
@@ -175,25 +174,9 @@ const handler = async (req: Request): Promise<Response> => {
         .eq('id', userId)
         .single();
 
-      // Skip inactive users
+      // Skip inactive users or those without phone
       if (profileError || !profile?.phone || profile.is_active === false) {
         console.log(`User ${userId} is inactive or has no phone, skipping`);
-        continue;
-      }
-
-      if (profileError || !profile?.phone) {
-        console.log(`User ${userId} has no phone configured, skipping WhatsApp`);
-        
-        // Still create in-app notification even without phone
-        for (const bill of userBills) {
-          const cat = getCategoryConfig(bill.category);
-          notifications.push({
-            user_id: userId,
-            title: `${cat.emoji} ${cat.name} vence hoje!`,
-            message: `${bill.payee_name}: ${formatCurrency(bill.amount)} - ${bill.description}`,
-            type: 'warning',
-          });
-        }
         continue;
       }
 
@@ -230,30 +213,6 @@ const handler = async (req: Request): Promise<Response> => {
       if (sent) {
         sentCount++;
       }
-
-      // Create in-app notifications for each bill with category-specific titles
-      for (const bill of userBills) {
-        const cat = getCategoryConfig(bill.category);
-        notifications.push({
-          user_id: userId,
-          title: `${cat.emoji} ${cat.name} vence hoje!`,
-          message: `${bill.payee_name}: ${formatCurrency(bill.amount)} - ${bill.description}`,
-          type: 'warning',
-        });
-      }
-    }
-
-    // Create in-app notifications
-    if (notifications.length > 0) {
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (notifError) {
-        console.error("Error creating notifications:", notifError);
-      } else {
-        console.log(`Created ${notifications.length} in-app notifications`);
-      }
     }
 
     console.log(`Sent ${sentCount} WhatsApp messages for bills`);
@@ -263,7 +222,6 @@ const handler = async (req: Request): Promise<Response> => {
         success: true, 
         sentCount,
         billsChecked: bills.length,
-        notificationsCreated: notifications.length
       }),
       {
         status: 200,

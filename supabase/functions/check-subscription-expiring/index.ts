@@ -107,7 +107,6 @@ serve(async (req) => {
     const results = {
       total: expiringUsers?.length || 0,
       whatsappSent: 0,
-      notificationsCreated: 0,
       noPhone: 0,
       errors: 0,
     };
@@ -119,27 +118,6 @@ serve(async (req) => {
       
       const expirationDate = new Date(user.subscription_expires_at);
       const formattedDate = expirationDate.toLocaleDateString('pt-BR');
-
-      // Create system notification
-      const notificationTitle = '⚠️ Assinatura expirando em breve';
-      const notificationMessage = `Sua assinatura ${planLabel} expira em ${formattedDate}. Renove agora para continuar usando o CobraFácil sem interrupções.`;
-
-      const { error: notifError } = await supabaseAdmin
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          title: notificationTitle,
-          message: notificationMessage,
-          type: 'warning',
-        });
-
-      if (notifError) {
-        console.error(`Error creating notification for user ${user.id}:`, notifError);
-        results.errors++;
-      } else {
-        results.notificationsCreated++;
-        console.log(`Notification created for user ${user.id}`);
-      }
 
       // Send WhatsApp if phone is available
       if (user.phone) {

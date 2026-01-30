@@ -156,7 +156,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     let sentCount = 0;
     let updatedCount = 0;
-    const notifications: any[] = [];
 
     for (const profile of profiles || []) {
       // Fetch overdue contract payments
@@ -341,48 +340,16 @@ const handler = async (req: Request): Promise<Response> => {
           if (sent) sentCount++;
         }
 
-        // Create in-app notifications
-        if (receivables.length > 0) {
-          const totalReceivable = receivables.reduce((sum, r) => sum + Number(r.amount), 0);
-          notifications.push({
-            user_id: profile.id,
-            title: overdueInfo.days === 1 ? '⚠️ Recebíveis Atrasados (1 dia)' : '🚨 Recebíveis Atrasados (3 dias)',
-            message: `${receivables.length} cobrança(s) - Total: ${formatCurrency(totalReceivable)}`,
-            type: overdueInfo.days === 1 ? 'warning' : 'error',
-          });
-        }
-
-        if (payables.length > 0) {
-          const totalPayable = payables.reduce((sum, p) => sum + Number(p.amount), 0);
-          notifications.push({
-            user_id: profile.id,
-            title: overdueInfo.days === 1 ? '⚠️ Contas Atrasadas (1 dia)' : '🚨 Contas Atrasadas (3 dias)',
-            message: `${payables.length} conta(s) - Total: ${formatCurrency(totalPayable)}`,
-            type: overdueInfo.days === 1 ? 'warning' : 'error',
-          });
-        }
       }
     }
 
-    // Create in-app notifications
-    if (notifications.length > 0) {
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (notifError) {
-        console.error("Error creating notifications:", notifError);
-      }
-    }
-
-    console.log(`Sent ${sentCount} overdue alerts, updated ${updatedCount} items to overdue, created ${notifications.length} notifications`);
+    console.log(`Sent ${sentCount} overdue alerts, updated ${updatedCount} items to overdue`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         sentCount,
         updatedCount,
-        notificationsCreated: notifications.length,
       }),
       {
         status: 200,

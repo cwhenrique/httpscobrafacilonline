@@ -421,7 +421,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let sentCount = 0;
-    const notifications: any[] = [];
 
     for (const [userId, alertDaysMap] of userAlertMap) {
       const { data: profile, error: profileError } = await supabase
@@ -561,27 +560,8 @@ const handler = async (req: Request): Promise<Response> => {
           const sent = await sendWhatsAppList(profile.phone, listData);
           if (sent) {
             sentCount++;
-            notifications.push({
-              user_id: userId,
-              title: `${emoji} Atraso ${alertDay}d - ${contractId}`,
-              message: `${loan.clientName}: ${formatCurrency(loan.remainingBalance)}`,
-              type: 'warning',
-              loan_id: loan.id,
-              client_id: loan.client_id,
-            });
           }
         }
-      }
-    }
-
-    // Create in-app notifications
-    if (notifications.length > 0) {
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-      
-      if (notifError) {
-        console.error("Error creating notifications:", notifError);
       }
     }
 
