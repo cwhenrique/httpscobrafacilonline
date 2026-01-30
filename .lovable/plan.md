@@ -1,97 +1,125 @@
 
-# Plano: Corrigir Data de Vencimento para Contratos Historicos
+# Plano: Corrigir Badge "Atrasado" em Contratos Historicos
 
 ## Problema Identificado
 
-Quando o usuario cria um emprestimo com data de inicio 15/01/2025 (mensal) e seleciona TODAS as parcelas historicas (incluindo 15/01/2026 que ja passou), o sistema esta definindo o vencimento como a data de HOJE (31/01/2026).
+O badge "Atrasado" aparece incorretamente porque o codigo esta usando `loan.status` do banco de dados em vez do `isOverdue` calculado pela funcao `getLoanStatus()`.
 
-**Comportamento errado:**
-- Data inicio: 15/01/2025
-- Parcelas historicas incluem: 15/01/2025, 15/02/2025, ..., 15/01/2026 (13 parcelas)
-- Usuario seleciona todas as 13 parcelas como juros recebidos
-- Sistema define `due_date = "2026-01-31"` (hoje)
+### Evidencia
 
-**Comportamento esperado:**
-- Se a parcela de 15/01/2026 foi paga, a proxima parcela deveria ser 15/02/2026
-- Sistema deveria definir `due_date = "2026-02-15"`
+Na imagem fornecida:
+- Card esta ROXO (correto - `getCardStyle` funciona)
+- Data de vencimento mostra **15/02/2026** (futuro)
+- Badge mostra "Atrasado" (incorreto)
 
-## Causa Raiz
+### Causa Raiz
 
-Na linha 3666-3667 do `handleSubmit`:
-```typescript
-const todayStr = format(new Date(), 'yyyy-MM-dd');
-const updatedDates = [todayStr]; // Usa a data de HOJE
+Linha 8030-8031 do `src/pages/Loans.tsx`:
+```tsx
+<Badge className={...getPaymentStatusColor(loan.status)}>
+  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : ... : getPaymentStatusLabel(loan.status)}
+</Badge>
 ```
 
-O codigo usa a data de HOJE em vez de calcular a **proxima data do ciclo** baseada na frequencia.
+O codigo usa `loan.status` do banco de dados (que tem valor `'overdue'`) em vez de usar o `isOverdue` calculado pela funcao `getLoanStatus()` (que retorna `false` corretamente para contratos historicos com data futura).
+
+### Por que o status no banco esta errado?
+
+O campo `status` no banco foi definido como `'overdue'` em algum momento anterior (talvez durante a criacao ou por uma trigger antiga) e nao foi atualizado quando corrigimos a logica de datas.
 
 ## Solucao
 
-### Logica Correta
+### Opcao 1: Corrigir o Badge no Frontend (Recomendada)
 
-1. Encontrar a ULTIMA parcela historica selecionada
-2. Calcular a PROXIMA data apos essa parcela baseada na frequencia
-3. Usar essa data como `due_date` e `installment_dates`
+Alterar o badge para usar a logica calculada `isOverdue` em vez de `loan.status`:
 
-### Exemplo Pratico
+```tsx
+// ANTES (linha 8030-8031):
+<Badge className={`... ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(loan.status)}`}>
+  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(loan.status)}
+</Badge>
 
-| Data Inicio | Frequencia | Ultima Parcela Paga | Proxima Parcela |
-|-------------|------------|---------------------|-----------------|
-| 15/01/2025 | Mensal | 15/01/2026 | 15/02/2026 |
-| 15/01/2025 | Semanal | 22/01/2026 | 29/01/2026 |
-| 15/01/2025 | Quinzenal | 15/01/2026 | 29/01/2026 |
+// DEPOIS:
+// Calcular o status CORRETO baseado em isOverdue/isPaid calculados
+const displayStatus = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
 
-### Codigo Corrigido
+<Badge className={`... ${hasSpecialStyle ? 'bg-white/20 text-white border-white/30' : getPaymentStatusColor(displayStatus)}`}>
+  {isInterestOnlyPayment && !isOverdue ? 'Só Juros' : isRenegotiated && !isOverdue ? 'Reneg.' : getPaymentStatusLabel(displayStatus)}
+</Badge>
+```
 
-```typescript
-// Encontrar o maior indice selecionado (ultima parcela paga)
-const maxSelectedIndex = Math.max(...selectedHistoricalInterestInstallments);
+### Opcao 2: Adicionar Logica Especifica para Historical Interest Contracts
 
-// Calcular a data da PROXIMA parcela (indice seguinte)
-const nextInstallmentIndex = maxSelectedIndex + 1;
-const nextDueDate = generateInstallmentDate(formData.start_date, nextInstallmentIndex, frequency);
+Para contratos historicos com juros, sempre mostrar "Só Juros" no badge quando nao estiver realmente em atraso:
 
-const updatedDates = [nextDueDate];
+```tsx
+// Logica especial para contratos historicos
+const badgeLabel = (() => {
+  if (isPaid) return 'Pago';
+  if (isHistoricalInterestContract && !isOverdue) return 'Juros Antigos';
+  if (isInterestOnlyPayment && !isOverdue) return 'Só Juros';
+  if (isRenegotiated && !isOverdue) return 'Reneg.';
+  if (isOverdue) return 'Atrasado';
+  return 'Pendente';
+})();
 
-await supabase.from('loans').update({
-  notes: currentNotes.trim(),
-  due_date: nextDueDate,
-  installment_dates: updatedDates
-}).eq('id', loanId);
+const badgeStyle = (() => {
+  if (isPaid) return 'bg-primary/20 text-primary border-primary/30';
+  if (isHistoricalInterestContract && !isOverdue) return 'bg-purple-600/30 text-purple-300 border-purple-500/50';
+  if (isOverdue) return 'bg-destructive text-destructive-foreground';
+  return 'bg-secondary text-secondary-foreground';
+})();
 ```
 
 ## Arquivos Afetados
 
 | Arquivo | Localizacao | Alteracao |
 |---------|-------------|-----------|
-| src/pages/Loans.tsx | handleSubmit (linhas 3666-3673) | Calcular proxima data do ciclo |
-| src/pages/Loans.tsx | handleDailySubmit | Mesma correcao para emprestimos diarios |
+| src/pages/Loans.tsx | Linha 8030-8031 | Usar displayStatus em vez de loan.status |
 
-## Fluxo Corrigido
+## Codigo Detalhado
 
-### Antes (errado):
-1. Inicio: 15/01/2025, mensal
-2. Hoje: 31/01/2026
-3. Parcelas historicas: 13 (15/01/25 ate 15/01/26)
-4. Usuario seleciona todas
-5. `due_date = "2026-01-31"` (ERRADO)
+Adicionar antes do JSX (aproximadamente linha 7890, junto com outras variaveis):
 
-### Depois (correto):
-1. Inicio: 15/01/2025, mensal
-2. Hoje: 31/01/2026
-3. Parcelas historicas: 13 (15/01/25 ate 15/01/26)
-4. Usuario seleciona todas
-5. Maior indice selecionado: 12 (parcela 15/01/2026)
-6. Proxima parcela: indice 13 = 15/02/2026
-7. `due_date = "2026-02-15"` (CORRETO)
+```tsx
+// 🆕 Calcular status de exibição baseado na lógica calculada, NÃO no banco
+const displayStatus = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
+```
+
+Alterar o Badge (linha 8030-8031):
+
+```tsx
+<Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
+  hasSpecialStyle ? 'bg-white/20 text-white border-white/30' 
+  : isHistoricalInterestContract && !isPaid && !isOverdue 
+    ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
+    : getPaymentStatusColor(displayStatus)
+}`}>
+  {isHistoricalInterestContract && !isPaid && !isOverdue 
+    ? 'Juros Antigos' 
+    : isInterestOnlyPayment && !isOverdue 
+      ? 'Só Juros' 
+      : isRenegotiated && !isOverdue 
+        ? 'Reneg.' 
+        : getPaymentStatusLabel(displayStatus)}
+</Badge>
+```
+
+## Resultado Esperado
+
+| Antes | Depois |
+|-------|--------|
+| Badge: "Atrasado" (vermelho) | Badge: "Juros Antigos" (roxo) |
+| Cor do badge: vermelho | Cor do badge: roxo |
 
 ## Testes Recomendados
 
-1. Criar emprestimo mensal com inicio 15/01/2025, selecionar TODAS as parcelas
-   - Esperado: vencimento = 15/02/2026
+1. Verificar contrato historico com juros criado com data 15/01/2025
+   - Badge deve mostrar "Juros Antigos" em roxo
+   - Nao deve aparecer "Atrasado"
 
-2. Criar emprestimo mensal com inicio 15/01/2025, selecionar apenas as 12 primeiras (ate 15/12/2025)
-   - Esperado: vencimento = 15/01/2026
+2. Verificar contrato normal em atraso
+   - Badge deve continuar mostrando "Atrasado" em vermelho
 
-3. Criar emprestimo semanal com inicio 01/01/2026, selecionar todas as 4 parcelas
-   - Esperado: vencimento = 05/02/2026 (7 dias apos 29/01/2026)
+3. Verificar contrato quitado
+   - Badge deve mostrar "Pago"
