@@ -50,6 +50,7 @@ import { isHoliday } from '@/lib/holidays';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { LoansTableView } from '@/components/LoansTableView';
 import { cn } from '@/lib/utils';
+import { HistoricalInterestRecords } from '@/components/HistoricalInterestRecords';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -556,6 +557,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   // Estado para juros históricos simplificado
   const [historicalInterestReceived, setHistoricalInterestReceived] = useState('');
   const [historicalInterestNotes, setHistoricalInterestNotes] = useState('');
+  
+  // 🆕 Estado para parcelas de juros históricos selecionadas (novo sistema)
+  const [selectedHistoricalInterestInstallments, setSelectedHistoricalInterestInstallments] = useState<number[]>([]);
   
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
@@ -3184,6 +3188,67 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     return { count: 0, totalValue: 0, pastInstallmentsList: [] as { date: string; value: number; index: number }[] };
   }, [formData.is_historical_contract, hasPastDates, formData.principal_amount, formData.installments, formData.payment_type, formData.daily_amount, formData.interest_rate, formData.interest_mode, formData.due_date, formData.start_date, installmentDates, installmentValue, isDailyDialogOpen]);
 
+  // 🆕 Calcular dados de juros históricos para o novo sistema de registros
+  const historicalInterestData = useMemo(() => {
+    if (!formData.is_historical_contract) {
+      return { installments: [], interestPerInstallment: 0 };
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const numInstallments = installmentDates.length;
+    const principal = parseFloat(formData.principal_amount) || 0;
+    
+    if (numInstallments === 0 || principal <= 0) {
+      return { installments: [], interestPerInstallment: 0 };
+    }
+    
+    // Filter past dates
+    const pastDates = installmentDates.filter(d => {
+      const date = new Date(d + 'T12:00:00');
+      return date < today;
+    });
+    
+    // Limit to 60 installments for performance
+    const limitedPastDates = pastDates.slice(0, 60);
+    
+    // Calculate interest per installment
+    let interestPerInstallment = 0;
+    const isDaily = formData.payment_type === 'daily' || isDailyDialogOpen;
+    
+    if (isDaily && formData.daily_amount) {
+      const dailyAmount = parseFloat(formData.daily_amount);
+      const principalPerInstallment = principal / numInstallments;
+      interestPerInstallment = Math.max(0, dailyAmount - principalPerInstallment);
+    } else {
+      const rate = parseFloat(formData.interest_rate) || 0;
+      let totalInterest = 0;
+      
+      if (formData.interest_mode === 'per_installment') {
+        totalInterest = principal * (rate / 100) * numInstallments;
+      } else if (formData.interest_mode === 'compound') {
+        totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else {
+        totalInterest = principal * (rate / 100);
+      }
+      
+      interestPerInstallment = Math.max(0, totalInterest / numInstallments);
+    }
+    
+    // Build installments list
+    const installments = limitedPastDates.map((date) => {
+      const originalIndex = installmentDates.indexOf(date);
+      return {
+        index: originalIndex >= 0 ? originalIndex : 0,
+        date,
+        interestAmount: interestPerInstallment,
+      };
+    });
+    
+    return { installments, interestPerInstallment };
+  }, [formData.is_historical_contract, formData.principal_amount, formData.interest_rate, formData.interest_mode, formData.payment_type, formData.daily_amount, installmentDates, isDailyDialogOpen]);
+
   const handleSubmit = async (e: React.FormEvent, skipInconsistencyCheck = false) => {
     e.preventDefault();
     
@@ -3378,8 +3443,66 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }
     
     
-    // 🆕 Registrar juros históricos como valor único (simplificado)
-    if (result?.data && formData.is_historical_contract && parseFloat(historicalInterestReceived) > 0) {
+    // 🆕 Registrar pagamentos de juros históricos por parcela (novo sistema)
+    if (result?.data && formData.is_historical_contract && selectedHistoricalInterestInstallments.length > 0) {
+      const loanId = result.data.id;
+      const interestPerInstallment = historicalInterestData.interestPerInstallment;
+      
+      // Buscar notas atuais
+      const { data: currentLoan } = await supabase
+        .from('loans')
+        .select('notes')
+        .eq('id', loanId)
+        .single();
+      
+      let currentNotes = currentLoan?.notes || '';
+      
+      // Adicionar tag de contrato histórico com juros
+      if (!currentNotes.includes('[HISTORICAL_INTEREST_CONTRACT]')) {
+        currentNotes += ' [HISTORICAL_INTEREST_CONTRACT]';
+      }
+      
+      // Registrar pagamento de juros para cada parcela selecionada
+      const successfulPayments: number[] = [];
+      for (const idx of selectedHistoricalInterestInstallments) {
+        const installment = historicalInterestData.installments.find(i => i.index === idx);
+        if (!installment) continue;
+        
+        const paymentResult = await registerPayment({
+          loan_id: loanId,
+          amount: installment.interestAmount,
+          principal_paid: 0,  // NÃO reduz principal
+          interest_paid: installment.interestAmount,  // Apenas juros
+          payment_date: installment.date,
+          notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${installment.interestAmount.toFixed(2)}:${installment.date}] Juros parcela ${idx + 1}`,
+        });
+        
+        if (!paymentResult.error) {
+          successfulPayments.push(idx);
+        } else {
+          console.error(`[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros parcela ${idx + 1}:`, paymentResult.error);
+        }
+      }
+      
+      // Adicionar tags ao empréstimo
+      const totalHistoricalInterest = successfulPayments.length * interestPerInstallment;
+      currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
+      
+      await supabase.from('loans').update({
+        notes: currentNotes.trim()
+      }).eq('id', loanId);
+      
+      await fetchLoans();
+      
+      if (successfulPayments.length === selectedHistoricalInterestInstallments.length) {
+        toast.success(`${successfulPayments.length} pagamento(s) de juros históricos registrado(s): ${formatCurrency(totalHistoricalInterest)}`);
+      } else if (successfulPayments.length > 0) {
+        toast.warning(`${successfulPayments.length} de ${selectedHistoricalInterestInstallments.length} pagamento(s) registrado(s)`);
+      }
+    }
+    
+    // 🆕 Fallback: Registrar juros históricos como valor único (sistema antigo - mantido para compatibilidade)
+    else if (result?.data && formData.is_historical_contract && parseFloat(historicalInterestReceived) > 0) {
       const loanId = result.data.id;
       
       // Buscar notas atuais
@@ -3402,20 +3525,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         currentNotes += ` [INTEREST_NOTES:${historicalInterestNotes.trim()}]`;
       }
       
-      // 🆕 CORREÇÃO: Verificar resultado do registerPayment para juros históricos
+      // CORREÇÃO: Verificar resultado do registerPayment para juros históricos
       const histInterestResult = await registerPayment({
         loan_id: loanId,
         amount: parseFloat(historicalInterestReceived),
         principal_paid: 0,
         interest_paid: parseFloat(historicalInterestReceived),
         payment_date: formData.start_date,
-        notes: `[JUROS_HISTORICO] Total de juros antigos já recebidos`,
+        notes: `[INTEREST_ONLY_PAYMENT] [JUROS_HISTORICO] Total de juros antigos já recebidos`,
       });
       
       if (histInterestResult.error) {
         console.error('[HISTORICAL_INTEREST_ERROR] Falha ao registrar juros históricos:', histInterestResult.error);
         toast.error('Erro ao registrar juros históricos');
-        // Continua mesmo com erro para salvar as notas
       }
       
       // Atualizar notas do empréstimo
@@ -4379,6 +4501,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setSkipSunday(false);
     setHistoricalInterestReceived('');
     setHistoricalInterestNotes('');
+    setSelectedHistoricalInterestInstallments([]);
     
     // Limpar do sessionStorage
     const keysToRemove = [
@@ -6135,53 +6258,21 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               ✓ {selectedPastInstallments.length} parcela(s) selecionada(s) = {formatCurrency(selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0))}
                             </p>
                           </div>
-                          
-                          {/* 🆕 Seção simplificada de juros históricos - ROXO */}
-                          <div className="mt-3 pt-3 border-t border-purple-400/30 space-y-3">
-                            <div className="space-y-2">
-                              <Label className="text-sm text-purple-200 flex items-center gap-2">
-                                <CalendarIcon className="h-4 w-4" />
-                                💵 Valor de Juros Antigos Recebidos (R$)
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0,00"
-                                value={historicalInterestReceived}
-                                onChange={(e) => setHistoricalInterestReceived(e.target.value)}
-                                className="bg-purple-500/10 border-purple-400/30 text-purple-100"
-                              />
-                              <p className="text-xs text-purple-300/70">
-                                Digite o total de juros que já recebeu deste contrato antes de cadastrar
-                              </p>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <Label className="text-sm text-purple-200">
-                                📝 Anotações sobre Juros Antigos
-                              </Label>
-                              <Textarea
-                                value={historicalInterestNotes}
-                                onChange={(e) => setHistoricalInterestNotes(e.target.value)}
-                                placeholder="Ex: Cliente pagou R$200 de juros em 15/10, R$200 em 15/11..."
-                                className="bg-purple-500/10 border-purple-400/30 text-purple-100 min-h-[60px]"
-                              />
-                            </div>
-                            
-                            {/* Resumo total já recebido */}
-                            {(parseFloat(historicalInterestReceived) > 0 || selectedPastInstallments.length > 0) && (
-                              <div className="p-2 rounded bg-green-500/10 border border-green-400/30">
-                                <p className="text-xs text-green-300 font-medium">
-                                  📊 Total já recebido: {formatCurrency(
-                                    (selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0)) + 
-                                    (parseFloat(historicalInterestReceived) || 0)
-                                  )}
-                                </p>
-                              </div>
-                            )}
-                          </div>
                         </div>
+                      )}
+                      
+                      {/* 🆕 Nova seção de Registros Históricos de Juros */}
+                      {formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
+                        <HistoricalInterestRecords
+                          installmentDates={installmentDates}
+                          principalAmount={parseFloat(formData.principal_amount) || 0}
+                          interestRate={parseFloat(formData.interest_rate || formData.daily_interest_rate) || 0}
+                          interestMode={formData.interest_mode as 'per_installment' | 'on_total' | 'compound'}
+                          paymentType={formData.payment_type === 'daily' || isDailyDialogOpen ? 'daily' : formData.payment_type}
+                          dailyAmount={parseFloat(formData.daily_amount) || 0}
+                          selectedIndices={selectedHistoricalInterestInstallments}
+                          onSelectionChange={setSelectedHistoricalInterestInstallments}
+                        />
                       )}
                     </div>
                   )}
@@ -6743,53 +6834,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             ✓ {selectedPastInstallments.length} parcela(s) selecionada(s) = {formatCurrency(selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0))}
                           </p>
                         </div>
-                        
-                        {/* 🆕 Seção simplificada de juros históricos - ROXO */}
-                        <div className="mt-3 pt-3 border-t border-purple-400/30 space-y-3">
-                          <div className="space-y-2">
-                            <Label className="text-sm text-purple-200 flex items-center gap-2">
-                              <CalendarIcon className="h-4 w-4" />
-                              💵 Valor de Juros Antigos Recebidos (R$)
-                            </Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0,00"
-                              value={historicalInterestReceived}
-                              onChange={(e) => setHistoricalInterestReceived(e.target.value)}
-                              className="bg-purple-500/10 border-purple-400/30 text-purple-100"
-                            />
-                            <p className="text-xs text-purple-300/70">
-                              Digite o total de juros que já recebeu deste contrato antes de cadastrar
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label className="text-sm text-purple-200">
-                              📝 Anotações sobre Juros Antigos
-                            </Label>
-                            <Textarea
-                              value={historicalInterestNotes}
-                              onChange={(e) => setHistoricalInterestNotes(e.target.value)}
-                              placeholder="Ex: Cliente pagou R$200 de juros em 15/10, R$200 em 15/11..."
-                              className="bg-purple-500/10 border-purple-400/30 text-purple-100 min-h-[60px]"
-                            />
-                          </div>
-                          
-                          {/* Resumo total já recebido */}
-                          {(parseFloat(historicalInterestReceived) > 0 || selectedPastInstallments.length > 0) && (
-                            <div className="p-2 rounded bg-green-500/10 border border-green-400/30">
-                              <p className="text-xs text-green-300 font-medium">
-                                📊 Total já recebido: {formatCurrency(
-                                  (selectedPastInstallments.length * (pastInstallmentsData.valuePerInstallment || 0)) + 
-                                  (parseFloat(historicalInterestReceived) || 0)
-                                )}
-                              </p>
-                            </div>
-                          )}
-                        </div>
                       </div>
+                    )}
+                      
+                    {/* 🆕 Nova seção de Registros Históricos de Juros */}
+                    {formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
+                      <HistoricalInterestRecords
+                        installmentDates={installmentDates}
+                        principalAmount={parseFloat(formData.principal_amount) || 0}
+                        interestRate={parseFloat(formData.interest_rate) || 0}
+                        interestMode={formData.interest_mode as 'per_installment' | 'on_total' | 'compound'}
+                        paymentType={formData.payment_type}
+                        selectedIndices={selectedHistoricalInterestInstallments}
+                        onSelectionChange={setSelectedHistoricalInterestInstallments}
+                      />
                     )}
                   </div>
                 )}
