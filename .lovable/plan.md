@@ -1,154 +1,263 @@
 
 
-# Plano: Corrigir Timeout na Consulta de Clientes (Performance RLS)
+# Plano: Registros Historicos com Pagamentos de Juros Automaticos
 
-## Problema Identificado
+## Entendendo o Cenario
 
-A consulta de clientes está dando **TIMEOUT** (erro 57014) porque a nova política RLS com a função `can_view_client()` está sendo executada para **cada uma das 20.051 linhas** da tabela, causando milhares de subconsultas.
+**Exemplo do usuario:**
+- Emprestimo de R$ 1.000 a 10% ao mes
+- Data inicio: 10/01/2025
+- Data atual: 10/01/2026 (1 ano depois)
+- Resultado esperado: 12 parcelas de juros de R$ 100 cada
 
-**Logs do erro:**
-```
-"code": "57014"
-"message": "canceling statement due to statement timeout"
-```
+**Comportamento desejado:**
+1. Sistema detecta que ha 12 meses passados
+2. Mostra TODAS as 12 parcelas de juros (R$ 100 cada)
+3. Ao criar o emprestimo:
+   - Total a Receber: R$ 1.100 (principal + 1 mes de juros)
+   - Lucro Realizado: R$ 1.200 (12 x R$ 100 ja recebidos como juros)
+   - Pago: R$ 1.200 (valor total ja recebido)
+   - Restante a Receber: R$ 1.100 (valor cheio - principal nao foi tocado)
 
-## Causa Raiz
+**Diferenca do sistema atual:**
+- Hoje: Usuario marca parcelas como "pagas" (principal + juros) e digita juros antigos manualmente
+- Novo: Sistema gera automaticamente pagamentos de "somente juros" para cada mes passado
 
-A política RLS atual:
-```sql
-CREATE POLICY "Employees can view allowed clients" ON clients
-  FOR SELECT USING (
-    auth.uid() = user_id 
-    OR can_view_client(auth.uid(), user_id, created_by, id)
-  );
-```
+## Arquitetura da Solucao
 
-A função `can_view_client()` executa várias subconsultas por linha:
-1. `get_employee_owner_id(_user_id)` - consulta employees
-2. `EXISTS (SELECT 1 FROM client_assignments...)` - consulta client_assignments  
-3. `has_employee_permission(_user_id, 'view_all_clients')` - consulta employee_permissions
+### Nova Interface de Registros Historicos
 
-Com 20.000+ clientes, isso gera **60.000+ subconsultas** = TIMEOUT!
+Substituir a caixa amarela atual por uma nova interface roxa mais completa:
 
-## Solução
-
-Reescrever a política RLS para ser mais eficiente, evitando chamar funções para cada linha quando o usuário é o dono:
-
-### Otimização 1: Short-circuit para donos
-
-Se `auth.uid() = user_id`, retorna TRUE imediatamente sem chamar a função.
-
-### Otimização 2: Reescrever a função com CTE
-
-Usar Common Table Expressions para calcular uma única vez se o usuário é funcionário e quais são suas permissões:
-
-```sql
-CREATE OR REPLACE FUNCTION can_view_client_optimized(_user_id uuid, _client_user_id uuid, _client_created_by uuid, _client_id uuid)
-RETURNS boolean
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  _owner_id uuid;
-  _has_view_all boolean;
-  _employee_record RECORD;
-BEGIN
-  -- Se é o dono, retorna imediatamente
-  IF _user_id = _client_user_id THEN
-    RETURN true;
-  END IF;
-  
-  -- Busca dados do funcionário uma única vez
-  SELECT e.id, e.owner_id INTO _employee_record
-  FROM employees e
-  WHERE e.employee_user_id = _user_id
-  LIMIT 1;
-  
-  -- Se não é funcionário, não tem acesso
-  IF _employee_record.id IS NULL THEN
-    RETURN false;
-  END IF;
-  
-  -- Verifica se o owner_id do funcionário é o dono do cliente
-  IF _employee_record.owner_id != _client_user_id THEN
-    RETURN false;
-  END IF;
-  
-  -- Funcionário CRIOU este cliente
-  IF _client_created_by = _user_id THEN
-    RETURN true;
-  END IF;
-  
-  -- Funcionário tem view_all_clients
-  IF EXISTS (
-    SELECT 1 FROM employee_permissions 
-    WHERE employee_id = _employee_record.id 
-    AND permission = 'view_all_clients'
-  ) THEN
-    RETURN true;
-  END IF;
-  
-  -- Cliente atribuído ao funcionário
-  RETURN EXISTS (
-    SELECT 1 FROM client_assignments 
-    WHERE client_id = _client_id 
-    AND employee_id = _employee_record.id
-  );
-END;
-$$;
+```text
++------------------------------------------------------------------+
+|  REGISTROS HISTORICOS DE JUROS                                   |
+|  Este contrato possui 12 parcelas anteriores a data atual        |
++------------------------------------------------------------------+
+|                                                                   |
+|  [ ] Selecionar Todas   [ ] Nenhuma                              |
+|                                                                   |
+|  +--------------------------------------------------------------+|
+|  | [x] Parcela 1 - 10/01/2025 - Juros: R$ 100,00               ||
+|  | [x] Parcela 2 - 10/02/2025 - Juros: R$ 100,00               ||
+|  | [x] Parcela 3 - 10/03/2025 - Juros: R$ 100,00               ||
+|  | ...                                                          ||
+|  | [x] Parcela 12 - 10/12/2025 - Juros: R$ 100,00              ||
+|  +--------------------------------------------------------------+|
+|                                                                   |
+|  Total de Juros Historicos: R$ 1.200,00                          |
++------------------------------------------------------------------+
 ```
 
-### Otimização 3: Adicionar índices
+### Logica de Calculo
 
-```sql
--- Índice para acelerar busca por created_by
-CREATE INDEX IF NOT EXISTS idx_clients_created_by ON clients(created_by);
+Para cada parcela passada marcada como "juros recebidos":
+- Registrar um pagamento de `[INTEREST_ONLY_PAYMENT]` 
+- `amount`: valor do juros da parcela
+- `principal_paid`: 0 (nao reduz principal)
+- `interest_paid`: valor do juros
+- Adicionar tag `[HISTORICAL_INTEREST_ONLY_PAID:indice:valor:data]`
 
--- Índice para acelerar busca por employee_user_id
-CREATE INDEX IF NOT EXISTS idx_employees_employee_user_id ON employees(employee_user_id);
+### Valores Resultantes
 
--- Índice para acelerar client_assignments
-CREATE INDEX IF NOT EXISTS idx_client_assignments_employee_id ON client_assignments(employee_id);
+| Campo | Calculo | Exemplo |
+|-------|---------|---------|
+| Principal | Valor emprestado | R$ 1.000 |
+| Total Interest | Juros de 1 periodo (proximo) | R$ 100 |
+| Remaining Balance | Principal + 1 periodo de juros | R$ 1.100 |
+| Total Paid | Soma de todos pagamentos de juros | R$ 1.200 |
+| Lucro Realizado | Soma de interest_paid | R$ 1.200 |
+
+## Alteracoes Necessarias
+
+### 1. Estado do Formulario
+
+**Arquivo:** `src/pages/Loans.tsx`
+
+Adicionar novo estado para rastrear parcelas de juros historicos selecionadas:
+
+```typescript
+// Estado para parcelas de juros historicos selecionadas
+const [selectedHistoricalInterestInstallments, setSelectedHistoricalInterestInstallments] = useState<number[]>([]);
 ```
 
-### Otimização 4: Atualizar a política RLS
+### 2. Calcular Juros por Parcela (useMemo)
 
-```sql
--- Dropar políticas antigas
-DROP POLICY IF EXISTS "Employees can view allowed clients" ON clients;
-DROP POLICY IF EXISTS "Users can view own clients" ON clients;
+Criar/atualizar `pastInstallmentsData` para calcular juros por parcela:
 
--- Criar política única otimizada
-CREATE POLICY "Users and employees can view clients" ON clients
-  FOR SELECT USING (
-    -- Short-circuit: donos veem seus próprios clientes diretamente
-    auth.uid() = user_id
-    OR
-    -- Funcionários passam pela função otimizada
-    can_view_client_optimized(auth.uid(), user_id, created_by, id)
-  );
+```typescript
+const historicalInterestData = useMemo(() => {
+  // Calcular juros por parcela baseado no tipo de emprestimo
+  // Para mensal: juros = principal * taxa
+  // Para diario: juros = (valor_parcela - principal_por_parcela)
+  
+  return {
+    installments: [
+      { index: 0, date: '2025-01-10', interestAmount: 100 },
+      { index: 1, date: '2025-02-10', interestAmount: 100 },
+      // ...
+    ],
+    totalHistoricalInterest: 1200,
+    interestPerInstallment: 100,
+  };
+}, [formData, installmentDates]);
 ```
 
-## Resultado Esperado
+### 3. Nova UI de Registros Historicos
 
-| Cenário | Antes | Depois |
-|---------|-------|--------|
-| Dono vê seus clientes | TIMEOUT | ~50ms |
-| Funcionário vê clientes | Não testado | ~100ms |
-| Total de subconsultas | 60.000+ | ~10 |
+Substituir a secao atual de "Parcelas passadas" por nova interface:
+
+```tsx
+{formData.is_historical_contract && historicalInterestData.installments.length > 0 && (
+  <div className="p-4 rounded-lg bg-purple-500/20 border border-purple-400/30 space-y-3">
+    <div className="flex justify-between items-center">
+      <Label className="text-sm text-purple-200 flex items-center gap-2">
+        <History className="h-4 w-4" />
+        Registros Historicos de Juros
+      </Label>
+      <div className="flex gap-2">
+        <Button type="button" variant="ghost" size="sm" 
+          onClick={() => setSelectedHistoricalInterestInstallments(
+            historicalInterestData.installments.map(i => i.index)
+          )}>
+          Todas
+        </Button>
+        <Button type="button" variant="ghost" size="sm"
+          onClick={() => setSelectedHistoricalInterestInstallments([])}>
+          Nenhuma
+        </Button>
+      </div>
+    </div>
+    
+    <ScrollArea className="h-48">
+      {historicalInterestData.installments.map((installment) => (
+        <label key={installment.index} className="flex items-center gap-2 p-2">
+          <Checkbox
+            checked={selectedHistoricalInterestInstallments.includes(installment.index)}
+            onCheckedChange={(checked) => {
+              // toggle selection
+            }}
+          />
+          <span>Parcela {installment.index + 1} - {formatDate(installment.date)}</span>
+          <span className="ml-auto text-purple-300">
+            Juros: {formatCurrency(installment.interestAmount)}
+          </span>
+        </label>
+      ))}
+    </ScrollArea>
+    
+    <div className="p-3 rounded bg-purple-500/10 border border-purple-400/20">
+      <p className="text-sm text-purple-200 font-medium">
+        Total de Juros Historicos: {formatCurrency(
+          selectedHistoricalInterestInstallments.length * historicalInterestData.interestPerInstallment
+        )}
+      </p>
+      <p className="text-xs text-purple-300/70 mt-1">
+        Estes valores serao registrados como juros ja recebidos (principal nao sera alterado)
+      </p>
+    </div>
+  </div>
+)}
+```
+
+### 4. Logica de Criacao (handleSubmit / handleDailySubmit)
+
+Apos criar o emprestimo, registrar pagamentos de juros historicos:
+
+```typescript
+// Registrar pagamentos de juros historicos
+if (formData.is_historical_contract && selectedHistoricalInterestInstallments.length > 0) {
+  const loanId = result.data.id;
+  const interestPerInstallment = historicalInterestData.interestPerInstallment;
+  
+  for (const idx of selectedHistoricalInterestInstallments) {
+    const installment = historicalInterestData.installments.find(i => i.index === idx);
+    if (!installment) continue;
+    
+    await registerPayment({
+      loan_id: loanId,
+      amount: installment.interestAmount,
+      principal_paid: 0,  // NAO reduz principal
+      interest_paid: installment.interestAmount,  // Apenas juros
+      payment_date: installment.date,
+      notes: `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:${idx}:${installment.interestAmount}:${installment.date}] Juros parcela ${idx + 1}`,
+    });
+  }
+  
+  // Adicionar tag ao emprestimo
+  const totalHistoricalInterest = selectedHistoricalInterestInstallments.length * interestPerInstallment;
+  await supabase.from('loans').update({
+    notes: currentNotes + ` [HISTORICAL_INTEREST_CONTRACT] [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest}]`
+  }).eq('id', loanId);
+}
+```
+
+### 5. Manter Sistema Antigo como Fallback
+
+A opcao de digitar manualmente o valor de juros antigos ainda existira, mas como campo secundario para casos onde o usuario nao quer detalhar parcela por parcela.
+
+### 6. Exibicao nos Cards
+
+Quando um emprestimo tiver juros historicos:
+- Mostrar badge roxo "Juros Historicos"
+- Na area expandida, mostrar lista de juros recebidos por data
+
+## Fluxo de Uso
+
+### Cenario: Usuario cadastra emprestimo de 1 ano atras
+
+1. Usuario abre formulario de novo emprestimo
+2. Seleciona cliente e digita R$ 1.000 a 10% ao mes
+3. Define data inicio: 10/01/2025 (1 ano atras)
+4. Sistema detecta 12 parcelas no passado
+5. Checkbox "Este e um contrato antigo" aparece
+6. Usuario marca o checkbox
+7. Lista de 12 parcelas de juros aparece (R$ 100 cada)
+8. Usuario clica "Selecionar Todas"
+9. Resumo mostra: "Total Juros Historicos: R$ 1.200"
+10. Usuario clica "Criar Emprestimo"
+
+### Resultado no Sistema:
+
+```
+Emprestimo Criado:
+- Principal: R$ 1.000
+- Juros do Periodo: R$ 100
+- Total a Receber: R$ 1.100
+- Status: Pendente
+
+Pagamentos Registrados (automaticamente):
+- 10/01/2025: R$ 100 (juros parcela 1) [INTEREST_ONLY]
+- 10/02/2025: R$ 100 (juros parcela 2) [INTEREST_ONLY]
+- ... (12 registros)
+
+Metricas Resultantes:
+- Pago: R$ 1.200
+- Lucro Realizado: R$ 1.200
+- Restante: R$ 1.100
+```
 
 ## Arquivos Afetados
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| **Migration SQL** | Criar função otimizada, adicionar índices, atualizar políticas RLS |
+| `src/pages/Loans.tsx` | Novo estado, novo useMemo para calculo, nova UI de selecao, logica de criacao |
+
+## Consideracoes Tecnicas
+
+1. **Performance**: Limitar lista a 60 parcelas (5 anos de emprestimo mensal)
+2. **Tags**: Usar `[INTEREST_ONLY_PAYMENT]` para que o trigger do banco nao reduza o principal
+3. **Compatibilidade**: Manter campo de "juros antigos manual" para usuarios que preferem o metodo antigo
+4. **Anti-duplicacao**: Usar a mesma logica de skip para pagamentos historicos que ja existe
 
 ## Estimativa
 
-- **Complexidade**: Média
-- **Linhas SQL**: ~60
-- **Risco**: Baixo (melhoria de performance, lógica igual)
-- **Impacto**: Imediato - clientes voltarão a aparecer
+- **Complexidade**: Media
+- **Linhas de codigo**: ~200-300
+- **Risco**: Baixo (adiciona funcionalidade sem quebrar existente)
+- **Testes recomendados**:
+  - Criar emprestimo com 12 meses passados, selecionar todas as parcelas de juros
+  - Verificar que "Lucro Realizado" mostra soma correta
+  - Verificar que "Restante a Receber" mostra principal + 1 periodo de juros
+  - Verificar que principal nao foi reduzido (remaining_balance correto)
 
