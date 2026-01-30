@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isBefore, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -75,11 +75,16 @@ interface DueDateInfo {
 }
 
 export default function CalendarView() {
-  const { loans, loading } = useLoans();
+  const { loans, loading, fetchLoans } = useLoans();
   const { payments: vehiclePayments, isLoading: vehicleLoading } = useVehiclePayments();
   const { payments: productSalePayments, isLoading: productLoading } = useProductSalePayments();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Forçar atualização ao entrar na página
+  useEffect(() => {
+    fetchLoans();
+  }, [fetchLoans]);
 
   // Calculate installment and interest values for a loan
   const calculateLoanValues = (loan: Loan) => {
