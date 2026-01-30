@@ -145,12 +145,28 @@ export function useContracts() {
     mutationFn: async (contractData: CreateContractData) => {
       if (!effectiveUserId) throw new Error('User not authenticated');
 
-      // Create the contract
+      // Separar campos internos dos campos válidos da tabela
+      const {
+        is_historical,
+        historical_paid_installments,
+        send_creation_notification,
+        vehicle_plate,
+        vehicle_brand,
+        vehicle_model,
+        vehicle_color,
+        vehicle_km_start,
+        vehicle_km_end,
+        vehicle_year,
+        vehicle_renavam,
+        ...tableFields
+      } = contractData;
+
+      // Create the contract usando apenas campos válidos
       const { data: contract, error: contractError } = await supabase
         .from('contracts')
         .insert({
           user_id: effectiveUserId,
-          ...contractData,
+          ...tableFields,
         })
         .select()
         .single();
