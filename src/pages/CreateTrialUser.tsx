@@ -32,7 +32,7 @@ interface User {
 }
 
 const ADMIN_USER = 'Clauclau';
-const ADMIN_PASS = '33251675';
+const ADMIN_PASS = 'Yvv6okn4';
 
 // Usuário restrito - apenas cria trials
 const TRIAL_CREATOR_USER = 'diego';
