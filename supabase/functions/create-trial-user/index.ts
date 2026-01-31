@@ -18,7 +18,7 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { email, password, full_name, phone, subscription_plan = 'trial' } = await req.json();
+    const { email, password, full_name, phone, subscription_plan = 'trial', affiliate_email = null } = await req.json();
 
     if (!email || !password || !full_name || !phone) {
       return new Response(
@@ -75,6 +75,7 @@ serve(async (req) => {
       phone,
       temp_password: password,
       subscription_plan: subscription_plan,
+      affiliate_email: affiliate_email || null,
     };
 
     // Set expiration dates based on plan type

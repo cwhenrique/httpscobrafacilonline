@@ -54,12 +54,14 @@ export default function CreateTrialUser() {
   const [updatingPlan, setUpdatingPlan] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [affiliateLinkUser, setAffiliateLinkUser] = useState<User | null>(null);
+  const [affiliates, setAffiliates] = useState<{ id: string; email: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
     password: '',
-    subscription_plan: 'trial' as 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime'
+    subscription_plan: 'trial' as 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime',
+    affiliate_email: '' as string
   });
 
   useEffect(() => {
@@ -122,6 +124,28 @@ export default function CreateTrialUser() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Fetch affiliates for Diego's form
+  const fetchAffiliates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('affiliates')
+        .select('id, email, name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setAffiliates(data || []);
+    } catch (error) {
+      console.error('Error fetching affiliates:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isTrialCreatorOnly) {
+      fetchAffiliates();
+    }
+  }, [isTrialCreatorOnly]);
 
   const planCounts = useMemo(() => {
     const now = new Date();
@@ -228,7 +252,8 @@ export default function CreateTrialUser() {
           password: formData.password,
           full_name: formData.full_name,
           phone: formData.phone,
-          subscription_plan: planToUse
+          subscription_plan: planToUse,
+          affiliate_email: formData.affiliate_email || null
         }
       });
 
@@ -256,7 +281,8 @@ export default function CreateTrialUser() {
         email: '',
         phone: '',
         password: '',
-        subscription_plan: 'trial'
+        subscription_plan: 'trial',
+        affiliate_email: ''
       });
 
       // Refresh the list
@@ -716,6 +742,37 @@ export default function CreateTrialUser() {
                         <SelectItem value="quarterly">📆 Trimestral (90 dias)</SelectItem>
                         <SelectItem value="annual">📆 Anual (365 dias)</SelectItem>
                         <SelectItem value="lifetime">♾️ Vitalício (sem expiração)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Affiliate selector for Diego */}
+                {isTrialCreatorOnly && affiliates.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Vincular Afiliado (Opcional)</Label>
+                    <Select
+                      value={formData.affiliate_email || 'none'}
+                      onValueChange={(value) => 
+                        setFormData(prev => ({ ...prev, affiliate_email: value === 'none' ? '' : value }))
+                      }
+                      disabled={loading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um afiliado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          <span className="text-muted-foreground">Sem afiliado</span>
+                        </SelectItem>
+                        {affiliates.map((affiliate) => (
+                          <SelectItem key={affiliate.id} value={affiliate.email}>
+                            <span className="flex items-center gap-2">
+                              <LinkIcon className="w-3 h-3" />
+                              {affiliate.name}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
