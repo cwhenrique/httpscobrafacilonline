@@ -1,84 +1,123 @@
 
-# Plano: Incluir Multas e Juros de Atraso Pagos no Score do Cliente
+# Plano: Corrigir Cálculo de Datas de Parcelas Mensais em Veículos
 
 ## Problema Identificado
 
-Atualmente, o sistema de score do cliente considera apenas:
-- Empréstimos pagos em dia (+3 pontos)
-- Empréstimos em atraso (-20 pontos)
-- Atrasos críticos (+30 dias) (-10 pontos adicionais)
-- Bônus de fidelidade (+15 pontos)
+O mesmo bug que foi corrigido em Vendas de Produtos está presente em Vendas de Veículos:
 
-**O que falta:** Quando um cliente em atraso paga as multas/juros de atraso aplicados, esse comportamento "recuperador" não melhora o score.
+- Quando o usuário seleciona 31/01 como primeira data de vencimento
+- Janeiro: 31/01 (correto)
+- Fevereiro: Mostra 03/03 (errado - deveria ser 28/02)
+- Março: 31/03 (correto)
 
-## Proposta de Solução
+**Causa:** O código usa `setDate(dueDate, 31)` para forçar o dia 31 em fevereiro, mas JavaScript "transborda" a data para o mês seguinte (31 de fevereiro = 3 de março).
 
-Adicionar uma nova métrica ao score que considera **pagamentos extras** (multas e juros de atraso pagos):
+## Solução
 
-### Nova Fórmula de Score
+Aplicar a mesma correção usando `getDaysInMonth` do `date-fns`:
 
 ```text
-Score = 100
-  + (pagamentos em dia × 3)
-  - (atrasos × 20)
-  - (atrasos críticos × 10)
-  + (bônus fidelidade × 15)
-  + (bônus recuperação × N)  ← NOVO
+dia_desejado = 31 (original)
+dias_no_mes_fevereiro = 28
+dia_final = min(31, 28) = 28
 ```
-
-**Bônus de recuperação:** Quando o cliente paga valores acima do previsto (multas, juros de atraso), isso demonstra que está se recuperando. Esse bônus mitiga parte da penalidade de atraso.
-
-### Lógica do Bônus de Recuperação
-
-1. Calcular o "Lucro Extra" recebido deste cliente (já existe no sistema)
-2. Para cada R$50 pagos em multas/juros extras: +2 pontos de recuperação
-3. Limite máximo de +10 pontos de recuperação por cliente
 
 ## Alterações Técnicas
 
-### Arquivo 1: `src/lib/updateClientScore.ts`
+### Arquivo 1: `src/components/VehicleForm.tsx`
 
-- Buscar pagamentos do cliente com `interest_paid`
-- Calcular o total de juros previstos vs recebidos
-- Adicionar bônus de recuperação quando `interest_paid > expected_interest`
-
-### Arquivo 2: `src/hooks/useClientScore.ts`
-
-- Atualizar a mesma lógica para exibição em tempo real na UI
-
-### Arquivo 3: `src/pages/ClientScores.tsx`
-
-- Mostrar o bônus de recuperação na explicação do score
-- Exibir badge "Recuperado" para clientes com bônus de recuperação
-
-## Visualização na UI
-
-No card de cada cliente na página de Score, exibir:
-
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Score | 63 | 73 |
-| Badge | 🚨 Crítico | 👌 Regular |
-| Nova info | — | +10 pts recuperação |
-
-## Fluxo de Dados
-
-```text
-Pagamento com multa registrado
-    ↓
-loan_payments.interest_paid > juros previstos
-    ↓
-updateClientScore() detecta "extra profit"
-    ↓
-Aplica bônus de recuperação ao score
-    ↓
-Atualiza tabela clients.score
+**1. Adicionar import `getDaysInMonth`:**
+```typescript
+import { addMonths, addDays, format, setDate, getDate, parseISO, getDaysInMonth } from 'date-fns';
 ```
 
-## Resumo das Alterações
+**2. Corrigir lógica de geração de datas (linhas 243-251):**
 
-1. **`src/lib/updateClientScore.ts`** - Adicionar cálculo de bônus de recuperação baseado em pagamentos extras
-2. **`src/hooks/useClientScore.ts`** - Sincronizar lógica para cálculos em tempo real
-3. **`src/pages/ClientScores.tsx`** - Exibir bônus de recuperação na UI e explicação do score
+Antes:
+```typescript
+// Add 1 month for each installment (monthly)
+dueDate = addMonths(firstDate, i);
+// Keep the same day of month
+try {
+  dueDate = setDate(dueDate, dayOfMonth);
+} catch {
+  // If day doesn't exist in month (e.g., 31 in Feb), use last day
+  dueDate = addMonths(firstDate, i);
+}
+```
 
-Nenhuma alteração de banco de dados é necessária, pois os dados já existem na tabela `loan_payments.interest_paid`.
+Depois:
+```typescript
+// Add 1 month for each installment (monthly)
+dueDate = addMonths(firstDate, i);
+// Keep the same day of month, capped at month's max days
+// Ex: 31/01 -> 28/02 (not 03/03)
+const maxDaysInMonth = getDaysInMonth(dueDate);
+const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+dueDate = setDate(dueDate, adjustedDay);
+```
+
+---
+
+### Arquivo 2: `src/hooks/useVehicles.ts`
+
+**1. Adicionar import `getDaysInMonth` e funções necessárias:**
+```typescript
+import { addMonths, format, parseISO, getDate, setDate, getDaysInMonth } from 'date-fns';
+```
+
+**2. Corrigir lógica no `createVehicle` (linhas 234-248):**
+
+Antes:
+```typescript
+for (let i = 0; i < data.installments; i++) {
+  const dueDate = addMonths(parseISO(data.first_due_date), i);
+  const dueDateStr = format(dueDate, 'yyyy-MM-dd');
+  // ...
+}
+```
+
+Depois:
+```typescript
+const firstDate = parseISO(data.first_due_date);
+const dayOfMonth = getDate(firstDate);
+
+for (let i = 0; i < data.installments; i++) {
+  let dueDate = addMonths(firstDate, i);
+  // Ajustar o dia para não exceder o máximo do mês
+  // Ex: 31/01 -> 28/02 (não 03/03)
+  const maxDaysInMonth = getDaysInMonth(dueDate);
+  const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+  dueDate = setDate(dueDate, adjustedDay);
+  const dueDateStr = format(dueDate, 'yyyy-MM-dd');
+  // ...
+}
+```
+
+## Resultado Esperado
+
+Com data inicial 31/01 e 12 parcelas mensais:
+
+| Parcela | Antes (Errado) | Depois (Correto) |
+|---------|----------------|------------------|
+| 1ª      | 31/01          | 31/01            |
+| 2ª      | 03/03          | 28/02            |
+| 3ª      | 31/03          | 31/03            |
+| 4ª      | 01/05          | 30/04            |
+| 5ª      | 31/05          | 31/05            |
+| 6ª      | 01/07          | 30/06            |
+| ...     | ...            | ...              |
+
+O sistema sempre usará o último dia do mês quando o dia desejado não existir naquele mês.
+
+## Arquivos a Modificar
+
+1. `src/components/VehicleForm.tsx` - Interface do formulário de veículos
+2. `src/hooks/useVehicles.ts` - Hook que processa e salva os dados
+
+## Consistência
+
+Essa correção segue exatamente o mesmo padrão já aplicado em:
+- `src/pages/ProductSales.tsx`
+- `src/hooks/useProductSales.ts`
+- Conforme documentado na memória `features/monthly-installment-date-logic`
