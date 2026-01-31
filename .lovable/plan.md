@@ -1,125 +1,165 @@
 
-# Plano: Cascata de Datas Pulando Sábado/Domingo no Editar Parcelas Diárias
+# Plano: Exportação CSV Completa de Empréstimos com Multas e Juros em Atraso
 
-## Problema Identificado
+## Situação Atual
 
-Ao editar a data de uma parcela em empréstimos diários:
-- **Funciona:** A cascata atualiza todas as parcelas subsequentes (ex: dia 09 → dia 10, então dia 10 → dia 11, dia 11 → dia 12...)
-- **Não funciona:** Se a opção "pular sábado/domingo" estiver marcada, a cascata NÃO respeita essa regra
+A exportação CSV em `src/components/LoansTableView.tsx` inclui apenas campos básicos:
+- Cliente, Telefone, Status
+- Valor Emprestado, Total a Receber, Valor Restante
+- Parcelas Pagas/Total, Próximo Vencimento
+- Taxa de Juros, Tipo de Pagamento, Data de Início
+- Notas
 
-**Exemplo:**
-- Cliente devia pagar dia 09 (sexta), não pagou
-- Usuário edita para dia 10 (sábado) — mas se "pular sábado" está ativo, deveria ir para dia 12 (segunda)
-- As parcelas seguintes também precisam respeitar essa regra
+**Informações AUSENTES:**
+- Multas aplicadas (manuais)
+- Juros por atraso (dinâmicos)
+- Dias em atraso
+- Valor da parcela
+- Total pago
+- Lucro (juros totais)
+- CPF/RG do cliente
+- Endereço do cliente
 
-## Causa Raiz
+## Novos Campos a Adicionar
 
-A função `handleUpdateSpecificDate` (linha 1784-1849) apenas soma dias às datas seguintes:
-
-```typescript
-// CÓDIGO ATUAL (linha 1805-1809)
-for (let i = index + 1; i < updatedDates.length; i++) {
-  const originalDate = new Date(currentDates[i] + 'T12:00:00');
-  originalDate.setDate(originalDate.getDate() + diffDays);
-  updatedDates[i] = format(originalDate, 'yyyy-MM-dd');
-}
-```
-
-Não há verificação se a nova data cai em sábado, domingo ou feriado.
-
-## Solução
-
-Ler as configurações de pular dias do `loan.notes` e regenerar as datas subsequentes usando a função existente `generateDailyDates`:
-
-### Lógica Corrigida
-
-1. Verificar se o empréstimo tem tags `[SKIP_SATURDAY]`, `[SKIP_SUNDAY]`, `[SKIP_HOLIDAYS]` nas notas
-2. Atualizar a data da parcela editada
-3. Se a nova data cair em dia pulado, avançar até encontrar dia válido
-4. Para as parcelas seguintes, regenerar usando `generateDailyDates` a partir da nova data
+| Campo | Descrição |
+|-------|-----------|
+| CPF | Documento do cliente |
+| E-mail | Email do cliente |
+| Endereço | Endereço completo |
+| Dias em Atraso | Quantidade de dias em atraso |
+| Multas Manuais | Total de multas aplicadas manualmente |
+| Juros por Atraso | Juros dinâmicos calculados pelo atraso |
+| Total + Multas | Valor total incluindo multas e juros atraso |
+| Valor da Parcela | Valor unitário de cada parcela |
+| Total Pago | Quanto já foi pago |
+| Lucro Previsto | Total de juros do contrato |
+| Data do Contrato | Data de criação do contrato |
+| Modo de Juros | on_total, per_installment, compound |
 
 ## Alterações Técnicas
 
-### Arquivo: `src/pages/Loans.tsx`
+### Arquivo: `src/components/LoansTableView.tsx`
 
-**Função `handleUpdateSpecificDate` (linhas 1784-1849):**
+**1. Adicionar imports das funções de cálculo:**
+```typescript
+import { 
+  formatCurrency, 
+  formatDate, 
+  getTotalDailyPenalties, 
+  getDaysOverdue, 
+  calculateDynamicOverdueInterest,
+  calculateInstallmentValue,
+  isLoanOverdue
+} from '@/lib/calculations';
+```
+
+**2. Expandir os headers do CSV:**
+```typescript
+const headers = [
+  'Cliente',
+  'Telefone',
+  'CPF',
+  'E-mail',
+  'Endereço',
+  'Status',
+  'Valor Emprestado',
+  'Taxa de Juros (%)',
+  'Modo de Juros',
+  'Lucro Previsto',
+  'Total a Receber',
+  'Valor da Parcela',
+  'Parcelas Pagas',
+  'Total Parcelas',
+  'Total Pago',
+  'Valor Restante',
+  'Dias em Atraso',
+  'Multas Manuais',
+  'Juros por Atraso',
+  'Total + Multas',
+  'Próximo Vencimento',
+  'Tipo de Pagamento',
+  'Data do Contrato',
+  'Data de Início',
+  'Notas'
+];
+```
+
+**3. Calcular os novos valores para cada empréstimo:**
+```typescript
+const rows = sortedLoans.map(loan => {
+  const status = getLoanStatus(loan);
+  const paidCount = getPaidInstallmentsCount(loan);
+  const nextDue = getNextDueDate(loan);
+  
+  // Juros totais
+  const totalInterest = loan.total_interest || (loan.principal_amount * loan.interest_rate / 100);
+  const totalToReceive = loan.principal_amount + totalInterest;
+  
+  // Multas e atrasos
+  const manualPenalties = getTotalDailyPenalties(loan.notes);
+  const daysOverdue = isLoanOverdue(loan) ? getDaysOverdue(loan) : 0;
+  const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOverdue);
+  const totalWithPenalties = loan.remaining_balance + manualPenalties + dynamicInterest;
+  
+  // Valor da parcela
+  const installmentValue = calculateInstallmentValue(loan);
+  
+  // Modo de juros legível
+  const interestModeLabel = {
+    'on_total': 'Sobre o Total',
+    'per_installment': 'Por Parcela',
+    'compound': 'Composto (Price)'
+  }[loan.interest_mode || 'on_total'] || loan.interest_mode;
+  
+  // Endereço completo
+  const address = [
+    loan.client?.street,
+    loan.client?.number,
+    loan.client?.complement,
+    loan.client?.neighborhood,
+    loan.client?.city,
+    loan.client?.state
+  ].filter(Boolean).join(', ') || loan.client?.address || 'N/A';
+
+  return [
+    loan.client?.full_name || 'N/A',
+    loan.client?.phone || 'N/A',
+    loan.client?.cpf || 'N/A',
+    loan.client?.email || 'N/A',
+    address,
+    status.label,
+    loan.principal_amount.toFixed(2).replace('.', ','),
+    loan.interest_rate.toString().replace('.', ','),
+    interestModeLabel,
+    totalInterest.toFixed(2).replace('.', ','),
+    totalToReceive.toFixed(2).replace('.', ','),
+    installmentValue.toFixed(2).replace('.', ','),
+    paidCount.toString(),
+    (loan.installments || 1).toString(),
+    (loan.total_paid || 0).toFixed(2).replace('.', ','),
+    loan.remaining_balance.toFixed(2).replace('.', ','),
+    daysOverdue.toString(),
+    manualPenalties.toFixed(2).replace('.', ','),
+    dynamicInterest.toFixed(2).replace('.', ','),
+    totalWithPenalties.toFixed(2).replace('.', ','),
+    nextDue ? formatDate(nextDue) : 'N/A',
+    getPaymentTypeLabel(loan.payment_type),
+    loan.contract_date ? formatDate(loan.contract_date) : formatDate(loan.start_date),
+    loan.start_date ? formatDate(loan.start_date) : 'N/A',
+    (loan.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')
+  ];
+});
+```
+
+## Resultado Final do CSV
+
+O arquivo CSV exportado terá 25 colunas com todas as informações relevantes:
 
 ```text
-ANTES:
-1. Atualiza a data da parcela selecionada
-2. Calcula diferença de dias entre data antiga e nova
-3. Soma essa diferença a TODAS as datas seguintes
-
-DEPOIS:
-1. Ler configurações de pular dias do loan.notes
-2. Atualiza a data da parcela selecionada
-3. Se a data cair em dia pulado → avançar até dia válido
-4. Para parcelas seguintes → regenerar usando generateDailyDates
-   - Inicia no dia seguinte à parcela editada
-   - Respeita sábado/domingo/feriados conforme configuração
+Cliente;Telefone;CPF;E-mail;Endereço;Status;Valor Emprestado;Taxa de Juros (%);Modo de Juros;Lucro Previsto;Total a Receber;Valor da Parcela;Parcelas Pagas;Total Parcelas;Total Pago;Valor Restante;Dias em Atraso;Multas Manuais;Juros por Atraso;Total + Multas;Próximo Vencimento;Tipo de Pagamento;Data do Contrato;Data de Início;Notas
 ```
 
-### Código da Correção
+## Arquivo a Modificar
 
-Na função `handleUpdateSpecificDate`:
-
-```typescript
-// Ler configurações de pular dias das notas do empréstimo
-const loanNotes = loan.notes || '';
-const skipSat = loanNotes.includes('[SKIP_SATURDAY]');
-const skipSun = loanNotes.includes('[SKIP_SUNDAY]');
-const skipHol = loanNotes.includes('[SKIP_HOLIDAYS]');
-
-// Ajustar a data selecionada se cair em dia pulado
-let adjustedNewDate = new Date(newDateStr + 'T12:00:00');
-while (
-  (skipSat && adjustedNewDate.getDay() === 6) || 
-  (skipSun && adjustedNewDate.getDay() === 0) || 
-  (skipHol && isHoliday(adjustedNewDate))
-) {
-  adjustedNewDate.setDate(adjustedNewDate.getDate() + 1);
-}
-updatedDates[index] = format(adjustedNewDate, 'yyyy-MM-dd');
-
-// Regenerar datas subsequentes respeitando dias pulados
-if (index + 1 < updatedDates.length) {
-  const remainingCount = updatedDates.length - index - 1;
-  const nextDay = new Date(adjustedNewDate);
-  nextDay.setDate(nextDay.getDate() + 1);
-  
-  const newSubsequentDates = generateDailyDates(
-    format(nextDay, 'yyyy-MM-dd'), 
-    remainingCount, 
-    skipSat, 
-    skipSun, 
-    skipHol
-  );
-  
-  for (let i = 0; i < newSubsequentDates.length; i++) {
-    updatedDates[index + 1 + i] = newSubsequentDates[i];
-  }
-}
-```
-
-## Comportamento Esperado
-
-**Cenário:** Empréstimo diário com 5 parcelas, "pular sábado e domingo" marcado
-
-| Parcela | Data Atual | Usuário Edita Para | Resultado |
-|---------|------------|-------------------|-----------|
-| 1ª | 09/01 (qui) | — | 09/01 (qui) |
-| 2ª | 10/01 (sex) | Edita para 11/01 (sáb) | 13/01 (seg) ← pula sáb/dom |
-| 3ª | 11/01 (sáb) | — | 14/01 (ter) ← regenerado |
-| 4ª | 13/01 (seg) | — | 15/01 (qua) ← regenerado |
-| 5ª | 14/01 (ter) | — | 16/01 (qui) ← regenerado |
-
-## Resumo das Alterações
-
-1. **`src/pages/Loans.tsx`** - Modificar função `handleUpdateSpecificDate`:
-   - Ler tags `[SKIP_*]` do `loan.notes`
-   - Ajustar a data editada se cair em dia pulado
-   - Regenerar datas subsequentes usando `generateDailyDates` com as configurações corretas
-
-## Arquivos Afetados
-
-- `src/pages/Loans.tsx` (apenas 1 arquivo)
+- `src/components/LoansTableView.tsx` - Expandir função `handleExportCSV`
