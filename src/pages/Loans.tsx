@@ -1791,24 +1791,53 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // Verificar se é empréstimo diário (só diário tem cascata)
     const isDaily = loan.payment_type === 'daily';
     
-    // Atualizar a data da parcela selecionada
-    updatedDates[index] = newDateStr;
-    
     let diffDays = 0;
     
     // CASCATA: Mover todas as parcelas SEGUINTES apenas para empréstimos DIÁRIOS
     if (isDaily) {
-      const oldDate = new Date(currentDates[index] + 'T12:00:00');
-      const newDate = new Date(newDateStr + 'T12:00:00');
-      diffDays = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+      // Ler configurações de pular dias das notas do empréstimo
+      const loanNotes = loan.notes || '';
+      const skipSat = loanNotes.includes('[SKIP_SATURDAY]');
+      const skipSun = loanNotes.includes('[SKIP_SUNDAY]');
+      const skipHol = loanNotes.includes('[SKIP_HOLIDAYS]');
       
-      for (let i = index + 1; i < updatedDates.length; i++) {
-        const originalDate = new Date(currentDates[i] + 'T12:00:00');
-        originalDate.setDate(originalDate.getDate() + diffDays);
-        updatedDates[i] = format(originalDate, 'yyyy-MM-dd');
+      // Ajustar a data selecionada se cair em dia pulado
+      let adjustedNewDate = new Date(newDateStr + 'T12:00:00');
+      while (
+        (skipSat && adjustedNewDate.getDay() === 6) || 
+        (skipSun && adjustedNewDate.getDay() === 0) || 
+        (skipHol && isHoliday(adjustedNewDate))
+      ) {
+        adjustedNewDate.setDate(adjustedNewDate.getDate() + 1);
       }
+      updatedDates[index] = format(adjustedNewDate, 'yyyy-MM-dd');
+      
+      // Calcular diferença de dias para a mensagem de toast
+      const oldDate = new Date(currentDates[index] + 'T12:00:00');
+      diffDays = Math.round((adjustedNewDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Regenerar datas subsequentes respeitando dias pulados
+      if (index + 1 < updatedDates.length) {
+        const remainingCount = updatedDates.length - index - 1;
+        const nextDay = new Date(adjustedNewDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        
+        const newSubsequentDates = generateDailyDates(
+          format(nextDay, 'yyyy-MM-dd'), 
+          remainingCount, 
+          skipSat, 
+          skipSun, 
+          skipHol
+        );
+        
+        for (let i = 0; i < newSubsequentDates.length; i++) {
+          updatedDates[index + 1 + i] = newSubsequentDates[i];
+        }
+      }
+    } else {
+      // Para mensal/semanal/quinzenal: só atualiza a parcela específica (sem cascata)
+      updatedDates[index] = newDateStr;
     }
-    // Para mensal/semanal/quinzenal: só atualiza a parcela específica (sem cascata)
 
     // ORDENAR cronologicamente para evitar inconsistências entre Calendário e Empréstimos
     const sortedDates = [...updatedDates].sort((a, b) => 
