@@ -1131,6 +1131,35 @@ export default function CreateTrialUser() {
                     </div>
                   </div>
 
+                  {/* Affiliate selector for Diego */}
+                  <div className="space-y-2">
+                    <Label>Vincular Afiliado (Opcional)</Label>
+                    <Select
+                      value={formData.affiliate_email || 'none'}
+                      onValueChange={(value) => 
+                        setFormData(prev => ({ ...prev, affiliate_email: value === 'none' ? '' : value }))
+                      }
+                      disabled={loading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um afiliado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          <span className="text-muted-foreground">Sem afiliado</span>
+                        </SelectItem>
+                        {affiliates.map((affiliate) => (
+                          <SelectItem key={affiliate.id} value={affiliate.email}>
+                            <span className="flex items-center gap-2">
+                              <LinkIcon className="w-3 h-3" />
+                              {affiliate.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? (
                       <>
