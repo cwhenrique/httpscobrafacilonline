@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateVehicleData, InstallmentDate, Vehicle, VehiclePayment } from '@/hooks/useVehicles';
-import { addMonths, addDays, format, setDate, getDate, parseISO } from 'date-fns';
+import { addMonths, addDays, format, setDate, getDate, parseISO, getDaysInMonth } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
@@ -242,13 +242,11 @@ export function VehicleForm({ billType, onSubmit, isPending, initialData, existi
         } else {
           // Add 1 month for each installment (monthly)
           dueDate = addMonths(firstDate, i);
-          // Keep the same day of month
-          try {
-            dueDate = setDate(dueDate, dayOfMonth);
-          } catch {
-            // If day doesn't exist in month (e.g., 31 in Feb), use last day
-            dueDate = addMonths(firstDate, i);
-          }
+          // Keep the same day of month, capped at month's max days
+          // Ex: 31/01 -> 28/02 (not 03/03)
+          const maxDaysInMonth = getDaysInMonth(dueDate);
+          const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+          dueDate = setDate(dueDate, adjustedDay);
         }
         
         dates.push({
