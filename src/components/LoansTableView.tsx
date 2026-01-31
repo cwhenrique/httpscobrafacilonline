@@ -7,7 +7,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MoreHorizontal, CreditCard, Pencil, RefreshCw, Trash2, History, DollarSign, ChevronDown, ChevronUp, Download, MessageCircle, Bell, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate } from '@/lib/calculations';
+import { 
+  formatCurrency, 
+  formatDate, 
+  getTotalDailyPenalties, 
+  getDaysOverdue, 
+  calculateDynamicOverdueInterest,
+  calculateInstallmentValue,
+  isLoanOverdue
+} from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { Loan } from '@/types/database';
 import { toast } from '@/hooks/use-toast';
@@ -185,15 +193,27 @@ export function LoansTableView({
     const headers = [
       'Cliente',
       'Telefone',
+      'CPF',
+      'E-mail',
+      'Endereço',
       'Status',
       'Valor Emprestado',
+      'Taxa de Juros (%)',
+      'Modo de Juros',
+      'Lucro Previsto',
       'Total a Receber',
-      'Valor Restante',
+      'Valor da Parcela',
       'Parcelas Pagas',
       'Total Parcelas',
+      'Total Pago',
+      'Valor Restante',
+      'Dias em Atraso',
+      'Multas Manuais',
+      'Juros por Atraso',
+      'Total + Multas',
       'Próximo Vencimento',
-      'Taxa de Juros (%)',
       'Tipo de Pagamento',
+      'Data do Contrato',
       'Data de Início',
       'Notas'
     ];
@@ -202,20 +222,61 @@ export function LoansTableView({
       const status = getLoanStatus(loan);
       const paidCount = getPaidInstallmentsCount(loan);
       const nextDue = getNextDueDate(loan);
-      const totalAmount = loan.principal_amount * (1 + loan.interest_rate / 100);
       
+      // Juros totais do contrato
+      const totalInterest = loan.total_interest || (loan.principal_amount * loan.interest_rate / 100);
+      const totalToReceive = loan.principal_amount + totalInterest;
+      
+      // Multas e atrasos
+      const manualPenalties = getTotalDailyPenalties(loan.notes);
+      const daysOverdue = isLoanOverdue(loan) ? getDaysOverdue(loan) : 0;
+      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOverdue);
+      const totalWithPenalties = loan.remaining_balance + manualPenalties + dynamicInterest;
+      
+      // Valor da parcela
+      const installmentValue = calculateInstallmentValue(loan);
+      
+      // Modo de juros legível
+      const interestModeLabel = {
+        'on_total': 'Sobre o Total',
+        'per_installment': 'Por Parcela',
+        'compound': 'Composto (Price)'
+      }[loan.interest_mode || 'on_total'] || loan.interest_mode || 'Sobre o Total';
+      
+      // Endereço completo
+      const address = [
+        loan.client?.street,
+        loan.client?.number,
+        loan.client?.complement,
+        loan.client?.neighborhood,
+        loan.client?.city,
+        loan.client?.state
+      ].filter(Boolean).join(', ') || loan.client?.address || 'N/A';
+
       return [
         loan.client?.full_name || 'N/A',
         loan.client?.phone || 'N/A',
+        loan.client?.cpf || 'N/A',
+        loan.client?.email || 'N/A',
+        address,
         status.label,
         loan.principal_amount.toFixed(2).replace('.', ','),
-        totalAmount.toFixed(2).replace('.', ','),
-        loan.remaining_balance.toFixed(2).replace('.', ','),
+        loan.interest_rate.toString().replace('.', ','),
+        interestModeLabel,
+        totalInterest.toFixed(2).replace('.', ','),
+        totalToReceive.toFixed(2).replace('.', ','),
+        installmentValue.toFixed(2).replace('.', ','),
         paidCount.toString(),
         (loan.installments || 1).toString(),
+        (loan.total_paid || 0).toFixed(2).replace('.', ','),
+        loan.remaining_balance.toFixed(2).replace('.', ','),
+        daysOverdue.toString(),
+        manualPenalties.toFixed(2).replace('.', ','),
+        dynamicInterest.toFixed(2).replace('.', ','),
+        totalWithPenalties.toFixed(2).replace('.', ','),
         nextDue ? formatDate(nextDue) : 'N/A',
-        loan.interest_rate.toString().replace('.', ','),
         getPaymentTypeLabel(loan.payment_type),
+        loan.contract_date ? formatDate(loan.contract_date) : formatDate(loan.start_date),
         loan.start_date ? formatDate(loan.start_date) : 'N/A',
         (loan.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')
       ];
