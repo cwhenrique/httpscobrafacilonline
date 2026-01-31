@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { useToast } from '@/hooks/use-toast';
-import { addMonths, format, parseISO } from 'date-fns';
+import { addMonths, format, parseISO, getDaysInMonth, getDate, setDate } from 'date-fns';
 
 export interface ProductSale {
   id: string;
@@ -156,9 +156,20 @@ export function useProductSales() {
       
       for (let i = 0; i < saleData.installments; i++) {
         // Use custom dates if provided, otherwise calculate
-        const dueDate = saleData.installmentDates?.[i]?.date 
-          ? saleData.installmentDates[i].date
-          : format(addMonths(parseISO(saleData.first_due_date), i), 'yyyy-MM-dd');
+        let dueDate: string;
+        if (saleData.installmentDates?.[i]?.date) {
+          dueDate = saleData.installmentDates[i].date;
+        } else {
+          // Calculate monthly date with proper day-of-month handling
+          const firstDate = parseISO(saleData.first_due_date);
+          const dayOfMonth = getDate(firstDate);
+          let calculatedDate = addMonths(firstDate, i);
+          // Ajustar o dia para não exceder o máximo do mês (ex: 31/01 -> 28/02)
+          const maxDaysInMonth = getDaysInMonth(calculatedDate);
+          const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+          calculatedDate = setDate(calculatedDate, adjustedDay);
+          dueDate = format(calculatedDate, 'yyyy-MM-dd');
+        }
         
         const isPaid = saleData.is_historical && saleData.installmentDates?.[i]?.isPaid === true;
         

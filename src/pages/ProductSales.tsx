@@ -41,7 +41,7 @@ import { Client } from '@/types/database';
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
 import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useClients } from '@/hooks/useClients';
-import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate } from 'date-fns';
+import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -520,11 +520,11 @@ export default function ProductSales() {
         } else {
           // Add 1 month for each installment (monthly)
           dueDate = addMonths(firstDate, i);
-          try {
-            dueDate = setDate(dueDate, dayOfMonth);
-          } catch {
-            // Handle edge cases
-          }
+          // Ajustar o dia para não exceder o máximo do mês
+          // Ex: 31/01 -> 28/02 (não 03/03)
+          const maxDaysInMonth = getDaysInMonth(dueDate);
+          const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+          dueDate = setDate(dueDate, adjustedDay);
         }
         
         dates.push({
