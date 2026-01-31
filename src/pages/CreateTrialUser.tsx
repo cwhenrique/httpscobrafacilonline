@@ -748,7 +748,7 @@ export default function CreateTrialUser() {
                 )}
 
                 {/* Affiliate selector for Diego */}
-                {isTrialCreatorOnly && affiliates.length > 0 && (
+                {isTrialCreatorOnly && (
                   <div className="space-y-2">
                     <Label>Vincular Afiliado (Opcional)</Label>
                     <Select
