@@ -91,13 +91,14 @@ serve(async (req) => {
       profileUpdate.subscription_expires_at = expiresAt?.toISOString();
     }
 
+    // Upsert profile to avoid race conditions with the handle_new_user trigger
+    // (sometimes the profile row may not exist yet right after auth.admin.createUser)
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update(profileUpdate)
-      .eq('id', userData.user.id);
+      .upsert({ id: userData.user.id, ...profileUpdate }, { onConflict: 'id' });
 
     if (profileError) {
-      console.error('Error updating profile:', profileError);
+      console.error('Error upserting profile:', profileError);
     }
 
     console.log('User created:', email, 'plan:', subscription_plan, 'expires:', expiresAt?.toISOString() || 'never');
