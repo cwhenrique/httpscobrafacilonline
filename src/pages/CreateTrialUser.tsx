@@ -658,11 +658,11 @@ export default function CreateTrialUser() {
                 <UserPlus className="w-6 h-6 text-primary" />
               </div>
               <CardTitle className="text-2xl">
-                {isTrialCreatorOnly ? 'Criar Usuário Trial' : 'Criar Novo Usuário'}
+                {isTrialCreatorOnly ? 'Criar Usuário' : 'Criar Novo Usuário'}
               </CardTitle>
               <CardDescription>
                 {isTrialCreatorOnly 
-                  ? 'Crie usuários de teste com acesso de 24 horas'
+                  ? 'Crie usuários com acesso de 24 horas'
                   : 'Escolha o tipo de plano abaixo'}
               </CardDescription>
             </CardHeader>
@@ -786,7 +786,7 @@ export default function CreateTrialUser() {
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4 mr-2" />
-                      {isTrialCreatorOnly ? 'Criar Usuário Trial' : (
+                      {isTrialCreatorOnly ? 'Criar Usuário' : (
                         <>
                           {formData.subscription_plan === 'trial' && 'Criar Usuário Trial'}
                           {formData.subscription_plan === 'monthly' && 'Criar Usuário Mensal'}
