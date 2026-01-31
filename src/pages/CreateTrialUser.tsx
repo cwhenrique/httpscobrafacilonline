@@ -1069,9 +1069,9 @@ export default function CreateTrialUser() {
                 <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
                   <UserPlus className="w-6 h-6 text-primary" />
                 </div>
-                <CardTitle className="text-2xl">Criar Usuário Trial</CardTitle>
+                <CardTitle className="text-2xl">Criar Usuário</CardTitle>
                 <CardDescription>
-                  Crie usuários de teste com acesso de 24 horas
+                  Crie usuários com acesso de 24 horas
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1140,7 +1140,7 @@ export default function CreateTrialUser() {
                     ) : (
                       <>
                         <UserPlus className="w-4 h-4 mr-2" />
-                        Criar Usuário Trial
+                        Criar Usuário
                       </>
                     )}
                   </Button>
