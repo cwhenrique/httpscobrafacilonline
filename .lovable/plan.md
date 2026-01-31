@@ -1,143 +1,69 @@
 
-# Plano: Unificar Métricas do Dashboard com Relatório de Empréstimos
+# Plano: Corrigir Cálculo de Datas de Parcelas Mensais
 
-## Diagnóstico do Problema
+## Problema Identificado
 
-### Fontes de Dados Diferentes
+Quando o usuário seleciona uma data inicial no dia 31 (ex: 31/01) para parcelas mensais:
+- Janeiro: 31/01 ✓
+- Fevereiro: Deveria ser 28/02, mas está mostrando 03/03 ✗
+- Março: 31/03 (depois volta ao normal)
 
-| Página | Hook Utilizado | Fonte de Dados |
-|--------|---------------|----------------|
-| Dashboard | `useDashboardStats` | Função RPC `get_dashboard_stats` |
-| Relatório | `useOperationalStats` | Consulta direta com cálculos no frontend |
+**Causa raiz:** O código usa `setDate(dueDate, 31)` para forçar o dia 31 em fevereiro, mas JavaScript "transborda" a data para o mês seguinte (31 de fevereiro = 3 de março).
 
-### Cálculos Divergentes
+## Solução
 
-**Dashboard (useDashboardStats):**
-```
-totalPending = rpcData.total_pending (apenas remaining_balance)
-totalToReceive = total_pending + pending_interest + totalOverdueInterest
-```
+Usar `getDaysInMonth` do `date-fns` para calcular o número máximo de dias do mês e ajustar o dia da parcela para não exceder esse limite.
 
-**Relatório (useOperationalStats):**
-```
-pendingAmount = remaining_balance + penalties + dynamicInterest
-pendingInterest = calculado com base em juros ainda não recebidos
-```
-
-### Problemas Identificados
-
-1. **Juros Pendentes**: O Dashboard usa `pending_interest` da RPC que calcula de forma diferente
-2. **Multas (Penalties)**: O Relatório inclui multas aplicadas (`getTotalDailyPenalties`), o Dashboard não
-3. **Juros por Atraso Dinâmicos**: Ambos calculam, mas em momentos e fontes diferentes
-4. **Cache Diferente**: `useDashboardStats` usa RPC com cache de 2 min, `useOperationalStats` usa consulta direta
-
-## Solução Proposta
-
-### Unificar Dashboard para Usar useOperationalStats
-
-O `useOperationalStats` já possui cálculos mais precisos e detalhados. Vamos fazer o Dashboard usar as mesmas fontes:
-
-**Arquivo: `src/pages/Dashboard.tsx`**
-
-1. Importar `useOperationalStats` junto com `useDashboardStats`
-2. Usar os valores de `useOperationalStats` para as métricas financeiras:
-   - **A Receber** → `stats.pendingAmount` (inclui multas e juros dinâmicos)
-   - **Pendente** → `stats.totalOnStreet + stats.pendingInterest` (capital + juros pendentes)
-
-**Arquivo: `src/hooks/useDashboardStats.ts`**
-
-3. Ajustar o cálculo de `totalToReceive` para incluir multas (se disponível)
-4. Sincronizar a fórmula de `totalPending` com o relatório
-
-### Alterações Detalhadas
-
-#### 1. Dashboard.tsx - Usar dados do useOperationalStats para métricas financeiras
-
-```typescript
-// Importar
-import { useOperationalStats } from '@/hooks/useOperationalStats';
-
-// No componente
-const { stats: operationalStats } = useOperationalStats();
-
-// Nos cards financeiros, usar:
-// A Receber = operationalStats.pendingAmount (inclui remaining_balance + multas + juros atraso)
-// Pendente = operationalStats.totalOnStreet + operationalStats.pendingInterest (capital + juros)
-```
-
-#### 2. Atualizar labels para clareza
-
-| Métrica | Valor Atual | Valor Correto |
-|---------|-------------|---------------|
-| A Receber | `totalToReceive` de RPC | `pendingAmount` de useOperationalStats |
-| Pendente | `totalPending` de RPC | `totalOnStreet + pendingInterest` |
-| Recebido | `totalReceived` de RPC | Manter igual |
-
-### Detalhes Técnicos
-
-**Antes (Dashboard):**
-```typescript
-const financialCards = [
-  {
-    title: 'A Receber',
-    value: formatCurrency(stats.totalToReceive),  // ❌ RPC incompleta
-  },
-  {
-    title: 'Pendente',
-    value: formatCurrency(stats.totalPending),    // ❌ RPC incompleta
-  },
-];
-```
-
-**Depois (Dashboard):**
-```typescript
-// Importar useOperationalStats
-const { stats: opStats } = useOperationalStats();
-
-const financialCards = [
-  {
-    title: 'Total a Receber',
-    value: formatCurrency(opStats.pendingAmount),  // ✅ Inclui multas + juros atraso
-  },
-  {
-    title: 'Capital na Rua',
-    value: formatCurrency(opStats.totalOnStreet),  // ✅ Apenas principal pendente
-  },
-  {
-    title: 'Juros a Receber',
-    value: formatCurrency(opStats.pendingInterest),  // ✅ Juros ainda não recebidos
-  },
-];
-```
-
-## Arquivos Afetados
-
-| Arquivo | Alteração |
-|---------|-----------|
-| src/pages/Dashboard.tsx | Importar useOperationalStats e usar para métricas financeiras |
-
-## Fluxo Após Alterações
-
+**Lógica corrigida:**
 ```text
-Dashboard.tsx
-     │
-     ├── useDashboardStats()  → Contagens (empréstimos, clientes, semana)
-     │
-     └── useOperationalStats() → Métricas financeiras (a receber, pendente, capital)
-                                   └── Mesma fonte que ReportsLoans.tsx ✓
+dia_desejado = 31 (original)
+dias_no_mes_fevereiro = 28
+dia_final = min(31, 28) = 28
+```
+
+## Alterações Técnicas
+
+### Arquivo: `src/pages/ProductSales.tsx`
+
+**1. Adicionar import:**
+```typescript
+// Linha 44 - adicionar getDaysInMonth
+import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
+```
+
+**2. Corrigir lógica de geração de datas (linhas 520-528):**
+
+Antes:
+```typescript
+dueDate = addMonths(firstDate, i);
+try {
+  dueDate = setDate(dueDate, dayOfMonth);
+} catch {
+  // Handle edge cases
+}
+```
+
+Depois:
+```typescript
+dueDate = addMonths(firstDate, i);
+// Ajustar o dia para não exceder o máximo do mês
+// Ex: 31/01 -> 28/02 (não 03/03)
+const maxDaysInMonth = getDaysInMonth(dueDate);
+const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+dueDate = setDate(dueDate, adjustedDay);
 ```
 
 ## Resultado Esperado
 
-| Métrica | Dashboard | Relatório | Status |
-|---------|-----------|-----------|--------|
-| A Receber | pendingAmount | pendingAmount | ✅ Igual |
-| Capital na Rua | totalOnStreet | totalOnStreet | ✅ Igual |
-| Juros Pendentes | pendingInterest | pendingInterest | ✅ Igual |
-| Total Recebido | totalReceived | totalReceived | ✅ Igual |
+Com data inicial 31/01 e 12 parcelas mensais:
 
-## Observações
+| Parcela | Antes (Errado) | Depois (Correto) |
+|---------|----------------|------------------|
+| 1ª      | 31/01          | 31/01            |
+| 2ª      | 03/03          | 28/02            |
+| 3ª      | 31/03          | 31/03            |
+| 4ª      | 01/05          | 30/04            |
+| 5ª      | 31/05          | 31/05            |
+| ...     | ...            | ...              |
 
-- O `useDashboardStats` continuará sendo usado para contagens (empréstimos, clientes, resumo semanal)
-- Apenas as métricas financeiras serão migradas para `useOperationalStats`
-- Isso pode gerar uma requisição extra, mas garante consistência entre as páginas
+O sistema sempre usará o último dia do mês quando o dia desejado não existir naquele mês.
