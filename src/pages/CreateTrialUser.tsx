@@ -125,7 +125,7 @@ export default function CreateTrialUser() {
     fetchUsers();
   }, []);
 
-  // Fetch affiliates for Diego's form
+  // Fetch affiliates for form
   const fetchAffiliates = async () => {
     try {
       const { data, error } = await supabase
@@ -135,6 +135,7 @@ export default function CreateTrialUser() {
         .order('name');
 
       if (error) throw error;
+      console.log('Affiliates fetched:', data);
       setAffiliates(data || []);
     } catch (error) {
       console.error('Error fetching affiliates:', error);
@@ -142,10 +143,10 @@ export default function CreateTrialUser() {
   };
 
   useEffect(() => {
-    if (isTrialCreatorOnly) {
+    if (isAuthenticated) {
       fetchAffiliates();
     }
-  }, [isTrialCreatorOnly]);
+  }, [isAuthenticated]);
 
   const planCounts = useMemo(() => {
     const now = new Date();
@@ -747,36 +748,34 @@ export default function CreateTrialUser() {
                   </div>
                 )}
 
-                {/* Affiliate selector for Diego */}
-                {isTrialCreatorOnly && (
-                  <div className="space-y-2">
-                    <Label>Vincular Afiliado (Opcional)</Label>
-                    <Select
-                      value={formData.affiliate_email || 'none'}
-                      onValueChange={(value) => 
-                        setFormData(prev => ({ ...prev, affiliate_email: value === 'none' ? '' : value }))
-                      }
-                      disabled={loading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um afiliado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          <span className="text-muted-foreground">Sem afiliado</span>
+                {/* Affiliate selector - always visible */}
+                <div className="space-y-2">
+                  <Label>Vincular Afiliado (Opcional)</Label>
+                  <Select
+                    value={formData.affiliate_email || 'none'}
+                    onValueChange={(value) => 
+                      setFormData(prev => ({ ...prev, affiliate_email: value === 'none' ? '' : value }))
+                    }
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um afiliado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">Sem afiliado</span>
+                      </SelectItem>
+                      {affiliates.map((affiliate) => (
+                        <SelectItem key={affiliate.id} value={affiliate.email}>
+                          <span className="flex items-center gap-2">
+                            <LinkIcon className="w-3 h-3" />
+                            {affiliate.name}
+                          </span>
                         </SelectItem>
-                        {affiliates.map((affiliate) => (
-                          <SelectItem key={affiliate.id} value={affiliate.email}>
-                            <span className="flex items-center gap-2">
-                              <LinkIcon className="w-3 h-3" />
-                              {affiliate.name}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
