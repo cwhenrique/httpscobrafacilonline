@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
-import { addMonths, format, parseISO } from 'date-fns';
+import { addMonths, format, parseISO, getDate, setDate, getDaysInMonth } from 'date-fns';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
@@ -232,10 +232,19 @@ export function useVehicles() {
           installmentsList.push(`${inst.installment_number}ª: ${formatDate(inst.due_date)} - ${formatCurrency(inst.amount)}`);
         }
       } else {
+        const firstDate = parseISO(data.first_due_date);
+        const dayOfMonth = getDate(firstDate);
+        
         for (let i = 0; i < data.installments; i++) {
-          const dueDate = addMonths(parseISO(data.first_due_date), i);
+          // Add months and adjust day to not exceed month's max days
+          // Ex: 31/01 -> 28/02 (not 03/03)
+          let dueDate = addMonths(firstDate, i);
+          const maxDaysInMonth = getDaysInMonth(dueDate);
+          const adjustedDay = Math.min(dayOfMonth, maxDaysInMonth);
+          dueDate = setDate(dueDate, adjustedDay);
           const dueDateStr = format(dueDate, 'yyyy-MM-dd');
-        payments.push({
+          
+          payments.push({
             user_id: effectiveUserId,
             vehicle_id: newVehicle.id,
             installment_number: i + 1,
