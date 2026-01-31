@@ -36,11 +36,12 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/calculations';
-import { calculateScoreLabel, getScoreIcon } from '@/hooks/useClientScore';
+import { calculateScoreLabel, getScoreIcon, calculateRecoveryBonus } from '@/hooks/useClientScore';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Client } from '@/types/database';
+import { RefreshCw } from 'lucide-react';
 
 export default function ClientScores() {
   const { clients, loading, invalidateClients } = useClients();
@@ -126,6 +127,7 @@ export default function ClientScores() {
       activeLoansCount: number;
       profitFromPaidLoans: number;
       profitFromActiveLoans: number;
+      recoveryBonus: number;
     }>();
     
     loans.forEach(loan => {
@@ -138,6 +140,7 @@ export default function ClientScores() {
         activeLoansCount: 0,
         profitFromPaidLoans: 0,
         profitFromActiveLoans: 0,
+        recoveryBonus: 0,
       };
       
       // Lucro previsto = total de juros do contrato
@@ -155,15 +158,20 @@ export default function ClientScores() {
       // Contar por status e separar lucro
       const isPaid = loan.status === 'paid';
       
+      // Acumular extra profit para calcular bônus de recuperação
+      const newExtraProfit = existing.extraProfit + extraProfit;
+      const recoveryBonus = calculateRecoveryBonus(newExtraProfit);
+      
       map.set(loan.client_id, {
         expectedProfit: existing.expectedProfit + expectedProfit,
         realizedProfit: existing.realizedProfit + realizedProfit,
-        extraProfit: existing.extraProfit + extraProfit,
+        extraProfit: newExtraProfit,
         totalPrincipal: existing.totalPrincipal + loan.principal_amount,
         paidLoansCount: existing.paidLoansCount + (isPaid ? 1 : 0),
         activeLoansCount: existing.activeLoansCount + (isPaid ? 0 : 1),
         profitFromPaidLoans: existing.profitFromPaidLoans + (isPaid ? realizedProfit : 0),
         profitFromActiveLoans: existing.profitFromActiveLoans + (isPaid ? 0 : realizedProfit),
+        recoveryBonus,
       });
     });
     
@@ -539,6 +547,10 @@ export default function ClientScores() {
                     <p className="text-muted-foreground text-xs mt-3">
                       +3 pontos por pagamento em dia • -20 pontos por atraso • -30 pontos por atraso crítico (+30d) • +15 bônus fidelidade
                     </p>
+                    <p className="text-purple-600 text-xs mt-2 flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" />
+                      <strong>Bônus Recuperação:</strong> +2 pontos a cada R$50 pagos em multas/juros extras (máx. +10 pts)
+                    </p>
                     <p className="text-muted-foreground text-[10px] mt-1 flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Você pode editar o score manualmente clicando no ícone de lápis
                     </p>
@@ -686,11 +698,21 @@ export default function ClientScores() {
                               </div>
                             </div>
                             {profit.extraProfit > 0 && (
-                              <div className="mt-2 text-center">
-                                <Badge variant="secondary" className="text-purple-500 bg-purple-500/10">
-                                  <Sparkles className="w-3 h-3 mr-1" />
-                                  Lucro Extra: {formatCurrency(profit.extraProfit)}
-                                </Badge>
+                              <div className="mt-2 space-y-1">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Badge variant="secondary" className="text-purple-500 bg-purple-500/10">
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    Lucro Extra: {formatCurrency(profit.extraProfit)}
+                                  </Badge>
+                                </div>
+                                {profit.recoveryBonus > 0 && (
+                                  <div className="flex items-center justify-center">
+                                    <Badge variant="outline" className="text-purple-600 border-purple-300 bg-purple-50">
+                                      <RefreshCw className="w-3 h-3 mr-1" />
+                                      +{profit.recoveryBonus} pts recuperação
+                                    </Badge>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
