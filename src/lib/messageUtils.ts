@@ -2,6 +2,8 @@
  * Utilitários para padronização de mensagens WhatsApp
  */
 
+import { BillingMessageConfig, DEFAULT_BILLING_MESSAGE_CONFIG } from '@/types/billingMessageConfig';
+
 export const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
@@ -198,4 +200,23 @@ export const generatePaymentOptions = (
   message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   
   return message;
+};
+
+/**
+ * Get config with defaults for any missing fields
+ */
+export const getBillingConfig = (config: Partial<BillingMessageConfig> | null | undefined): BillingMessageConfig => {
+  if (!config) return DEFAULT_BILLING_MESSAGE_CONFIG;
+  return { ...DEFAULT_BILLING_MESSAGE_CONFIG, ...config };
+};
+
+/**
+ * Check if a field should be included based on config
+ */
+export const shouldIncludeField = (
+  config: BillingMessageConfig | null | undefined,
+  field: keyof BillingMessageConfig
+): boolean => {
+  const safeConfig = getBillingConfig(config);
+  return safeConfig[field] as boolean;
 };

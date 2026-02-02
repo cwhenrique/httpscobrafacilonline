@@ -68,6 +68,7 @@ import {
   generatePixSection,
   generateSignature,
   generatePaymentOptions,
+  getBillingConfig,
 } from '@/lib/messageUtils';
 
 export default function SendDueTodayNotification({ 
@@ -100,6 +101,7 @@ export default function SendDueTodayNotification({
   }, [data.loanId]);
 
   const generateDueTodayMessage = (): string => {
+    const config = getBillingConfig(profile?.billing_message_config);
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
@@ -108,20 +110,32 @@ export default function SendDueTodayNotification({
     const totalInstallments = data.totalInstallments || 1;
     const progressPercent = Math.round((paidCount / totalInstallments) * 100);
 
-    let message = `Olá *${data.clientName}*!\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
+    let message = '';
+    
+    if (config.includeClientName) {
+      message += `Olá *${data.clientName}*!\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+    }
     message += `📅 *VENCIMENTO HOJE*\n\n`;
     
     // Informações principais
-    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📊 *${installmentInfo}*\n`;
-    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    if (config.includeAmount) {
+      message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+    }
+    if (config.includeInstallmentNumber) {
+      message += `📊 *${installmentInfo}*\n`;
+    }
+    if (config.includeDueDate) {
+      message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    }
     
     // Barra de progresso
-    message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
+    if (config.includeProgressBar) {
+      message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
+    }
     
     // Status das parcelas (inteligente)
-    if (data.installmentDates && data.installmentDates.length > 0) {
+    if (config.includeInstallmentsList && data.installmentDates && data.installmentDates.length > 0) {
       message += `\n`;
       message += generateInstallmentStatusList({
         installmentDates: data.installmentDates,
@@ -137,22 +151,34 @@ export default function SendDueTodayNotification({
     }
     
     // Opções de pagamento
-    message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
+    if (config.includePaymentOptions) {
+      message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
+    }
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
+    if (config.includePixKey) {
+      message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
+    }
     
     message += `\nEvite juros e multas pagando em dia!`;
     
+    // Mensagem de fechamento customizada
+    if (config.customClosingMessage) {
+      message += `\n${config.customClosingMessage}`;
+    }
+    
     // Assinatura
-    const signatureName = profile?.billing_signature_name || profile?.company_name;
-    message += generateSignature(signatureName);
+    if (config.includeSignature) {
+      const signatureName = profile?.billing_signature_name || profile?.company_name;
+      message += generateSignature(signatureName);
+    }
 
     return message;
   };
 
   // Mensagem simples: apenas parcela atual, sem lista de todas
   const generateSimpleDueTodayMessage = (): string => {
+    const config = getBillingConfig(profile?.billing_message_config);
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `${data.installmentNumber}/${data.totalInstallments}` 
       : 'Única';
@@ -161,17 +187,29 @@ export default function SendDueTodayNotification({
     const totalInstallments = data.totalInstallments || 1;
     const progressPercent = Math.round((paidCount / totalInstallments) * 100);
 
-    let message = `Olá *${data.clientName}*!\n`;
-    message += `━━━━━━━━━━━━━━━━\n\n`;
+    let message = '';
+    
+    if (config.includeClientName) {
+      message += `Olá *${data.clientName}*!\n`;
+      message += `━━━━━━━━━━━━━━━━\n\n`;
+    }
     message += `📅 *VENCIMENTO HOJE*\n\n`;
     
     // Barra de progresso
-    message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
+    if (config.includeProgressBar) {
+      message += `📈 *Progresso:* ${generateProgressBar(progressPercent)}\n\n`;
+    }
     
     // Informações da parcela atual
-    message += `📌 *Parcela:* ${installmentInfo}\n`;
-    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
-    message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    if (config.includeInstallmentNumber) {
+      message += `📌 *Parcela:* ${installmentInfo}\n`;
+    }
+    if (config.includeAmount) {
+      message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+    }
+    if (config.includeDueDate) {
+      message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
+    }
     
     // Pagamento parcial de juros (se houver)
     if (data.partialInterestPaid && data.partialInterestPaid > 0) {
@@ -181,13 +219,22 @@ export default function SendDueTodayNotification({
     }
     
     // PIX
-    message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
+    if (config.includePixKey) {
+      message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
+    }
     
     message += `\nEvite juros e multas pagando em dia!`;
     
+    // Mensagem de fechamento customizada
+    if (config.customClosingMessage) {
+      message += `\n${config.customClosingMessage}`;
+    }
+    
     // Assinatura
-    const signatureName = profile?.billing_signature_name || profile?.company_name;
-    message += generateSignature(signatureName);
+    if (config.includeSignature) {
+      const signatureName = profile?.billing_signature_name || profile?.company_name;
+      message += generateSignature(signatureName);
+    }
 
     return message;
   };

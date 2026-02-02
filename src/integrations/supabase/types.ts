@@ -1043,6 +1043,7 @@ export type Database = {
       profiles: {
         Row: {
           affiliate_email: string | null
+          billing_message_config: Json | null
           billing_signature_name: string | null
           cash_flow_initial_balance: number | null
           company_logo_url: string | null
@@ -1077,6 +1078,7 @@ export type Database = {
         }
         Insert: {
           affiliate_email?: string | null
+          billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
           company_logo_url?: string | null
@@ -1111,6 +1113,7 @@ export type Database = {
         }
         Update: {
           affiliate_email?: string | null
+          billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
           company_logo_url?: string | null
