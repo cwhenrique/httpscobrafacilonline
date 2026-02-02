@@ -1,172 +1,163 @@
 
-# Plano: Personalização de Mensagens de Cobrança via Templates Configuráveis
 
-## Objetivo
+# Plano: Templates Editáveis para Mensagens de Cobrança
 
-Permitir que o usuário defina quais informações do contrato/empréstimo aparecem nas mensagens de cobrança enviadas aos clientes, salvando essas preferências para uso futuro.
+## Problema Atual
 
-## Abordagem Proposta
+O sistema atual tem duas limitações:
+1. O "Visualizar Exemplo" no perfil mostra uma prévia estática (não editável)
+2. Edições feitas no preview antes de enviar não são salvas como template
 
-### Opção A: Template com Toggles de Campos (Recomendada)
+## Solução Proposta
 
-O usuário configura uma vez na página de perfil quais campos quer incluir nas mensagens. Cada vez que enviar uma cobrança, o sistema monta a mensagem apenas com os campos selecionados.
+Criar um sistema de **templates editáveis por tipo de cobrança**, onde o usuário pode:
+1. Ver exemplos das 3 mensagens (Atraso, Vencimento Hoje, Antecipada)
+2. Editar diretamente o texto (apagar emojis, mudar frases, etc.)
+3. Salvar como template predefinido para cada tipo
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│  📝 Configurar Mensagem de Cobrança                  │
-├──────────────────────────────────────────────────────┤
-│                                                      │
-│  Campos a incluir na mensagem:                       │
-│                                                      │
-│  ☑️ Nome do Cliente                                  │
-│  ☑️ Valor da Parcela                                 │
-│  ☑️ Número da Parcela (ex: 3/12)                     │
-│  ☑️ Data de Vencimento                               │
-│  ☐ Dias em Atraso                                    │
-│  ☐ Multa/Juros por Atraso                           │
-│  ☑️ Barra de Progresso                               │
-│  ☐ Lista de Todas as Parcelas                        │
-│  ☑️ Chave PIX                                        │
-│  ☑️ Assinatura                                       │
-│                                                      │
-│  Mensagem Personalizada (opcional):                  │
-│  ┌─────────────────────────────────────────────────┐ │
-│  │ Qualquer dúvida, estou à disposição! 😊        │ │
-│  └─────────────────────────────────────────────────┘ │
-│                                                      │
-│  [Visualizar Exemplo]        [Salvar Preferências]   │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  📝 Mensagem de Cobrança                                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────┬─────────────────┬───────────────────┐       │
+│  │ 🔴 Atraso   │ 🟡 Vence Hoje   │ 🟢 Antecipada     │       │
+│  └─────────────┴─────────────────┴───────────────────┘       │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │ ⚠️ *Atenção {CLIENTE}*                              │     │
+│  │ ━━━━━━━━━━━━━━━━                                   │     │
+│  │                                                     │     │
+│  │ 🚨 *PARCELA EM ATRASO*                              │     │
+│  │                                                     │     │
+│  │ 💵 *Valor:* {VALOR}                                 │     │
+│  │ 📊 *{PARCELA}*                                      │     │
+│  │ 📅 *Vencimento:* {DATA}                             │     │
+│  │ ⏰ *Dias em Atraso:* {DIAS}                         │     │
+│  │                                                     │     │
+│  │ {PIX}                                               │     │
+│  │ {ASSINATURA}                                        │     │
+│  └─────────────────────────────────────────────────────┘     │
+│                                                              │
+│  💡 Use variáveis: {CLIENTE}, {VALOR}, {PARCELA}, {DATA}...  │
+│                                                              │
+│  [Restaurar Padrão]              [Salvar Templates]          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Opção B: Templates Predefinidos
+## Mudanças Técnicas
 
-Oferecer 2-3 templates prontos que o usuário escolhe:
-- **Completo**: Todas as informações
-- **Simples**: Apenas valor, vencimento e PIX
-- **Mínimo**: Só valor e vencimento
+### 1. Atualizar Estrutura de Configuração
 
-## Solução Técnica
-
-### 1. Novos Campos no Banco de Dados
-
-Adicionar coluna na tabela `profiles` para armazenar as preferências:
-
-```sql
-ALTER TABLE profiles 
-ADD COLUMN billing_message_config JSONB DEFAULT '{
-  "includeClientName": true,
-  "includeInstallmentNumber": true,
-  "includeAmount": true,
-  "includeDueDate": true,
-  "includeDaysOverdue": true,
-  "includePenalty": true,
-  "includeProgressBar": true,
-  "includeInstallmentsList": false,
-  "includePaymentOptions": true,
-  "includePixKey": true,
-  "includeSignature": true,
-  "customClosingMessage": "Qualquer dúvida, estou à disposição! 😊"
-}'::jsonb;
-```
-
-### 2. Nova Seção no Perfil (Profile.tsx)
-
-Adicionar card "Mensagem de Cobrança" na página de perfil com:
-- Lista de checkboxes para cada campo
-- Campo de texto para mensagem personalizada de fechamento
-- Botão "Visualizar Exemplo" que abre um preview
-- Botão "Salvar Preferências"
-
-### 3. Atualizar Funções de Geração de Mensagem
-
-Modificar `src/lib/messageUtils.ts` e os componentes de notificação para:
-- Receber as configurações do perfil como parâmetro
-- Montar a mensagem apenas com os campos habilitados
+Adicionar campos para templates customizados por tipo:
 
 ```typescript
 interface BillingMessageConfig {
-  includeClientName: boolean;
-  includeInstallmentNumber: boolean;
-  includeAmount: boolean;
-  includeDueDate: boolean;
-  includeDaysOverdue: boolean;
-  includePenalty: boolean;
-  includeProgressBar: boolean;
-  includeInstallmentsList: boolean;
-  includePaymentOptions: boolean;
-  includePixKey: boolean;
-  includeSignature: boolean;
-  customClosingMessage: string;
+  // ... campos existentes (checkboxes)...
+  
+  // NOVOS: Templates customizados por tipo
+  customTemplateOverdue?: string;    // Template para atraso
+  customTemplateDueToday?: string;   // Template para vence hoje
+  customTemplateEarly?: string;      // Template para antecipada
+  useCustomTemplates?: boolean;      // Usar templates customizados
 }
+```
 
-export const generateCustomBillingMessage = (
-  data: BillingData,
-  config: BillingMessageConfig,
-  profile: Profile
-): string => {
-  let message = '';
+### 2. Variáveis de Substituição
+
+Definir variáveis que o sistema substituirá pelos dados reais:
+
+| Variável | Substituído por |
+|----------|-----------------|
+| `{CLIENTE}` | Nome do cliente |
+| `{VALOR}` | Valor da parcela |
+| `{PARCELA}` | Ex: "Parcela 3/12" |
+| `{DATA}` | Data de vencimento |
+| `{DIAS_ATRASO}` | Dias em atraso |
+| `{MULTA}` | Valor da multa |
+| `{JUROS}` | Juros por atraso |
+| `{TOTAL}` | Total a pagar |
+| `{PROGRESSO}` | Barra de progresso |
+| `{PIX}` | Seção do PIX |
+| `{ASSINATURA}` | Assinatura |
+
+### 3. Reformular BillingMessageConfigCard
+
+Trocar o design atual (checkboxes) por:
+
+1. **Tabs** para os 3 tipos de mensagem (Atraso, Vence Hoje, Antecipada)
+2. **Textarea editável** mostrando o template com variáveis
+3. **Botão "Restaurar Padrão"** para voltar ao template original
+4. **Legenda** explicando as variáveis disponíveis
+5. **Botão "Salvar Templates"** para persistir
+
+### 4. Modificar Geração de Mensagens
+
+Nos componentes de notificação, verificar se há template customizado:
+
+```typescript
+const generateOverdueMessage = (): string => {
+  const config = getBillingConfig(profile?.billing_message_config);
   
-  if (config.includeClientName) {
-    message += `Olá *${data.clientName}*!\n`;
+  // Se tem template customizado, usar e substituir variáveis
+  if (config.useCustomTemplates && config.customTemplateOverdue) {
+    return replaceTemplateVariables(config.customTemplateOverdue, data, profile);
   }
   
-  if (config.includeAmount) {
-    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
-  }
-  
-  // ... etc para cada campo
-  
-  if (config.customClosingMessage) {
-    message += `\n${config.customClosingMessage}\n`;
-  }
-  
-  return message;
+  // Senão, usa a lógica atual baseada em checkboxes
+  return generateDefaultOverdueMessage(config, data, profile);
 };
 ```
 
-### 4. Arquivos a Modificar
+### 5. Função de Substituição de Variáveis
+
+```typescript
+const replaceTemplateVariables = (
+  template: string, 
+  data: NotificationData, 
+  profile: Profile
+): string => {
+  return template
+    .replace('{CLIENTE}', data.clientName)
+    .replace('{VALOR}', formatCurrency(data.amount))
+    .replace('{PARCELA}', `Parcela ${data.installmentNumber}/${data.totalInstallments}`)
+    .replace('{DATA}', formatDate(data.dueDate))
+    .replace('{DIAS_ATRASO}', String(data.daysOverdue || 0))
+    .replace('{MULTA}', formatCurrency(data.penaltyAmount || 0))
+    .replace('{JUROS}', formatCurrency(data.overdueInterestAmount || 0))
+    .replace('{TOTAL}', formatCurrency(data.totalAmount))
+    .replace('{PROGRESSO}', generateProgressBar(progressPercent))
+    .replace('{PIX}', generatePixSection(profile))
+    .replace('{ASSINATURA}', generateSignature(profile));
+};
+```
+
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/migrations/` | Adicionar coluna `billing_message_config` na tabela `profiles` |
-| `src/hooks/useProfile.ts` | Incluir novo campo na interface `Profile` |
-| `src/pages/Profile.tsx` | Adicionar seção de configuração de mensagens |
-| `src/lib/messageUtils.ts` | Criar função `generateCustomBillingMessage` |
-| `src/components/SendOverdueNotification.tsx` | Usar configurações do perfil |
-| `src/components/SendDueTodayNotification.tsx` | Usar configurações do perfil |
-| `src/components/SendEarlyNotification.tsx` | Usar configurações do perfil |
+| `src/types/billingMessageConfig.ts` | Adicionar campos de templates customizados |
+| `src/components/BillingMessageConfigCard.tsx` | Reformular para tabs + textarea editável |
+| `src/lib/messageUtils.ts` | Adicionar função `replaceTemplateVariables` |
+| `src/components/SendOverdueNotification.tsx` | Usar template customizado se existir |
+| `src/components/SendDueTodayNotification.tsx` | Usar template customizado se existir |
+| `src/components/SendEarlyNotification.tsx` | Usar template customizado se existir |
 
 ## Fluxo do Usuário
 
-1. Usuário acessa **Meu Perfil**
-2. Encontra a seção **"Mensagem de Cobrança"**
-3. Marca/desmarca os campos desejados
-4. Escreve uma mensagem personalizada de fechamento (opcional)
-5. Clica em **"Visualizar Exemplo"** para ver como ficará
-6. Clica em **"Salvar Preferências"**
-7. Nas próximas cobranças, as mensagens seguirão o template configurado
-
-## Campos Disponíveis para Configuração
-
-| Campo | Descrição | Padrão |
-|-------|-----------|--------|
-| Nome do Cliente | Saudação com nome | ✅ Ativo |
-| Valor da Parcela | Valor monetário | ✅ Ativo |
-| Número da Parcela | Ex: "3/12" | ✅ Ativo |
-| Data de Vencimento | Data formatada | ✅ Ativo |
-| Dias em Atraso | Quantidade de dias | ✅ Ativo |
-| Multa/Juros Atraso | Valores adicionais | ✅ Ativo |
-| Barra de Progresso | Visual do progresso | ✅ Ativo |
-| Lista de Parcelas | Status de todas | ❌ Inativo |
-| Opções de Pagamento | Pagar só juros, etc | ✅ Ativo |
-| Chave PIX | Dados para pagamento | ✅ Ativo |
-| Assinatura | Nome da empresa | ✅ Ativo |
-| Mensagem de Fechamento | Texto livre | "Qualquer dúvida..." |
+1. Usuário acessa **Meu Perfil > Mensagem de Cobrança**
+2. Vê 3 abas: Atraso, Vence Hoje, Antecipada
+3. Cada aba mostra o template atual em um textarea editável
+4. Usuário pode editar livremente (apagar emojis, trocar texto, etc.)
+5. Variáveis como `{CLIENTE}` serão substituídas automaticamente ao enviar
+6. Clica em **"Salvar Templates"**
+7. Nas próximas cobranças, o sistema usa o template customizado
 
 ## Benefícios
 
-- Flexibilidade total para cada usuário
-- Mensagens mais curtas/objetivas se desejado
-- Personalização da linguagem
-- Configuração salva (não precisa editar toda vez)
-- Ainda permite edição manual antes de enviar (já existe)
+- Liberdade total para personalizar a mensagem
+- Pode remover qualquer emoji ou elemento indesejado
+- Templates salvos são usados automaticamente
+- Ainda pode editar antes de enviar (já existe no MessagePreviewDialog)
+- Botão para restaurar o padrão se errar
+
