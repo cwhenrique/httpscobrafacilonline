@@ -46,7 +46,9 @@ import {
   generateSignature,
   generatePaymentOptions,
   getBillingConfig,
+  replaceTemplateVariables,
 } from '@/lib/messageUtils';
+import { DEFAULT_TEMPLATE_EARLY } from '@/types/billingMessageConfig';
 
 
 export function SendEarlyNotification({ data, className }: SendEarlyNotificationProps) {
@@ -65,6 +67,30 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
 
   const generateEarlyMessage = (): string => {
     const config = getBillingConfig(profile?.billing_message_config);
+    
+    // Se tem template customizado, usar substituição de variáveis
+    if (config.useCustomTemplates && config.customTemplateEarly) {
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || 1;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+
+      return replaceTemplateVariables(config.customTemplateEarly, {
+        clientName: data.clientName,
+        amount: data.amount,
+        installmentNumber: data.installmentNumber,
+        totalInstallments: data.totalInstallments,
+        dueDate: data.dueDate,
+        daysUntilDue: data.daysUntilDue,
+        progressPercent: progressPercent,
+        pixKey: profile?.pix_key,
+        pixKeyType: profile?.pix_key_type,
+        pixPreMessage: profile?.pix_pre_message,
+        signatureName: profile?.billing_signature_name || profile?.company_name,
+        closingMessage: config.customClosingMessage || 'Qualquer dúvida, estou à disposição! 😊',
+      });
+    }
+    
+    // Lógica original baseada em checkboxes
     const installmentInfo =
       data.installmentNumber && data.totalInstallments
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
@@ -82,7 +108,6 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     }
     message += `📋 *LEMBRETE DE PAGAMENTO*\n\n`;
     
-    // Informações principais
     if (config.includeAmount) {
       message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
     }
@@ -97,12 +122,10 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       message += `\n`;
     }
     
-    // Barra de progresso
     if (config.includeProgressBar) {
       message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
     }
     
-    // Status das parcelas (inteligente)
     if (config.includeInstallmentsList && data.installmentDates && data.installmentDates.length > 0) {
       message += `\n`;
       message += generateInstallmentStatusList({
@@ -111,31 +134,26 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       });
     }
     
-    // Pagamento parcial de juros (se houver)
     if (data.partialInterestPaid && data.partialInterestPaid > 0) {
       message += `\n💜 *JUROS PARCIAL:*\n`;
       message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
       message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
     }
     
-    // Opções de pagamento
     if (config.includePaymentOptions) {
       message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
     }
     
-    // PIX
     if (config.includePixKey) {
       message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     }
     
-    // Mensagem de fechamento customizada ou padrão
     if (config.customClosingMessage) {
       message += `\n${config.customClosingMessage}\n`;
     } else {
       message += `\nQualquer dúvida, estou à disposição! 😊`;
     }
     
-    // Assinatura
     if (config.includeSignature) {
       const signatureName = profile?.billing_signature_name || profile?.company_name;
       message += generateSignature(signatureName);
