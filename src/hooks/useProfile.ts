@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { BillingMessageConfig } from '@/types/billingMessageConfig';
 
 export interface Profile {
   id: string;
@@ -41,6 +42,8 @@ export interface Profile {
   cash_flow_initial_balance: number | null;
   // Affiliate
   affiliate_email: string | null;
+  // Billing message configuration
+  billing_message_config: BillingMessageConfig | null;
 }
 
 export function useProfile() {
@@ -65,7 +68,16 @@ export function useProfile() {
       console.error('Error fetching profile:', error);
     }
 
-    setProfile(data);
+    // Cast billing_message_config from Json to proper type
+    if (data) {
+      const profileData = {
+        ...data,
+        billing_message_config: data.billing_message_config as unknown as BillingMessageConfig | null,
+      };
+      setProfile(profileData);
+    } else {
+      setProfile(null);
+    }
     setLoading(false);
   }, [user]);
 
