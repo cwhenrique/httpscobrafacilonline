@@ -5,16 +5,17 @@ import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useOperationalStats } from '@/hooks/useOperationalStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
+import { useDashboardHealth } from '@/hooks/useDashboardHealth';
+import { HealthScoreCard } from '@/components/reports/HealthScoreCard';
+import { AlertsCard } from '@/components/reports/AlertsCard';
 
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, getNextUnpaidInstallmentDate } from '@/lib/calculations';
-import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/calculations';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FinancialChart, InterestChart } from '@/components/dashboard/FinancialChart';
 import {
   DollarSign,
   TrendingUp,
-  AlertTriangle,
   Users,
   Clock,
   ArrowUpRight,
@@ -27,7 +28,6 @@ import {
   Lock,
   UserPlus,
   X,
-  
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ export default function Dashboard() {
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
   const { isEmployee, isOwner, hasPermission, loading: employeeLoading } = useEmployeeContext();
-  
+  const { healthData, alertsData, loading: healthLoading } = useDashboardHealth();
   const [showEmployeeBanner, setShowEmployeeBanner] = useState(() => {
     return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
   });
@@ -57,51 +57,12 @@ export default function Dashboard() {
   };
   
 
-  const recentLoans = loans.slice(0, 5);
-  
   // Calculate average ticket for active loans
   const averageTicket = (() => {
     const activeLoans = loans.filter(l => l.status !== 'paid');
     if (activeLoans.length === 0) return 0;
     const total = activeLoans.reduce((sum, l) => sum + l.principal_amount, 0);
     return total / activeLoans.length;
-  })();
-  
-  // Calculate upcoming payments for next 7 days
-  const upcomingPayments = (() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    
-    const upcoming: Array<{loan: typeof loans[0], dueDate: Date, amount: number}> = [];
-    
-    loans.forEach(loan => {
-      if (loan.status === 'paid') return;
-      
-      const dates = (loan.installment_dates as string[] | null) || [];
-      const installmentValue = (loan.principal_amount + (loan.total_interest || 0)) / (dates.length || 1);
-      // Estimate paid installments based on total_paid
-      const paidCount = installmentValue > 0 ? Math.floor((loan.total_paid || 0) / installmentValue) : 0;
-      
-      dates.forEach((dateStr, index) => {
-        if (index < paidCount) return;
-        const dueDate = new Date(dateStr);
-        if (dueDate >= today && dueDate <= nextWeek) {
-          upcoming.push({ loan, dueDate, amount: installmentValue });
-        }
-      });
-      
-      // Para empréstimos de parcela única
-      if (dates.length === 0) {
-        const dueDate = new Date(loan.due_date);
-        if (dueDate >= today && dueDate <= nextWeek) {
-          upcoming.push({ loan, dueDate, amount: loan.remaining_balance || 0 });
-        }
-      }
-    });
-    
-    return upcoming.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   })();
 
   const businessTypeCards = [
@@ -393,98 +354,25 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Upcoming Payments */}
-        {!loansLoading && upcomingPayments.length > 0 && (
-          <Card className="shadow-soft border-blue-500/30 bg-blue-500/5">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <CalendarCheck className="w-5 h-5 text-blue-500" />
-                </div>
-                <CardTitle className="text-lg font-display text-blue-500">
-                  Próximos Vencimentos ({upcomingPayments.length})
-                </CardTitle>
-              </div>
-              <Link to="/calendar">
-                <Button variant="outline" size="sm" className="gap-1 border-blue-500 text-blue-500 hover:bg-blue-500/10">
-                  Ver calendário
-                  <ArrowUpRight className="w-4 h-4" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {upcomingPayments.slice(0, 5).map((item, index) => (
-                  <div
-                    key={`${item.loan.id}-${index}`}
-                    className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"
-                  >
-                    <div>
-                      <p className="font-medium">{item.loan.client?.full_name}</p>
-                      <p className="text-sm text-blue-500">
-                        Vence em {formatDate(item.dueDate.toISOString())}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-blue-500">{formatCurrency(item.amount)}</p>
-                      <Badge className="bg-blue-500 text-white">
-                        A Vencer
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+        {/* Health Score and Alerts */}
+        {!healthLoading && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <HealthScoreCard
+              score={healthData.score}
+              receiptRate={healthData.receiptRate}
+              delinquencyRate={healthData.delinquencyRate}
+              totalReceived={healthData.totalReceived}
+              totalOverdue={healthData.totalOverdue}
+              profitMargin={healthData.profitMargin}
+            />
+            <AlertsCard
+              dueThisWeek={alertsData.dueThisWeek}
+              overdueMoreThan30Days={alertsData.overdueMoreThan30Days}
+              vehiclesOverdue={alertsData.vehiclesOverdue}
+              productsOverdue={alertsData.productsOverdue}
+            />
+          </div>
         )}
-
-        {/* Recent Loans */}
-        <Card className="shadow-soft">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-display">Empréstimos Recentes</CardTitle>
-            <Link to="/loans">
-              <Button variant="ghost" size="sm" className="gap-1">
-                Ver todos
-                <ArrowUpRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {loansLoading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : recentLoans.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                Nenhum empréstimo registrado
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentLoans.map((loan) => (
-                  <div
-                    key={loan.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                  >
-                    <div>
-                      <p className="font-medium">{loan.client?.full_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Vence em {formatDate(getNextUnpaidInstallmentDate(loan)?.toISOString().split('T')[0] || loan.due_date)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{formatCurrency(loan.remaining_balance)}</p>
-                      <Badge className={getPaymentStatusColor(loan.status)}>
-                        {getPaymentStatusLabel(loan.status)}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
