@@ -1,54 +1,53 @@
 
-# Plano: Mover Configuração de Mensagem de Cobrança para Configurações
 
-## Objetivo
+# Plano: Inicializar Textareas com Templates Padrão
 
-Mover a funcionalidade de personalização de mensagens de cobrança da página "Meu Perfil" para a página "Configurações", tornando-a menos acessível a usuários casuais e mantendo o comportamento padrão funcionando para quem não quiser personalizar.
+## Problema Identificado
 
-## Alterações Necessárias
-
-### 1. Remover do Profile.tsx
-
-**Arquivo:** `src/pages/Profile.tsx`
-
-- Remover a importação do `BillingMessageConfigCard` (linha 71)
-- Remover o uso do componente `<BillingMessageConfigCard />` (linhas 1347-1348)
-
-### 2. Adicionar ao Settings.tsx
-
-**Arquivo:** `src/pages/Settings.tsx`
-
-- Adicionar a importação do `BillingMessageConfigCard`
-- Adicionar o componente antes da seção de Employee Management (no final da página, antes do card de funcionários)
-
-**Posição sugerida:** Após o card "Assistente de Voz" e antes do "Employee Management"
-
-### 3. Comportamento Preservado
-
-O sistema já está configurado para usar os **templates padrão** quando o usuário não tem configuração personalizada salva. A lógica em `messageUtils.ts` e nos componentes de notificação já verifica:
+Os textareas começam vazios porque o estado `templates` é inicializado com strings vazias:
 
 ```typescript
-// Se não tem template customizado, usa o padrão
-if (!config.useCustomTemplates || !config.customTemplateOverdue) {
-  // Usa geração de mensagem padrão
-}
+const [templates, setTemplates] = useState<Record<MessageType, string>>({
+  overdue: '',
+  dueToday: '',
+  early: '',
+});
 ```
 
-Isso significa que:
-- Usuários que nunca acessaram Configurações continuarão recebendo as mensagens padrão
-- Apenas quem for em Configurações e salvar terá templates personalizados
-- O campo `useCustomTemplates` só é definido como `true` quando o usuário clica em "Salvar Templates"
+Só depois que o `profile` carrega é que os templates são preenchidos (via `useEffect`). Isso causa um breve momento onde os campos aparecem vazios.
 
-## Arquivos a Modificar
+## Solução
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/Profile.tsx` | Remover import e uso do `BillingMessageConfigCard` |
-| `src/pages/Settings.tsx` | Adicionar import e uso do `BillingMessageConfigCard` |
+Inicializar o estado `templates` diretamente com os templates padrão, para que o usuário já veja a mensagem padrão assim que abrir a tela, mesmo antes do profile carregar.
+
+## Alteração Necessária
+
+**Arquivo:** `src/components/BillingMessageConfigCard.tsx`
+
+**Mudança (linhas 66-70):**
+
+```typescript
+// ANTES (campos vazios)
+const [templates, setTemplates] = useState<Record<MessageType, string>>({
+  overdue: '',
+  dueToday: '',
+  early: '',
+});
+
+// DEPOIS (já com templates padrão)
+const [templates, setTemplates] = useState<Record<MessageType, string>>({
+  overdue: DEFAULT_TEMPLATE_OVERDUE,
+  dueToday: DEFAULT_TEMPLATE_DUE_TODAY,
+  early: DEFAULT_TEMPLATE_EARLY,
+});
+```
+
+O `useEffect` existente continuará funcionando normalmente - se o usuário tiver templates customizados salvos, eles serão carregados. Se não tiver, os padrões já estarão visíveis desde o início.
 
 ## Resultado Esperado
 
-- A funcionalidade de mensagens de cobrança fica "escondida" em Configurações
-- Usuários que não querem personalizar continuam com o comportamento padrão
-- Usuários avançados que querem personalizar podem acessar em Configurações
-- Nenhuma quebra no sistema atual de envio de mensagens
+- Ao abrir Configurações > Mensagem de Cobrança, os textareas já mostram os templates padrão
+- O usuário pode ver exatamente como a mensagem é estruturada
+- Pode editar diretamente a partir do padrão
+- Se já tiver customizações salvas, elas substituem o padrão quando o profile carrega
+
