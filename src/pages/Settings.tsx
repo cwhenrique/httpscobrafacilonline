@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
+import BillingMessageConfigCard from '@/components/BillingMessageConfigCard';
 
 // Emails com acesso privilegiado ao assistente de voz (independente do plano)
 const VOICE_PRIVILEGED_EMAILS = [
@@ -460,6 +461,9 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
           </CardContent>
         </Card>
         )}
+
+        {/* Billing Message Configuration - Advanced */}
+        <BillingMessageConfigCard />
 
         {/* Employee Management Section */}
         {!isEmployee && (

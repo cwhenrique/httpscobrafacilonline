@@ -68,7 +68,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import CompanyLogoUpload from '@/components/CompanyLogoUpload';
-import BillingMessageConfigCard from '@/components/BillingMessageConfigCard';
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -1343,9 +1342,6 @@ export default function Profile() {
             )}
           </CardContent>
         </Card>
-
-        {/* Billing Message Configuration Card */}
-        <BillingMessageConfigCard />
 
         {/* Payment Link Card */}
         <Card className="shadow-soft">
