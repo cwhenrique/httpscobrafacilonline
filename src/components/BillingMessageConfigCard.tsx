@@ -62,11 +62,11 @@ export default function BillingMessageConfigCard() {
   
   const [config, setConfig] = useState<BillingMessageConfig>(getConfig);
   
-  // Templates state - initialized from config or defaults
+  // Templates state - initialized with defaults so user sees them immediately
   const [templates, setTemplates] = useState<Record<MessageType, string>>({
-    overdue: '',
-    dueToday: '',
-    early: '',
+    overdue: DEFAULT_TEMPLATE_OVERDUE,
+    dueToday: DEFAULT_TEMPLATE_DUE_TODAY,
+    early: DEFAULT_TEMPLATE_EARLY,
   });
 
   // Update config and templates when profile loads
