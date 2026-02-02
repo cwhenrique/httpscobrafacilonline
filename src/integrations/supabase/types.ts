@@ -1499,6 +1499,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      can_view_loan_optimized: {
+        Args: {
+          _loan_created_by: string
+          _loan_user_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       debug_auth_uid: {
         Args: never
         Returns: {
