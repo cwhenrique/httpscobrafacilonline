@@ -1,165 +1,98 @@
 
-# Plano: Exportação CSV Completa de Empréstimos com Multas e Juros em Atraso
+# Plano: Sincronização do Dashboard com Dados de Empréstimos em Tempo Real
 
-## Situação Atual
+## Problema Identificado
 
-A exportação CSV em `src/components/LoansTableView.tsx` inclui apenas campos básicos:
-- Cliente, Telefone, Status
-- Valor Emprestado, Total a Receber, Valor Restante
-- Parcelas Pagas/Total, Próximo Vencimento
-- Taxa de Juros, Tipo de Pagamento, Data de Início
-- Notas
+Quando um empréstimo é alterado (datas, valores, etc.), a área de "Próximos Vencimentos" e "Empréstimos Recentes" no Dashboard pode exibir informações desatualizadas por dois motivos:
 
-**Informações AUSENTES:**
-- Multas aplicadas (manuais)
-- Juros por atraso (dinâmicos)
-- Dias em atraso
-- Valor da parcela
-- Total pago
-- Lucro (juros totais)
-- CPF/RG do cliente
-- Endereço do cliente
+1. **Cache não invalidado**: A função `invalidateLoans()` não invalida a queryKey `['dashboard-stats']`
+2. **Polling ausente**: Os hooks `useDashboardStats` e `useOperationalStats` não atualizam automaticamente em background
+3. **Cache longo**: Ambos os hooks têm `staleTime: 2 minutos`, muito alto para dados operacionais
 
-## Novos Campos a Adicionar
+## Solução Proposta
 
-| Campo | Descrição |
-|-------|-----------|
-| CPF | Documento do cliente |
-| E-mail | Email do cliente |
-| Endereço | Endereço completo |
-| Dias em Atraso | Quantidade de dias em atraso |
-| Multas Manuais | Total de multas aplicadas manualmente |
-| Juros por Atraso | Juros dinâmicos calculados pelo atraso |
-| Total + Multas | Valor total incluindo multas e juros atraso |
-| Valor da Parcela | Valor unitário de cada parcela |
-| Total Pago | Quanto já foi pago |
-| Lucro Previsto | Total de juros do contrato |
-| Data do Contrato | Data de criação do contrato |
-| Modo de Juros | on_total, per_installment, compound |
+### 1. Invalidar Dashboard Stats ao Modificar Empréstimos
 
-## Alterações Técnicas
+**Arquivo:** `src/hooks/useLoans.ts`
 
-### Arquivo: `src/components/LoansTableView.tsx`
+Adicionar invalidação da queryKey `['dashboard-stats']` na função `invalidateLoans()`:
 
-**1. Adicionar imports das funções de cálculo:**
 ```typescript
-import { 
-  formatCurrency, 
-  formatDate, 
-  getTotalDailyPenalties, 
-  getDaysOverdue, 
-  calculateDynamicOverdueInterest,
-  calculateInstallmentValue,
-  isLoanOverdue
-} from '@/lib/calculations';
+const invalidateLoans = () => {
+  queryClient.invalidateQueries({ queryKey: ['loans'] });
+  queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
+  queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); // NOVO
+};
 ```
 
-**2. Expandir os headers do CSV:**
-```typescript
-const headers = [
-  'Cliente',
-  'Telefone',
-  'CPF',
-  'E-mail',
-  'Endereço',
-  'Status',
-  'Valor Emprestado',
-  'Taxa de Juros (%)',
-  'Modo de Juros',
-  'Lucro Previsto',
-  'Total a Receber',
-  'Valor da Parcela',
-  'Parcelas Pagas',
-  'Total Parcelas',
-  'Total Pago',
-  'Valor Restante',
-  'Dias em Atraso',
-  'Multas Manuais',
-  'Juros por Atraso',
-  'Total + Multas',
-  'Próximo Vencimento',
-  'Tipo de Pagamento',
-  'Data do Contrato',
-  'Data de Início',
-  'Notas'
-];
-```
+### 2. Adicionar Polling e Refresh Automático
 
-**3. Calcular os novos valores para cada empréstimo:**
-```typescript
-const rows = sortedLoans.map(loan => {
-  const status = getLoanStatus(loan);
-  const paidCount = getPaidInstallmentsCount(loan);
-  const nextDue = getNextDueDate(loan);
-  
-  // Juros totais
-  const totalInterest = loan.total_interest || (loan.principal_amount * loan.interest_rate / 100);
-  const totalToReceive = loan.principal_amount + totalInterest;
-  
-  // Multas e atrasos
-  const manualPenalties = getTotalDailyPenalties(loan.notes);
-  const daysOverdue = isLoanOverdue(loan) ? getDaysOverdue(loan) : 0;
-  const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOverdue);
-  const totalWithPenalties = loan.remaining_balance + manualPenalties + dynamicInterest;
-  
-  // Valor da parcela
-  const installmentValue = calculateInstallmentValue(loan);
-  
-  // Modo de juros legível
-  const interestModeLabel = {
-    'on_total': 'Sobre o Total',
-    'per_installment': 'Por Parcela',
-    'compound': 'Composto (Price)'
-  }[loan.interest_mode || 'on_total'] || loan.interest_mode;
-  
-  // Endereço completo
-  const address = [
-    loan.client?.street,
-    loan.client?.number,
-    loan.client?.complement,
-    loan.client?.neighborhood,
-    loan.client?.city,
-    loan.client?.state
-  ].filter(Boolean).join(', ') || loan.client?.address || 'N/A';
+**Arquivo:** `src/hooks/useDashboardStats.ts`
 
-  return [
-    loan.client?.full_name || 'N/A',
-    loan.client?.phone || 'N/A',
-    loan.client?.cpf || 'N/A',
-    loan.client?.email || 'N/A',
-    address,
-    status.label,
-    loan.principal_amount.toFixed(2).replace('.', ','),
-    loan.interest_rate.toString().replace('.', ','),
-    interestModeLabel,
-    totalInterest.toFixed(2).replace('.', ','),
-    totalToReceive.toFixed(2).replace('.', ','),
-    installmentValue.toFixed(2).replace('.', ','),
-    paidCount.toString(),
-    (loan.installments || 1).toString(),
-    (loan.total_paid || 0).toFixed(2).replace('.', ','),
-    loan.remaining_balance.toFixed(2).replace('.', ','),
-    daysOverdue.toString(),
-    manualPenalties.toFixed(2).replace('.', ','),
-    dynamicInterest.toFixed(2).replace('.', ','),
-    totalWithPenalties.toFixed(2).replace('.', ','),
-    nextDue ? formatDate(nextDue) : 'N/A',
-    getPaymentTypeLabel(loan.payment_type),
-    loan.contract_date ? formatDate(loan.contract_date) : formatDate(loan.start_date),
-    loan.start_date ? formatDate(loan.start_date) : 'N/A',
-    (loan.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')
-  ];
+Reduzir cache e adicionar polling:
+
+```typescript
+const { data: stats = defaultStats, isLoading: loading, refetch } = useQuery({
+  queryKey: ['dashboard-stats', userId],
+  queryFn: () => fetchDashboardStats(userId!),
+  enabled: !!userId && !employeeLoading,
+  staleTime: 1000 * 30, // 30 segundos (era 2 minutos)
+  gcTime: 1000 * 60 * 5,
+  refetchInterval: 1000 * 60, // Polling a cada 60 segundos
+  refetchOnWindowFocus: true, // Atualiza ao voltar para a aba
+  refetchOnMount: 'always', // Sempre atualiza ao montar
 });
 ```
 
-## Resultado Final do CSV
+**Arquivo:** `src/hooks/useOperationalStats.ts`
 
-O arquivo CSV exportado terá 25 colunas com todas as informações relevantes:
+Aplicar mesmas configurações:
 
-```text
-Cliente;Telefone;CPF;E-mail;Endereço;Status;Valor Emprestado;Taxa de Juros (%);Modo de Juros;Lucro Previsto;Total a Receber;Valor da Parcela;Parcelas Pagas;Total Parcelas;Total Pago;Valor Restante;Dias em Atraso;Multas Manuais;Juros por Atraso;Total + Multas;Próximo Vencimento;Tipo de Pagamento;Data do Contrato;Data de Início;Notas
+```typescript
+const { data, isLoading, refetch } = useQuery({
+  queryKey: ['operational-stats', effectiveUserId],
+  queryFn: fetchOperationalStats,
+  enabled: !!user && !employeeLoading && !!effectiveUserId,
+  staleTime: 1000 * 30, // 30 segundos (era 2 minutos)
+  gcTime: 1000 * 60 * 5,
+  refetchInterval: 1000 * 60, // Polling a cada 60 segundos
+  refetchOnWindowFocus: true,
+  refetchOnMount: 'always',
+});
 ```
 
-## Arquivo a Modificar
+### 3. Forçar Refresh ao Navegar para Dashboard
 
-- `src/components/LoansTableView.tsx` - Expandir função `handleExportCSV`
+**Arquivo:** `src/pages/Dashboard.tsx`
+
+Adicionar `useEffect` para forçar refetch ao montar o componente:
+
+```typescript
+import { useEffect } from 'react';
+
+// Dentro do componente Dashboard:
+const { stats: opStats, refetch: refetchOpStats } = useOperationalStats();
+const { stats, loading: statsLoading, refetch: refetchDashboard } = useDashboardStats();
+
+// Forçar refresh ao montar o Dashboard
+useEffect(() => {
+  refetchOpStats();
+  refetchDashboard();
+}, []); // Executa apenas ao montar
+```
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useLoans.ts` | Adicionar invalidação de `['dashboard-stats']` |
+| `src/hooks/useDashboardStats.ts` | Reduzir cache, adicionar polling e `refetchOnMount` |
+| `src/hooks/useOperationalStats.ts` | Reduzir cache, adicionar polling e `refetchOnMount` |
+| `src/pages/Dashboard.tsx` | Forçar refetch ao montar |
+
+## Resultado Esperado
+
+- Após qualquer alteração em empréstimo, Dashboard atualiza imediatamente via invalidação de cache
+- Mesmo sem alterações, Dashboard atualiza automaticamente a cada 60 segundos
+- Ao voltar para a aba do navegador, dados são recarregados
+- Ao navegar para o Dashboard, dados são sempre buscados do servidor
