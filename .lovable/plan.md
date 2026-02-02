@@ -1,98 +1,172 @@
 
-# Plano: Sincronização do Dashboard com Dados de Empréstimos em Tempo Real
+# Plano: Personalização de Mensagens de Cobrança via Templates Configuráveis
 
-## Problema Identificado
+## Objetivo
 
-Quando um empréstimo é alterado (datas, valores, etc.), a área de "Próximos Vencimentos" e "Empréstimos Recentes" no Dashboard pode exibir informações desatualizadas por dois motivos:
+Permitir que o usuário defina quais informações do contrato/empréstimo aparecem nas mensagens de cobrança enviadas aos clientes, salvando essas preferências para uso futuro.
 
-1. **Cache não invalidado**: A função `invalidateLoans()` não invalida a queryKey `['dashboard-stats']`
-2. **Polling ausente**: Os hooks `useDashboardStats` e `useOperationalStats` não atualizam automaticamente em background
-3. **Cache longo**: Ambos os hooks têm `staleTime: 2 minutos`, muito alto para dados operacionais
+## Abordagem Proposta
 
-## Solução Proposta
+### Opção A: Template com Toggles de Campos (Recomendada)
 
-### 1. Invalidar Dashboard Stats ao Modificar Empréstimos
+O usuário configura uma vez na página de perfil quais campos quer incluir nas mensagens. Cada vez que enviar uma cobrança, o sistema monta a mensagem apenas com os campos selecionados.
 
-**Arquivo:** `src/hooks/useLoans.ts`
+```text
+┌──────────────────────────────────────────────────────┐
+│  📝 Configurar Mensagem de Cobrança                  │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  Campos a incluir na mensagem:                       │
+│                                                      │
+│  ☑️ Nome do Cliente                                  │
+│  ☑️ Valor da Parcela                                 │
+│  ☑️ Número da Parcela (ex: 3/12)                     │
+│  ☑️ Data de Vencimento                               │
+│  ☐ Dias em Atraso                                    │
+│  ☐ Multa/Juros por Atraso                           │
+│  ☑️ Barra de Progresso                               │
+│  ☐ Lista de Todas as Parcelas                        │
+│  ☑️ Chave PIX                                        │
+│  ☑️ Assinatura                                       │
+│                                                      │
+│  Mensagem Personalizada (opcional):                  │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ Qualquer dúvida, estou à disposição! 😊        │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  [Visualizar Exemplo]        [Salvar Preferências]   │
+└──────────────────────────────────────────────────────┘
+```
 
-Adicionar invalidação da queryKey `['dashboard-stats']` na função `invalidateLoans()`:
+### Opção B: Templates Predefinidos
+
+Oferecer 2-3 templates prontos que o usuário escolhe:
+- **Completo**: Todas as informações
+- **Simples**: Apenas valor, vencimento e PIX
+- **Mínimo**: Só valor e vencimento
+
+## Solução Técnica
+
+### 1. Novos Campos no Banco de Dados
+
+Adicionar coluna na tabela `profiles` para armazenar as preferências:
+
+```sql
+ALTER TABLE profiles 
+ADD COLUMN billing_message_config JSONB DEFAULT '{
+  "includeClientName": true,
+  "includeInstallmentNumber": true,
+  "includeAmount": true,
+  "includeDueDate": true,
+  "includeDaysOverdue": true,
+  "includePenalty": true,
+  "includeProgressBar": true,
+  "includeInstallmentsList": false,
+  "includePaymentOptions": true,
+  "includePixKey": true,
+  "includeSignature": true,
+  "customClosingMessage": "Qualquer dúvida, estou à disposição! 😊"
+}'::jsonb;
+```
+
+### 2. Nova Seção no Perfil (Profile.tsx)
+
+Adicionar card "Mensagem de Cobrança" na página de perfil com:
+- Lista de checkboxes para cada campo
+- Campo de texto para mensagem personalizada de fechamento
+- Botão "Visualizar Exemplo" que abre um preview
+- Botão "Salvar Preferências"
+
+### 3. Atualizar Funções de Geração de Mensagem
+
+Modificar `src/lib/messageUtils.ts` e os componentes de notificação para:
+- Receber as configurações do perfil como parâmetro
+- Montar a mensagem apenas com os campos habilitados
 
 ```typescript
-const invalidateLoans = () => {
-  queryClient.invalidateQueries({ queryKey: ['loans'] });
-  queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
-  queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); // NOVO
+interface BillingMessageConfig {
+  includeClientName: boolean;
+  includeInstallmentNumber: boolean;
+  includeAmount: boolean;
+  includeDueDate: boolean;
+  includeDaysOverdue: boolean;
+  includePenalty: boolean;
+  includeProgressBar: boolean;
+  includeInstallmentsList: boolean;
+  includePaymentOptions: boolean;
+  includePixKey: boolean;
+  includeSignature: boolean;
+  customClosingMessage: string;
+}
+
+export const generateCustomBillingMessage = (
+  data: BillingData,
+  config: BillingMessageConfig,
+  profile: Profile
+): string => {
+  let message = '';
+  
+  if (config.includeClientName) {
+    message += `Olá *${data.clientName}*!\n`;
+  }
+  
+  if (config.includeAmount) {
+    message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
+  }
+  
+  // ... etc para cada campo
+  
+  if (config.customClosingMessage) {
+    message += `\n${config.customClosingMessage}\n`;
+  }
+  
+  return message;
 };
 ```
 
-### 2. Adicionar Polling e Refresh Automático
-
-**Arquivo:** `src/hooks/useDashboardStats.ts`
-
-Reduzir cache e adicionar polling:
-
-```typescript
-const { data: stats = defaultStats, isLoading: loading, refetch } = useQuery({
-  queryKey: ['dashboard-stats', userId],
-  queryFn: () => fetchDashboardStats(userId!),
-  enabled: !!userId && !employeeLoading,
-  staleTime: 1000 * 30, // 30 segundos (era 2 minutos)
-  gcTime: 1000 * 60 * 5,
-  refetchInterval: 1000 * 60, // Polling a cada 60 segundos
-  refetchOnWindowFocus: true, // Atualiza ao voltar para a aba
-  refetchOnMount: 'always', // Sempre atualiza ao montar
-});
-```
-
-**Arquivo:** `src/hooks/useOperationalStats.ts`
-
-Aplicar mesmas configurações:
-
-```typescript
-const { data, isLoading, refetch } = useQuery({
-  queryKey: ['operational-stats', effectiveUserId],
-  queryFn: fetchOperationalStats,
-  enabled: !!user && !employeeLoading && !!effectiveUserId,
-  staleTime: 1000 * 30, // 30 segundos (era 2 minutos)
-  gcTime: 1000 * 60 * 5,
-  refetchInterval: 1000 * 60, // Polling a cada 60 segundos
-  refetchOnWindowFocus: true,
-  refetchOnMount: 'always',
-});
-```
-
-### 3. Forçar Refresh ao Navegar para Dashboard
-
-**Arquivo:** `src/pages/Dashboard.tsx`
-
-Adicionar `useEffect` para forçar refetch ao montar o componente:
-
-```typescript
-import { useEffect } from 'react';
-
-// Dentro do componente Dashboard:
-const { stats: opStats, refetch: refetchOpStats } = useOperationalStats();
-const { stats, loading: statsLoading, refetch: refetchDashboard } = useDashboardStats();
-
-// Forçar refresh ao montar o Dashboard
-useEffect(() => {
-  refetchOpStats();
-  refetchDashboard();
-}, []); // Executa apenas ao montar
-```
-
-## Arquivos a Modificar
+### 4. Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useLoans.ts` | Adicionar invalidação de `['dashboard-stats']` |
-| `src/hooks/useDashboardStats.ts` | Reduzir cache, adicionar polling e `refetchOnMount` |
-| `src/hooks/useOperationalStats.ts` | Reduzir cache, adicionar polling e `refetchOnMount` |
-| `src/pages/Dashboard.tsx` | Forçar refetch ao montar |
+| `supabase/migrations/` | Adicionar coluna `billing_message_config` na tabela `profiles` |
+| `src/hooks/useProfile.ts` | Incluir novo campo na interface `Profile` |
+| `src/pages/Profile.tsx` | Adicionar seção de configuração de mensagens |
+| `src/lib/messageUtils.ts` | Criar função `generateCustomBillingMessage` |
+| `src/components/SendOverdueNotification.tsx` | Usar configurações do perfil |
+| `src/components/SendDueTodayNotification.tsx` | Usar configurações do perfil |
+| `src/components/SendEarlyNotification.tsx` | Usar configurações do perfil |
 
-## Resultado Esperado
+## Fluxo do Usuário
 
-- Após qualquer alteração em empréstimo, Dashboard atualiza imediatamente via invalidação de cache
-- Mesmo sem alterações, Dashboard atualiza automaticamente a cada 60 segundos
-- Ao voltar para a aba do navegador, dados são recarregados
-- Ao navegar para o Dashboard, dados são sempre buscados do servidor
+1. Usuário acessa **Meu Perfil**
+2. Encontra a seção **"Mensagem de Cobrança"**
+3. Marca/desmarca os campos desejados
+4. Escreve uma mensagem personalizada de fechamento (opcional)
+5. Clica em **"Visualizar Exemplo"** para ver como ficará
+6. Clica em **"Salvar Preferências"**
+7. Nas próximas cobranças, as mensagens seguirão o template configurado
+
+## Campos Disponíveis para Configuração
+
+| Campo | Descrição | Padrão |
+|-------|-----------|--------|
+| Nome do Cliente | Saudação com nome | ✅ Ativo |
+| Valor da Parcela | Valor monetário | ✅ Ativo |
+| Número da Parcela | Ex: "3/12" | ✅ Ativo |
+| Data de Vencimento | Data formatada | ✅ Ativo |
+| Dias em Atraso | Quantidade de dias | ✅ Ativo |
+| Multa/Juros Atraso | Valores adicionais | ✅ Ativo |
+| Barra de Progresso | Visual do progresso | ✅ Ativo |
+| Lista de Parcelas | Status de todas | ❌ Inativo |
+| Opções de Pagamento | Pagar só juros, etc | ✅ Ativo |
+| Chave PIX | Dados para pagamento | ✅ Ativo |
+| Assinatura | Nome da empresa | ✅ Ativo |
+| Mensagem de Fechamento | Texto livre | "Qualquer dúvida..." |
+
+## Benefícios
+
+- Flexibilidade total para cada usuário
+- Mensagens mais curtas/objetivas se desejado
+- Personalização da linguagem
+- Configuração salva (não precisa editar toda vez)
+- Ainda permite edição manual antes de enviar (já existe)
