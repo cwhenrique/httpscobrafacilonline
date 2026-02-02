@@ -1,53 +1,68 @@
 
 
-# Plano: Inicializar Textareas com Templates Padrão
+# Plano: Remover Seções Confusas e Substituir por Métricas Úteis
 
 ## Problema Identificado
 
-Os textareas começam vazios porque o estado `templates` é inicializado com strings vazias:
+As duas seções que geram confusão:
+1. **Próximos Vencimentos** (linhas 396-438) - Lista parcelas a vencer, mas aparece o mesmo cliente várias vezes
+2. **Empréstimos Recentes** (linhas 441-487) - Lista empréstimos por data de criação, dados que não fazem sentido para o usuário
 
-```typescript
-const [templates, setTemplates] = useState<Record<MessageType, string>>({
-  overdue: '',
-  dueToday: '',
-  early: '',
-});
-```
+Ambas mostram informações redundantes e confusas quando o mesmo cliente tem múltiplos contratos ou parcelas.
 
-Só depois que o `profile` carrega é que os templates são preenchidos (via `useEffect`). Isso causa um breve momento onde os campos aparecem vazios.
+## Alterações Técnicas
 
-## Solução
+**Arquivo:** `src/pages/Dashboard.tsx`
 
-Inicializar o estado `templates` diretamente com os templates padrão, para que o usuário já veja a mensagem padrão assim que abrir a tela, mesmo antes do profile carregar.
+- Remover linhas 396-438 (seção "Próximos Vencimentos")
+- Remover linhas 441-487 (seção "Empréstimos Recentes")
 
-## Alteração Necessária
+## Ideias de Substituição
 
-**Arquivo:** `src/components/BillingMessageConfigCard.tsx`
+### Opção 1: Saúde da Operação (Score de Saúde)
+Um card visual com score de 0-100 mostrando:
+- Taxa de recebimento (% do que deveria ter entrado que entrou)
+- Taxa de inadimplência (% em atraso)
+- Indicadores visuais (verde/amarelo/vermelho)
 
-**Mudança (linhas 66-70):**
+Baseado no componente `HealthScoreCard.tsx` que já existe no sistema.
 
-```typescript
-// ANTES (campos vazios)
-const [templates, setTemplates] = useState<Record<MessageType, string>>({
-  overdue: '',
-  dueToday: '',
-  early: '',
-});
+### Opção 2: Resumo Consolidado por Categoria
+Cards mostrando totais por tipo de negócio:
+- Total de cada categoria (Empréstimos, Produtos, Veículos, Contratos)
+- % recebido vs pendente de cada
+- Mais limpo que listar contratos individuais
 
-// DEPOIS (já com templates padrão)
-const [templates, setTemplates] = useState<Record<MessageType, string>>({
-  overdue: DEFAULT_TEMPLATE_OVERDUE,
-  dueToday: DEFAULT_TEMPLATE_DUE_TODAY,
-  early: DEFAULT_TEMPLATE_EARLY,
-});
-```
+### Opção 3: Alertas Inteligentes
+Card com alertas importantes:
+- Quantos contratos vencem esta semana (sem listar cada um)
+- Quantos estão atrasados há mais de 30 dias
+- Clientes que precisam de atenção
+- Formato resumido, não lista detalhada
 
-O `useEffect` existente continuará funcionando normalmente - se o usuário tiver templates customizados salvos, eles serão carregados. Se não tiver, os padrões já estarão visíveis desde o início.
+### Opção 4: Metas e Desempenho
+Card simples mostrando:
+- Meta do mês (configurável)
+- Quanto já recebeu vs meta
+- Barra de progresso visual
+- Comparativo com mês anterior
 
-## Resultado Esperado
+### Opção 5: Top Clientes (Risco/Valor)
+Lista resumida mostrando:
+- Top 5 clientes com maior valor em aberto
+- Top 5 clientes em atraso (agrupados por cliente, não por parcela)
+- Evita repetição do mesmo nome
 
-- Ao abrir Configurações > Mensagem de Cobrança, os textareas já mostram os templates padrão
-- O usuário pode ver exatamente como a mensagem é estruturada
-- Pode editar diretamente a partir do padrão
-- Se já tiver customizações salvas, elas substituem o padrão quando o profile carrega
+### Minha Recomendação
+
+**Substituir as duas seções por:**
+
+1. **Card de Saúde da Operação** - Visual, informativo, sem dados confusos
+2. **Card de Alertas Resumidos** - Apenas números agregados ("5 contratos vencem esta semana", "3 clientes atrasados"), sem listar cada item
+
+Isso mantém o dashboard informativo mas elimina a confusão de ver o mesmo cliente repetido várias vezes com valores diferentes.
+
+## Qual opção você prefere?
+
+Posso implementar qualquer combinação dessas opções. Me diga qual(is) você quer que eu adicione no lugar das seções removidas.
 
