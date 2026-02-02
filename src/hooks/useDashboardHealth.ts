@@ -71,7 +71,8 @@ export function useDashboardHealth() {
     let overdueMoreThan30DaysCount = 0;
     let overdueMoreThan30DaysAmount = 0;
 
-    opStats.activeLoans.forEach((loan) => {
+    const activeLoans = opStats.activeLoans || [];
+    activeLoans.forEach((loan) => {
       const dates = (loan.installment_dates as string[]) || [];
       const installmentValue = (loan.principal_amount + (loan.total_interest || 0)) / (dates.length || 1);
       const paidCount = installmentValue > 0 
@@ -112,7 +113,8 @@ export function useDashboardHealth() {
     // Veículos em atraso
     let vehiclesOverdueCount = 0;
     let vehiclesOverdueAmount = 0;
-    vehicles.forEach((vehicle) => {
+    const vehiclesList = vehicles || [];
+    vehiclesList.forEach((vehicle) => {
       if (vehicle.status === 'overdue') {
         vehiclesOverdueCount++;
         vehiclesOverdueAmount += vehicle.remaining_balance || 0;
@@ -122,7 +124,8 @@ export function useDashboardHealth() {
     // Produtos em atraso
     let productsOverdueCount = 0;
     let productsOverdueAmount = 0;
-    sales.forEach((sale) => {
+    const salesList = sales || [];
+    salesList.forEach((sale) => {
       if (sale.status === 'overdue') {
         productsOverdueCount++;
         productsOverdueAmount += sale.remaining_balance || 0;
