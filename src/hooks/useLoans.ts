@@ -150,6 +150,7 @@ export function useLoans() {
   const invalidateLoans = () => {
     queryClient.invalidateQueries({ queryKey: ['loans'] });
     queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
   };
 
   const createLoan = async (loan: {
