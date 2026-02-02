@@ -98,7 +98,9 @@ import {
   generateSignature,
   generatePaymentOptions,
   getBillingConfig,
+  replaceTemplateVariables,
 } from '@/lib/messageUtils';
+import { DEFAULT_TEMPLATE_OVERDUE } from '@/types/billingMessageConfig';
 
 export default function SendOverdueNotification({ 
   data, 
@@ -134,6 +136,38 @@ export default function SendOverdueNotification({
 
   const generateOverdueMessage = (): string => {
     const config = getBillingConfig(profile?.billing_message_config);
+    
+    // Se tem template customizado, usar substituição de variáveis
+    if (config.useCustomTemplates && config.customTemplateOverdue) {
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || 1;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+      const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
+      const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
+      const overdueInterest = data.overdueInterestAmount || 0;
+      const totalExtras = appliedPenalty + overdueInterest;
+      const totalAmount = data.amount + totalExtras;
+
+      return replaceTemplateVariables(config.customTemplateOverdue, {
+        clientName: data.clientName,
+        amount: data.amount,
+        installmentNumber: data.installmentNumber,
+        totalInstallments: data.totalInstallments,
+        dueDate: data.dueDate,
+        daysOverdue: data.daysOverdue,
+        penaltyAmount: appliedPenalty,
+        overdueInterestAmount: overdueInterest,
+        totalAmount: totalAmount,
+        progressPercent: progressPercent,
+        pixKey: profile?.pix_key,
+        pixKeyType: profile?.pix_key_type,
+        pixPreMessage: profile?.pix_pre_message,
+        signatureName: profile?.billing_signature_name || profile?.company_name,
+        closingMessage: config.customClosingMessage,
+      });
+    }
+    
+    // Lógica original baseada em checkboxes
     const typeLabel = getContractTypeLabel(data.contractType);
     const hasMultipleOverdue = data.overdueInstallmentsDetails && data.overdueInstallmentsDetails.length > 1;
     const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
@@ -154,7 +188,6 @@ export default function SendOverdueNotification({
       message += `🚨 *${data.overdueInstallmentsCount} PARCELAS EM ATRASO*\n\n`;
       message += `📋 *Tipo:* ${typeLabel} Diário\n`;
       
-      // Barra de progresso
       if (config.includeProgressBar) {
         const paidCount = data.paidCount || 0;
         const totalInstallments = data.totalInstallments || 1;
@@ -188,13 +221,11 @@ export default function SendOverdueNotification({
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
         : 'Pagamento';
       
-      // Separar: multa aplicada vs juros por atraso
       const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
       const overdueInterest = data.overdueInterestAmount || 0;
       const totalExtras = appliedPenalty + overdueInterest;
       const totalAmount = data.amount + totalExtras;
 
-      // Informações principais
       if (config.includeAmount) {
         message += `💵 *Valor da Parcela:* ${formatCurrency(data.amount)}\n`;
       }
@@ -208,22 +239,18 @@ export default function SendOverdueNotification({
         message += `⏰ *Dias em Atraso:* ${data.daysOverdue}\n`;
       }
       
-      // Juros por atraso (se houver)
       if (config.includePenalty && overdueInterest > 0) {
         message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
       }
       
-      // Multa aplicada (se houver)
       if (config.includePenalty && appliedPenalty > 0) {
         message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
       }
       
-      // Total a pagar
       if (config.includeAmount && totalExtras > 0) {
         message += `💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
       }
       
-      // Barra de progresso
       if (config.includeProgressBar) {
         const paidCount = data.paidCount || 0;
         const totalInstallments = data.totalInstallments || 1;
@@ -231,7 +258,6 @@ export default function SendOverdueNotification({
         message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
       }
       
-      // Status das parcelas (inteligente)
       if (config.includeInstallmentsList && data.installmentDates && data.installmentDates.length > 0) {
         const paidCount = data.paidCount || 0;
         message += `\n`;
@@ -241,14 +267,12 @@ export default function SendOverdueNotification({
         });
       }
       
-      // Pagamento parcial de juros (se houver)
       if (data.partialInterestPaid && data.partialInterestPaid > 0) {
         message += `\n💜 *JUROS PARCIAL:*\n`;
         message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
         message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
       }
       
-      // Opções de pagamento (só juros + multa)
       if (config.includePaymentOptions) {
         message += generatePaymentOptions(
           totalAmount,
@@ -261,10 +285,8 @@ export default function SendOverdueNotification({
       }
     }
     
-    // PIX
     message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     
-    // Assinatura
     const signatureName = profile?.billing_signature_name || profile?.company_name;
     message += generateSignature(signatureName);
 

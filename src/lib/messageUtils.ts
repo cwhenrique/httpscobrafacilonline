@@ -220,3 +220,86 @@ export const shouldIncludeField = (
   const safeConfig = getBillingConfig(config);
   return safeConfig[field] as boolean;
 };
+
+export interface TemplateData {
+  clientName: string;
+  amount: number;
+  installmentNumber?: number;
+  totalInstallments?: number;
+  dueDate: string;
+  daysOverdue?: number;
+  daysUntilDue?: number;
+  penaltyAmount?: number;
+  overdueInterestAmount?: number;
+  totalAmount?: number;
+  progressPercent?: number;
+  pixKey?: string | null;
+  pixKeyType?: string | null;
+  pixPreMessage?: string | null;
+  signatureName?: string | null;
+  closingMessage?: string;
+}
+
+/**
+ * Substitui variáveis do template pelos dados reais
+ */
+export const replaceTemplateVariables = (
+  template: string,
+  data: TemplateData
+): string => {
+  const parcela = data.installmentNumber && data.totalInstallments
+    ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
+    : 'Pagamento';
+
+  // Linhas condicionais para multa, juros e total
+  let multaLine = '';
+  if (data.penaltyAmount && data.penaltyAmount > 0) {
+    multaLine = `⚠️ *Multa Aplicada:* +${formatCurrency(data.penaltyAmount)}\n`;
+  }
+
+  let jurosLine = '';
+  if (data.overdueInterestAmount && data.overdueInterestAmount > 0) {
+    jurosLine = `📈 *Juros por Atraso:* +${formatCurrency(data.overdueInterestAmount)}\n`;
+  }
+
+  let totalLine = '';
+  if (data.totalAmount && data.totalAmount !== data.amount) {
+    totalLine = `💵 *TOTAL A PAGAR:* ${formatCurrency(data.totalAmount)}\n`;
+  }
+
+  // Barra de progresso
+  const progressBar = data.progressPercent !== undefined
+    ? `📈 *Progresso:* ${generateProgressBar(data.progressPercent)}`
+    : '';
+
+  // PIX
+  const pixSection = generatePixSection(
+    data.pixKey || null,
+    data.pixKeyType || null,
+    data.pixPreMessage || null
+  );
+
+  // Assinatura
+  const signature = generateSignature(data.signatureName);
+
+  // Mensagem de fechamento
+  const closingMessage = data.closingMessage || '';
+
+  return template
+    .replace(/\{CLIENTE\}/g, data.clientName)
+    .replace(/\{VALOR\}/g, formatCurrency(data.amount))
+    .replace(/\{PARCELA\}/g, parcela)
+    .replace(/\{DATA\}/g, formatDate(data.dueDate))
+    .replace(/\{DIAS_ATRASO\}/g, String(data.daysOverdue || 0))
+    .replace(/\{DIAS_PARA_VENCER\}/g, String(data.daysUntilDue || 0))
+    .replace(/\{MULTA\}/g, multaLine)
+    .replace(/\{JUROS\}/g, jurosLine)
+    .replace(/\{TOTAL\}/g, totalLine)
+    .replace(/\{PROGRESSO\}/g, progressBar)
+    .replace(/\{PIX\}/g, pixSection)
+    .replace(/\{ASSINATURA\}/g, signature)
+    .replace(/\{FECHAMENTO\}/g, closingMessage)
+    // Remove linhas vazias duplicadas
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};

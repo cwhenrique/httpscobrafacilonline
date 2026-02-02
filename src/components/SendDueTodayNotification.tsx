@@ -69,7 +69,9 @@ import {
   generateSignature,
   generatePaymentOptions,
   getBillingConfig,
+  replaceTemplateVariables,
 } from '@/lib/messageUtils';
+import { DEFAULT_TEMPLATE_DUE_TODAY } from '@/types/billingMessageConfig';
 
 export default function SendDueTodayNotification({ 
   data, 
@@ -102,6 +104,29 @@ export default function SendDueTodayNotification({
 
   const generateDueTodayMessage = (): string => {
     const config = getBillingConfig(profile?.billing_message_config);
+    
+    // Se tem template customizado, usar substituição de variáveis
+    if (config.useCustomTemplates && config.customTemplateDueToday) {
+      const paidCount = data.paidCount || 0;
+      const totalInstallments = data.totalInstallments || 1;
+      const progressPercent = Math.round((paidCount / totalInstallments) * 100);
+
+      return replaceTemplateVariables(config.customTemplateDueToday, {
+        clientName: data.clientName,
+        amount: data.amount,
+        installmentNumber: data.installmentNumber,
+        totalInstallments: data.totalInstallments,
+        dueDate: data.dueDate,
+        progressPercent: progressPercent,
+        pixKey: profile?.pix_key,
+        pixKeyType: profile?.pix_key_type,
+        pixPreMessage: profile?.pix_pre_message,
+        signatureName: profile?.billing_signature_name || profile?.company_name,
+        closingMessage: config.customClosingMessage || 'Evite juros e multas pagando em dia!',
+      });
+    }
+    
+    // Lógica original baseada em checkboxes
     const installmentInfo = data.installmentNumber && data.totalInstallments 
       ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
       : 'Pagamento';
@@ -118,7 +143,6 @@ export default function SendDueTodayNotification({
     }
     message += `📅 *VENCIMENTO HOJE*\n\n`;
     
-    // Informações principais
     if (config.includeAmount) {
       message += `💵 *Valor:* ${formatCurrency(data.amount)}\n`;
     }
@@ -129,12 +153,10 @@ export default function SendDueTodayNotification({
       message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
     }
     
-    // Barra de progresso
     if (config.includeProgressBar) {
       message += `\n📈 *Progresso:* ${generateProgressBar(progressPercent)}\n`;
     }
     
-    // Status das parcelas (inteligente)
     if (config.includeInstallmentsList && data.installmentDates && data.installmentDates.length > 0) {
       message += `\n`;
       message += generateInstallmentStatusList({
@@ -143,31 +165,26 @@ export default function SendDueTodayNotification({
       });
     }
     
-    // Pagamento parcial de juros (se houver)
     if (data.partialInterestPaid && data.partialInterestPaid > 0) {
       message += `\n💜 *JUROS PARCIAL:*\n`;
       message += `✅ Já pago: ${formatCurrency(data.partialInterestPaid)}\n`;
       message += `⏳ Pendente: ${formatCurrency(data.partialInterestPending || 0)}\n`;
     }
     
-    // Opções de pagamento
     if (config.includePaymentOptions) {
       message += generatePaymentOptions(data.amount, data.interestAmount, data.principalAmount, data.isDaily);
     }
     
-    // PIX
     if (config.includePixKey) {
       message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     }
     
     message += `\nEvite juros e multas pagando em dia!`;
     
-    // Mensagem de fechamento customizada
     if (config.customClosingMessage) {
       message += `\n${config.customClosingMessage}`;
     }
     
-    // Assinatura
     if (config.includeSignature) {
       const signatureName = profile?.billing_signature_name || profile?.company_name;
       message += generateSignature(signatureName);
