@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 export default function Dashboard() {
-  const { stats, loading: statsLoading } = useDashboardStats();
+  const { stats, loading: statsLoading, refetch: refetchDashboard } = useDashboardStats();
   const { stats: opStats, refetch: refetchOpStats } = useOperationalStats();
   const { loans, loading: loansLoading } = useLoans();
   const { payments, loading: paymentsLoading } = useAllPayments();
@@ -43,6 +43,12 @@ export default function Dashboard() {
   const [showEmployeeBanner, setShowEmployeeBanner] = useState(() => {
     return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
   });
+  
+  // Forçar refresh ao montar o Dashboard para garantir dados atualizados
+  useEffect(() => {
+    refetchOpStats();
+    refetchDashboard();
+  }, []);
   
   
   const handleCloseEmployeeBanner = () => {

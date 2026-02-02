@@ -163,8 +163,11 @@ export function useDashboardStats() {
     queryKey: ['dashboard-stats', userId],
     queryFn: () => fetchDashboardStats(userId!),
     enabled: !!userId && !employeeLoading,
-    staleTime: 1000 * 60 * 2, // 2 minutos
-    gcTime: 1000 * 60 * 5, // 5 minutos (anteriormente cacheTime)
+    staleTime: 1000 * 30, // 30 segundos - dados operacionais precisam ser mais frescos
+    gcTime: 1000 * 60 * 5, // 5 minutos
+    refetchInterval: 1000 * 60, // Polling a cada 60 segundos
+    refetchOnWindowFocus: true, // Atualiza ao voltar para a aba
+    refetchOnMount: 'always', // Sempre atualiza ao montar o componente
   });
 
   return { stats, loading, refetch };
