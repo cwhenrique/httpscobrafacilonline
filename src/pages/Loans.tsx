@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useLoans } from '@/hooks/useLoans';
+import { useThirdPartyLoans } from '@/hooks/useThirdPartyLoans';
 import { useClients } from '@/hooks/useClients';
 import { InterestType, LoanPaymentType, Client, Loan } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -505,8 +506,17 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
   return numInstallments - 1;
 };
 
-export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments, invalidateLoans } = useLoans();
+interface LoansPageProps {
+  isThirdParty?: boolean;
+}
+
+export default function Loans({ isThirdParty = false }: LoansPageProps) {
+  const regularLoansHook = useLoans();
+  const thirdPartyLoansHook = useThirdPartyLoans();
+  
+  // Seleciona o hook correto baseado no modo
+  const loansHook = isThirdParty ? thirdPartyLoansHook : regularLoansHook;
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments, invalidateLoans } = loansHook;
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const { hasPermission, isEmployee, isOwner } = useEmployeeContext();
@@ -567,6 +577,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   
   // Estado para controlar expansão das parcelas em atraso
   const [expandedOverdueCards, setExpandedOverdueCards] = useState<Set<string>>(new Set());
+  
+  // 🆕 Estado para nome do terceiro (só usado em modo isThirdParty)
+  const [thirdPartyName, setThirdPartyName] = useState('');
   
   // Estados para a aba Tabela Price inline
   const [priceFormData, setPriceFormData] = usePersistedState('loan_price_form_data', {
@@ -693,6 +706,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       installment_dates: priceInstallmentDates,
       total_interest: priceTablePreview.totalInterest,
       send_creation_notification: priceFormData.send_notification,
+      ...(isThirdParty && { third_party_name: thirdPartyName || 'Terceiro' }),
     });
 
     if (result.data) {
@@ -2949,6 +2963,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       })(),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
+      ...(isThirdParty && { third_party_name: thirdPartyName || 'Terceiro' }),
     };
     
     console.log('loanData being passed to createLoan:', loanData);
@@ -3555,6 +3570,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       installment_dates: ['installment', 'weekly', 'biweekly', 'daily'].includes(formData.payment_type) ? installmentDates : [],
       notes: notes || undefined,
       send_creation_notification: formData.send_creation_notification,
+      ...(isThirdParty && { third_party_name: thirdPartyName || 'Terceiro' }),
     });
     
     // If historical contract with past installments, register selected ones as paid
@@ -14011,6 +14027,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               installment_dates: loanData.installment_dates,
               total_interest: loanData.total_interest,
               send_creation_notification: loanData.send_notification,
+              ...(isThirdParty && { third_party_name: thirdPartyName || 'Terceiro' }),
             });
             
             // Abrir prompt de comprovante após criar empréstimo via Tabela Price

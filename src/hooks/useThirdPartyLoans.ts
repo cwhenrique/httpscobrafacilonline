@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
 import { updateClientScore } from '@/lib/updateClientScore';
+import { format, subMonths, subWeeks, subDays } from 'date-fns';
 
 // Query function for fetching third-party loans
 const fetchThirdPartyLoansFromDB = async (userId: string): Promise<Loan[]> => {
@@ -23,7 +24,22 @@ const fetchThirdPartyLoansFromDB = async (userId: string): Promise<Loan[]> => {
     throw error;
   }
 
-  return (data || []) as Loan[];
+  // Buscar informações dos funcionários criadores
+  const creatorIds = [...new Set((data || []).map(l => l.created_by).filter(Boolean))];
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('employee_user_id, name, email')
+    .in('employee_user_id', creatorIds);
+  
+  const employeeMap = new Map(employees?.map(e => [e.employee_user_id, { name: e.name, email: e.email }]) || []);
+  
+  // Mapear creator_employee para cada loan
+  return (data || []).map(loan => ({
+    ...loan,
+    creator_employee: loan.created_by !== loan.user_id 
+      ? employeeMap.get(loan.created_by) || null 
+      : null
+  })) as Loan[];
 };
 
 export function useThirdPartyLoans() {
@@ -48,6 +64,7 @@ export function useThirdPartyLoans() {
   const invalidateLoans = () => {
     queryClient.invalidateQueries({ queryKey: ['third-party-loans'] });
     queryClient.invalidateQueries({ queryKey: ['third-party-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
   };
 
   const createLoan = async (loan: {
@@ -65,7 +82,8 @@ export function useThirdPartyLoans() {
     installment_dates?: string[];
     remaining_balance?: number;
     total_interest?: number;
-    third_party_name: string;
+    third_party_name?: string;
+    send_creation_notification?: boolean;
   }) => {
     if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
@@ -101,7 +119,7 @@ export function useThirdPartyLoans() {
       installment_dates: loan.installment_dates || [],
       status: initialStatus,
       is_third_party: true,
-      third_party_name: loan.third_party_name,
+      third_party_name: loan.third_party_name || 'Terceiro',
     };
 
     const { data, error } = await supabase
@@ -265,10 +283,48 @@ export function useThirdPartyLoans() {
     return { success: true };
   };
 
-  const updateLoan = async (id: string, data: Partial<Loan>) => {
+  const updateLoan = async (id: string, data: {
+    client_id: string;
+    principal_amount: number;
+    interest_rate: number;
+    interest_type: InterestType;
+    interest_mode?: 'per_installment' | 'on_total' | 'compound';
+    payment_type: LoanPaymentType;
+    installments?: number;
+    contract_date?: string;
+    start_date: string;
+    due_date: string;
+    notes?: string;
+    installment_dates?: string[];
+    remaining_balance?: number;
+    total_interest?: number;
+    total_paid?: number;
+    third_party_name?: string;
+  }) => {
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+
+    const updateData = {
+      client_id: data.client_id,
+      principal_amount: data.principal_amount,
+      interest_rate: data.interest_rate,
+      interest_type: data.interest_type,
+      interest_mode: data.interest_mode || 'on_total',
+      payment_type: data.payment_type,
+      installments: data.installments || 1,
+      contract_date: data.contract_date || null,
+      start_date: data.start_date,
+      due_date: data.due_date,
+      notes: data.notes || null,
+      installment_dates: data.installment_dates || [],
+      remaining_balance: data.remaining_balance !== undefined ? data.remaining_balance : data.principal_amount,
+      total_interest: data.total_interest !== undefined ? data.total_interest : 0,
+      ...(data.total_paid !== undefined && { total_paid: data.total_paid }),
+      ...(data.third_party_name && { third_party_name: data.third_party_name }),
+    };
+
     const { error } = await supabase
       .from('loans')
-      .update(data)
+      .update(updateData)
       .eq('id', id);
 
     if (error) {
@@ -276,22 +332,291 @@ export function useThirdPartyLoans() {
       return { error };
     }
 
+    toast.success('Empréstimo atualizado com sucesso!');
     invalidateLoans();
     return { success: true };
   };
 
-  const deletePayment = async (paymentId: string) => {
-    const { error } = await supabase
+  const deletePayment = async (paymentId: string, loanId: string) => {
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+
+    // 1. Fetch payment data first
+    const { data: paymentData, error: fetchError } = await supabase
+      .from('loan_payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single();
+
+    if (fetchError || !paymentData) {
+      toast.error('Erro ao buscar dados do pagamento');
+      return { error: fetchError || new Error('Pagamento não encontrado') };
+    }
+
+    // 2. Get current loan data
+    const { data: loanData, error: loanError } = await supabase
+      .from('loans')
+      .select('*, client:clients(full_name)')
+      .eq('id', loanId)
+      .single();
+
+    if (loanError || !loanData) {
+      toast.error('Erro ao buscar dados do empréstimo');
+      return { error: loanError || new Error('Empréstimo não encontrado') };
+    }
+
+    const paymentNotes = paymentData.notes || '';
+    let updatedLoanNotes = loanData.notes || '';
+    let notesChanged = false;
+
+    // Check for amortization reversal
+    const amortReversalMatch = paymentNotes.match(/\[AMORT_REVERSAL:([0-9.]+):([0-9.]+):([0-9.]+)\]/);
+    if (amortReversalMatch) {
+      const previousTotalInterest = parseFloat(amortReversalMatch[2]);
+      const previousRemainingBalance = parseFloat(amortReversalMatch[3]);
+      
+      const amortTagRegex = /\[AMORTIZATION:[^\]]+\]/g;
+      const allAmortTags = updatedLoanNotes.match(amortTagRegex) || [];
+      if (allAmortTags.length > 0) {
+        const lastTag = allAmortTags[allAmortTags.length - 1];
+        updatedLoanNotes = updatedLoanNotes.replace(lastTag, '').trim();
+      }
+      
+      updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      await supabase.from('loans').update({
+        total_interest: previousTotalInterest,
+        remaining_balance: previousRemainingBalance,
+        notes: updatedLoanNotes || null
+      }).eq('id', loanId);
+      
+      const { error: deleteError } = await supabase
+        .from('loan_payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (deleteError) {
+        toast.error('Erro ao excluir amortização');
+        return { error: deleteError };
+      }
+
+      await updateClientScore(loanData.client_id);
+      toast.success('Amortização revertida! Contrato restaurado ao estado anterior.');
+      invalidateLoans();
+      return { success: true };
+    }
+
+    // 3. Delete the payment record (trigger handles reversal)
+    const { error: deleteError } = await supabase
       .from('loan_payments')
       .delete()
       .eq('id', paymentId);
 
-    if (error) {
+    if (deleteError) {
       toast.error('Erro ao excluir pagamento');
+      return { error: deleteError };
+    }
+
+    // Clean up tracking tags
+    const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
+    if (subparcelaPaidMatch) {
+      const originalIndex = parseInt(subparcelaPaidMatch[1]) - 1;
+      const paidTagRegex = new RegExp(
+        `\\[ADVANCE_SUBPARCELA_PAID:${originalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
+        'g'
+      );
+      const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
+        return `[ADVANCE_SUBPARCELA:${originalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
+      });
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    const advanceMatch = paymentNotes.match(/Adiantamento - Parcela (\d+)/);
+    if (advanceMatch) {
+      const installmentIndex = parseInt(advanceMatch[1]) - 1;
+      let newNotes = updatedLoanNotes.replace(
+        new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), 
+        ''
+      );
+      newNotes = newNotes.replace(
+        new RegExp(`\\[ADVANCE_SUBPARCELA:${installmentIndex}:[^\\]]+\\]`, 'g'), 
+        ''
+      );
+      newNotes = newNotes.replace(
+        new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), 
+        ''
+      );
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    const parcelaMatch = paymentNotes.match(/Parcela (\d+)(?:\/| de )\d+/);
+    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch && !paymentNotes.includes('[AMORTIZATION]')) {
+      const installmentIndex = parseInt(parcelaMatch[1]) - 1;
+      let newNotes = updatedLoanNotes.replace(
+        new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), 
+        ''
+      );
+      newNotes = newNotes.replace(
+        new RegExp(`\\[OVERDUE_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'),
+        ''
+      );
+      if (newNotes !== updatedLoanNotes) {
+        updatedLoanNotes = newNotes;
+        notesChanged = true;
+      }
+    }
+    
+    const isInterestOnlyPayment = paymentNotes.includes('[INTEREST_ONLY_PAYMENT]');
+    
+    if (isInterestOnlyPayment) {
+      let newNotes = updatedLoanNotes.replace(/\[INTEREST_ONLY_PAYMENT\]\n?/g, '');
+      const interestOnlyTags = newNotes.match(/\[INTEREST_ONLY_PAID:\d+:[0-9.]+:[^\]]+\]/g) || [];
+      if (interestOnlyTags.length > 0) {
+        const lastTag = interestOnlyTags[interestOnlyTags.length - 1];
+        newNotes = newNotes.replace(lastTag, '');
+      }
+      newNotes = newNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      const currentDates = (loanData.installment_dates as string[]) || [];
+      if (currentDates.length > 0) {
+        const paymentType = loanData.payment_type;
+        const revertedDates = currentDates.map(dateStr => {
+          const date = new Date(dateStr + 'T12:00:00');
+          let newDate: Date;
+          if (paymentType === 'weekly') {
+            newDate = subWeeks(date, 1);
+          } else if (paymentType === 'biweekly') {
+            newDate = subDays(date, 15);
+          } else if (paymentType === 'daily') {
+            newDate = subDays(date, 1);
+          } else {
+            newDate = subMonths(date, 1);
+          }
+          return format(newDate, 'yyyy-MM-dd');
+        });
+        
+        const newDueDate = revertedDates[0] || loanData.due_date;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDateObj = new Date(newDueDate + 'T12:00:00');
+        const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+        
+        await supabase.from('loans').update({
+          installment_dates: revertedDates,
+          due_date: newDueDate,
+          status: newStatus,
+          notes: newNotes || null
+        }).eq('id', loanId);
+        
+        notesChanged = false;
+      }
+    }
+    
+    if (notesChanged) {
+      updatedLoanNotes = updatedLoanNotes.replace(/\n{3,}/g, '\n\n').trim();
+      
+      const { data: freshLoan } = await supabase
+        .from('loans')
+        .select('due_date')
+        .eq('id', loanId)
+        .single();
+      
+      const currentDueDate = freshLoan?.due_date || loanData.due_date;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDateObj = new Date(currentDueDate + 'T12:00:00');
+      const newStatus = dueDateObj < today ? 'overdue' : 'pending';
+      
+      await supabase
+        .from('loans')
+        .update({ 
+          notes: updatedLoanNotes || null,
+          status: newStatus
+        })
+        .eq('id', loanId);
+    }
+
+    await updateClientScore(loanData.client_id);
+    toast.success('Pagamento excluído e saldo restaurado!');
+    invalidateLoans();
+    return { success: true };
+  };
+
+  // Update payment date
+  const updatePaymentDate = async (paymentId: string, newDate: string) => {
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+
+    const { error } = await supabase
+      .from('loan_payments')
+      .update({ payment_date: newDate })
+      .eq('id', paymentId);
+
+    if (error) {
+      toast.error('Erro ao atualizar data do pagamento');
       return { error };
     }
 
-    toast.success('Pagamento excluído com sucesso!');
+    toast.success('Data do pagamento atualizada!');
+    invalidateLoans();
+    return { success: true };
+  };
+
+  // Add extra installments to a daily loan
+  const addExtraInstallments = async (
+    loanId: string,
+    extraCount: number,
+    newDates: string[]
+  ) => {
+    if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
+
+    const { data: loanData, error: fetchError } = await supabase
+      .from('loans')
+      .select('*, clients(full_name)')
+      .eq('id', loanId)
+      .single();
+
+    if (fetchError || !loanData) {
+      toast.error('Erro ao buscar dados do empréstimo');
+      return { error: fetchError || new Error('Empréstimo não encontrado') };
+    }
+
+    const currentDates = (loanData.installment_dates as string[]) || [];
+    const allDates = [...currentDates, ...newDates];
+    const newInstallments = loanData.installments + extraCount;
+    const dailyAmount = loanData.total_interest || 0;
+    const extraValue = dailyAmount * extraCount;
+    const newRemainingBalance = loanData.remaining_balance + extraValue;
+    const newDueDate = allDates[allDates.length - 1] || loanData.due_date;
+
+    const today = new Date().toISOString().split('T')[0];
+    const extraTag = `[EXTRA_INSTALLMENTS:${extraCount}:${today}]`;
+    const newNotes = loanData.notes 
+      ? `${loanData.notes}\n${extraTag}` 
+      : extraTag;
+
+    const { error: updateError } = await supabase
+      .from('loans')
+      .update({
+        installments: newInstallments,
+        installment_dates: allDates,
+        remaining_balance: newRemainingBalance,
+        due_date: newDueDate,
+        notes: newNotes,
+        status: 'pending',
+      })
+      .eq('id', loanId);
+
+    if (updateError) {
+      toast.error('Erro ao adicionar parcelas extras');
+      return { error: updateError };
+    }
+
+    toast.success(`${extraCount} parcela(s) extra(s) adicionada(s)!`);
     invalidateLoans();
     return { success: true };
   };
@@ -307,5 +632,8 @@ export function useThirdPartyLoans() {
     renegotiateLoan,
     updateLoan,
     deletePayment,
+    updatePaymentDate,
+    addExtraInstallments,
+    invalidateLoans,
   };
 }
