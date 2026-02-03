@@ -1,92 +1,116 @@
 
-
-# Plano: Adicionar Campos de Origem do Cheque
+# Plano: Bloquear Funcionalidade "Desconto de Cheque"
 
 ## Objetivo
 
-Adicionar dois novos campos ao cadastro de Desconto de Cheque para rastrear a origem da aquisicao do cheque pelo cliente:
-1. **Valor pago pelo cheque** - quanto o cliente pagou para adquirir o cheque
-2. **Vendedor do cheque** - de quem o cliente comprou o cheque
+Bloquear completamente a funcionalidade de Desconto de Cheque para todos os usuarios e exibir uma tela de bloqueio com a mensagem informando que e necessario comprar por R$ 19,90.
 
-## Logica de Negocio
+## Abordagem
 
-Esses campos sao uteis para:
-- Saber se o cliente comprou o cheque de terceiros (e por quanto)
-- Calcular a margem real do cliente (diferenca entre valor pago e valor nominal)
-- Rastrear a origem dos cheques para analise de risco
+Ao inves de remover a rota ou esconder o menu, vamos manter tudo visivel mas exibir uma tela de bloqueio quando o usuario acessar a pagina. Isso funciona como uma "preview" que incentiva a compra.
 
-## Arquivos a Modificar
+## Modificacao Necessaria
 
-### 1. Banco de Dados (Migracao)
+### Arquivo: src/pages/CheckDiscounts.tsx
 
-Adicionar duas novas colunas na tabela `check_discounts`:
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| `purchase_value` | numeric | Valor que o cliente pagou pelo cheque (pode ser null) |
-| `seller_name` | text | Nome de quem vendeu o cheque ao cliente (pode ser null) |
-
-### 2. src/types/checkDiscount.ts
-
-Atualizar as interfaces:
-
-**Interface `CheckDiscount`:**
-- Adicionar `purchase_value: number | null`
-- Adicionar `seller_name: string | null`
-
-**Interface `CheckDiscountFormData`:**
-- Adicionar `purchase_value: number`
-- Adicionar `seller_name: string`
-
-### 3. src/hooks/useCheckDiscounts.ts
-
-Atualizar as mutations:
-
-**createMutation:**
-- Incluir `purchase_value` e `seller_name` no insert
-
-**updateMutation:**
-- Incluir `purchase_value` e `seller_name` no update
-
-### 4. src/pages/CheckDiscounts.tsx
-
-**Estado do formulario (`formData`):**
-- Adicionar `purchase_value: 0`
-- Adicionar `seller_name: ''`
-
-**Funcao `resetForm`:**
-- Incluir os novos campos com valores padrao
-
-**Funcao `handleOpenForm`:**
-- Preencher os novos campos ao editar
-
-**Formulario (Dialog):**
-- Adicionar nova secao "Origem do Cheque" apos os dados do emitente
-- Campo "Valor Pago pelo Cheque" (R$) - opcional
-- Campo "Comprado de" (texto) - opcional
-
-**Cards na lista:**
-- Exibir "Comprado de: [nome]" quando preenchido
-- Exibir "Valor pago: R$ X" quando preenchido
-
-## Visual do Formulario
-
-A nova secao sera adicionada assim:
+Adicionar uma verificacao no inicio do componente que retorna uma tela de bloqueio ao inves do conteudo normal.
 
 ```text
-├─────────────────────────────────────────────────────────────────────────────┤
-│ ORIGEM DO CHEQUE (opcional)                                                 │
-│ Valor Pago pelo Cheque: R$ [________________]                               │
-│ Comprado de: [________________________________________________]             │
-├─────────────────────────────────────────────────────────────────────────────┤
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                            🔒 Funcionalidade Premium                        │
+│                                                                             │
+│                              DESCONTO DE CHEQUE                             │
+│                                                                             │
+│     Gerencie cheques pre-datados com controle total de risco,               │
+│     vencimento e recebimento.                                               │
+│                                                                             │
+│     ✓ Calculo automatico de desconto                                       │
+│     ✓ Controle de status (carteira, compensado, devolvido)                 │
+│     ✓ Cobranca automatica via WhatsApp                                     │
+│     ✓ Ranking de risco por cliente                                         │
+│     ✓ Relatorios completos                                                 │
+│                                                                             │
+│     ┌─────────────────────────────────────────────────────────────┐        │
+│     │                    POR APENAS                               │        │
+│     │                    R$ 19,90                                 │        │
+│     │                    pagamento unico                          │        │
+│     └─────────────────────────────────────────────────────────────┘        │
+│                                                                             │
+│                   [ Comprar Agora via WhatsApp ]                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Os campos serao opcionais, permitindo que o usuario preencha apenas quando relevante (ex: quando o cliente comprou o cheque de terceiros).
+## Visual da Tela de Bloqueio
+
+A tela tera:
+- Icone de cadeado grande
+- Titulo "Funcionalidade Premium"
+- Nome da funcionalidade
+- Lista de beneficios
+- Preco destacado (R$ 19,90)
+- Botao verde do WhatsApp para contato de compra
+
+## Codigo a Implementar
+
+No componente `CheckDiscounts`, logo apos os hooks e antes do return principal, adicionar:
+
+```tsx
+// Feature is locked for all users
+const isFeatureLocked = true;
+
+if (isFeatureLocked) {
+  return (
+    <DashboardLayout>
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <Card className="max-w-lg w-full text-center p-8">
+          {/* Lock icon */}
+          <Lock className="w-16 h-16 mx-auto text-amber-500 mb-4" />
+          
+          {/* Title */}
+          <h1 className="text-2xl font-bold mb-2">Funcionalidade Premium</h1>
+          <h2 className="text-xl text-primary mb-6">Desconto de Cheque</h2>
+          
+          {/* Description */}
+          <p className="text-muted-foreground mb-6">
+            Gerencie cheques pre-datados com controle total de risco, 
+            vencimento e recebimento.
+          </p>
+          
+          {/* Benefits list */}
+          <ul className="text-left space-y-2 mb-8">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="text-green-500" />
+              Calculo automatico de desconto
+            </li>
+            {/* ... more benefits */}
+          </ul>
+          
+          {/* Price */}
+          <div className="bg-primary/10 rounded-lg p-4 mb-6">
+            <p className="text-sm text-muted-foreground">Por apenas</p>
+            <p className="text-4xl font-bold text-primary">R$ 19,90</p>
+            <p className="text-sm text-muted-foreground">pagamento unico</p>
+          </div>
+          
+          {/* WhatsApp button */}
+          <Button className="w-full bg-green-500 hover:bg-green-600">
+            <Phone className="mr-2" />
+            Comprar Agora via WhatsApp
+          </Button>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}
+```
 
 ## Resultado Esperado
 
-1. Dois novos campos no formulario de cadastro/edicao
-2. Informacoes exibidas nos cards quando preenchidas
-3. Dados salvos no banco de dados
-4. Compatibilidade total com registros existentes (campos nullable)
-
+1. Menu "Desconto de Cheque" continua visivel no sidebar
+2. Ao clicar, usuario ve tela de bloqueio elegante
+3. Tela mostra beneficios da funcionalidade
+4. Preco R$ 19,90 em destaque
+5. Botao WhatsApp para facilitar compra
+6. Codigo fica pronto para desbloquear no futuro (basta mudar `isFeatureLocked` para `false` ou adicionar logica de verificacao)
