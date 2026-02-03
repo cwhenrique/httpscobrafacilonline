@@ -1,180 +1,212 @@
 
-# Plano: Adicionar Opcao de Cliente Manual no Formulario de Assinatura IPTV
+# Plano: Adicionar Profissao e Dados de Indicacao no Cadastro de Cliente (Emprestimos)
 
 ## Visao Geral
 
-Modificar o formulario de assinatura IPTV para permitir que o usuario escolha entre:
-1. **Selecionar um cliente existente** da base de dados (comportamento atual)
-2. **Cadastrar um novo cliente** diretamente no formulario, inserindo nome, CPF, telefone e outras informacoes
+Adicionar dois novos campos no formulario de cadastro de clientes (focado em emprestimos):
 
-## Estrutura da Solucao
+1. **Profissao**: Campo de texto para informar a ocupacao do cliente
+2. **Indicacao**: Checkbox para marcar se foi indicacao, com campos para nome e telefone de quem indicou
+
+## Estrutura Visual da Solucao
 
 ```text
 +------------------------------------------+
-|  Nova Assinatura IPTV                    |
+|  Dados Pessoais                          |
 +------------------------------------------+
+|  Nome: _______________________________   |
+|  CPF: ____________  RG: ______________   |
+|  Email: _____________  Tel: __________   |
 |                                          |
-|  [x] Cliente existente  [ ] Novo cliente |
+|  Profissão: __________________________   |
 |                                          |
-|  SE "Cliente existente":                 |
+|  [x] Cliente veio por indicação          |
 |  +------------------------------------+  |
-|  |  Dropdown: Selecione um cliente   |  |
-|  +------------------------------------+  |
-|                                          |
-|  SE "Novo cliente":                      |
-|  +------------------------------------+  |
-|  |  Nome: __________________________ |  |
-|  |  Telefone: ______________________ |  |
-|  |  CPF: ___________________________ |  |
-|  |  Email: _________________________ |  |
+|  | Nome de quem indicou: ___________  |  |
+|  | Telefone de quem indicou: ________ |  |
 |  +------------------------------------+  |
 |                                          |
-|  ... resto do formulario ...             |
+|  Instagram: _________  Facebook: _____   |
+|  Tipo de Cliente: [Empréstimo ▼]         |
+|  Observações: ________________________   |
 +------------------------------------------+
 ```
 
-## Fluxo de Funcionamento
+## Etapas de Implementacao
 
-1. Usuario abre o formulario de nova assinatura
-2. Escolhe entre "Cliente existente" ou "Novo cliente"
-3. Se "Novo cliente":
-   - Preenche nome, telefone, CPF e email
-   - Ao submeter, o sistema cria o cliente primeiro
-   - Depois cria a assinatura vinculada ao novo cliente
-4. Se "Cliente existente":
-   - Comportamento atual (seleciona do dropdown)
+### 1. Migracao de Banco de Dados
 
-## Alteracoes Necessarias
+Adicionar 3 novas colunas na tabela `clients`:
 
-### 1. Interface CreateMonthlyFeeData (useMonthlyFees.ts)
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| profession | text | Profissao/ocupacao do cliente |
+| referrer_name | text | Nome de quem indicou |
+| referrer_phone | text | Telefone de quem indicou |
 
-Adicionar campos opcionais para novo cliente:
-
-| Campo | Tipo | Descricao |
-|-------|------|-----------|
-| create_new_client | boolean | Se deve criar novo cliente |
-| new_client_name | string | Nome do novo cliente |
-| new_client_phone | string | Telefone do novo cliente |
-| new_client_cpf | string | CPF do novo cliente |
-| new_client_email | string | Email do novo cliente |
-
-### 2. Hook useMonthlyFees.ts - createFee mutation
-
-Modificar a mutation para:
-1. Verificar se `create_new_client` e true
-2. Se sim, criar o cliente primeiro usando a tabela `clients`
-3. Usar o ID do cliente criado para criar a assinatura
-4. Invalidar a query de clientes apos criar
-
-### 3. Componente IPTVSubscriptionForm.tsx
-
-Adicionar:
-- Tabs ou RadioGroup para escolher modo de cliente
-- Campos de entrada para dados do novo cliente
-- Validacao para garantir que nome seja preenchido
-- Auto-gerar username baseado no nome digitado (novo cliente)
-
-## Detalhes Tecnicos
-
-### Campos do Novo Cliente
-
-| Campo | Obrigatorio | Validacao |
-|-------|-------------|-----------|
-| Nome | Sim | Minimo 2 caracteres |
-| Telefone | Nao | Formato telefone brasileiro |
-| CPF | Nao | Formato CPF |
-| Email | Nao | Formato email |
-
-### Logica de Criacao
-
-```typescript
-// No hook createFee
-if (data.create_new_client && data.new_client_name) {
-  // 1. Criar cliente
-  const { data: newClient, error } = await supabase
-    .from('clients')
-    .insert({
-      user_id: userId,
-      full_name: data.new_client_name,
-      phone: data.new_client_phone || null,
-      cpf: data.new_client_cpf || null,
-      email: data.new_client_email || null,
-      client_type: 'monthly',
-      created_by: userId,
-    })
-    .select()
-    .single();
-    
-  if (error) throw error;
-  
-  // 2. Usar ID do novo cliente
-  data.client_id = newClient.id;
-}
-
-// 3. Continuar com criacao da assinatura normalmente
+```sql
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS profession text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS referrer_name text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS referrer_phone text;
 ```
 
-### Interface Atualizada
+### 2. Atualizar Interface Client (types/database.ts)
+
+Adicionar os novos campos na interface:
 
 ```typescript
-export interface CreateMonthlyFeeData {
-  client_id: string;
-  amount: number;
+export interface Client {
   // ... campos existentes ...
-  
-  // Novos campos para cliente inline
-  create_new_client?: boolean;
-  new_client_name?: string;
-  new_client_phone?: string;
-  new_client_cpf?: string;
-  new_client_email?: string;
+  profession: string | null;
+  referrer_name: string | null;
+  referrer_phone: string | null;
 }
 ```
 
-### Componente de Selecao de Modo
+### 3. Atualizar Hook useClients.ts
+
+Adicionar os novos campos no metodo `createClient`:
 
 ```typescript
-// Usando RadioGroup para selecionar modo
-<RadioGroup 
-  value={clientMode} 
-  onValueChange={setClientMode}
-  className="flex gap-4"
->
-  <div className="flex items-center space-x-2">
-    <RadioGroupItem value="existing" id="existing" />
-    <Label htmlFor="existing">Cliente existente</Label>
+const createClient = async (client: {
+  // ... campos existentes ...
+  profession?: string;
+  referrer_name?: string;
+  referrer_phone?: string;
+}) => {
+  // ...
+}
+```
+
+### 4. Atualizar Formulario em Clients.tsx
+
+**4.1 Atualizar FormData interface e initialFormData**
+
+Adicionar campos:
+- `profession: string`
+- `referrer_name: string`
+- `referrer_phone: string`
+
+**4.2 Adicionar estado para controlar exibicao de indicacao**
+
+```typescript
+const [isReferral, setIsReferral] = useState(false);
+```
+
+**4.3 Adicionar campos no formulario (Tab Dados Pessoais)**
+
+Apos os campos de redes sociais e antes do Tipo de Cliente:
+
+```typescript
+{/* Profissão */}
+<div className="space-y-2">
+  <Label htmlFor="profession" className="flex items-center gap-2">
+    <Briefcase className="w-4 h-4" />
+    Profissão
+  </Label>
+  <Input
+    id="profession"
+    value={formData.profession}
+    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+    placeholder="Ex: Eletricista, Comerciante, Motorista..."
+  />
+</div>
+
+{/* Indicação */}
+<div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+  <div className="flex items-center gap-2">
+    <Checkbox
+      id="is_referral"
+      checked={isReferral}
+      onCheckedChange={(checked) => {
+        setIsReferral(checked as boolean);
+        if (!checked) {
+          setFormData({ ...formData, referrer_name: '', referrer_phone: '' });
+        }
+      }}
+    />
+    <Label htmlFor="is_referral" className="flex items-center gap-2 cursor-pointer">
+      <UserPlus className="w-4 h-4" />
+      Cliente veio por indicação
+    </Label>
   </div>
-  <div className="flex items-center space-x-2">
-    <RadioGroupItem value="new" id="new" />
-    <Label htmlFor="new">Novo cliente</Label>
-  </div>
-</RadioGroup>
+  
+  {isReferral && (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+      <div className="space-y-2">
+        <Label htmlFor="referrer_name">Nome de quem indicou</Label>
+        <Input
+          id="referrer_name"
+          value={formData.referrer_name}
+          onChange={(e) => setFormData({ ...formData, referrer_name: e.target.value })}
+          placeholder="Nome do indicador"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="referrer_phone">Telefone de quem indicou</Label>
+        <Input
+          id="referrer_phone"
+          value={formData.referrer_phone}
+          onChange={(e) => setFormData({ ...formData, referrer_phone: e.target.value })}
+          placeholder="(00) 00000-0000"
+        />
+      </div>
+    </div>
+  )}
+</div>
+```
+
+**4.4 Atualizar handleEdit para carregar dados existentes**
+
+```typescript
+const handleEdit = (client: Client) => {
+  setEditingClient(client);
+  setIsReferral(!!client.referrer_name || !!client.referrer_phone);
+  setFormData({
+    // ... campos existentes ...
+    profession: client.profession || '',
+    referrer_name: client.referrer_name || '',
+    referrer_phone: client.referrer_phone || '',
+  });
+  // ...
+};
+```
+
+**4.5 Atualizar resetForm para limpar estado isReferral**
+
+```typescript
+const resetForm = () => {
+  setIsReferral(false);
+  // ... resto do reset ...
+};
 ```
 
 ## Arquivos a Modificar
 
-1. **src/hooks/useMonthlyFees.ts**
-   - Adicionar campos na interface CreateMonthlyFeeData
-   - Modificar mutation createFee para criar cliente se necessario
-   - Invalidar query de clientes apos criar novo
+1. **Migracao SQL** - Adicionar colunas na tabela clients
+2. **src/types/database.ts** - Adicionar campos na interface Client
+3. **src/hooks/useClients.ts** - Aceitar novos campos no createClient
+4. **src/pages/Clients.tsx** - Adicionar campos no formulario
 
-2. **src/components/iptv/IPTVSubscriptionForm.tsx**
-   - Adicionar estado para modo de cliente (existing/new)
-   - Adicionar campos para dados do novo cliente
-   - Atualizar logica de validacao e submit
-   - Adaptar auto-geracao de username para novo cliente
+## Campos Adicionais
 
-## Validacoes
+| Campo | Tipo | Obrigatorio | Localizacao |
+|-------|------|-------------|-------------|
+| profession | string | Nao | Tab Dados Pessoais |
+| referrer_name | string | Nao | Tab Dados Pessoais (condicional) |
+| referrer_phone | string | Nao | Tab Dados Pessoais (condicional) |
 
-1. Se modo "existing": client_id obrigatorio
-2. Se modo "new": new_client_name obrigatorio
-3. Manter validacao de amount existente
-4. CPF e telefone sao opcionais mas com formatacao correta
+## Icones a Importar
+
+Adicionar na importacao do Clients.tsx:
+- `Briefcase` (lucide-react) - para campo profissao
+- `UserPlus` (ja importado) - para indicacao
 
 ## Resultado Esperado
 
-1. Usuario pode criar assinatura rapidamente sem sair do formulario
-2. Novo cliente e criado automaticamente com tipo "monthly"
-3. Assinatura e vinculada ao cliente recem-criado
-4. Lista de clientes e atualizada apos criacao
-5. Username de acesso e gerado baseado no nome digitado
+1. Usuario pode informar a profissao do cliente ao cadastrar
+2. Usuario pode marcar se o cliente foi indicado por alguem
+3. Se foi indicacao, pode informar nome e telefone de quem indicou
+4. Dados sao salvos na tabela clients
+5. Ao editar um cliente, os dados de profissao e indicacao sao carregados
+6. Campos de indicacao sao ocultados quando checkbox esta desmarcado
