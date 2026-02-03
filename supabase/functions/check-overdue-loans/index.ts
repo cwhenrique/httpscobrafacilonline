@@ -455,9 +455,9 @@ const handler = async (req: Request): Promise<Response> => {
                 rowId: "principal",
               },
               {
-                title: "Total a Receber",
-                description: formatCurrency(loan.totalToReceive),
-                rowId: "total",
+                title: "Restante a Receber",
+                description: formatCurrency(loan.remainingBalance),
+                rowId: "remaining",
               },
               {
                 title: "Taxa de Juros",
