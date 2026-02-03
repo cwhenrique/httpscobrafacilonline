@@ -51,6 +51,7 @@ import { getAvatarUrl } from '@/lib/avatarUtils';
 import { LoansTableView } from '@/components/LoansTableView';
 import { cn } from '@/lib/utils';
 import { HistoricalInterestRecords } from '@/components/HistoricalInterestRecords';
+import { PaymentsHistoryTab } from '@/components/PaymentsHistoryTab';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -539,7 +540,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const saved = localStorage.getItem('daily-loans-view-mode');
     return saved === 'table' ? 'table' : 'cards';
   });
-  const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price'>('regular');
+  const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price' | 'payments'>('regular');
   const [isDailyDialogOpen, setIsDailyDialogOpen] = usePersistedState('loan_daily_dialog_open', false);
   const [isDialogOpen, setIsDialogOpen] = usePersistedState('loan_dialog_open', false);
   const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = usePersistedState('loan_price_dialog_open', false);
@@ -7186,8 +7187,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           </TooltipProvider>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price'); setStatusFilter('active'); setOverdueDaysFilter(null); }} className="w-full">
-          <TabsList className="mb-4 grid w-full grid-cols-3 max-w-lg">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price' | 'payments'); setStatusFilter('active'); setOverdueDaysFilter(null); }} className="w-full">
+          <TabsList className="mb-4 grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="regular" className="gap-1 sm:gap-2 text-xs sm:text-sm">
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Empréstimos</span>
@@ -7203,6 +7204,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               <Table2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Tabela Price</span>
               <span className="sm:hidden">Price</span>
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white">
+              <History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Recebimentos</span>
+              <span className="sm:hidden">Receb.</span>
             </TabsTrigger>
           </TabsList>
 
@@ -11682,6 +11688,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Tab: Recebimentos */}
+          <TabsContent value="payments" className="space-y-4">
+            <PaymentsHistoryTab />
           </TabsContent>
         </Tabs>
 
