@@ -1,212 +1,135 @@
 
-# Plano: Adicionar Profissao e Dados de Indicacao no Cadastro de Cliente (Emprestimos)
+# Plano: Corrigir Lógica de Atraso para Contratos com Juros Históricos
 
-## Visao Geral
+## Problema Identificado
 
-Adicionar dois novos campos no formulario de cadastro de clientes (focado em emprestimos):
+O relatório de empréstimos do usuário `gustaavo92@hotmail.com` está exibindo aproximadamente R$ 34 mil em atraso incorretamente. Após análise dos dados, identifiquei dois problemas:
 
-1. **Profissao**: Campo de texto para informar a ocupacao do cliente
-2. **Indicacao**: Checkbox para marcar se foi indicacao, com campos para nome e telefone de quem indicou
+### Problema 1: Status Incorreto no Banco de Dados
+Alguns empréstimos estão marcados como `status: overdue` no banco mesmo quando o `due_date` ainda não passou:
 
-## Estrutura Visual da Solucao
+| Cliente | Remaining Balance | Status | Due Date | Problema |
+|---------|------------------|--------|----------|----------|
+| Bruce | R$ 7.200 | overdue | 2026-02-14 | Due date no futuro |
+| Felipão | R$ 12.000 | overdue | 2026-02-28 | Due date no futuro |
+
+Total incorretamente marcado: R$ 19.200
+
+### Problema 2: Lógica de Cálculo de Parcelas Pagas
+A função `calculatePaidInstallments` em `src/lib/calculations.ts` não reconhece contratos com juros históricos corretamente:
 
 ```text
-+------------------------------------------+
-|  Dados Pessoais                          |
-+------------------------------------------+
-|  Nome: _______________________________   |
-|  CPF: ____________  RG: ______________   |
-|  Email: _____________  Tel: __________   |
-|                                          |
-|  Profissão: __________________________   |
-|                                          |
-|  [x] Cliente veio por indicação          |
-|  +------------------------------------+  |
-|  | Nome de quem indicou: ___________  |  |
-|  | Telefone de quem indicou: ________ |  |
-|  +------------------------------------+  |
-|                                          |
-|  Instagram: _________  Facebook: _____   |
-|  Tipo de Cliente: [Empréstimo ▼]         |
-|  Observações: ________________________   |
-+------------------------------------------+
+Fluxo Atual (com bug):
+1. Busca tags [PARTIAL_PAID:X:Y] nas notas
+2. Contratos históricos usam [INTEREST_ONLY_PAID:] em vez de [PARTIAL_PAID:]
+3. Retorna paidCount = 0 mesmo com juros pagos
+4. isLoanOverdue verifica dates[0] e marca como atrasado se data passou
 ```
 
-## Etapas de Implementacao
+### Problema 3: Dados de Parcelas Inconsistentes
+O empréstimo do Felipão tem `installment_dates: ["2026-02-28", "2026-01-30", "2026-02-28"]` com datas fora de ordem cronológica, causando cálculos incorretos.
 
-### 1. Migracao de Banco de Dados
+## Solução Proposta
 
-Adicionar 3 novas colunas na tabela `clients`:
+### Etapa 1: Atualizar Lógica de isLoanOverdue para Contratos Históricos
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| profession | text | Profissao/ocupacao do cliente |
-| referrer_name | text | Nome de quem indicou |
-| referrer_phone | text | Telefone de quem indicou |
+Modificar `src/lib/calculations.ts` para tratar especialmente contratos com a tag `[HISTORICAL_INTEREST_CONTRACT]`:
+
+```typescript
+export function isLoanOverdue(loan: LoanForCalculation): boolean {
+  if (loan.status === 'paid') return false;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // NOVA LÓGICA: Contratos com juros históricos e 1 parcela
+  // Usam due_date como referência principal, não installment_dates
+  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+  const isSingleInstallment = (loan.installments || 1) === 1;
+  
+  if (isHistoricalInterestContract && isSingleInstallment) {
+    const loanDueDate = new Date(loan.due_date + 'T12:00:00');
+    loanDueDate.setHours(0, 0, 0, 0);
+    return today > loanDueDate;
+  }
+  
+  // ... resto da lógica existente ...
+}
+```
+
+### Etapa 2: Corrigir Status dos Empréstimos no Banco
+
+Executar correção SQL para os 2 empréstimos incorretamente marcados:
 
 ```sql
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS profession text;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS referrer_name text;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS referrer_phone text;
+UPDATE loans 
+SET status = 'pending', updated_at = NOW()
+WHERE id IN (
+  '3133e6a2-1303-42ee-a205-657ea658e5d4',  -- Bruce
+  '13a4d9a1-4cd9-40f6-bfb6-1f0100c0c5b6'   -- Felipão
+)
+AND due_date > CURRENT_DATE;
 ```
 
-### 2. Atualizar Interface Client (types/database.ts)
+### Etapa 3: Atualizar getDaysOverdue para Contratos Históricos
 
-Adicionar os novos campos na interface:
-
-```typescript
-export interface Client {
-  // ... campos existentes ...
-  profession: string | null;
-  referrer_name: string | null;
-  referrer_phone: string | null;
-}
-```
-
-### 3. Atualizar Hook useClients.ts
-
-Adicionar os novos campos no metodo `createClient`:
+Aplicar a mesma lógica especial em `getDaysOverdue`:
 
 ```typescript
-const createClient = async (client: {
-  // ... campos existentes ...
-  profession?: string;
-  referrer_name?: string;
-  referrer_phone?: string;
-}) => {
-  // ...
-}
-```
-
-### 4. Atualizar Formulario em Clients.tsx
-
-**4.1 Atualizar FormData interface e initialFormData**
-
-Adicionar campos:
-- `profession: string`
-- `referrer_name: string`
-- `referrer_phone: string`
-
-**4.2 Adicionar estado para controlar exibicao de indicacao**
-
-```typescript
-const [isReferral, setIsReferral] = useState(false);
-```
-
-**4.3 Adicionar campos no formulario (Tab Dados Pessoais)**
-
-Apos os campos de redes sociais e antes do Tipo de Cliente:
-
-```typescript
-{/* Profissão */}
-<div className="space-y-2">
-  <Label htmlFor="profession" className="flex items-center gap-2">
-    <Briefcase className="w-4 h-4" />
-    Profissão
-  </Label>
-  <Input
-    id="profession"
-    value={formData.profession}
-    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-    placeholder="Ex: Eletricista, Comerciante, Motorista..."
-  />
-</div>
-
-{/* Indicação */}
-<div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-  <div className="flex items-center gap-2">
-    <Checkbox
-      id="is_referral"
-      checked={isReferral}
-      onCheckedChange={(checked) => {
-        setIsReferral(checked as boolean);
-        if (!checked) {
-          setFormData({ ...formData, referrer_name: '', referrer_phone: '' });
-        }
-      }}
-    />
-    <Label htmlFor="is_referral" className="flex items-center gap-2 cursor-pointer">
-      <UserPlus className="w-4 h-4" />
-      Cliente veio por indicação
-    </Label>
-  </div>
+export function getDaysOverdue(loan: LoanForCalculation): number {
+  if (!isLoanOverdue(loan)) return 0;
   
-  {isReferral && (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-      <div className="space-y-2">
-        <Label htmlFor="referrer_name">Nome de quem indicou</Label>
-        <Input
-          id="referrer_name"
-          value={formData.referrer_name}
-          onChange={(e) => setFormData({ ...formData, referrer_name: e.target.value })}
-          placeholder="Nome do indicador"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="referrer_phone">Telefone de quem indicou</Label>
-        <Input
-          id="referrer_phone"
-          value={formData.referrer_phone}
-          onChange={(e) => setFormData({ ...formData, referrer_phone: e.target.value })}
-          placeholder="(00) 00000-0000"
-        />
-      </div>
-    </div>
-  )}
-</div>
-```
-
-**4.4 Atualizar handleEdit para carregar dados existentes**
-
-```typescript
-const handleEdit = (client: Client) => {
-  setEditingClient(client);
-  setIsReferral(!!client.referrer_name || !!client.referrer_phone);
-  setFormData({
-    // ... campos existentes ...
-    profession: client.profession || '',
-    referrer_name: client.referrer_name || '',
-    referrer_phone: client.referrer_phone || '',
-  });
-  // ...
-};
-```
-
-**4.5 Atualizar resetForm para limpar estado isReferral**
-
-```typescript
-const resetForm = () => {
-  setIsReferral(false);
-  // ... resto do reset ...
-};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Para contratos históricos, usar due_date
+  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+  const isSingleInstallment = (loan.installments || 1) === 1;
+  
+  let nextDueDate: Date | null;
+  if (isHistoricalInterestContract && isSingleInstallment) {
+    nextDueDate = new Date(loan.due_date + 'T12:00:00');
+  } else {
+    nextDueDate = getNextUnpaidInstallmentDate(loan);
+  }
+  
+  // ... resto ...
+}
 ```
 
 ## Arquivos a Modificar
 
-1. **Migracao SQL** - Adicionar colunas na tabela clients
-2. **src/types/database.ts** - Adicionar campos na interface Client
-3. **src/hooks/useClients.ts** - Aceitar novos campos no createClient
-4. **src/pages/Clients.tsx** - Adicionar campos no formulario
+1. **src/lib/calculations.ts**
+   - Função `isLoanOverdue`: Adicionar tratamento especial para `[HISTORICAL_INTEREST_CONTRACT]`
+   - Função `getDaysOverdue`: Sincronizar lógica com `isLoanOverdue`
+   - Função `getNextUnpaidInstallmentDate`: Adicionar tratamento para contratos históricos
 
-## Campos Adicionais
-
-| Campo | Tipo | Obrigatorio | Localizacao |
-|-------|------|-------------|-------------|
-| profession | string | Nao | Tab Dados Pessoais |
-| referrer_name | string | Nao | Tab Dados Pessoais (condicional) |
-| referrer_phone | string | Nao | Tab Dados Pessoais (condicional) |
-
-## Icones a Importar
-
-Adicionar na importacao do Clients.tsx:
-- `Briefcase` (lucide-react) - para campo profissao
-- `UserPlus` (ja importado) - para indicacao
+2. **Migração SQL**
+   - Corrigir status de empréstimos incorretamente marcados como `overdue`
 
 ## Resultado Esperado
 
-1. Usuario pode informar a profissao do cliente ao cadastrar
-2. Usuario pode marcar se o cliente foi indicado por alguem
-3. Se foi indicacao, pode informar nome e telefone de quem indicou
-4. Dados sao salvos na tabela clients
-5. Ao editar um cliente, os dados de profissao e indicacao sao carregados
-6. Campos de indicacao sao ocultados quando checkbox esta desmarcado
+Após as correções:
+- Contratos com juros históricos serão avaliados pelo `due_date` final
+- Empréstimos com pagamentos de juros em dia não aparecerão como "em atraso"
+- O valor "Em Atraso" do relatório refletirá apenas empréstimos genuinamente vencidos
+- Redução esperada: de ~R$ 34 mil para ~R$ 0 em atraso (assumindo que todos os due_dates estão no futuro)
+
+## Detalhes Técnicos
+
+### Identificação de Contratos Históricos
+
+```typescript
+const isHistoricalInterestContract = (notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+```
+
+### Lógica de Atraso Corrigida
+
+Para contratos históricos com 1 parcela:
+- Ignorar `installment_dates` para cálculo de atraso
+- Usar apenas `due_date` como referência
+- Considerar atrasado APENAS se `today > due_date`
+
+Para outros contratos (comportamento atual mantido):
+- Continuar usando `installment_dates` e `calculatePaidInstallments`
+- Verificar próxima parcela não paga
