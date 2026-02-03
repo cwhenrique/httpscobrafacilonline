@@ -38,6 +38,7 @@ import {
   UserCheck,
   Lock,
   Search,
+  FileCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -63,6 +64,8 @@ const navigation: NavigationItem[] = [
   { name: 'Empréstimos', href: '/loans', icon: DollarSign, permission: 'view_loans' },
   { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3, permission: 'view_reports' },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar, permission: 'view_loans' },
+  // Desconto de Cheque
+  { name: 'Desconto de Cheque', href: '/check-discounts', icon: FileCheck, permission: 'manage_checks' },
   // Vendas e Veículos
   { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag, permission: 'manage_products' },
   { name: 'Veículos Registrados', href: '/vehicles', icon: Car, permission: 'manage_vehicles' },

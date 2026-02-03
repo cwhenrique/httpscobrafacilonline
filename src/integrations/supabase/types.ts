@@ -107,6 +107,142 @@ export type Database = {
         }
         Relationships: []
       }
+      check_discount_payments: {
+        Row: {
+          amount: number
+          check_discount_id: string
+          created_at: string
+          id: string
+          installment_number: number
+          notes: string | null
+          payment_date: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          check_discount_id: string
+          created_at?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          payment_date?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          check_discount_id?: string
+          created_at?: string
+          id?: string
+          installment_number?: number
+          notes?: string | null
+          payment_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_discount_payments_check_discount_id_fkey"
+            columns: ["check_discount_id"]
+            isOneToOne: false
+            referencedRelation: "check_discounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      check_discounts: {
+        Row: {
+          bank_name: string
+          check_number: string
+          client_id: string | null
+          created_at: string
+          discount_amount: number
+          discount_date: string
+          discount_rate: number
+          discount_type: string
+          due_date: string
+          id: string
+          installments_count: number | null
+          issuer_document: string | null
+          issuer_name: string | null
+          net_value: number
+          nominal_value: number
+          notes: string | null
+          payment_method: string | null
+          penalty_amount: number | null
+          penalty_rate: number | null
+          return_date: string | null
+          return_reason: string | null
+          status: string
+          total_debt: number | null
+          total_paid_debt: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bank_name: string
+          check_number: string
+          client_id?: string | null
+          created_at?: string
+          discount_amount?: number
+          discount_date?: string
+          discount_rate?: number
+          discount_type?: string
+          due_date: string
+          id?: string
+          installments_count?: number | null
+          issuer_document?: string | null
+          issuer_name?: string | null
+          net_value?: number
+          nominal_value: number
+          notes?: string | null
+          payment_method?: string | null
+          penalty_amount?: number | null
+          penalty_rate?: number | null
+          return_date?: string | null
+          return_reason?: string | null
+          status?: string
+          total_debt?: number | null
+          total_paid_debt?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bank_name?: string
+          check_number?: string
+          client_id?: string | null
+          created_at?: string
+          discount_amount?: number
+          discount_date?: string
+          discount_rate?: number
+          discount_type?: string
+          due_date?: string
+          id?: string
+          installments_count?: number | null
+          issuer_document?: string | null
+          issuer_name?: string | null
+          net_value?: number
+          nominal_value?: number
+          notes?: string | null
+          payment_method?: string | null
+          penalty_amount?: number | null
+          penalty_rate?: number | null
+          return_date?: string | null
+          return_reason?: string | null
+          status?: string
+          total_debt?: number | null
+          total_paid_debt?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_discounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_assignments: {
         Row: {
           assigned_by: string
@@ -1638,6 +1774,7 @@ export type Database = {
         | "view_all_loans"
         | "view_dashboard"
         | "view_all_clients"
+        | "manage_checks"
       interest_mode: "per_installment" | "on_total" | "compound"
       interest_type: "simple" | "compound"
       loan_payment_type:
@@ -1794,6 +1931,7 @@ export const Constants = {
         "view_all_loans",
         "view_dashboard",
         "view_all_clients",
+        "manage_checks",
       ],
       interest_mode: ["per_installment", "on_total", "compound"],
       interest_type: ["simple", "compound"],

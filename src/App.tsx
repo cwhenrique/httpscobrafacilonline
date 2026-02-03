@@ -27,6 +27,7 @@ import CalendarView from "./pages/CalendarView";
 import ReportsLoans from "./pages/ReportsLoans";
 import ReportsSales from "./pages/ReportsSales";
 import Vehicles from "./pages/Vehicles";
+import CheckDiscounts from "./pages/CheckDiscounts";
 import Simulator from "./pages/Simulator";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
@@ -78,6 +79,7 @@ const App = () => {
               <Route path="/bills" element={<ProtectedRoute><PermissionRoute permission="manage_bills"><Bills /></PermissionRoute></ProtectedRoute>} />
               <Route path="/product-sales" element={<ProtectedRoute><PermissionRoute permission="manage_products"><ProductSales /></PermissionRoute></ProtectedRoute>} />
               <Route path="/vehicles" element={<ProtectedRoute><PermissionRoute permission="manage_vehicles"><Vehicles /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/check-discounts" element={<ProtectedRoute><PermissionRoute permission="manage_checks"><CheckDiscounts /></PermissionRoute></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><PermissionRoute permission="view_loans"><CalendarView /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsLoans /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports-sales" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsSales /></PermissionRoute></ProtectedRoute>} />

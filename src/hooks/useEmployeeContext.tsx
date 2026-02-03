@@ -17,6 +17,7 @@ export type EmployeePermission =
   | 'manage_bills'
   | 'manage_vehicles'
   | 'manage_products'
+  | 'manage_checks'
   | 'view_settings'
   | 'view_dashboard';
 
