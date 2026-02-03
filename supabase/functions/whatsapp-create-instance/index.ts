@@ -145,6 +145,22 @@ serve(async (req) => {
     const createText = await createResponse.text();
     console.log('Create instance response:', createResponse.status, createText);
 
+    // Detect server offline (502/503 = service unreachable)
+    if (createResponse.status === 502 || createResponse.status === 503) {
+      console.error('Evolution API server is offline:', createText);
+      return new Response(
+        JSON.stringify({
+          error: 'Servidor WhatsApp temporariamente indisponível. Tente novamente em alguns minutos.',
+          serverOffline: true,
+          instanceName,
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     if (createResponse.status === 401) {
       return new Response(
         JSON.stringify({
