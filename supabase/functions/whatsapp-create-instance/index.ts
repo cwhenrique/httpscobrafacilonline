@@ -177,7 +177,7 @@ serve(async (req) => {
 
     let qrCodeBase64 = null;
 
-    // If instance was created or already exists, try to get QR code
+    // If instance was created or already exists, try to get QR code (fast-path)
     if (createResponse.ok || createResponse.status === 403) {
       // First, check instance state
       const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
@@ -262,140 +262,8 @@ serve(async (req) => {
         }
       }
 
-      // If still no QR code, try restart + connect again
-      if (!qrCodeBase64) {
-        console.log('No QR from connect, trying to restart instance...');
-        
-        // Try restart with PUT method
-        let restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
-          method: 'PUT',
-        });
-        console.log('Restart PUT response:', restartResponse.status);
-
-        // If PUT fails, try POST
-        if (!restartResponse.ok) {
-          restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          console.log('Restart POST response:', restartResponse.status);
-        }
-
-        // Wait for restart
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Try connect again after restart
-        const retryConnectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-          method: 'GET',
-        });
-
-        const retryConnectText = await retryConnectResponse.text();
-        console.log('Retry connect response:', retryConnectResponse.status, retryConnectText);
-
-        if (retryConnectResponse.ok) {
-          try {
-            const retryData = JSON.parse(retryConnectText);
-            if (retryData.error !== true) {
-              qrCodeBase64 = retryData.base64 || retryData.code || retryData.qrcode?.base64;
-            }
-          } catch (e) {
-            console.error('Error parsing retry connect response:', e);
-          }
-        }
-
-        // If still no QR, try to delete and recreate instance
-        if (!qrCodeBase64) {
-          console.log('Still no QR after restart, trying to delete and recreate instance...');
-          
-          // Delete existing instance
-          const deleteResponse = await evolutionFetch(`${evolutionApiUrl}/instance/delete/${instanceName}`, {
-            method: 'DELETE',
-          });
-          console.log('Delete instance response:', deleteResponse.status);
-          
-          // Wait a bit for deletion to propagate
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Create fresh instance
-          const recreateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              instanceName: instanceName,
-              qrcode: true,
-              integration: 'WHATSAPP-BAILEYS',
-              rejectCall: false,
-              readMessages: false,
-              readStatus: false,
-              alwaysOnline: true,
-              syncFullHistory: false,
-              webhook: {
-                url: webhookUrl,
-                byEvents: true,
-                base64: false,
-                events: [
-                  "CONNECTION_UPDATE",
-                  "QRCODE_UPDATED",
-                  "MESSAGES_UPSERT"
-                ]
-              }
-            }),
-          });
-          
-          const recreateText = await recreateResponse.text();
-          console.log('Recreate instance response:', recreateResponse.status, recreateText);
-          
-          if (recreateResponse.ok) {
-            try {
-              const recreateData = JSON.parse(recreateText);
-              qrCodeBase64 = recreateData.qrcode?.base64 || recreateData.base64;
-              
-              // If creation didn't return QR, try connect
-              if (!qrCodeBase64) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                const finalConnectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-                  method: 'GET',
-                });
-                const finalConnectText = await finalConnectResponse.text();
-                console.log('Final connect response:', finalConnectResponse.status, finalConnectText);
-                
-                if (finalConnectResponse.ok) {
-                  const finalData = JSON.parse(finalConnectText);
-                  qrCodeBase64 = finalData.base64 || finalData.code || finalData.qrcode?.base64;
-                }
-              }
-            } catch (e) {
-              console.error('Error parsing recreate response:', e);
-            }
-          }
-        }
-
-        // Last resort: try fetchInstances to get QR
-        if (!qrCodeBase64) {
-          console.log('Still no QR, trying fetchInstances...');
-          const fetchResponse = await evolutionFetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
-            method: 'GET',
-          });
-          
-          if (fetchResponse.ok) {
-            const fetchText = await fetchResponse.text();
-            console.log('FetchInstances response:', fetchResponse.status, fetchText.substring(0, 200));
-            try {
-              const instances = JSON.parse(fetchText);
-              const instance = Array.isArray(instances) ? instances[0] : instances;
-              if (instance?.qrcode?.base64) {
-                qrCodeBase64 = instance.qrcode.base64;
-              }
-            } catch (e) {
-              console.error('Error parsing fetchInstances:', e);
-            }
-          }
-        }
-      }
+      // IMPORTANT: não tente loops longos de restart/delete aqui.
+      // Se o QR ainda não estiver pronto, o frontend fará polling via whatsapp-get-qrcode.
     }
 
     // Save instance ID to profile if new
@@ -425,13 +293,16 @@ serve(async (req) => {
       );
     }
 
+    // QR ainda não disponível: responda rápido para não estourar timeout.
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível gerar o QR Code. Tente novamente.',
+        success: true,
         instanceName,
+        pendingQr: true,
+        message: 'QR Code ainda está sendo gerado. Aguarde alguns segundos...',
       }),
       {
-        status: 500,
+        status: 202,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
