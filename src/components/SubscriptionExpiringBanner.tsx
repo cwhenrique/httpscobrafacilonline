@@ -1,7 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, Clock, Calendar, Star, CalendarDays } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
-import { supabase } from '@/integrations/supabase/client';
+import { useAffiliateLinks } from '@/hooks/useAffiliateLinks';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,66 +10,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const DEFAULT_RENEWAL_LINKS = {
-  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
-  quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
-  annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
-};
-
-interface AffiliateLinks {
-  link_mensal: string;
-  link_trimestral: string;
-  link_anual: string;
-}
-
 export function SubscriptionExpiringBanner() {
   const { profile } = useProfile();
+  const { renewalLinks } = useAffiliateLinks();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLinks | null>(null);
-
-  // Fetch affiliate links when profile loads
-  useEffect(() => {
-    const fetchAffiliateLinks = async () => {
-      if (!profile?.affiliate_email) {
-        setAffiliateLinks(null);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('affiliates')
-          .select('link_mensal, link_trimestral, link_anual')
-          .eq('email', profile.affiliate_email)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error fetching affiliate links:', error);
-          setAffiliateLinks(null);
-          return;
-        }
-
-        setAffiliateLinks(data);
-      } catch (err) {
-        console.error('Exception fetching affiliate links:', err);
-        setAffiliateLinks(null);
-      }
-    };
-
-    fetchAffiliateLinks();
-  }, [profile?.affiliate_email]);
-
-  // Get the correct links (affiliate or default)
-  const renewalLinks = useMemo(() => {
-    if (affiliateLinks) {
-      return {
-        monthly: affiliateLinks.link_mensal,
-        quarterly: affiliateLinks.link_trimestral,
-        annual: affiliateLinks.link_anual,
-      };
-    }
-    return DEFAULT_RENEWAL_LINKS;
-  }, [affiliateLinks]);
 
   const expirationInfo = useMemo(() => {
     if (!profile?.subscription_expires_at) return null;

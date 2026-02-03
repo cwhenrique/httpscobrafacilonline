@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useAffiliateLinks } from '@/hooks/useAffiliateLinks';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -22,12 +23,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import VerificationCodeDialog from '@/components/VerificationCodeDialog';
-
-const RENEWAL_LINKS = {
-  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
-  quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
-  annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
-};
 import { 
   User, 
   Mail, 
@@ -84,6 +79,7 @@ interface WhatsAppStatus {
 export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, updateProfile, refetch } = useProfile();
+  const { links: affiliateLinks, renewalLinks } = useAffiliateLinks();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -1224,7 +1220,7 @@ export default function Profile() {
             <div className="space-y-3 mt-4">
               {/* Plano Mensal */}
               <button
-                onClick={() => handleSelectPlan(RENEWAL_LINKS.monthly)}
+                onClick={() => handleSelectPlan(renewalLinks.monthly)}
                 className="w-full p-4 border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
                 <div className="flex justify-between items-center">
@@ -1241,7 +1237,7 @@ export default function Profile() {
 
               {/* Plano Trimestral */}
               <button
-                onClick={() => handleSelectPlan(RENEWAL_LINKS.quarterly)}
+                onClick={() => handleSelectPlan(renewalLinks.quarterly)}
                 className="w-full p-4 border rounded-lg hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
                 <div className="flex justify-between items-center">
@@ -1258,7 +1254,7 @@ export default function Profile() {
 
               {/* Plano Anual */}
               <button
-                onClick={() => handleSelectPlan(RENEWAL_LINKS.annual)}
+                onClick={() => handleSelectPlan(renewalLinks.annual)}
                 className="w-full p-4 border border-amber-500 rounded-lg hover:bg-amber-500/10 transition-all text-left relative"
               >
                 <Badge className="absolute -top-2 right-2 bg-amber-500 hover:bg-amber-500">
@@ -1584,7 +1580,7 @@ export default function Profile() {
                 </ul>
                 <Button 
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={() => window.open('https://pay.cakto.com.br/35qwwgz', '_blank')}
+                  onClick={() => window.open(affiliateLinks.monthly, '_blank')}
                 >
                   <Crown className="w-4 h-4 mr-2" />
                   Assinar Agora

@@ -11,6 +11,8 @@ import {
   Zap,
   Sparkles,
 } from "lucide-react";
+import { useAffiliateLinks, DEFAULT_AFFILIATE_LINKS } from "@/hooks/useAffiliateLinks";
+import { useAuth } from "@/contexts/AuthContext";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -34,20 +36,24 @@ interface PricingSectionProps {
   className?: string;
 }
 
-const defaultLinks: AffiliateLinks = {
-  monthly: "https://pay.cakto.com.br/di6pnvu",
-  quarterly: "https://pay.cakto.com.br/3823rxj",
-  annual: "https://pay.cakto.com.br/j35f794",
-};
-
 const PricingSection = ({
-  affiliateLinks = defaultLinks,
+  affiliateLinks: propAffiliateLinks,
   showTitle = true,
   className = "",
 }: PricingSectionProps) => {
-  const monthlyLink = affiliateLinks.monthly;
-  const quarterlyLink = affiliateLinks.quarterly;
-  const annualLink = affiliateLinks.annual;
+  const { user } = useAuth();
+  const { links: hookAffiliateLinks, loading } = useAffiliateLinks();
+  
+  // Use prop links if provided (for affiliate landing pages), 
+  // otherwise use hook links if user is logged in,
+  // otherwise use default links
+  const effectiveLinks = propAffiliateLinks 
+    ? propAffiliateLinks 
+    : (user && !loading ? hookAffiliateLinks : DEFAULT_AFFILIATE_LINKS);
+    
+  const monthlyLink = effectiveLinks.monthly;
+  const quarterlyLink = effectiveLinks.quarterly;
+  const annualLink = effectiveLinks.annual;
   return (
     <section id="pricing" className={`py-16 px-4 relative ${className}`}>
       <div className="container mx-auto">
