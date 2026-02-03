@@ -1,146 +1,191 @@
 
-# Plano: Registro de Pagamentos em Nova Aba
+# Plano: Registro de Gastos para Veiculos Alugados
 
 ## Visao Geral
 
-Criar uma nova aba "Recebimentos" na pagina de Emprestimos que exibe um historico completo de todos os pagamentos registrados. O usuario podera filtrar por periodo (Hoje, Esta Semana, Este Mes) ou selecionar um intervalo customizado de datas.
+Implementar um sistema de registro de gastos (manutencao, seguro, IPVA, multas, etc) para contratos de aluguel de veiculos, permitindo que o usuario calcule o lucro liquido real de cada veiculo.
 
 ## Estrutura da Solucao
 
 ```text
 +------------------------------------------+
-|  Emprestimos | Diario | Price | Recebim. |
+|  Card do Veiculo Alugado                 |
 +------------------------------------------+
+|  Cliente: Joao Silva                     |
+|  Placa: ABC-1234                         |
+|  Valor mensal: R$ 600,00                 |
+|  Total recebido: R$ 3.600,00             |
 |                                          |
-|  [Filtro de Periodo]                     |
-|  [ Hoje ] [ Semana ] [ Mes ] [Periodo]   |
+|  +------------------------------------+  |
+|  | Gastos      | Lucro Liquido        |  |
+|  | R$ 850,00   | R$ 2.750,00          |  |
+|  +------------------------------------+  |
 |                                          |
-|  Resumo do Periodo:                      |
-|  +----------------+  +----------------+  |
-|  | Total Recebido |  | Juros Recebido |  |
-|  | R$ 5.200,00    |  | R$ 1.800,00    |  |
-|  +----------------+  +----------------+  |
+|  [Ver Parcelas] [Gastos] [Editar] [X]   |
++------------------------------------------+
+
+Dialog de Gastos:
++------------------------------------------+
+|  Gastos - ABC-1234 (Onix Branco)         |
++------------------------------------------+
+|  Total de Gastos: R$ 850,00              |
 |                                          |
-|  Lista de Pagamentos:                    |
-|  +--------------------------------------+|
-|  | Data | Cliente | Valor | Tipo       ||
-|  | 03/02 | Joao    | R$500 | Parcela 2/5||
-|  | 03/02 | Maria   | R$300 | So Juros   ||
-|  | ...                                  ||
-|  +--------------------------------------+|
+|  + Adicionar Gasto                       |
+|                                          |
+|  10/01/2025  Manutencao    R$ 350,00 [X] |
+|  15/01/2025  Seguro        R$ 500,00 [X] |
 +------------------------------------------+
 ```
 
 ## Etapas de Implementacao
 
-### 1. Criar Componente PaymentsHistoryTab
+### 1. Criar Tabela no Banco de Dados
 
-Novo arquivo `src/components/PaymentsHistoryTab.tsx`:
-- Filtros de periodo: Hoje, Esta Semana, Este Mes, Personalizado
-- Cards de resumo: Total Recebido, Juros Recebidos, Principal Pago, Quantidade
-- Tabela/Lista de pagamentos com detalhes
-- Carregamento dos dados via hook existente `useAllPayments`
+Nova tabela `contract_expenses`:
 
-### 2. Atualizar Hook useAllPayments
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid | Primary key |
+| contract_id | uuid | FK para contracts |
+| user_id | uuid | FK para usuario |
+| amount | numeric | Valor do gasto |
+| expense_date | date | Data do gasto |
+| category | text | Categoria (manutencao, seguro, ipva, multa, combustivel, outros) |
+| description | text | Descricao detalhada |
+| created_at | timestamp | Data de criacao |
 
-Modificar `src/hooks/useAllPayments.ts`:
-- Adicionar parametros de filtro por data (startDate, endDate)
-- Incluir join com tabela `loans` para buscar nome do cliente
-- Aumentar limite para suportar consultas maiores
+Politicas RLS seguindo o padrao existente (usuarios verem/editarem apenas seus dados).
 
-### 3. Integrar na Pagina Loans.tsx
+### 2. Criar Hook useContractExpenses
 
-Modificar `src/pages/Loans.tsx`:
-- Expandir tipo de activeTab para incluir 'payments'
-- Adicionar nova TabsTrigger na TabsList
-- Criar TabsContent para a aba de recebimentos
+Novo arquivo `src/hooks/useContractExpenses.ts`:
+- Query para buscar gastos de um contrato
+- Query para buscar todos os gastos do usuario (para calcular totais)
+- Mutation para criar gasto
+- Mutation para deletar gasto
+- Funcao para calcular total de gastos por contrato
 
-### 4. Categorizar Tipos de Pagamento
+### 3. Criar Componente ContractExpensesDialog
 
-Identificar tipo de pagamento pelas tags no campo notes:
-- `[INTEREST_ONLY_PAYMENT]` = Pagamento de Juros
-- `[PARTIAL_INTEREST_PAYMENT]` = Juros Parcial
-- `[AMORTIZATION]` = Amortizacao
-- `Parcela X de Y` = Quitacao de Parcela
-- Sem tag especial = Pagamento Normal
+Novo arquivo `src/components/ContractExpensesDialog.tsx`:
+- Dialog com lista de gastos do contrato
+- Formulario para adicionar novo gasto
+- Categorias pre-definidas: Manutencao, Seguro, IPVA, Multa, Combustivel, Pecas, Outros
+- Resumo de gastos por categoria
+- Botao para deletar gasto
+
+### 4. Atualizar Card de Contrato (ProductSales.tsx)
+
+Para contratos do tipo `aluguel_veiculo`:
+- Adicionar secao de "Gastos" e "Lucro Liquido"
+- Calcular: Lucro = Total Recebido - Total de Gastos
+- Adicionar botao "Gastos" que abre o dialog
 
 ## Detalhes Tecnicos
 
-### Estrutura de Dados (loan_payments)
-
-| Campo | Tipo | Uso |
-|-------|------|-----|
-| payment_date | date | Data do pagamento (filtro) |
-| amount | numeric | Valor total pago |
-| principal_paid | numeric | Valor abatido do principal |
-| interest_paid | numeric | Valor de juros |
-| notes | text | Tipo do pagamento (tags) |
-| loan_id | uuid | FK para buscar cliente |
-
-### Query para Buscar Pagamentos com Cliente
+### Estrutura da Tabela contract_expenses
 
 ```sql
-SELECT 
-  lp.*,
-  l.client_id,
-  c.full_name as client_name
-FROM loan_payments lp
-JOIN loans l ON l.id = lp.loan_id
-JOIN clients c ON c.id = l.client_id
-WHERE lp.payment_date BETWEEN :startDate AND :endDate
-ORDER BY lp.payment_date DESC, lp.created_at DESC
+CREATE TABLE contract_expenses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL,
+  amount numeric NOT NULL,
+  expense_date date NOT NULL DEFAULT CURRENT_DATE,
+  category text NOT NULL DEFAULT 'outros',
+  description text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- RLS policies
+ALTER TABLE contract_expenses ENABLE ROW LEVEL SECURITY;
+
+-- Users can manage own expenses
+CREATE POLICY "Users can manage own contract expenses"
+ON contract_expenses FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Employees can manage owner expenses
+CREATE POLICY "Employees can manage owner contract expenses"
+ON contract_expenses FOR ALL
+USING (user_id = get_employee_owner_id(auth.uid()));
 ```
 
-### Componentes UI Utilizados
+### Categorias de Gastos
 
-- `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` (existentes)
-- `Card`, `CardContent`, `CardHeader` (existentes)
-- `Table`, `TableBody`, `TableCell`, `TableHead`, `TableHeader`, `TableRow` (existentes)
-- `Button` para filtros de periodo
-- `Popover` + `Calendar` para selecao de periodo customizado
-- `Badge` para identificar tipo de pagamento
+| Categoria | Label | Icone |
+|-----------|-------|-------|
+| manutencao | Manutencao | Wrench |
+| seguro | Seguro | Shield |
+| ipva | IPVA | FileText |
+| multa | Multa | AlertTriangle |
+| combustivel | Combustivel | Fuel |
+| pecas | Pecas | Cog |
+| documentacao | Documentacao | File |
+| outros | Outros | MoreHorizontal |
 
-### Filtros de Periodo
-
-| Filtro | Logica |
-|--------|--------|
-| Hoje | startOfDay(today) ate endOfDay(today) |
-| Esta Semana | startOfWeek(today) ate endOfDay(today) |
-| Este Mes | startOfMonth(today) ate endOfDay(today) |
-| Personalizado | Calendario com selecao de intervalo |
-
-## Interface do Componente
+### Interface do Componente
 
 ```typescript
-interface PaymentRecord {
+interface ContractExpense {
   id: string;
-  loan_id: string;
+  contract_id: string;
+  user_id: string;
   amount: number;
-  principal_paid: number;
-  interest_paid: number;
-  payment_date: string;
-  notes: string | null;
+  expense_date: string;
+  category: string;
+  description: string | null;
   created_at: string;
-  client_name: string;
-  payment_type: 'normal' | 'interest_only' | 'partial_interest' | 'amortization' | 'installment';
 }
+
+interface ContractExpensesDialogProps {
+  contract: Contract;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+```
+
+### Calculo de Lucro no Card
+
+```typescript
+// Para cada contrato de veiculo:
+const totalReceived = payments.filter(p => p.status === 'paid')
+  .reduce((sum, p) => sum + p.amount, 0);
+const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+const netProfit = totalReceived - totalExpenses;
 ```
 
 ## Arquivos a Criar
 
-1. `src/components/PaymentsHistoryTab.tsx` - Componente principal da aba
+1. `src/hooks/useContractExpenses.ts` - Hook para gerenciar gastos
+2. `src/components/ContractExpensesDialog.tsx` - Dialog de gastos
 
 ## Arquivos a Modificar
 
-1. `src/hooks/useAllPayments.ts` - Adicionar filtros e join com cliente
-2. `src/pages/Loans.tsx` - Adicionar nova aba ao sistema de tabs
+1. `src/pages/ProductSales.tsx` - Adicionar botao e exibicao de lucro/gastos no card
+2. `src/hooks/useContracts.ts` - Exportar tipo Contract (se necessario)
+
+## Migracao de Banco de Dados
+
+1. Criar tabela `contract_expenses`
+2. Adicionar foreign key para `contracts`
+3. Criar politicas RLS
+4. Adicionar indice em `contract_id` para performance
 
 ## Resultado Esperado
 
 O usuario podera:
-1. Clicar na aba "Recebimentos" na pagina de Emprestimos
-2. Ver todos os pagamentos do dia por padrao
-3. Filtrar por Semana, Mes ou periodo customizado
-4. Ver resumo com totais (valor recebido, juros, principal)
-5. Ver lista detalhada com cliente, valor, tipo e data
-6. Identificar visualmente cada tipo de pagamento (cores diferentes)
+1. Ver no card do veiculo alugado: gastos totais e lucro liquido
+2. Clicar em "Gastos" para abrir dialog detalhado
+3. Adicionar gastos com categoria, valor, data e descricao
+4. Ver resumo por categoria (quanto gastou em manutencao, seguro, etc)
+5. Deletar gastos registrados incorretamente
+6. Acompanhar a lucratividade real de cada veiculo
+
+## Consideracoes de UX
+
+- Cores: Gastos em vermelho/laranja, Lucro em verde (positivo) ou vermelho (negativo)
+- O botao "Gastos" fica visivel apenas para contratos do tipo `aluguel_veiculo`
+- Dialog responsivo com scroll para muitos gastos
+- Confirmacao antes de deletar um gasto
