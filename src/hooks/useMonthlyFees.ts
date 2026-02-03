@@ -66,6 +66,12 @@ export interface CreateMonthlyFeeData {
   referral_source?: string;
   is_demo?: boolean;
   demo_expires_at?: string;
+  // New client inline creation fields
+  create_new_client?: boolean;
+  new_client_name?: string;
+  new_client_phone?: string;
+  new_client_cpf?: string;
+  new_client_email?: string;
 }
 
 export interface UpdateMonthlyFeeData {
@@ -121,11 +127,33 @@ export function useMonthlyFees() {
     mutationFn: async (data: CreateMonthlyFeeData) => {
       if (!userId) throw new Error('Usuário não autenticado');
 
+      let clientId = data.client_id;
+
+      // If creating a new client inline
+      if (data.create_new_client && data.new_client_name) {
+        const { data: newClient, error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            user_id: userId,
+            full_name: data.new_client_name.trim(),
+            phone: data.new_client_phone || null,
+            cpf: data.new_client_cpf || null,
+            email: data.new_client_email || null,
+            client_type: 'monthly',
+            created_by: userId,
+          })
+          .select()
+          .single();
+
+        if (clientError) throw clientError;
+        clientId = newClient.id;
+      }
+
       const { data: newFee, error } = await supabase
         .from('monthly_fees')
         .insert({
           user_id: userId,
-          client_id: data.client_id,
+          client_id: clientId,
           amount: data.amount,
           description: data.description || null,
           due_day: data.due_day,
@@ -172,6 +200,7 @@ export function useMonthlyFees() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-fees'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-fee-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Assinatura criada com sucesso!');
     },
     onError: (error: Error) => {

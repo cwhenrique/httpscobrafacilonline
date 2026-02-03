@@ -19,12 +19,13 @@ import {
 } from '@/components/ui/select';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useIPTVPlans } from '@/hooks/useIPTVPlans';
 import { Client } from '@/types/database';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Eye, EyeOff, RefreshCw, Copy } from 'lucide-react';
+import { Calendar, Eye, EyeOff, RefreshCw, Copy, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,15 @@ const generatePassword = () => {
   return password;
 };
 
+const generateUsernameFromName = (name: string) => {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .substring(0, 10) + Math.floor(Math.random() * 100);
+};
+
 export default function IPTVSubscriptionForm({
   isOpen,
   onOpenChange,
@@ -65,6 +75,7 @@ export default function IPTVSubscriptionForm({
   const [showPassword, setShowPassword] = useState(false);
   const [creditExpiresCalendarOpen, setCreditExpiresCalendarOpen] = useState(false);
   const [demoExpiresCalendarOpen, setDemoExpiresCalendarOpen] = useState(false);
+  const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
   
   const [formData, setFormData] = useState<CreateMonthlyFeeData>({
     client_id: '',
@@ -81,27 +92,41 @@ export default function IPTVSubscriptionForm({
     referral_source: '',
     is_demo: false,
     demo_expires_at: '',
+    // New client fields
+    create_new_client: false,
+    new_client_name: '',
+    new_client_phone: '',
+    new_client_cpf: '',
+    new_client_email: '',
   });
 
-  // Auto-generate username when client is selected
+  // Auto-generate username when client is selected (existing mode)
   useEffect(() => {
-    if (formData.client_id && !formData.login_username) {
+    if (clientMode === 'existing' && formData.client_id && !formData.login_username) {
       const client = clients.find(c => c.id === formData.client_id);
       if (client) {
-        const username = client.full_name
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]/g, '')
-          .substring(0, 10) + Math.floor(Math.random() * 100);
         setFormData(prev => ({
           ...prev,
-          login_username: username,
+          login_username: generateUsernameFromName(client.full_name),
           login_password: generatePassword(),
         }));
       }
     }
-  }, [formData.client_id, clients]);
+  }, [formData.client_id, clients, clientMode]);
+
+  // Auto-generate username when new client name is typed
+  useEffect(() => {
+    if (clientMode === 'new' && formData.new_client_name && formData.new_client_name.length >= 2) {
+      // Only auto-generate if username is empty or was auto-generated before
+      if (!formData.login_username || formData.login_username.match(/^[a-z]+\d+$/)) {
+        setFormData(prev => ({
+          ...prev,
+          login_username: generateUsernameFromName(formData.new_client_name || ''),
+          login_password: prev.login_password || generatePassword(),
+        }));
+      }
+    }
+  }, [formData.new_client_name, clientMode]);
 
   // Apply plan settings when plan is selected
   const handlePlanSelect = (planId: string) => {
@@ -118,9 +143,29 @@ export default function IPTVSubscriptionForm({
   };
 
   const handleSubmit = async () => {
-    if (!formData.client_id || !formData.amount) return;
-    await onSubmit(formData);
+    // Validation
+    if (clientMode === 'existing' && !formData.client_id) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+    if (clientMode === 'new' && (!formData.new_client_name || formData.new_client_name.trim().length < 2)) {
+      toast.error('Digite o nome do cliente (mínimo 2 caracteres)');
+      return;
+    }
+    if (!formData.amount) {
+      toast.error('Digite o valor mensal');
+      return;
+    }
+
+    const submitData: CreateMonthlyFeeData = {
+      ...formData,
+      create_new_client: clientMode === 'new',
+    };
+
+    await onSubmit(submitData);
+    
     // Reset form
+    setClientMode('existing');
     setFormData({
       client_id: '',
       amount: 0,
@@ -136,6 +181,11 @@ export default function IPTVSubscriptionForm({
       referral_source: '',
       is_demo: false,
       demo_expires_at: '',
+      create_new_client: false,
+      new_client_name: '',
+      new_client_phone: '',
+      new_client_cpf: '',
+      new_client_email: '',
     });
   };
 
@@ -152,24 +202,106 @@ export default function IPTVSubscriptionForm({
           <DialogTitle>Nova Assinatura IPTV</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {/* Client */}
-          <div className="space-y-2">
+          {/* Client Mode Selection */}
+          <div className="space-y-3">
             <Label>Cliente *</Label>
-            <Select
-              value={formData.client_id}
-              onValueChange={(value) => setFormData({ ...formData, client_id: value })}
+            <RadioGroup 
+              value={clientMode} 
+              onValueChange={(value: 'existing' | 'new') => {
+                setClientMode(value);
+                // Clear client fields when switching modes
+                setFormData(prev => ({
+                  ...prev,
+                  client_id: '',
+                  new_client_name: '',
+                  new_client_phone: '',
+                  new_client_cpf: '',
+                  new_client_email: '',
+                  login_username: '',
+                  login_password: '',
+                }));
+              }}
+              className="flex gap-4"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients?.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="existing" id="existing" />
+                <Label htmlFor="existing" className="flex items-center gap-1 cursor-pointer">
+                  <Users className="w-4 h-4" />
+                  Cliente existente
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="new" id="new" />
+                <Label htmlFor="new" className="flex items-center gap-1 cursor-pointer">
+                  <UserPlus className="w-4 h-4" />
+                  Novo cliente
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {/* Existing Client Dropdown */}
+            {clientMode === 'existing' && (
+              <Select
+                value={formData.client_id}
+                onValueChange={(value) => setFormData({ ...formData, client_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients?.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* New Client Form */}
+            {clientMode === 'new' && (
+              <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Nome do Cliente *</Label>
+                  <Input
+                    value={formData.new_client_name || ''}
+                    onChange={(e) => setFormData({ ...formData, new_client_name: e.target.value })}
+                    placeholder="Nome completo"
+                    className="h-9"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Telefone</Label>
+                    <Input
+                      value={formData.new_client_phone || ''}
+                      onChange={(e) => setFormData({ ...formData, new_client_phone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">CPF</Label>
+                    <Input
+                      value={formData.new_client_cpf || ''}
+                      onChange={(e) => setFormData({ ...formData, new_client_cpf: e.target.value })}
+                      placeholder="000.000.000-00"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    value={formData.new_client_email || ''}
+                    onChange={(e) => setFormData({ ...formData, new_client_email: e.target.value })}
+                    placeholder="email@exemplo.com"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Plan Selection */}
@@ -429,7 +561,12 @@ export default function IPTVSubscriptionForm({
 
           <Button
             onClick={handleSubmit}
-            disabled={!formData.client_id || !formData.amount || isPending}
+            disabled={
+              isPending || 
+              !formData.amount || 
+              (clientMode === 'existing' && !formData.client_id) ||
+              (clientMode === 'new' && (!formData.new_client_name || formData.new_client_name.trim().length < 2))
+            }
             className="w-full"
           >
             {isPending ? 'Salvando...' : 'Cadastrar Assinatura'}
