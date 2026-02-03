@@ -92,7 +92,6 @@ async function fetchOperationalStats(): Promise<StatsData> {
       client:clients(full_name, phone),
       payments:loan_payments(id, amount, interest_paid, principal_paid, payment_date)
     `)
-    .eq('is_third_party', false)
     .order('created_at', { ascending: false })
     .limit(1000);
 

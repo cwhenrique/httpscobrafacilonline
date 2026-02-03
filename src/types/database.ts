@@ -81,10 +81,7 @@ export interface Loan {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  client?: Client;
-  // Third-party loan fields
-  is_third_party: boolean;
-  third_party_name: string | null;
+  client?: Partial<Client>;
 }
 
 export interface LoanPayment {
