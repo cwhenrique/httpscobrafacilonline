@@ -45,6 +45,8 @@ import {
   CircleDollarSign,
   ArrowRight,
   BarChart3,
+  Lock,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -150,6 +152,78 @@ export default function CheckDiscounts() {
     if (!formData.client_id) return null;
     return getClientCheckHistory(formData.client_id);
   }, [formData.client_id, getClientCheckHistory]);
+
+  // Feature is locked for all users - requires purchase
+  const isFeatureLocked = true;
+
+  if (isFeatureLocked) {
+    const whatsappNumber = '5511999999999'; // Número para compra
+    const whatsappMessage = encodeURIComponent('Olá! Tenho interesse em adquirir o módulo de Desconto de Cheque por R$ 19,90.');
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`;
+
+    return (
+      <DashboardLayout>
+        <div className="min-h-[80vh] flex items-center justify-center p-4">
+          <Card className="max-w-lg w-full text-center">
+            <CardHeader className="pb-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                <Lock className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <CardTitle className="text-2xl">Funcionalidade Premium</CardTitle>
+              <CardDescription className="text-lg text-primary font-medium">
+                Desconto de Cheque
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-muted-foreground">
+                Gerencie cheques pré-datados com controle total de risco, 
+                vencimento e recebimento.
+              </p>
+              
+              <ul className="text-left space-y-3">
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span>Cálculo automático de desconto</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span>Controle de status (carteira, compensado, devolvido)</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span>Cobrança automática via WhatsApp</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span>Ranking de risco por cliente</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span>Relatórios completos</span>
+                </li>
+              </ul>
+
+              <div className="bg-primary/10 rounded-xl p-6">
+                <p className="text-sm text-muted-foreground">Por apenas</p>
+                <p className="text-4xl font-bold text-primary my-1">R$ 19,90</p>
+                <p className="text-sm text-muted-foreground">pagamento único</p>
+              </div>
+
+              <Button 
+                asChild
+                className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-base"
+              >
+                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="mr-2 h-5 w-5" />
+                  Comprar Agora via WhatsApp
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const resetForm = () => {
     setFormData({
