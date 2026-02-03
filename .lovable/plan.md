@@ -1,54 +1,79 @@
 
-# Plano: Corrigir Relatório de Empréstimos para Excluir Terceiros
 
-## Problema Identificado
+# Plano: Remover Funcionalidade de Empréstimos de Terceiros
 
-O hook `useOperationalStats.ts` busca **todos os empréstimos** sem filtrar por `is_third_party`, o que faz com que o relatório de empréstimos pessoais (`ReportsLoans.tsx`) inclua dados de empréstimos de terceiros incorretamente.
+## Resumo
 
-### Comparação dos Hooks
+Vou remover completamente tudo relacionado a "Empréstimos de Terceiros" do sistema, incluindo páginas, hooks, rotas, itens de menu e reverter modificações feitas em arquivos existentes.
 
-| Hook | Filtro | Comportamento |
-|------|--------|---------------|
-| `useThirdPartyStats.ts` | `.eq('is_third_party', true)` | Correto - só terceiros |
-| `useOperationalStats.ts` | **Nenhum filtro** | Incorreto - inclui tudo |
+## Itens a Remover
 
-## Solução
+### 1. Arquivos a Deletar
 
-Adicionar filtro `.eq('is_third_party', false)` na query do `useOperationalStats.ts` para garantir que apenas empréstimos pessoais sejam incluídos.
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/ThirdPartyLoans.tsx` | Página wrapper de terceiros |
+| `src/pages/ReportsThirdParty.tsx` | Página de relatório de terceiros |
+| `src/hooks/useThirdPartyLoans.ts` | Hook de empréstimos de terceiros |
+| `src/hooks/useThirdPartyStats.ts` | Hook de estatísticas de terceiros |
 
-## Arquivos a Modificar
+### 2. Modificações em App.tsx
 
-### 1. src/hooks/useOperationalStats.ts
+Remover:
+- Import de `ThirdPartyLoans`
+- Import de `ReportsThirdParty`
+- Rota `/third-party-loans`
+- Rota `/reports-third-party`
 
-**Localização**: Linha 85-96 (função `fetchOperationalStats`)
+### 3. Modificações em DashboardLayout.tsx
 
-**Antes:**
-```typescript
-const { data: loans } = await supabase
-  .from('loans')
-  .select(`
-    id, user_id, client_id, principal_amount, ...
-  `)
-  .order('created_at', { ascending: false })
-  .limit(1000);
-```
+Remover do array `navigation`:
+- Item "Empréstimos de Terceiros" (`/third-party-loans`)
+- Item "Rel. Terceiros" (`/reports-third-party`)
+- Import do ícone `Building2`
 
-**Depois:**
-```typescript
-const { data: loans } = await supabase
-  .from('loans')
-  .select(`
-    id, user_id, client_id, principal_amount, ...
-  `)
-  .eq('is_third_party', false)  // NOVO: Excluir empréstimos de terceiros
-  .order('created_at', { ascending: false })
-  .limit(1000);
-```
+### 4. Modificações em Loans.tsx
+
+Remover:
+- Import de `useThirdPartyLoans`
+- Prop `isThirdParty` e toda lógica condicional associada
+- Estado `thirdPartyName`
+- Referências a `is_third_party` e `third_party_name` nos forms
+
+### 5. Modificações em useOperationalStats.ts
+
+Remover:
+- Filtro `.eq('is_third_party', false)` (voltar a buscar todos os empréstimos)
+
+### 6. Modificações em types/database.ts
+
+Remover da interface `Loan`:
+- `is_third_party: boolean`
+- `third_party_name: string | null`
+
+### 7. Colunas no Banco de Dados
+
+As colunas `is_third_party` e `third_party_name` na tabela `loans` podem permanecer no banco (não causam problemas) ou podem ser removidas via migração separada se desejado. Por segurança, manteremos as colunas no banco para não perder dados existentes.
+
+## Arquivos Afetados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/ThirdPartyLoans.tsx` | DELETAR |
+| `src/pages/ReportsThirdParty.tsx` | DELETAR |
+| `src/hooks/useThirdPartyLoans.ts` | DELETAR |
+| `src/hooks/useThirdPartyStats.ts` | DELETAR |
+| `src/App.tsx` | Remover imports e rotas |
+| `src/components/layout/DashboardLayout.tsx` | Remover itens do menu e import |
+| `src/pages/Loans.tsx` | Remover prop isThirdParty e lógica associada |
+| `src/hooks/useOperationalStats.ts` | Remover filtro is_third_party |
+| `src/types/database.ts` | Remover campos da interface |
 
 ## Resultado Esperado
 
-Após a correção:
-- O relatório de empréstimos (`/reports`) mostrará apenas empréstimos pessoais
-- O relatório de terceiros (`/reports-third-party`) continuará mostrando apenas empréstimos de terceiros
-- Os dados financeiros (Total a Receber, Recebido, Em Atraso) estarão corretos
-- O dashboard principal também será corrigido, pois usa o mesmo hook
+Após a remoção:
+- Menu lateral volta ao estado anterior (sem itens de terceiros)
+- Página de empréstimos funciona normalmente sem prop isThirdParty
+- Relatório de empréstimos mostra todos os empréstimos (incluindo os que foram marcados como terceiros, se houver)
+- Sistema completamente limpo da funcionalidade de terceiros
+
