@@ -1,193 +1,180 @@
 
-# Plano: Respeitar Links de Afiliados em Todo o Sistema
+# Plano: Adicionar Opcao de Cliente Manual no Formulario de Assinatura IPTV
 
 ## Visao Geral
 
-Garantir que todos os links de pagamento/renovacao no sistema utilizem os links do afiliado vinculado ao usuario, quando aplicavel. Atualmente, apenas o banner de expiracao e a tela de login respeitam os links de afiliados.
+Modificar o formulario de assinatura IPTV para permitir que o usuario escolha entre:
+1. **Selecionar um cliente existente** da base de dados (comportamento atual)
+2. **Cadastrar um novo cliente** diretamente no formulario, inserindo nome, CPF, telefone e outras informacoes
 
 ## Estrutura da Solucao
 
 ```text
 +------------------------------------------+
-|  Hook Centralizado: useAffiliateLinks    |
+|  Nova Assinatura IPTV                    |
 +------------------------------------------+
 |                                          |
-|  - Busca affiliate_email do profile      |
-|  - Busca links do afiliado na tabela     |
-|  - Retorna links (afiliado ou padrao)    |
+|  [x] Cliente existente  [ ] Novo cliente |
 |                                          |
-+------------------------------------------+
-            |
-            v
-+------------------------------------------+
-| Componentes que usam o hook:             |
+|  SE "Cliente existente":                 |
+|  +------------------------------------+  |
+|  |  Dropdown: Selecione um cliente   |  |
+|  +------------------------------------+  |
 |                                          |
-| - Profile.tsx (renovacao, assinar)       |
-| - SubscriptionExpiringBanner.tsx         |
-| - PricingSection.tsx (quando logado)     |
-| - Auth.tsx (plano expirado)              |
+|  SE "Novo cliente":                      |
+|  +------------------------------------+  |
+|  |  Nome: __________________________ |  |
+|  |  Telefone: ______________________ |  |
+|  |  CPF: ___________________________ |  |
+|  |  Email: _________________________ |  |
+|  +------------------------------------+  |
+|                                          |
+|  ... resto do formulario ...             |
 +------------------------------------------+
 ```
 
-## Locais que Precisam de Correcao
+## Fluxo de Funcionamento
 
-### 1. Profile.tsx - Links Hardcoded
+1. Usuario abre o formulario de nova assinatura
+2. Escolhe entre "Cliente existente" ou "Novo cliente"
+3. Se "Novo cliente":
+   - Preenche nome, telefone, CPF e email
+   - Ao submeter, o sistema cria o cliente primeiro
+   - Depois cria a assinatura vinculada ao novo cliente
+4. Se "Cliente existente":
+   - Comportamento atual (seleciona do dropdown)
 
-**Linha 26-30**: Constante `RENEWAL_LINKS` hardcoded
-```typescript
-// ANTES (errado):
-const RENEWAL_LINKS = {
-  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
-  quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
-  annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
-};
-```
+## Alteracoes Necessarias
 
-**Linha 1587**: Botao "Assinar Agora" com link fixo
-```typescript
-// ANTES (errado):
-onClick={() => window.open('https://pay.cakto.com.br/35qwwgz', '_blank')}
-```
+### 1. Interface CreateMonthlyFeeData (useMonthlyFees.ts)
 
-### 2. PricingSection.tsx - Links Padrao
+Adicionar campos opcionais para novo cliente:
 
-Quando o usuario esta logado, o componente deve buscar os links do afiliado vinculado.
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| create_new_client | boolean | Se deve criar novo cliente |
+| new_client_name | string | Nome do novo cliente |
+| new_client_phone | string | Telefone do novo cliente |
+| new_client_cpf | string | CPF do novo cliente |
+| new_client_email | string | Email do novo cliente |
 
-### 3. Landing.tsx - Sem Suporte a Afiliados
+### 2. Hook useMonthlyFees.ts - createFee mutation
 
-Usa `PricingSection` sem passar links de afiliado.
+Modificar a mutation para:
+1. Verificar se `create_new_client` e true
+2. Se sim, criar o cliente primeiro usando a tabela `clients`
+3. Usar o ID do cliente criado para criar a assinatura
+4. Invalidar a query de clientes apos criar
 
-## Etapas de Implementacao
+### 3. Componente IPTVSubscriptionForm.tsx
 
-### Etapa 1: Criar Hook useAffiliateLinks
-
-Novo arquivo `src/hooks/useAffiliateLinks.ts`:
-- Reutiliza a logica existente em `SubscriptionExpiringBanner.tsx`
-- Busca `affiliate_email` do perfil do usuario
-- Busca links do afiliado na tabela `affiliates`
-- Retorna links formatados ou links padrao
-
-```typescript
-export function useAffiliateLinks() {
-  const { profile } = useProfile();
-  const [links, setLinks] = useState<AffiliateLinks>(DEFAULT_LINKS);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Buscar links do afiliado se existir
-    fetchAffiliateLinks(profile?.affiliate_email);
-  }, [profile?.affiliate_email]);
-
-  return { links, loading };
-}
-```
-
-### Etapa 2: Atualizar Profile.tsx
-
-1. Importar e usar o novo hook `useAffiliateLinks`
-2. Remover constante `RENEWAL_LINKS` hardcoded
-3. Usar `links` do hook em todos os botoes de renovacao/assinatura
-4. Atualizar o botao "Assinar Agora" (linha 1587) para usar link do hook
-
-### Etapa 3: Atualizar PricingSection.tsx
-
-Adicionar logica para buscar links de afiliado quando usuario esta logado:
-- Verificar se existe usuario autenticado
-- Se sim, usar `useAffiliateLinks` para buscar links
-- Se nao, usar links padrao (visitante anonimo)
-
-### Etapa 4: Refatorar SubscriptionExpiringBanner.tsx
-
-- Substituir logica duplicada pelo novo hook `useAffiliateLinks`
-- Simplificar o componente
+Adicionar:
+- Tabs ou RadioGroup para escolher modo de cliente
+- Campos de entrada para dados do novo cliente
+- Validacao para garantir que nome seja preenchido
+- Auto-gerar username baseado no nome digitado (novo cliente)
 
 ## Detalhes Tecnicos
 
-### Interface do Hook
+### Campos do Novo Cliente
+
+| Campo | Obrigatorio | Validacao |
+|-------|-------------|-----------|
+| Nome | Sim | Minimo 2 caracteres |
+| Telefone | Nao | Formato telefone brasileiro |
+| CPF | Nao | Formato CPF |
+| Email | Nao | Formato email |
+
+### Logica de Criacao
 
 ```typescript
-interface AffiliateLinks {
-  monthly: string;
-  quarterly: string;
-  annual: string;
+// No hook createFee
+if (data.create_new_client && data.new_client_name) {
+  // 1. Criar cliente
+  const { data: newClient, error } = await supabase
+    .from('clients')
+    .insert({
+      user_id: userId,
+      full_name: data.new_client_name,
+      phone: data.new_client_phone || null,
+      cpf: data.new_client_cpf || null,
+      email: data.new_client_email || null,
+      client_type: 'monthly',
+      created_by: userId,
+    })
+    .select()
+    .single();
+    
+  if (error) throw error;
+  
+  // 2. Usar ID do novo cliente
+  data.client_id = newClient.id;
 }
 
-interface UseAffiliateLinksResult {
-  links: AffiliateLinks;
-  loading: boolean;
-  hasAffiliate: boolean; // indica se usuario tem afiliado vinculado
+// 3. Continuar com criacao da assinatura normalmente
+```
+
+### Interface Atualizada
+
+```typescript
+export interface CreateMonthlyFeeData {
+  client_id: string;
+  amount: number;
+  // ... campos existentes ...
+  
+  // Novos campos para cliente inline
+  create_new_client?: boolean;
+  new_client_name?: string;
+  new_client_phone?: string;
+  new_client_cpf?: string;
+  new_client_email?: string;
 }
 ```
 
-### Links Padrao (sem afiliado)
+### Componente de Selecao de Modo
 
-| Tipo | Link Padrao |
-|------|-------------|
-| Mensal | https://pay.cakto.com.br/35qwwgz |
-| Trimestral | https://pay.cakto.com.br/eb6ern9 |
-| Anual | https://pay.cakto.com.br/fhwfptb |
-
-### Mapeamento de Campos
-
-| Campo Afiliado | Campo Hook |
-|----------------|------------|
-| link_mensal | monthly |
-| link_trimestral | quarterly |
-| link_anual | annual |
-
-## Arquivos a Criar
-
-1. `src/hooks/useAffiliateLinks.ts` - Hook centralizado
+```typescript
+// Usando RadioGroup para selecionar modo
+<RadioGroup 
+  value={clientMode} 
+  onValueChange={setClientMode}
+  className="flex gap-4"
+>
+  <div className="flex items-center space-x-2">
+    <RadioGroupItem value="existing" id="existing" />
+    <Label htmlFor="existing">Cliente existente</Label>
+  </div>
+  <div className="flex items-center space-x-2">
+    <RadioGroupItem value="new" id="new" />
+    <Label htmlFor="new">Novo cliente</Label>
+  </div>
+</RadioGroup>
+```
 
 ## Arquivos a Modificar
 
-1. `src/pages/Profile.tsx`
-   - Remover RENEWAL_LINKS hardcoded
-   - Usar hook useAffiliateLinks
-   - Atualizar todos os botoes de assinatura/renovacao
+1. **src/hooks/useMonthlyFees.ts**
+   - Adicionar campos na interface CreateMonthlyFeeData
+   - Modificar mutation createFee para criar cliente se necessario
+   - Invalidar query de clientes apos criar novo
 
-2. `src/components/PricingSection.tsx`
-   - Adicionar deteccao de usuario logado
-   - Usar hook para buscar links quando logado
+2. **src/components/iptv/IPTVSubscriptionForm.tsx**
+   - Adicionar estado para modo de cliente (existing/new)
+   - Adicionar campos para dados do novo cliente
+   - Atualizar logica de validacao e submit
+   - Adaptar auto-geracao de username para novo cliente
 
-3. `src/components/SubscriptionExpiringBanner.tsx`
-   - Substituir logica duplicada pelo hook
+## Validacoes
 
-## Fluxo de Decisao
-
-```text
-Usuario clica em "Assinar/Renovar"
-           |
-           v
-   Usuario logado?
-       /         \
-      Sim        Nao
-       |          |
-       v          v
-  Tem afiliado?  Usar links
-  vinculado?     padrao
-    /      \
-   Sim     Nao
-    |       |
-    v       v
-  Usar    Usar links
-  links   padrao
-  afiliado
-```
+1. Se modo "existing": client_id obrigatorio
+2. Se modo "new": new_client_name obrigatorio
+3. Manter validacao de amount existente
+4. CPF e telefone sao opcionais mas com formatacao correta
 
 ## Resultado Esperado
 
-1. **Usuarios com afiliado**: Todos os links de pagamento direcionam para os checkouts do afiliado vinculado
-2. **Usuarios sem afiliado**: Links direcionam para checkouts padrao (sem comissao)
-3. **Visitantes anonimos**: Links direcionam para checkouts padrao
-4. **Consistencia**: O mesmo hook e usado em todo o sistema, evitando duplicacao de logica
-
-## Cenarios de Teste
-
-| Cenario | Comportamento Esperado |
-|---------|----------------------|
-| Usuario logado com afiliado | Links do afiliado em Profile, Banner, PricingSection |
-| Usuario logado sem afiliado | Links padrao em todos os locais |
-| Usuario nao logado (Landing) | Links padrao na PricingSection |
-| Banner de expiracao | Links do afiliado se vinculado |
-| Profile - Assinar WhatsApp | Link do afiliado se vinculado |
+1. Usuario pode criar assinatura rapidamente sem sair do formulario
+2. Novo cliente e criado automaticamente com tipo "monthly"
+3. Assinatura e vinculada ao cliente recem-criado
+4. Lista de clientes e atualizada apos criacao
+5. Username de acesso e gerado baseado no nome digitado
