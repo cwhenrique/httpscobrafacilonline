@@ -289,6 +289,47 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_expenses: {
+        Row: {
+          amount: number
+          category: string
+          contract_id: string
+          created_at: string
+          description: string | null
+          expense_date: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category?: string
+          contract_id: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          contract_id?: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_expenses_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_payments: {
         Row: {
           amount: number

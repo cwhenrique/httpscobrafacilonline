@@ -39,11 +39,13 @@ import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
 import { Client } from '@/types/database';
 
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
+import { useContractExpenses } from '@/hooks/useContractExpenses';
+import { ContractExpensesDialog } from '@/components/ContractExpensesDialog';
 import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -186,6 +188,7 @@ export default function ProductSales() {
   
   // Contracts hooks
   const { contracts, allContractPayments, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
+  const { allExpenses: contractExpenses, getTotalExpensesByContract } = useContractExpenses();
   
   // Monthly Fees (Subscriptions) hooks
   const { fees: monthlyFees, isLoading: feesLoading, createFee, updateFee, deleteFee, toggleActive, generatePayment } = useMonthlyFees();
@@ -242,6 +245,7 @@ export default function ProductSales() {
   const [isContractHistorical, setIsContractHistorical] = useState(false);
   const [historicalPaidInstallments, setHistoricalPaidInstallments] = useState<number[]>([]);
   const [contractsStatusFilter, setContractsStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
+  const [expensesDialogContract, setExpensesDialogContract] = useState<Contract | null>(null);
 
   // Contract payment dialog states
   const [contractPaymentDialogOpen, setContractPaymentDialogOpen] = useState(false);
@@ -2199,6 +2203,37 @@ export default function ProductSales() {
                           <span className="text-sm text-muted-foreground">Total a receber</span>
                           <span className="font-bold text-primary">{formatCurrency(contract.amount_to_receive)}</span>
                         </div>
+                        
+                        {/* Seção de Gastos e Lucro - apenas para aluguel de veículo */}
+                        {contract.contract_type === 'aluguel_veiculo' && (() => {
+                          const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
+                          const totalReceived = payments
+                            .filter(p => p.status === 'paid')
+                            .reduce((sum, p) => sum + Number(p.amount), 0);
+                          const totalExpenses = getTotalExpensesByContract(contract.id);
+                          const netProfit = totalReceived - totalExpenses;
+                          
+                          return (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <div className="flex flex-col p-2 rounded-lg bg-destructive/10">
+                                <span className="text-xs text-muted-foreground">Gastos</span>
+                                <span className="font-bold text-destructive">{formatCurrency(totalExpenses)}</span>
+                              </div>
+                              <div className={cn(
+                                "flex flex-col p-2 rounded-lg",
+                                netProfit >= 0 ? "bg-green-500/10" : "bg-destructive/10"
+                              )}>
+                                <span className="text-xs text-muted-foreground">Lucro Líquido</span>
+                                <span className={cn(
+                                  "font-bold",
+                                  netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"
+                                )}>
+                                  {formatCurrency(netProfit)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                       
                       {/* Status e botão de cobrança WhatsApp direto no card */}
@@ -2300,6 +2335,12 @@ export default function ProductSales() {
                           {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
                           Parcelas
                         </Button>
+                        {contract.contract_type === 'aluguel_veiculo' && (
+                          <Button size="sm" variant="outline" onClick={() => setExpensesDialogContract(contract)}>
+                            <Receipt className="w-4 h-4 mr-1" />
+                            Gastos
+                          </Button>
+                        )}
                         <Button size="icon" variant="outline" onClick={() => openEditContractDialog(contract)}><Edit className="w-4 h-4" /></Button>
                         <Button size="icon" variant="outline" className="text-destructive" onClick={() => setDeleteContractId(contract.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
@@ -3581,6 +3622,15 @@ export default function ProductSales() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Contract Expenses Dialog */}
+        {expensesDialogContract && (
+          <ContractExpensesDialog
+            contract={expensesDialogContract}
+            open={!!expensesDialogContract}
+            onOpenChange={(open) => !open && setExpensesDialogContract(null)}
+          />
+        )}
       </div>
     </DashboardLayout>
   );
