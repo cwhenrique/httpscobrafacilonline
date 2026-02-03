@@ -1,125 +1,193 @@
 
-# Plano: Corrigir Mensagens Usando "Restante a Receber" em vez de "Total do Contrato"
+# Plano: Respeitar Links de Afiliados em Todo o Sistema
 
-## Problema Identificado
+## Visao Geral
 
-Ao enviar relatórios/lembretes automáticos via WhatsApp para os clientes, algumas mensagens estão mostrando o **total do contrato** quando deveriam mostrar o **saldo devedor restante**.
+Garantir que todos os links de pagamento/renovacao no sistema utilizem os links do afiliado vinculado ao usuario, quando aplicavel. Atualmente, apenas o banner de expiracao e a tela de login respeitam os links de afiliados.
 
-### Exemplo do Erro
+## Estrutura da Solucao
 
-Um cliente que pegou R$1.000 emprestados (total do contrato R$1.200) e já pagou R$600 está recebendo mensagens com:
+```text
++------------------------------------------+
+|  Hook Centralizado: useAffiliateLinks    |
++------------------------------------------+
+|                                          |
+|  - Busca affiliate_email do profile      |
+|  - Busca links do afiliado na tabela     |
+|  - Retorna links (afiliado ou padrao)    |
+|                                          |
++------------------------------------------+
+            |
+            v
++------------------------------------------+
+| Componentes que usam o hook:             |
+|                                          |
+| - Profile.tsx (renovacao, assinar)       |
+| - SubscriptionExpiringBanner.tsx         |
+| - PricingSection.tsx (quando logado)     |
+| - Auth.tsx (plano expirado)              |
++------------------------------------------+
+```
 
-- **Errado**: "Total a Receber: R$1.200,00" (valor total do contrato)
-- **Correto**: "Restante a Receber: R$600,00" (saldo devedor atual)
+## Locais que Precisam de Correcao
 
-## Arquivos Afetados
+### 1. Profile.tsx - Links Hardcoded
 
-### 1. supabase/functions/check-loan-reminders/index.ts
-
-**Linha 279-281** - Seção de valores na lista interativa:
+**Linha 26-30**: Constante `RENEWAL_LINKS` hardcoded
 ```typescript
 // ANTES (errado):
-{
-  title: "Total a Receber",
-  description: formatCurrency(loan.totalToReceive), // mostra total do contrato
-  rowId: "total",
-},
-
-// DEPOIS (correto):
-{
-  title: "Restante a Receber",
-  description: formatCurrency(loan.remainingBalance), // mostra saldo devedor
-  rowId: "remaining",
-},
+const RENEWAL_LINKS = {
+  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
+  quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
+  annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
+};
 ```
 
-**Linha 338** - Descricao da mensagem:
-```typescript
-// ANTES (correto - rotulo correto):
-loanDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
-// Esta linha esta correta pois usa "Total Contrato" para o valor total
-```
-
-### 2. supabase/functions/check-overdue-loans/index.ts
-
-**Linha 457-461** - Secao de valores na lista interativa:
+**Linha 1587**: Botao "Assinar Agora" com link fixo
 ```typescript
 // ANTES (errado):
-{
-  title: "Total a Receber",
-  description: formatCurrency(loan.totalToReceive), // mostra total do contrato
-  rowId: "total",
-},
-
-// DEPOIS (correto):
-{
-  title: "Restante a Receber",
-  description: formatCurrency(loan.remainingBalance), // mostra saldo devedor
-  rowId: "remaining",
-},
+onClick={() => window.open('https://pay.cakto.com.br/35qwwgz', '_blank')}
 ```
 
-## Logica da Correcao
+### 2. PricingSection.tsx - Links Padrao
 
-| Campo | Valor | Quando Usar |
-|-------|-------|-------------|
-| `totalToReceive` | Principal + Juros (total do contrato) | Label "Total Contrato" ou "Valor Total" |
-| `remainingBalance` | Saldo devedor atual | Label "Restante a Receber" ou "Saldo Devedor" |
+Quando o usuario esta logado, o componente deve buscar os links do afiliado vinculado.
 
-## Mensagens Corrigidas
+### 3. Landing.tsx - Sem Suporte a Afiliados
 
-### Lembrete de Vencimento (check-loan-reminders)
+Usa `PricingSection` sem passar links de afiliado.
 
-Antes:
+## Etapas de Implementacao
+
+### Etapa 1: Criar Hook useAffiliateLinks
+
+Novo arquivo `src/hooks/useAffiliateLinks.ts`:
+- Reutiliza a logica existente em `SubscriptionExpiringBanner.tsx`
+- Busca `affiliate_email` do perfil do usuario
+- Busca links do afiliado na tabela `affiliates`
+- Retorna links formatados ou links padrao
+
+```typescript
+export function useAffiliateLinks() {
+  const { profile } = useProfile();
+  const [links, setLinks] = useState<AffiliateLinks>(DEFAULT_LINKS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Buscar links do afiliado se existir
+    fetchAffiliateLinks(profile?.affiliate_email);
+  }, [profile?.affiliate_email]);
+
+  return { links, loading };
+}
+```
+
+### Etapa 2: Atualizar Profile.tsx
+
+1. Importar e usar o novo hook `useAffiliateLinks`
+2. Remover constante `RENEWAL_LINKS` hardcoded
+3. Usar `links` do hook em todos os botoes de renovacao/assinatura
+4. Atualizar o botao "Assinar Agora" (linha 1587) para usar link do hook
+
+### Etapa 3: Atualizar PricingSection.tsx
+
+Adicionar logica para buscar links de afiliado quando usuario esta logado:
+- Verificar se existe usuario autenticado
+- Se sim, usar `useAffiliateLinks` para buscar links
+- Se nao, usar links padrao (visitante anonimo)
+
+### Etapa 4: Refatorar SubscriptionExpiringBanner.tsx
+
+- Substituir logica duplicada pelo novo hook `useAffiliateLinks`
+- Simplificar o componente
+
+## Detalhes Tecnicos
+
+### Interface do Hook
+
+```typescript
+interface AffiliateLinks {
+  monthly: string;
+  quarterly: string;
+  annual: string;
+}
+
+interface UseAffiliateLinksResult {
+  links: AffiliateLinks;
+  loading: boolean;
+  hasAffiliate: boolean; // indica se usuario tem afiliado vinculado
+}
+```
+
+### Links Padrao (sem afiliado)
+
+| Tipo | Link Padrao |
+|------|-------------|
+| Mensal | https://pay.cakto.com.br/35qwwgz |
+| Trimestral | https://pay.cakto.com.br/eb6ern9 |
+| Anual | https://pay.cakto.com.br/fhwfptb |
+
+### Mapeamento de Campos
+
+| Campo Afiliado | Campo Hook |
+|----------------|------------|
+| link_mensal | monthly |
+| link_trimestral | quarterly |
+| link_anual | annual |
+
+## Arquivos a Criar
+
+1. `src/hooks/useAffiliateLinks.ts` - Hook centralizado
+
+## Arquivos a Modificar
+
+1. `src/pages/Profile.tsx`
+   - Remover RENEWAL_LINKS hardcoded
+   - Usar hook useAffiliateLinks
+   - Atualizar todos os botoes de assinatura/renovacao
+
+2. `src/components/PricingSection.tsx`
+   - Adicionar deteccao de usuario logado
+   - Usar hook para buscar links quando logado
+
+3. `src/components/SubscriptionExpiringBanner.tsx`
+   - Substituir logica duplicada pelo hook
+
+## Fluxo de Decisao
+
 ```text
-💰 Valores
-├── Emprestado: R$ 1.000,00
-├── Total a Receber: R$ 1.200,00  ❌ (confuso)
-└── Taxa de Juros: 20%
+Usuario clica em "Assinar/Renovar"
+           |
+           v
+   Usuario logado?
+       /         \
+      Sim        Nao
+       |          |
+       v          v
+  Tem afiliado?  Usar links
+  vinculado?     padrao
+    /      \
+   Sim     Nao
+    |       |
+    v       v
+  Usar    Usar links
+  links   padrao
+  afiliado
 ```
 
-Depois:
-```text
-💰 Valores
-├── Emprestado: R$ 1.000,00
-├── Restante a Receber: R$ 600,00  ✅ (claro)
-└── Taxa de Juros: 20%
-```
+## Resultado Esperado
 
-### Alerta de Atraso (check-overdue-loans)
+1. **Usuarios com afiliado**: Todos os links de pagamento direcionam para os checkouts do afiliado vinculado
+2. **Usuarios sem afiliado**: Links direcionam para checkouts padrao (sem comissao)
+3. **Visitantes anonimos**: Links direcionam para checkouts padrao
+4. **Consistencia**: O mesmo hook e usado em todo o sistema, evitando duplicacao de logica
 
-Antes:
-```text
-💰 Valores
-├── Valor Emprestado: R$ 1.000,00
-├── Total a Receber: R$ 1.200,00  ❌ (confuso)
-└── Taxa de Juros: 20%
-```
+## Cenarios de Teste
 
-Depois:
-```text
-💰 Valores
-├── Valor Emprestado: R$ 1.000,00
-├── Restante a Receber: R$ 600,00  ✅ (claro)
-└── Taxa de Juros: 20%
-```
-
-## Implementacao
-
-1. Atualizar `check-loan-reminders/index.ts`:
-   - Linha 279: Mudar titulo de "Total a Receber" para "Restante a Receber"
-   - Linha 280: Mudar `loan.totalToReceive` para `loan.remainingBalance`
-
-2. Atualizar `check-overdue-loans/index.ts`:
-   - Linha 458: Mudar titulo de "Total a Receber" para "Restante a Receber"
-   - Linha 459: Mudar `loan.totalToReceive` para `loan.remainingBalance`
-
-3. Fazer deploy das edge functions atualizadas
-
-## Notas Importantes
-
-- O campo `remainingBalance` ja esta sendo passado corretamente nos objetos `loanInfo`
-- As descricoes de texto (ex: linha 338 e 544) ja usam labels corretas ("Total Contrato" com `totalToReceive`)
-- Apenas as listas interativas do WhatsApp tem o label incorreto
-- A correcao e simples: trocar a label e o valor referenciado
-
+| Cenario | Comportamento Esperado |
+|---------|----------------------|
+| Usuario logado com afiliado | Links do afiliado em Profile, Banner, PricingSection |
+| Usuario logado sem afiliado | Links padrao em todos os locais |
+| Usuario nao logado (Landing) | Links padrao na PricingSection |
+| Banner de expiracao | Links do afiliado se vinculado |
+| Profile - Assinar WhatsApp | Link do afiliado se vinculado |
