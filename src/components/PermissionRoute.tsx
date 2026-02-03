@@ -24,6 +24,7 @@ const PERMISSION_LABELS: Record<EmployeePermission, string> = {
   manage_bills: 'Gerenciar Contas',
   manage_vehicles: 'Gerenciar Veículos',
   manage_products: 'Gerenciar Produtos',
+  manage_checks: 'Gerenciar Cheques',
   view_settings: 'Visualizar Configurações',
   view_dashboard: 'Visualizar Dashboard',
 };
