@@ -403,6 +403,14 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
  * Retorna null se todas as parcelas estiverem pagas
  */
 export function getNextUnpaidInstallmentDate(loan: LoanForCalculation): Date | null {
+  // Para contratos históricos com 1 parcela, usar due_date diretamente
+  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+  const isSingleInstallment = (loan.installments || 1) === 1;
+  
+  if (isHistoricalInterestContract && isSingleInstallment) {
+    return new Date(loan.due_date + 'T12:00:00');
+  }
+  
   const dates = (loan.installment_dates as string[]) || [];
   const paidCount = calculatePaidInstallments(loan);
   
@@ -424,11 +432,20 @@ export function isLoanOverdue(loan: LoanForCalculation): boolean {
   // Se já está marcado como pago, não está em atraso
   if (loan.status === 'paid') return false;
   
-  // Se o status já é overdue, confirmar
-  if (loan.status === 'overdue') return true;
-  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  
+  // NOVA LÓGICA: Contratos com juros históricos e 1 parcela
+  // Usam due_date como referência principal, não installment_dates
+  // Isso evita que contratos com pagamentos de juros em dia apareçam como atrasados
+  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+  const isSingleInstallment = (loan.installments || 1) === 1;
+  
+  if (isHistoricalInterestContract && isSingleInstallment) {
+    const loanDueDate = new Date(loan.due_date + 'T12:00:00');
+    loanDueDate.setHours(0, 0, 0, 0);
+    return today > loanDueDate;
+  }
   
   const dates = (loan.installment_dates as string[]) || [];
   
@@ -460,7 +477,17 @@ export function getDaysOverdue(loan: LoanForCalculation): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const nextDueDate = getNextUnpaidInstallmentDate(loan);
+  // Para contratos históricos com 1 parcela, usar due_date diretamente
+  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+  const isSingleInstallment = (loan.installments || 1) === 1;
+  
+  let nextDueDate: Date | null;
+  if (isHistoricalInterestContract && isSingleInstallment) {
+    nextDueDate = new Date(loan.due_date + 'T12:00:00');
+  } else {
+    nextDueDate = getNextUnpaidInstallmentDate(loan);
+  }
+  
   if (!nextDueDate) return 0;
   
   nextDueDate.setHours(0, 0, 0, 0);
