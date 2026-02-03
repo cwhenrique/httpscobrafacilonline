@@ -616,12 +616,14 @@ export type Database = {
           interest_mode: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate: number
           interest_type: Database["public"]["Enums"]["interest_type"]
+          is_third_party: boolean | null
           notes: string | null
           payment_type: Database["public"]["Enums"]["loan_payment_type"]
           principal_amount: number
           remaining_balance: number
           start_date: string
           status: Database["public"]["Enums"]["payment_status"]
+          third_party_name: string | null
           total_interest: number | null
           total_paid: number | null
           updated_at: string
@@ -639,12 +641,14 @@ export type Database = {
           interest_mode?: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
+          is_third_party?: boolean | null
           notes?: string | null
           payment_type?: Database["public"]["Enums"]["loan_payment_type"]
           principal_amount: number
           remaining_balance: number
           start_date?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          third_party_name?: string | null
           total_interest?: number | null
           total_paid?: number | null
           updated_at?: string
@@ -662,12 +666,14 @@ export type Database = {
           interest_mode?: Database["public"]["Enums"]["interest_mode"] | null
           interest_rate?: number
           interest_type?: Database["public"]["Enums"]["interest_type"]
+          is_third_party?: boolean | null
           notes?: string | null
           payment_type?: Database["public"]["Enums"]["loan_payment_type"]
           principal_amount?: number
           remaining_balance?: number
           start_date?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          third_party_name?: string | null
           total_interest?: number | null
           total_paid?: number | null
           updated_at?: string
