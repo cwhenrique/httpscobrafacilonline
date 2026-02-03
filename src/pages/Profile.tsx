@@ -294,6 +294,15 @@ export default function Profile() {
         return;
       }
 
+      // Handle server offline
+      if (data.serverOffline) {
+        toast.error('Servidor WhatsApp em manutenção. Tente novamente em 5 minutos.', {
+          duration: 8000,
+        });
+        setShowQrModal(false);
+        return;
+      }
+
       if (data.alreadyConnected) {
         toast.success('WhatsApp já está conectado!');
         setShowQrModal(false);
@@ -305,7 +314,15 @@ export default function Profile() {
         setQrCode(data.qrCode);
       } else if (data.error) {
         console.error('QR Code error:', data.error);
-        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
+        // Check if error message indicates server offline
+        if (data.error.includes('indisponível') || data.error.includes('temporariamente')) {
+          toast.error('Servidor WhatsApp em manutenção. Tente novamente em 5 minutos.', {
+            duration: 8000,
+          });
+          setShowQrModal(false);
+        } else {
+          toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
+        }
       } else {
         toast.error('Não foi possível gerar o QR Code. Tente "Reiniciar Conexão".');
       }
