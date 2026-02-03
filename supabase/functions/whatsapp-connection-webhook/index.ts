@@ -3,8 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+// In-memory lock to prevent concurrent reconnection attempts (per instance)
+// Note: Edge functions are stateless, so this only prevents concurrent calls within same execution
+const processingInstances = new Set<string>();
 
 // Helper to extract phone number from ownerJid or owner field
 function extractPhoneNumber(instance: Record<string, unknown>): string | null {
@@ -31,7 +35,7 @@ function extractPhoneNumber(instance: Record<string, unknown>): string | null {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -136,13 +140,43 @@ serve(async (req) => {
 
     // Handle disconnection - try to reconnect automatically
     if (state === 'close' || state === 'disconnected' || state === 'DISCONNECTED') {
-      console.log(`Instance ${instanceName} disconnected - attempting auto-reconnect...`);
+      // Check statusReason - 440 means session needs re-auth via QR
+      const statusReason = data?.statusReason;
+      console.log(`Instance ${instanceName} disconnected with statusReason: ${statusReason}`);
+      
+      // If statusReason is 440, session is invalid and needs new QR scan
+      // Don't try to reconnect automatically - it won't work without user scanning QR again
+      if (statusReason === 440 || statusReason === 401) {
+        console.log('Session expired (440/401) - user needs to scan QR code again');
+        
+        // Clear connection status immediately
+        await supabase
+          .from('profiles')
+          .update({
+            whatsapp_connected_phone: null,
+            whatsapp_connected_at: null,
+            whatsapp_to_clients_enabled: false,
+          })
+          .eq('id', profile.id);
+        
+        return new Response(JSON.stringify({ 
+          received: true, 
+          reconnected: false,
+          needsQR: true,
+          reason: 'Session expired - QR code needed'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // For other disconnect reasons (network issues), attempt ONE auto-reconnect
+      console.log(`Instance ${instanceName} disconnected - attempting ONE auto-reconnect...`);
 
       // Wait a moment before trying to reconnect
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       try {
-        // Try to restart the instance
+        // Try to restart the instance ONCE
         const restartResponse = await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
           method: 'POST',
           headers: {
@@ -174,30 +208,12 @@ serve(async (req) => {
             if (newState === 'open') {
               console.log('Auto-reconnect successful!');
               
-              // Try to get phone number from fetchInstances
-              let phoneNumber = null;
-              try {
-                const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
-                  method: 'GET',
-                  headers: { 'apikey': evolutionApiKey },
-                });
-                if (fetchResponse.ok) {
-                  const instances = await fetchResponse.json();
-                  const inst = Array.isArray(instances) ? instances[0] : instances;
-                  phoneNumber = extractPhoneNumber(inst);
-                  console.log('Phone number after reconnect:', phoneNumber);
-                }
-              } catch (e) {
-                console.log('Could not fetch phone after reconnect:', e);
-              }
-              
-              // Update profile with reconnection time and phone
+              // Update profile to maintain connection
               await supabase
                 .from('profiles')
                 .update({
                   whatsapp_connected_at: new Date().toISOString(),
                   whatsapp_to_clients_enabled: true,
-                  ...(phoneNumber ? { whatsapp_connected_phone: phoneNumber } : {}),
                 })
                 .eq('id', profile.id);
 
@@ -205,55 +221,10 @@ serve(async (req) => {
                 received: true, 
                 reconnected: true,
                 state: newState,
-                phoneNumber,
               }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
             }
-          }
-        }
-
-        // If restart didn't work, try connect endpoint
-        console.log('Restart did not reconnect, trying connect endpoint...');
-        
-        const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-          method: 'GET',
-          headers: {
-            'apikey': evolutionApiKey,
-          },
-        });
-
-        const connectText = await connectResponse.text();
-        console.log('Connect response:', connectResponse.status, connectText);
-
-        if (connectResponse.ok) {
-          try {
-            const connectData = JSON.parse(connectText);
-            
-            // If we got a QR code, the session was lost and needs re-scan
-            if (connectData.base64 || connectData.code) {
-              console.log('Session lost - QR code needed for reconnection');
-              
-              // Clear connected phone since session is lost
-              await supabase
-                .from('profiles')
-                .update({
-                  whatsapp_connected_phone: null,
-                  whatsapp_connected_at: null,
-                  whatsapp_to_clients_enabled: false,
-                })
-                .eq('id', profile.id);
-
-              return new Response(JSON.stringify({ 
-                received: true, 
-                reconnected: false,
-                needsQR: true 
-              }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-          } catch (e) {
-            console.log('Could not parse connect response:', e);
           }
         }
       } catch (reconnectError) {
@@ -267,6 +238,7 @@ serve(async (req) => {
         .from('profiles')
         .update({
           whatsapp_connected_phone: null,
+          whatsapp_connected_at: null,
           whatsapp_to_clients_enabled: false,
         })
         .eq('id', profile.id);
@@ -274,7 +246,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ 
         received: true, 
         reconnected: false,
-        state: 'disconnected' 
+        state: 'disconnected',
+        needsQR: true,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
