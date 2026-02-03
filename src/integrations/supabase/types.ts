@@ -213,6 +213,9 @@ export type Database = {
           number: string | null
           on_time_payments: number | null
           phone: string | null
+          profession: string | null
+          referrer_name: string | null
+          referrer_phone: string | null
           rg: string | null
           score: number | null
           score_updated_at: string | null
@@ -245,6 +248,9 @@ export type Database = {
           number?: string | null
           on_time_payments?: number | null
           phone?: string | null
+          profession?: string | null
+          referrer_name?: string | null
+          referrer_phone?: string | null
           rg?: string | null
           score?: number | null
           score_updated_at?: string | null
@@ -277,6 +283,9 @@ export type Database = {
           number?: string | null
           on_time_payments?: number | null
           phone?: string | null
+          profession?: string | null
+          referrer_name?: string | null
+          referrer_phone?: string | null
           rg?: string | null
           score?: number | null
           score_updated_at?: string | null

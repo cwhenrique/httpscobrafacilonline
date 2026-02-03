@@ -43,6 +43,11 @@ export interface Client {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  // Professional info
+  profession: string | null;
+  // Referral info
+  referrer_name: string | null;
+  referrer_phone: string | null;
   // Social media
   instagram: string | null;
   facebook: string | null;
