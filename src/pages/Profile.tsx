@@ -141,6 +141,34 @@ export default function Profile() {
   const [resettingInstance, setResettingInstance] = useState(false);
   const [sendingDailyTest, setSendingDailyTest] = useState(false);
 
+  const pollForQrCode = useCallback(
+    async (maxAttempts = 20) => {
+      if (!user?.id) return;
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('whatsapp-get-qrcode', {
+            body: { userId: user.id, forceReset: false },
+          });
+
+          if (!error && (data?.qrCode || data?.code)) {
+            setQrCode((data.qrCode ?? data.code) as string);
+            setQrTimeRemaining(90);
+            return;
+          }
+        } catch (e) {
+          // ignore and retry
+        }
+
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      toast.error('Não conseguimos obter o QR Code agora. Tente "Gerar Novo QR Code".', {
+        duration: 8000,
+      });
+    },
+    [user?.id]
+  );
+
   const handleSelectPlan = (link: string) => {
     window.open(link, '_blank');
     setIsRenewalDialogOpen(false);
@@ -364,6 +392,12 @@ export default function Profile() {
 
       if (data.qrCode || data.code) {
         setQrCode((data.qrCode ?? data.code) as string);
+      } else if (data.pendingQr) {
+        // Evolution ainda está gerando o QR: faz polling rápido via whatsapp-get-qrcode
+        toast.info('Gerando QR Code… pode levar alguns segundos.');
+        // solta o spinner do backend e faz a espera no frontend
+        setGeneratingQr(false);
+        void pollForQrCode(20);
       } else if (data.error) {
         console.error('QR Code error:', data.error);
         // Check if error message indicates server offline
