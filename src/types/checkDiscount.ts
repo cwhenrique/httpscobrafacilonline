@@ -27,6 +27,8 @@ export interface CheckDiscount {
   total_paid_debt: number;
   installments_count: number;
   notes: string | null;
+  purchase_value: number | null;
+  seller_name: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -62,6 +64,8 @@ export interface CheckDiscountFormData {
   discount_rate: number;
   payment_method: PaymentMethod;
   notes: string;
+  purchase_value: number;
+  seller_name: string;
 }
 
 export interface ReturnFormData {

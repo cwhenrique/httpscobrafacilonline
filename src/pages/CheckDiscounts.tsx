@@ -107,6 +107,8 @@ export default function CheckDiscounts() {
     discount_rate: 5,
     payment_method: 'cash',
     notes: '',
+    purchase_value: 0,
+    seller_name: '',
   });
 
   // Return form state
@@ -163,6 +165,8 @@ export default function CheckDiscounts() {
       discount_rate: 5,
       payment_method: 'cash',
       notes: '',
+      purchase_value: 0,
+      seller_name: '',
     });
     setSelectedCheck(null);
   };
@@ -179,10 +183,12 @@ export default function CheckDiscounts() {
         nominal_value: check.nominal_value,
         due_date: check.due_date,
         discount_date: check.discount_date,
-        discount_type: check.discount_type,
+        discount_type: check.discount_type as DiscountType,
         discount_rate: check.discount_rate,
-        payment_method: check.payment_method,
+        payment_method: check.payment_method as PaymentMethod,
         notes: check.notes || '',
+        purchase_value: check.purchase_value || 0,
+        seller_name: check.seller_name || '',
       });
     } else {
       resetForm();
@@ -523,6 +529,24 @@ export default function CheckDiscounts() {
                           </span>
                         </div>
 
+                        {/* Check Origin Info */}
+                        {(check.seller_name || check.purchase_value) && (
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                            {check.seller_name && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                Comprado de: {check.seller_name}
+                              </span>
+                            )}
+                            {check.purchase_value && check.purchase_value > 0 && (
+                              <span className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                Valor pago: {formatCurrency(check.purchase_value)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
                         {/* Debt info for returned/in_collection checks */}
                         {(check.status === 'returned' || check.status === 'in_collection') && (
                           <div className="flex items-center gap-4 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-lg flex-wrap">
@@ -819,6 +843,44 @@ export default function CheckDiscounts() {
                     <SelectItem value="transfer">Transferência</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Check Origin (Optional) */}
+            <div className="space-y-4">
+              <h4 className="font-medium flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Origem do Cheque (opcional)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Preencha se o cliente comprou este cheque de terceiros
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor Pago pelo Cheque</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.purchase_value || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, purchase_value: parseFloat(e.target.value) || 0 }))}
+                      className="pl-10"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Comprado de</Label>
+                  <Input
+                    value={formData.seller_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, seller_name: e.target.value }))}
+                    placeholder="Nome do vendedor"
+                  />
+                </div>
               </div>
             </div>
 
