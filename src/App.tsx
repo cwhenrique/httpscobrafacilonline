@@ -33,8 +33,6 @@ import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import Tutorials from "./pages/Tutorials";
 import Employees from "./pages/Employees";
-import ThirdPartyLoans from "./pages/ThirdPartyLoans";
-import ReportsThirdParty from "./pages/ReportsThirdParty";
 
 import Quiz from "./pages/Quiz";
 import ConnectionTest from "./pages/ConnectionTest";
@@ -83,8 +81,6 @@ const App = () => {
               <Route path="/calendar" element={<ProtectedRoute><PermissionRoute permission="view_loans"><CalendarView /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsLoans /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports-sales" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsSales /></PermissionRoute></ProtectedRoute>} />
-              <Route path="/third-party-loans" element={<ProtectedRoute><PermissionRoute permission="view_loans"><ThirdPartyLoans /></PermissionRoute></ProtectedRoute>} />
-              <Route path="/reports-third-party" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsThirdParty /></PermissionRoute></ProtectedRoute>} />
               <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><PermissionRoute permission="view_settings"><Settings /></PermissionRoute></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

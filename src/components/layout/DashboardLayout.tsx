@@ -38,7 +38,6 @@ import {
   UserCheck,
   Lock,
   Search,
-  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
@@ -64,9 +63,6 @@ const navigation: NavigationItem[] = [
   { name: 'Empréstimos', href: '/loans', icon: DollarSign, permission: 'view_loans' },
   { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3, permission: 'view_reports' },
   { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar, permission: 'view_loans' },
-  // Empréstimos de Terceiros
-  { name: 'Empréstimos de Terceiros', href: '/third-party-loans', icon: Building2, permission: 'view_loans' },
-  { name: 'Rel. Terceiros', href: '/reports-third-party', icon: BarChart3, permission: 'view_reports' },
   // Vendas e Veículos
   { name: 'Vendas de Produtos', href: '/product-sales', icon: ShoppingBag, permission: 'manage_products' },
   { name: 'Veículos Registrados', href: '/vehicles', icon: Car, permission: 'manage_vehicles' },
