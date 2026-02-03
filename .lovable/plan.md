@@ -1,135 +1,188 @@
 
-# Plano: Corrigir Lógica de Atraso para Contratos com Juros Históricos
 
-## Problema Identificado
+# Plano: Empréstimos de Terceiros - Seção Separada
 
-O relatório de empréstimos do usuário `gustaavo92@hotmail.com` está exibindo aproximadamente R$ 34 mil em atraso incorretamente. Após análise dos dados, identifiquei dois problemas:
+## Visao Geral
 
-### Problema 1: Status Incorreto no Banco de Dados
-Alguns empréstimos estão marcados como `status: overdue` no banco mesmo quando o `due_date` ainda não passou:
+Criar uma nova seção completamente separada no sistema para gerenciar empréstimos de terceiros. Isso permite ao usuario administrar emprestimos de outras pessoas/empresas de forma isolada, sem misturar com seus proprios emprestimos pessoais.
 
-| Cliente | Remaining Balance | Status | Due Date | Problema |
-|---------|------------------|--------|----------|----------|
-| Bruce | R$ 7.200 | overdue | 2026-02-14 | Due date no futuro |
-| Felipão | R$ 12.000 | overdue | 2026-02-28 | Due date no futuro |
-
-Total incorretamente marcado: R$ 19.200
-
-### Problema 2: Lógica de Cálculo de Parcelas Pagas
-A função `calculatePaidInstallments` em `src/lib/calculations.ts` não reconhece contratos com juros históricos corretamente:
+## Estrutura Visual
 
 ```text
-Fluxo Atual (com bug):
-1. Busca tags [PARTIAL_PAID:X:Y] nas notas
-2. Contratos históricos usam [INTEREST_ONLY_PAID:] em vez de [PARTIAL_PAID:]
-3. Retorna paidCount = 0 mesmo com juros pagos
-4. isLoanOverdue verifica dates[0] e marca como atrasado se data passou
+Menu Lateral:
++------------------------------------------+
+|  Dashboard                               |
+|  Clientes                                |
+|  Score de Clientes                       |
+|  ─────────────────────────────────────   |
+|  Empréstimos                             |
+|  Relatório de Empréstimos                |
+|  Calendário de Cobranças                 |
+|  ─────────────────────────────────────   |
+|  🏢 Empréstimos de Terceiros  ← NOVO     |
+|  📊 Rel. Terceiros            ← NOVO     |
+|  ─────────────────────────────────────   |
+|  Vendas de Produtos                      |
+|  ...                                     |
++------------------------------------------+
 ```
 
-### Problema 3: Dados de Parcelas Inconsistentes
-O empréstimo do Felipão tem `installment_dates: ["2026-02-28", "2026-01-30", "2026-02-28"]` com datas fora de ordem cronológica, causando cálculos incorretos.
+## Arquitetura da Solucao
 
-## Solução Proposta
+### 1. Modificacao no Banco de Dados
 
-### Etapa 1: Atualizar Lógica de isLoanOverdue para Contratos Históricos
+Adicionar coluna para identificar emprestimos de terceiros:
 
-Modificar `src/lib/calculations.ts` para tratar especialmente contratos com a tag `[HISTORICAL_INTEREST_CONTRACT]`:
-
-```typescript
-export function isLoanOverdue(loan: LoanForCalculation): boolean {
-  if (loan.status === 'paid') return false;
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  // NOVA LÓGICA: Contratos com juros históricos e 1 parcela
-  // Usam due_date como referência principal, não installment_dates
-  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
-  const isSingleInstallment = (loan.installments || 1) === 1;
-  
-  if (isHistoricalInterestContract && isSingleInstallment) {
-    const loanDueDate = new Date(loan.due_date + 'T12:00:00');
-    loanDueDate.setHours(0, 0, 0, 0);
-    return today > loanDueDate;
-  }
-  
-  // ... resto da lógica existente ...
-}
-```
-
-### Etapa 2: Corrigir Status dos Empréstimos no Banco
-
-Executar correção SQL para os 2 empréstimos incorretamente marcados:
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| is_third_party | boolean | Marca se e emprestimo de terceiro |
+| third_party_name | text | Nome da pessoa/empresa dona |
 
 ```sql
-UPDATE loans 
-SET status = 'pending', updated_at = NOW()
-WHERE id IN (
-  '3133e6a2-1303-42ee-a205-657ea658e5d4',  -- Bruce
-  '13a4d9a1-4cd9-40f6-bfb6-1f0100c0c5b6'   -- Felipão
-)
-AND due_date > CURRENT_DATE;
+ALTER TABLE loans ADD COLUMN is_third_party boolean DEFAULT false;
+ALTER TABLE loans ADD COLUMN third_party_name text;
 ```
 
-### Etapa 3: Atualizar getDaysOverdue para Contratos Históricos
+### 2. Novas Paginas
 
-Aplicar a mesma lógica especial em `getDaysOverdue`:
+#### 2.1. ThirdPartyLoans.tsx
+- Copia simplificada de Loans.tsx
+- Filtra APENAS emprestimos onde `is_third_party = true`
+- Formulario inclui campo obrigatorio para nome do terceiro
+- Cards com visual diferenciado (cor teal/verde-agua)
+- Funcionalidades identicas: criar, pagar, renegociar, excluir
+
+#### 2.2. ReportsThirdParty.tsx
+- Copia simplificada de ReportsLoans.tsx
+- Mostra estatisticas APENAS de emprestimos de terceiros
+- Relatorio PDF dedicado para terceiros
+- Metricas separadas: Total emprestado, recebido, em atraso
+
+### 3. Novos Hooks
+
+#### 3.1. useThirdPartyLoans.ts
+- Similar ao useLoans.ts
+- Query filtra: `.eq('is_third_party', true)`
+- Todas as operacoes (criar, pagar, etc) forcam `is_third_party: true`
+
+#### 3.2. useThirdPartyStats.ts
+- Similar ao useOperationalStats.ts
+- Calcula estatisticas apenas para terceiros
+- Usado no relatorio de terceiros
+
+### 4. Modificacoes em Arquivos Existentes
+
+#### 4.1. src/App.tsx
+Adicionar 2 novas rotas:
 
 ```typescript
-export function getDaysOverdue(loan: LoanForCalculation): number {
-  if (!isLoanOverdue(loan)) return 0;
+import ThirdPartyLoans from "./pages/ThirdPartyLoans";
+import ReportsThirdParty from "./pages/ReportsThirdParty";
+
+// Novas rotas
+<Route path="/third-party-loans" element={
+  <ProtectedRoute><ThirdPartyLoans /></ProtectedRoute>
+} />
+<Route path="/reports-third-party" element={
+  <ProtectedRoute><ReportsThirdParty /></ProtectedRoute>
+} />
+```
+
+#### 4.2. src/components/layout/DashboardLayout.tsx
+Adicionar 2 novos itens no menu:
+
+```typescript
+import { Building2 } from 'lucide-react';
+
+const navigation: NavigationItem[] = [
+  // ... existentes ...
+  { name: 'Calendário de Cobranças', href: '/calendar', ... },
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  // Para contratos históricos, usar due_date
-  const isHistoricalInterestContract = (loan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
-  const isSingleInstallment = (loan.installments || 1) === 1;
-  
-  let nextDueDate: Date | null;
-  if (isHistoricalInterestContract && isSingleInstallment) {
-    nextDueDate = new Date(loan.due_date + 'T12:00:00');
-  } else {
-    nextDueDate = getNextUnpaidInstallmentDate(loan);
-  }
+  // NOVOS - Terceiros
+  { name: 'Empréstimos de Terceiros', href: '/third-party-loans', icon: Building2, permission: 'view_loans' },
+  { name: 'Rel. Terceiros', href: '/reports-third-party', icon: BarChart3, permission: 'view_reports' },
   
   // ... resto ...
+  { name: 'Vendas de Produtos', href: '/product-sales', ... },
+];
+```
+
+#### 4.3. src/types/database.ts
+Atualizar interface Loan:
+
+```typescript
+export interface Loan {
+  // ... existentes ...
+  is_third_party: boolean;
+  third_party_name: string | null;
 }
 ```
+
+#### 4.4. src/hooks/useLoans.ts (modificar)
+- Adicionar filtro para EXCLUIR terceiros: `.eq('is_third_party', false)`
+- Isso garante que a pagina normal de emprestimos so mostra os pessoais
+
+## Fluxo de Funcionamento
+
+```text
+Pagina Empréstimos (/loans)
+├── Lista APENAS empréstimos próprios (is_third_party = false)
+├── Não mostra empréstimos de terceiros
+└── Relatório (/reports) calcula apenas próprios
+
+Página Empréstimos de Terceiros (/third-party-loans)
+├── Lista APENAS empréstimos de terceiros (is_third_party = true)
+├── Campo obrigatório: "Nome do terceiro"
+├── Visual diferenciado (cor teal)
+└── Rel. Terceiros (/reports-third-party) calcula apenas terceiros
+```
+
+## Visual Diferenciado
+
+Os cards de emprestimos de terceiros terao:
+
+| Estado | Cor de Fundo | Borda |
+|--------|--------------|-------|
+| Normal | bg-teal-500/20 | border-teal-400 |
+| Vence Hoje | bg-amber-500/20 | border-amber-400 |
+| Em Atraso | bg-red-500/20 | border-red-400 |
+
+Badge no card mostrando:
+```
+🏢 Terceiro: [Nome do Terceiro]
+```
+
+## Arquivos a Criar
+
+1. **src/pages/ThirdPartyLoans.tsx** - Pagina de emprestimos de terceiros
+2. **src/pages/ReportsThirdParty.tsx** - Relatorio de terceiros
+3. **src/hooks/useThirdPartyLoans.ts** - Hook para emprestimos de terceiros
+4. **src/hooks/useThirdPartyStats.ts** - Hook para estatisticas de terceiros
 
 ## Arquivos a Modificar
 
-1. **src/lib/calculations.ts**
-   - Função `isLoanOverdue`: Adicionar tratamento especial para `[HISTORICAL_INTEREST_CONTRACT]`
-   - Função `getDaysOverdue`: Sincronizar lógica com `isLoanOverdue`
-   - Função `getNextUnpaidInstallmentDate`: Adicionar tratamento para contratos históricos
+1. **Migracao SQL** - Adicionar colunas is_third_party e third_party_name
+2. **src/App.tsx** - Adicionar 2 novas rotas
+3. **src/components/layout/DashboardLayout.tsx** - Adicionar 2 itens no menu
+4. **src/types/database.ts** - Adicionar campos na interface Loan
+5. **src/hooks/useLoans.ts** - Filtrar para excluir terceiros
+6. **src/hooks/useOperationalStats.ts** - Filtrar para excluir terceiros
 
-2. **Migração SQL**
-   - Corrigir status de empréstimos incorretamente marcados como `overdue`
+## Vantagens desta Abordagem
+
+1. **Isolamento Total**: Dados de terceiros nunca misturam com pessoais
+2. **Relatorios Separados**: Cada categoria tem seu proprio relatorio
+3. **Simplicidade**: Usuario sabe exatamente onde esta cada coisa
+4. **Flexibilidade**: Pode exportar PDF separadamente
+5. **Escalabilidade**: Facil adicionar mais funcionalidades para terceiros no futuro
 
 ## Resultado Esperado
 
-Após as correções:
-- Contratos com juros históricos serão avaliados pelo `due_date` final
-- Empréstimos com pagamentos de juros em dia não aparecerão como "em atraso"
-- O valor "Em Atraso" do relatório refletirá apenas empréstimos genuinamente vencidos
-- Redução esperada: de ~R$ 34 mil para ~R$ 0 em atraso (assumindo que todos os due_dates estão no futuro)
+1. Nova opcao "Empréstimos de Terceiros" no menu lateral
+2. Pagina dedicada para criar/gerenciar emprestimos de terceiros
+3. Campo para informar nome do terceiro (obrigatorio)
+4. Cards com visual diferenciado (cor teal)
+5. Relatorio separado apenas com emprestimos de terceiros
+6. Emprestimos normais NAO mostram terceiros
+7. Dashboard e relatorios principais nao incluem terceiros
 
-## Detalhes Técnicos
-
-### Identificação de Contratos Históricos
-
-```typescript
-const isHistoricalInterestContract = (notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
-```
-
-### Lógica de Atraso Corrigida
-
-Para contratos históricos com 1 parcela:
-- Ignorar `installment_dates` para cálculo de atraso
-- Usar apenas `due_date` como referência
-- Considerar atrasado APENAS se `today > due_date`
-
-Para outros contratos (comportamento atual mantido):
-- Continuar usando `installment_dates` e `calculatePaidInstallments`
-- Verificar próxima parcela não paga
