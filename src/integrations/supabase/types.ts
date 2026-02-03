@@ -169,8 +169,10 @@ export type Database = {
           payment_method: string | null
           penalty_amount: number | null
           penalty_rate: number | null
+          purchase_value: number | null
           return_date: string | null
           return_reason: string | null
+          seller_name: string | null
           status: string
           total_debt: number | null
           total_paid_debt: number | null
@@ -197,8 +199,10 @@ export type Database = {
           payment_method?: string | null
           penalty_amount?: number | null
           penalty_rate?: number | null
+          purchase_value?: number | null
           return_date?: string | null
           return_reason?: string | null
+          seller_name?: string | null
           status?: string
           total_debt?: number | null
           total_paid_debt?: number | null
@@ -225,8 +229,10 @@ export type Database = {
           payment_method?: string | null
           penalty_amount?: number | null
           penalty_rate?: number | null
+          purchase_value?: number | null
           return_date?: string | null
           return_reason?: string | null
+          seller_name?: string | null
           status?: string
           total_debt?: number | null
           total_paid_debt?: number | null

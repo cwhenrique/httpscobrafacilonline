@@ -135,6 +135,8 @@ export function useCheckDiscounts() {
           net_value: netValue,
           payment_method: formData.payment_method,
           notes: formData.notes || null,
+          purchase_value: formData.purchase_value || null,
+          seller_name: formData.seller_name || null,
           status: 'in_wallet',
         })
         .select()
