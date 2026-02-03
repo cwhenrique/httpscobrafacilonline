@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -47,7 +48,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getClientTypeLabel, formatDate } from '@/lib/calculations';
-import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, Instagram, Globe, UserCheck, UserX } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, FileText, MapPin, Loader2, Camera, User, Mail, CreditCard, Instagram, Globe, UserCheck, UserX, Briefcase, UserPlus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { ClientScoreBadge } from '@/components/ClientScoreBadge';
 import { ClientDocuments } from '@/components/ClientDocuments';
@@ -81,6 +82,9 @@ interface FormData {
   instagram: string;
   facebook: string;
   is_active: boolean;
+  profession: string;
+  referrer_name: string;
+  referrer_phone: string;
 }
 
 const initialFormData: FormData = {
@@ -101,6 +105,9 @@ const initialFormData: FormData = {
   instagram: '',
   facebook: '',
   is_active: true,
+  profession: '',
+  referrer_name: '',
+  referrer_phone: '',
 };
 
 export default function Clients() {
@@ -117,6 +124,7 @@ export default function Clients() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [formData, setFormData] = usePersistedState<FormData>('client_form_data', initialFormData);
+  const [isReferral, setIsReferral] = usePersistedState('client_is_referral', false);
   
   // State para arquivos pendentes de documentos (fix iOS PWA)
   // Usar File[] ao invés de FileList porque FileList é invalidado quando o input é resetado
@@ -267,6 +275,7 @@ export default function Clients() {
 
   const handleEdit = (client: Client) => {
     setEditingClient(client);
+    setIsReferral(!!client.referrer_name || !!client.referrer_phone);
     setFormData({
       full_name: client.full_name,
       phone: client.phone || '',
@@ -285,6 +294,9 @@ export default function Clients() {
       instagram: client.instagram || '',
       facebook: client.facebook || '',
       is_active: client.is_active !== false,
+      profession: client.profession || '',
+      referrer_name: client.referrer_name || '',
+      referrer_phone: client.referrer_phone || '',
     });
     setAvatarPreview(null);
     setActiveTab('dados');
@@ -313,6 +325,7 @@ export default function Clients() {
     setAvatarFile(null);
     setAvatarPreview(null);
     setFormData(initialFormData);
+    setIsReferral(false);
     
     // Limpar do sessionStorage
     sessionStorage.removeItem('client_dialog_open');
@@ -321,6 +334,7 @@ export default function Clients() {
     sessionStorage.removeItem('client_editing');
     sessionStorage.removeItem('client_created_id');
     sessionStorage.removeItem('client_created_name');
+    sessionStorage.removeItem('client_is_referral');
   };
 
   const getClientTypeBadgeColor = (type: ClientType) => {
@@ -557,6 +571,63 @@ export default function Clients() {
                             placeholder="Nome ou URL do perfil"
                           />
                         </div>
+                      </div>
+
+                      {/* Profissão */}
+                      <div className="space-y-2">
+                        <Label htmlFor="profession" className="flex items-center gap-2">
+                          <Briefcase className="w-4 h-4" />
+                          Profissão
+                        </Label>
+                        <Input
+                          id="profession"
+                          value={formData.profession}
+                          onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                          placeholder="Ex: Eletricista, Comerciante, Motorista..."
+                        />
+                      </div>
+
+                      {/* Indicação */}
+                      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="is_referral"
+                            checked={isReferral}
+                            onCheckedChange={(checked) => {
+                              setIsReferral(checked as boolean);
+                              if (!checked) {
+                                setFormData({ ...formData, referrer_name: '', referrer_phone: '' });
+                              }
+                            }}
+                          />
+                          <Label htmlFor="is_referral" className="flex items-center gap-2 cursor-pointer">
+                            <UserPlus className="w-4 h-4" />
+                            Cliente veio por indicação
+                          </Label>
+                        </div>
+                        
+                        {isReferral && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                            <div className="space-y-2">
+                              <Label htmlFor="referrer_name">Nome de quem indicou</Label>
+                              <Input
+                                id="referrer_name"
+                                value={formData.referrer_name}
+                                onChange={(e) => setFormData({ ...formData, referrer_name: e.target.value })}
+                                placeholder="Nome do indicador"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="referrer_phone">Telefone de quem indicou</Label>
+                              <Input
+                                id="referrer_phone"
+                                value={formData.referrer_phone}
+                                onChange={(e) => setFormData({ ...formData, referrer_phone: e.target.value })}
+                                placeholder="(00) 00000-0000"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">

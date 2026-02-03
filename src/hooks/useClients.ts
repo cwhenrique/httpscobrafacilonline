@@ -60,6 +60,9 @@ export function useClients() {
     avatar_url?: string;
     instagram?: string;
     facebook?: string;
+    profession?: string;
+    referrer_name?: string;
+    referrer_phone?: string;
   }) => {
     if (!user || !effectiveUserId) return { error: new Error('Usuário não autenticado') };
 
