@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { toDataURL as qrToDataURL } from 'qrcode';
 import {
   Dialog,
   DialogContent,
@@ -130,6 +131,7 @@ export default function Profile() {
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrImageSrc, setQrImageSrc] = useState<string | null>(null);
   const [generatingQr, setGeneratingQr] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [sendToClientsEnabled, setSendToClientsEnabled] = useState(false);
@@ -184,6 +186,56 @@ export default function Profile() {
 
     return () => clearInterval(interval);
   }, [showQrModal, qrCode]);
+
+  const isProbablyBase64PngPayload = (value: string) => {
+    // Evolution API pode retornar:
+    // - base64 puro (sem prefixo)
+    // - data URL
+    // - string "code" (conteúdo do QR)
+    if (!value) return false;
+    if (value.startsWith('data:image/')) return true;
+    // Base64 costuma ser longo e não contém caracteres como '@' (comum no "code")
+    if (value.includes('@') || value.includes(' ')) return false;
+    return value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value);
+  };
+
+  // Build an image src for the QR modal (supports base64 OR Evolution "code")
+  useEffect(() => {
+    let cancelled = false;
+
+    const build = async () => {
+      if (!qrCode) {
+        setQrImageSrc(null);
+        return;
+      }
+
+      // 1) data URL already
+      if (qrCode.startsWith('data:')) {
+        setQrImageSrc(qrCode);
+        return;
+      }
+
+      // 2) pure base64 payload
+      if (isProbablyBase64PngPayload(qrCode)) {
+        setQrImageSrc(`data:image/png;base64,${qrCode}`);
+        return;
+      }
+
+      // 3) Evolution "code" string -> generate QR image
+      try {
+        const dataUrl = await qrToDataURL(qrCode, { width: 256, margin: 1 });
+        if (!cancelled) setQrImageSrc(dataUrl);
+      } catch (e) {
+        console.error('Erro ao gerar imagem do QR Code:', e);
+        if (!cancelled) setQrImageSrc(null);
+      }
+    };
+
+    build();
+    return () => {
+      cancelled = true;
+    };
+  }, [qrCode]);
 
   // QR Code expiration timer - 90 seconds
   useEffect(() => {
@@ -310,8 +362,8 @@ export default function Profile() {
         return;
       }
 
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
+      if (data.qrCode || data.code) {
+        setQrCode((data.qrCode ?? data.code) as string);
       } else if (data.error) {
         console.error('QR Code error:', data.error);
         // Check if error message indicates server offline
@@ -362,8 +414,8 @@ export default function Profile() {
         return;
       }
 
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
+      if (data.qrCode || data.code) {
+        setQrCode((data.qrCode ?? data.code) as string);
         setQrTimeRemaining(90);
       } else {
         toast.error(data.error || 'Não foi possível gerar o QR Code');
@@ -393,8 +445,8 @@ export default function Profile() {
         return;
       }
 
-      if (data.success && data.qrCode) {
-        setQrCode(data.qrCode);
+      if (data.success && (data.qrCode || data.code)) {
+        setQrCode((data.qrCode ?? data.code) as string);
         setShowQrModal(true);
         toast.success('Instância recriada! Escaneie o novo QR Code.');
       } else if (data.success) {
@@ -1907,7 +1959,7 @@ export default function Profile() {
               <div className="relative">
                 <div className={`p-4 bg-white rounded-lg transition-all ${qrExpired ? 'opacity-30 blur-sm' : ''}`}>
                   <img 
-                    src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
+                    src={qrImageSrc || ''}
                     alt="QR Code" 
                     className="w-56 h-56"
                   />
