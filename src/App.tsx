@@ -42,19 +42,19 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: 1000 * 60 * 5,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 1000 * 30, // 30 segundos
     },
   },
 });
 
-const App = () => {
+// Componente interno que usa hooks que dependem dos providers
+const AppContent = () => {
   useVisibilityControl();
   useDevToolsProtection();
   
   return (
-  <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <EmployeeProvider>
         <TooltipProvider>
@@ -96,8 +96,13 @@ const App = () => {
         </TooltipProvider>
       </EmployeeProvider>
     </AuthProvider>
-  </QueryClientProvider>
   );
 };
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AppContent />
+  </QueryClientProvider>
+);
 
 export default App;
