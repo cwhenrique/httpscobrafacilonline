@@ -1,167 +1,186 @@
 
-# Plano: Consolidar Juros + Multa e Ajustar Opções de Pagamento
 
-## Resumo da Solicitação
+# Plano: Garantir Atualização dos Dados do Dashboard ao Reabrir o App
 
-Quando houver **juros por atraso** E **multa**, a mensagem deve:
-1. Mostrar os encargos **consolidados** em uma única linha
-2. Nas opções de pagamento, oferecer **"pagar juros + multa"** (não só juros)
+## Problema Identificado
 
-## Comportamento Esperado
+Os dados do Dashboard (número de clientes, empréstimos, etc.) **não atualizam** quando o usuário fecha e reabre o app (PWA). Isso acontece por:
 
-| Cenário | Exibição Encargos | Opções de Pagamento |
-|---------|-------------------|---------------------|
-| Só juros (R$ 300) | 📈 Juros por Atraso: R$ 300 | ✅ Total: R$ 1.800 / ⚠️ Só juros: R$ 300 |
-| Só multa (R$ 200) | ⚠️ Multa Aplicada: R$ 200 | ✅ Total: R$ 1.700 (sem opção "só multa") |
-| Juros + Multa (R$ 300 + R$ 200) | 💰 Juros + Multa: R$ 500 | ✅ Total: R$ 2.000 / ⚠️ Juros + Multa: R$ 500 |
+1. **QueryClient global** configurado com `refetchOnWindowFocus: false` (linha 45 do App.tsx)
+2. **staleTime de 5 minutos** no nível global mantém cache por muito tempo
+3. O hook `useVisibilityControl` não invalida o cache ao retornar ao app
+4. Mesmo que hooks individuais tentem `refetchOnWindowFocus: true`, a config global tem precedência parcial
+
+## Solução
+
+### 1. Atualizar QueryClient Global (`src/App.tsx`)
+
+Alterar a configuração do QueryClient para permitir refetch ao focar a janela:
+
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,   // ← Habilitar refetch ao voltar
+      refetchOnReconnect: true,     // ← Habilitar refetch ao reconectar
+      staleTime: 1000 * 30,         // ← Reduzir para 30 segundos
+    },
+  },
+});
+```
+
+### 2. Aprimorar `useVisibilityControl` (`src/hooks/useVisibilityControl.ts`)
+
+Adicionar invalidação do cache quando o app volta a ficar visível:
+
+```typescript
+import { useQueryClient } from '@tanstack/react-query';
+
+export function useVisibilityControl() {
+  const queryClient = useQueryClient();
+  
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Voltou ao app - invalidar queries principais para buscar dados frescos
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+      }
+    };
+    // ...resto do código
+  }, [queryClient]);
+}
+```
+
+### 3. Mover `useVisibilityControl` para Dentro do Provider
+
+Como `useVisibilityControl` usará `useQueryClient`, ele precisa estar **dentro** do `QueryClientProvider`. Criar um componente wrapper:
+
+```typescript
+// src/components/AppProviders.tsx ou inline no App.tsx
+const AppContent = () => {
+  useVisibilityControl();
+  useDevToolsProtection();
+  
+  return (
+    <AuthProvider>
+      <EmployeeProvider>
+        {/* ... resto do app */}
+      </EmployeeProvider>
+    </AuthProvider>
+  );
+};
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AppContent />
+  </QueryClientProvider>
+);
+```
 
 ## Arquivos a Modificar
 
-### 1. `src/lib/messageUtils.ts`
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/App.tsx` | Atualizar QueryClient config e reestruturar hooks |
+| `src/hooks/useVisibilityControl.ts` | Adicionar invalidação de cache ao voltar |
 
-**Função `replaceTemplateVariables()`** - Consolidar encargos:
+## Comportamento Esperado
 
-Atualmente gera linhas separadas:
-```text
-{MULTA} → "⚠️ *Multa Aplicada:* +R$ 200,00"
-{JUROS} → "📈 *Juros por Atraso:* +R$ 300,00"
-```
-
-Nova lógica:
-- Se **ambos > 0**: consolidar em uma linha `💰 *Juros + Multa:* R$ 500,00`
-- Se **só um**: manter linha individual correspondente
-
-**Função `generatePaymentOptions()`** - Ajustar opções:
-
-Atualmente sempre mostra "Só juros + multa" quando há encargos.
-
-Nova lógica:
-- Se **só juros** (multa = 0): mostrar `⚠️ Só juros: R$ X`
-- Se **juros + multa**: mostrar `⚠️ Juros + Multa: R$ X` (deixando claro que não dá pra pagar só juros)
-
-### 2. `src/components/SendOverdueNotification.tsx`
-
-**Função `generateOverdueMessage()`** (linhas 242-248):
-
-Atualmente:
-```typescript
-if (config.includePenalty && overdueInterest > 0) {
-  message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
-}
-if (config.includePenalty && appliedPenalty > 0) {
-  message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
-}
-```
-
-Nova lógica:
-```typescript
-if (config.includePenalty) {
-  if (overdueInterest > 0 && appliedPenalty > 0) {
-    // Consolidado
-    message += `💰 *Juros + Multa:* +${formatCurrency(overdueInterest + appliedPenalty)}\n`;
-  } else if (overdueInterest > 0) {
-    message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
-  } else if (appliedPenalty > 0) {
-    message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
-  }
-}
-```
-
-**Função `generateSimpleOverdueMessage()`** (linhas 330-335):
-
-Aplicar mesma consolidação.
-
-### 3. `src/types/billingMessageConfig.ts`
-
-Adicionar nova variável de template para mensagens customizadas:
-
-```typescript
-{ variable: '{JUROS_MULTA}', description: 'Juros + Multa consolidados (quando ambos existem)' }
-```
-
-## Exemplo Visual da Mensagem
-
-**Antes (separado):**
-```text
-💵 *Valor da Parcela:* R$ 1.500,00
-📈 *Juros por Atraso (5d):* +R$ 300,00
-⚠️ *Multa Aplicada:* +R$ 200,00
-💵 *TOTAL A PAGAR:* R$ 2.000,00
-
-💡 *Opções de Pagamento:*
-✅ Valor total: R$ 2.000,00
-⚠️ Só juros + multa: R$ 500,00
-```
-
-**Depois (consolidado):**
-```text
-💵 *Valor da Parcela:* R$ 1.500,00
-💰 *Juros + Multa:* +R$ 500,00
-💵 *TOTAL A PAGAR:* R$ 2.000,00
-
-💡 *Opções de Pagamento:*
-✅ Valor total: R$ 2.000,00
-⚠️ Juros + Multa: R$ 500,00
-   (Parcela de R$ X segue para próximo mês)
-```
-
-**Quando só tem juros (sem multa):**
-```text
-💵 *Valor da Parcela:* R$ 1.500,00
-📈 *Juros por Atraso (5d):* +R$ 300,00
-💵 *TOTAL A PAGAR:* R$ 1.800,00
-
-💡 *Opções de Pagamento:*
-✅ Valor total: R$ 1.800,00
-⚠️ Só juros: R$ 300,00
-   (Parcela de R$ X segue para próximo mês)
-```
-
-## Seção Técnica
-
-### Alteração em `generatePaymentOptions()`
-
-```typescript
-export const generatePaymentOptions = (
-  totalAmount: number,
-  interestAmount: number | undefined,
-  principalAmount: number | undefined,
-  isDaily: boolean | undefined,
-  penaltyAmount?: number,
-  overdueInterestAmount?: number
-): string => {
-  if (!interestAmount || interestAmount <= 0 || isDaily || !principalAmount || principalAmount <= 0) {
-    return '';
-  }
-  
-  const hasOverdueInterest = (overdueInterestAmount || 0) > 0;
-  const hasPenalty = (penaltyAmount || 0) > 0;
-  
-  // Total de encargos (juros contrato + juros atraso + multa)
-  const totalEncargos = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
-  
-  // Valor da parcela original
-  const parcelaOriginal = principalAmount + interestAmount;
-  
-  let message = `💡 *Opções de Pagamento:*\n`;
-  message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
-  
-  if (hasOverdueInterest && hasPenalty) {
-    // Quando tem AMBOS: opção é pagar juros + multa (não só juros)
-    message += `⚠️ Juros + Multa: ${formatCurrency(totalEncargos)}\n`;
-  } else {
-    // Quando tem só juros (ou nenhum encargo extra)
-    message += `⚠️ Só juros: ${formatCurrency(totalEncargos)}\n`;
-  }
-  
-  message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
-  
-  return message;
-};
-```
+| Ação do Usuário | Antes | Depois |
+|-----------------|-------|--------|
+| Fechar e reabrir app | Dados antigos em cache | Busca novos dados do banco |
+| Minimizar e voltar | Dados antigos | Busca novos dados |
+| Navegar para outra aba e voltar | Dados antigos | Busca novos dados |
+| Reconectar internet | Dados antigos | Busca novos dados |
 
 ## Impacto
 
-- Mensagens ficam mais claras e objetivas
-- Cliente entende que quando há multa, não pode pagar só juros
-- Compatível com templates customizados (nova variável {JUROS_MULTA})
+- Dashboard sempre mostrará dados atualizados
+- Número de clientes, empréstimos e valores financeiros serão precisos
+- Pequeno aumento de requisições ao banco (aceitável para garantir dados frescos)
+
+## Seção Técnica
+
+### Alteração Completa em `src/hooks/useVisibilityControl.ts`
+
+```typescript
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
+export function useVisibilityControl() {
+  const queryClient = useQueryClient();
+  
+  useEffect(() => {
+    sessionStorage.setItem('pwa_session_active', 'true');
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sessionStorage.setItem('pwa_session_active', 'true');
+        
+        // Verificar quanto tempo ficou oculto
+        const lastHidden = sessionStorage.getItem('pwa_last_hidden');
+        const hiddenDuration = lastHidden ? Date.now() - parseInt(lastHidden) : 0;
+        
+        // Se ficou oculto por mais de 30 segundos, invalidar cache
+        if (hiddenDuration > 30000) {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+          queryClient.invalidateQueries({ queryKey: ['clients'] });
+        }
+      } else {
+        sessionStorage.setItem('pwa_last_hidden', Date.now().toString());
+      }
+    };
+    
+    // ... resto do código existente
+  }, [queryClient]);
+}
+```
+
+### Alteração em `src/App.tsx`
+
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 1000 * 30, // 30 segundos
+    },
+  },
+});
+
+// Componente interno que usa hooks que dependem dos providers
+const AppContent = () => {
+  useVisibilityControl();
+  useDevToolsProtection();
+  
+  return (
+    <AuthProvider>
+      <EmployeeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AccessDebugPanel />
+            <Routes>
+              {/* ... todas as rotas */}
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </EmployeeProvider>
+    </AuthProvider>
+  );
+};
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AppContent />
+  </QueryClientProvider>
+);
+```
+
