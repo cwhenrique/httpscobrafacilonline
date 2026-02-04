@@ -1,113 +1,77 @@
 
 
-# Plano: Corrigir Abatimento Duplicado em Pagamentos de Parcelas Diárias
+# Diagnóstico: Inconsistência no Empréstimo Brisa Keviene
 
-## Problema Identificado
+## Problema Encontrado
 
-Quando um usuário:
-1. Paga **R$100 parcialmente** em uma parcela diária de R$200
-2. Depois seleciona a **mesma parcela** para pagar os R$100 restantes (usando tipo "parcela")
-
-O sistema registra um pagamento de **R$200** (valor total da parcela) ao invés de **R$100** (valor restante), causando abatimento duplicado do `remaining_balance`.
+O empréstimo mostra:
+- **Restante a receber (remaining_balance):** R$ 150,00
+- **Parcelas em aberto (6 parcelas × R$ 35):** R$ 210,00
+- **Diferença:** R$ 60,00
 
 ## Causa Raiz
 
-Na linha 4190-4192 do `src/pages/Loans.tsx`:
+Analisei os dados e identifiquei **dois problemas sobrepostos**:
 
-```typescript
-} else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-  amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+### 1. Multa não contabilizada no remaining_balance
+- Há uma multa de R$ 20,00 aplicada (`[DAILY_PENALTY:10:20.00]`)
+- Esta multa deveria aumentar o total a receber para R$ 720,00
+- O remaining_balance atual não inclui esse valor
+
+### 2. Taxas de renovação descontadas incorretamente
+- Algumas parcelas foram pagas com valor extra (R$ 55 ao invés de R$ 35)
+- Esses R$ 20 extras por parcela são taxas de renovação
+- Porém foram contabilizados como abatimento do saldo, reduzindo incorretamente o remaining_balance
+
+## Correção Necessária
+
+O remaining_balance correto deveria ser calculado assim:
+```text
+Total original:      R$ 700,00
++ Multa aplicada:    R$  20,00
+= Total a receber:   R$ 720,00
+- Total pago:        R$ 550,00
+= Restante correto:  R$ 170,00
 ```
 
-O código calcula `amount` como o **valor total da parcela** sem descontar os **pagamentos parciais já realizados** (`existingPartials`).
-
-## Solução
-
-Modificar o cálculo do `amount` para descontar os valores já pagos parcialmente:
-
-```typescript
-amount = paymentData.selected_installments.reduce((sum, i) => {
-  const fullValue = getInstallmentValue(i);
-  const alreadyPaid = existingPartials[i] || 0;
-  const remaining = Math.max(0, fullValue - alreadyPaid);
-  return sum + remaining;
-}, 0);
+Porém, considerando que **6 parcelas** ainda estão em aberto (índices 14-19), o cálculo deveria mostrar:
+```text
+6 parcelas × R$ 35 = R$ 210,00 em aberto
++ Multa ainda não paga (R$ 20 - já incluso nos R$ 550?)
 ```
 
-## Arquivo a Modificar
+## Plano de Correção
 
-**`src/pages/Loans.tsx`** - função `handlePaymentSubmit`
+### Opção 1: Correção Manual Pontual
+Atualizar o remaining_balance deste empréstimo específico para o valor correto.
 
-### Alteração Detalhada
+### Opção 2: Correção Sistêmica
+Revisar a lógica de pagamento para garantir que:
+1. Multas (`DAILY_PENALTY`) sejam incluídas no total a receber
+2. Taxas de renovação não reduzam o remaining_balance das parcelas base
 
-| Linha | Antes | Depois |
-|-------|-------|--------|
-| 4190-4192 | `amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);` | `amount = paymentData.selected_installments.reduce((sum, i) => { const fullValue = getInstallmentValue(i); const alreadyPaid = existingPartials[i] \|\| 0; return sum + Math.max(0, fullValue - alreadyPaid); }, 0);` |
+## Correção Imediata Sugerida
 
-### Adicionar validação
+Executar um UPDATE para corrigir o remaining_balance deste empréstimo:
 
-Também precisamos adicionar uma validação para evitar registrar pagamento de R$0 se a parcela já estiver totalmente paga:
-
-```typescript
-if (amount <= 0.01) {
-  toast.error('Esta parcela já está completamente paga');
-  paymentLockRef.current = false;
-  setIsPaymentSubmitting(false;
-  return;
-}
+```sql
+UPDATE loans 
+SET remaining_balance = 210.00,
+    updated_at = NOW()
+WHERE id = '3973df2e-fb4c-4b04-8609-e4516f623092';
 ```
 
-## Cenário de Teste
-
-| Passo | Ação | Esperado |
-|-------|------|----------|
-| 1 | Criar empréstimo diário: principal R$400, 2 parcelas de R$200 | remaining_balance = R$400 |
-| 2 | Pagar R$100 parcialmente na parcela 1 | remaining_balance = R$300 |
-| 3 | Selecionar parcela 1 para pagar "como parcela" | Sistema deve registrar apenas R$100 (restante) |
-| 4 | Verificar remaining_balance | Deve ser R$200 (não R$100 ou R$0) |
-
-## Impacto
-
-- Corrige o bug de abatimento duplicado em empréstimos diários
-- Mantém compatibilidade com empréstimos mensais/semanais
-- Não afeta pagamentos totais ou descontos
+O valor R$ 210,00 corresponde às 6 parcelas ainda não pagas (índices 14-19).
 
 ## Seção Técnica
 
-### Código Completo da Correção
+A investigação revelou que o trigger `recalculate_loan_total_paid` pode não estar considerando corretamente:
+- Tags `[DAILY_PENALTY]` para incluir multas no saldo
+- A distinção entre pagamento de parcela base vs taxa de renovação
 
-```typescript
-// Linha ~4190-4199 em handlePaymentSubmit
-} else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-  // 🆕 CORREÇÃO: Calcular valor restante da parcela descontando pagamentos parciais já feitos
-  amount = paymentData.selected_installments.reduce((sum, i) => {
-    const fullValue = getInstallmentValue(i);
-    const alreadyPaid = existingPartials[i] || 0;
-    const remaining = Math.max(0, fullValue - alreadyPaid);
-    return sum + remaining;
-  }, 0);
-  
-  // 🆕 Validar se há valor a pagar
-  if (amount <= 0.01) {
-    toast.error('Parcela(s) selecionada(s) já está(ão) completamente paga(s)');
-    paymentLockRef.current = false;
-    setIsPaymentSubmitting(false);
-    return;
-  }
-  
-  // Calcular juros e principal proporcionalmente ao valor efetivamente pago
-  const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
-  const actualBaseTotal = paymentData.selected_installments.reduce((sum, i) => {
-    const fullValue = getInstallmentValue(i);
-    const alreadyPaid = existingPartials[i] || 0;
-    return sum + Math.max(0, fullValue - alreadyPaid);
-  }, 0);
-  
-  // Proporção do valor base que está sendo pago
-  const paymentRatio = actualBaseTotal / baseTotal || 0;
-  
-  interest_paid = interestPerInstallment * paymentData.selected_installments.length * paymentRatio;
-  principal_paid = principalPerInstallment * paymentData.selected_installments.length * paymentRatio;
-}
-```
+Os arquivos envolvidos seriam:
+- `src/pages/Loans.tsx` - lógica de registro de pagamento
+- Trigger PostgreSQL `recalculate_loan_total_paid` - recálculo automático do saldo
+
+Deseja que eu corrija o remaining_balance deste empréstimo e/ou investigue a causa sistêmica para evitar reincidência?
 
