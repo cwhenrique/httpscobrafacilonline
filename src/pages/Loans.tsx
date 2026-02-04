@@ -4188,15 +4188,43 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_paid = Math.min(amount, remainingInterest);
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-      // Paying selected installments - somar valor real de cada parcela (incluindo taxa extra se aplicável)
-      amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+      // 🆕 CORREÇÃO: Função helper para extrair pagamentos parciais do notes (definida aqui para uso imediato)
+      const getPartialsForCalc = (notes: string | null): Record<number, number> => {
+        const payments: Record<number, number> = {};
+        const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
+        for (const match of matches) {
+          payments[parseInt(match[1])] = parseFloat(match[2]);
+        }
+        return payments;
+      };
+      const partialsForCalc = getPartialsForCalc(selectedLoan.notes);
       
-      // Calcular juros e principal proporcionalmente
+      // 🆕 CORREÇÃO: Calcular valor restante da parcela descontando pagamentos parciais já feitos
+      amount = paymentData.selected_installments.reduce((sum, i) => {
+        const fullValue = getInstallmentValue(i);
+        const alreadyPaid = partialsForCalc[i] || 0;
+        const remaining = Math.max(0, fullValue - alreadyPaid);
+        return sum + remaining;
+      }, 0);
+      
+      // 🆕 Validar se há valor a pagar
+      if (amount <= 0.01) {
+        toast.error('Parcela(s) selecionada(s) já está(ão) completamente paga(s)');
+        paymentLockRef.current = false;
+        setIsPaymentSubmitting(false);
+        return;
+      }
+      
+      // Calcular juros e principal proporcionalmente ao valor efetivamente pago
+      const fullInstallmentsTotal = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
       const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
-      const extraAmount = amount - baseTotal; // Valor extra da taxa de renovação
+      const extraAmount = fullInstallmentsTotal - baseTotal; // Valor extra da taxa de renovação
       
-      interest_paid = (interestPerInstallment * paymentData.selected_installments.length) + extraAmount;
-      principal_paid = principalPerInstallment * paymentData.selected_installments.length;
+      // Proporção do valor que está sendo efetivamente pago
+      const paymentRatio = fullInstallmentsTotal > 0 ? amount / fullInstallmentsTotal : 0;
+      
+      interest_paid = ((interestPerInstallment * paymentData.selected_installments.length) + extraAmount) * paymentRatio;
+      principal_paid = principalPerInstallment * paymentData.selected_installments.length * paymentRatio;
     } else {
       // Partial payment - permite pagar menos que uma parcela
       amount = parseFloat(paymentData.amount);
