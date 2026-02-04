@@ -239,12 +239,15 @@ export default function SendOverdueNotification({
         message += `⏰ *Dias em Atraso:* ${data.daysOverdue}\n`;
       }
       
-      if (config.includePenalty && overdueInterest > 0) {
-        message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
-      }
-      
-      if (config.includePenalty && appliedPenalty > 0) {
-        message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
+      if (config.includePenalty) {
+        if (overdueInterest > 0 && appliedPenalty > 0) {
+          // Consolidado quando ambos existem
+          message += `💰 *Juros + Multa:* +${formatCurrency(overdueInterest + appliedPenalty)}\n`;
+        } else if (overdueInterest > 0) {
+          message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
+        } else if (appliedPenalty > 0) {
+          message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
+        }
       }
       
       if (config.includeAmount && totalExtras > 0) {
@@ -327,10 +330,12 @@ export default function SendOverdueNotification({
     const totalExtras = appliedPenalty + overdueInterest;
     const totalAmount = data.amount + totalExtras;
     
-    if (overdueInterest > 0) {
+    if (overdueInterest > 0 && appliedPenalty > 0) {
+      // Consolidado quando ambos existem
+      message += `💰 *Juros + Multa:* +${formatCurrency(overdueInterest + appliedPenalty)}\n`;
+    } else if (overdueInterest > 0) {
       message += `📈 *Juros:* +${formatCurrency(overdueInterest)}\n`;
-    }
-    if (appliedPenalty > 0) {
+    } else if (appliedPenalty > 0) {
       message += `⚠️ *Multa:* +${formatCurrency(appliedPenalty)}\n`;
     }
     
