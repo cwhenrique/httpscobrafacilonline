@@ -140,7 +140,7 @@ export default function Dashboard() {
     },
     {
       title: 'Clientes',
-      value: stats.activeClients.toString(),
+      value: stats.totalClients.toString(),
       subtitle: 'cadastrados',
       icon: Users,
       color: 'text-primary',

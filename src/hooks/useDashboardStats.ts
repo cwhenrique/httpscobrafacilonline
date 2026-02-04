@@ -12,6 +12,7 @@ export interface DashboardStats {
   overdueCount: number;
   upcomingDue: number;
   activeClients: number;
+  totalClients: number;
   // New metrics
   contractsThisWeek: number;
   receivedThisWeek: number;
@@ -35,6 +36,7 @@ const defaultStats: DashboardStats = {
   overdueCount: 0,
   upcomingDue: 0,
   activeClients: 0,
+  totalClients: 0,
   contractsThisWeek: 0,
   receivedThisWeek: 0,
   dueToday: 0,
@@ -68,6 +70,7 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
     { data: productPaymentsThisWeek },
     { data: vehiclePaymentsThisWeek },
     { data: contractPaymentsThisWeek },
+    { count: clientsCount },
   ] = await Promise.all([
     // Função RPC para estatísticas principais (otimizada no banco)
     supabase.rpc('get_dashboard_stats', { p_user_id: userId }),
@@ -84,6 +87,8 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
     supabase.from('product_sale_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
     supabase.from('vehicle_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
     supabase.from('contract_payments').select('amount').eq('status', 'paid').gte('paid_date', weekAgoStr).lte('paid_date', todayStr),
+    // Total de clientes cadastrados
+    supabase.from('clients').select('id', { count: 'exact', head: true }).eq('user_id', userId),
   ]);
 
   if (loanStatsError) {
@@ -139,6 +144,7 @@ async function fetchDashboardStats(userId: string): Promise<DashboardStats> {
     overdueCount: Number(rpcData?.overdue_count || 0),
     upcomingDue: 0, // Removido para performance - pode ser adicionado depois se necessário
     activeClients: Number(rpcData?.active_clients || 0),
+    totalClients: clientsCount || 0,
     contractsThisWeek: contractsThisWeekTotal,
     receivedThisWeek,
     dueToday: Number(rpcData?.due_today_count || 0),
