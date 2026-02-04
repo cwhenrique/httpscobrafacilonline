@@ -1,186 +1,113 @@
 
 
-# Plano: Garantir Atualização dos Dados do Dashboard ao Reabrir o App
+# Plano: Corrigir Abatimento Duplicado em Pagamentos de Parcelas Diárias
 
 ## Problema Identificado
 
-Os dados do Dashboard (número de clientes, empréstimos, etc.) **não atualizam** quando o usuário fecha e reabre o app (PWA). Isso acontece por:
+Quando um usuário:
+1. Paga **R$100 parcialmente** em uma parcela diária de R$200
+2. Depois seleciona a **mesma parcela** para pagar os R$100 restantes (usando tipo "parcela")
 
-1. **QueryClient global** configurado com `refetchOnWindowFocus: false` (linha 45 do App.tsx)
-2. **staleTime de 5 minutos** no nível global mantém cache por muito tempo
-3. O hook `useVisibilityControl` não invalida o cache ao retornar ao app
-4. Mesmo que hooks individuais tentem `refetchOnWindowFocus: true`, a config global tem precedência parcial
+O sistema registra um pagamento de **R$200** (valor total da parcela) ao invés de **R$100** (valor restante), causando abatimento duplicado do `remaining_balance`.
+
+## Causa Raiz
+
+Na linha 4190-4192 do `src/pages/Loans.tsx`:
+
+```typescript
+} else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+  amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
+```
+
+O código calcula `amount` como o **valor total da parcela** sem descontar os **pagamentos parciais já realizados** (`existingPartials`).
 
 ## Solução
 
-### 1. Atualizar QueryClient Global (`src/App.tsx`)
-
-Alterar a configuração do QueryClient para permitir refetch ao focar a janela:
+Modificar o cálculo do `amount` para descontar os valores já pagos parcialmente:
 
 ```typescript
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: true,   // ← Habilitar refetch ao voltar
-      refetchOnReconnect: true,     // ← Habilitar refetch ao reconectar
-      staleTime: 1000 * 30,         // ← Reduzir para 30 segundos
-    },
-  },
-});
+amount = paymentData.selected_installments.reduce((sum, i) => {
+  const fullValue = getInstallmentValue(i);
+  const alreadyPaid = existingPartials[i] || 0;
+  const remaining = Math.max(0, fullValue - alreadyPaid);
+  return sum + remaining;
+}, 0);
 ```
 
-### 2. Aprimorar `useVisibilityControl` (`src/hooks/useVisibilityControl.ts`)
+## Arquivo a Modificar
 
-Adicionar invalidação do cache quando o app volta a ficar visível:
+**`src/pages/Loans.tsx`** - função `handlePaymentSubmit`
+
+### Alteração Detalhada
+
+| Linha | Antes | Depois |
+|-------|-------|--------|
+| 4190-4192 | `amount = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);` | `amount = paymentData.selected_installments.reduce((sum, i) => { const fullValue = getInstallmentValue(i); const alreadyPaid = existingPartials[i] \|\| 0; return sum + Math.max(0, fullValue - alreadyPaid); }, 0);` |
+
+### Adicionar validação
+
+Também precisamos adicionar uma validação para evitar registrar pagamento de R$0 se a parcela já estiver totalmente paga:
 
 ```typescript
-import { useQueryClient } from '@tanstack/react-query';
-
-export function useVisibilityControl() {
-  const queryClient = useQueryClient();
-  
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Voltou ao app - invalidar queries principais para buscar dados frescos
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['loans'] });
-        queryClient.invalidateQueries({ queryKey: ['clients'] });
-      }
-    };
-    // ...resto do código
-  }, [queryClient]);
+if (amount <= 0.01) {
+  toast.error('Esta parcela já está completamente paga');
+  paymentLockRef.current = false;
+  setIsPaymentSubmitting(false;
+  return;
 }
 ```
 
-### 3. Mover `useVisibilityControl` para Dentro do Provider
+## Cenário de Teste
 
-Como `useVisibilityControl` usará `useQueryClient`, ele precisa estar **dentro** do `QueryClientProvider`. Criar um componente wrapper:
-
-```typescript
-// src/components/AppProviders.tsx ou inline no App.tsx
-const AppContent = () => {
-  useVisibilityControl();
-  useDevToolsProtection();
-  
-  return (
-    <AuthProvider>
-      <EmployeeProvider>
-        {/* ... resto do app */}
-      </EmployeeProvider>
-    </AuthProvider>
-  );
-};
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AppContent />
-  </QueryClientProvider>
-);
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/App.tsx` | Atualizar QueryClient config e reestruturar hooks |
-| `src/hooks/useVisibilityControl.ts` | Adicionar invalidação de cache ao voltar |
-
-## Comportamento Esperado
-
-| Ação do Usuário | Antes | Depois |
-|-----------------|-------|--------|
-| Fechar e reabrir app | Dados antigos em cache | Busca novos dados do banco |
-| Minimizar e voltar | Dados antigos | Busca novos dados |
-| Navegar para outra aba e voltar | Dados antigos | Busca novos dados |
-| Reconectar internet | Dados antigos | Busca novos dados |
+| Passo | Ação | Esperado |
+|-------|------|----------|
+| 1 | Criar empréstimo diário: principal R$400, 2 parcelas de R$200 | remaining_balance = R$400 |
+| 2 | Pagar R$100 parcialmente na parcela 1 | remaining_balance = R$300 |
+| 3 | Selecionar parcela 1 para pagar "como parcela" | Sistema deve registrar apenas R$100 (restante) |
+| 4 | Verificar remaining_balance | Deve ser R$200 (não R$100 ou R$0) |
 
 ## Impacto
 
-- Dashboard sempre mostrará dados atualizados
-- Número de clientes, empréstimos e valores financeiros serão precisos
-- Pequeno aumento de requisições ao banco (aceitável para garantir dados frescos)
+- Corrige o bug de abatimento duplicado em empréstimos diários
+- Mantém compatibilidade com empréstimos mensais/semanais
+- Não afeta pagamentos totais ou descontos
 
 ## Seção Técnica
 
-### Alteração Completa em `src/hooks/useVisibilityControl.ts`
+### Código Completo da Correção
 
 ```typescript
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-
-export function useVisibilityControl() {
-  const queryClient = useQueryClient();
+// Linha ~4190-4199 em handlePaymentSubmit
+} else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+  // 🆕 CORREÇÃO: Calcular valor restante da parcela descontando pagamentos parciais já feitos
+  amount = paymentData.selected_installments.reduce((sum, i) => {
+    const fullValue = getInstallmentValue(i);
+    const alreadyPaid = existingPartials[i] || 0;
+    const remaining = Math.max(0, fullValue - alreadyPaid);
+    return sum + remaining;
+  }, 0);
   
-  useEffect(() => {
-    sessionStorage.setItem('pwa_session_active', 'true');
-    
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        sessionStorage.setItem('pwa_session_active', 'true');
-        
-        // Verificar quanto tempo ficou oculto
-        const lastHidden = sessionStorage.getItem('pwa_last_hidden');
-        const hiddenDuration = lastHidden ? Date.now() - parseInt(lastHidden) : 0;
-        
-        // Se ficou oculto por mais de 30 segundos, invalidar cache
-        if (hiddenDuration > 30000) {
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-          queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
-          queryClient.invalidateQueries({ queryKey: ['loans'] });
-          queryClient.invalidateQueries({ queryKey: ['clients'] });
-        }
-      } else {
-        sessionStorage.setItem('pwa_last_hidden', Date.now().toString());
-      }
-    };
-    
-    // ... resto do código existente
-  }, [queryClient]);
+  // 🆕 Validar se há valor a pagar
+  if (amount <= 0.01) {
+    toast.error('Parcela(s) selecionada(s) já está(ão) completamente paga(s)');
+    paymentLockRef.current = false;
+    setIsPaymentSubmitting(false);
+    return;
+  }
+  
+  // Calcular juros e principal proporcionalmente ao valor efetivamente pago
+  const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
+  const actualBaseTotal = paymentData.selected_installments.reduce((sum, i) => {
+    const fullValue = getInstallmentValue(i);
+    const alreadyPaid = existingPartials[i] || 0;
+    return sum + Math.max(0, fullValue - alreadyPaid);
+  }, 0);
+  
+  // Proporção do valor base que está sendo pago
+  const paymentRatio = actualBaseTotal / baseTotal || 0;
+  
+  interest_paid = interestPerInstallment * paymentData.selected_installments.length * paymentRatio;
+  principal_paid = principalPerInstallment * paymentData.selected_installments.length * paymentRatio;
 }
-```
-
-### Alteração em `src/App.tsx`
-
-```typescript
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-      staleTime: 1000 * 30, // 30 segundos
-    },
-  },
-});
-
-// Componente interno que usa hooks que dependem dos providers
-const AppContent = () => {
-  useVisibilityControl();
-  useDevToolsProtection();
-  
-  return (
-    <AuthProvider>
-      <EmployeeProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AccessDebugPanel />
-            <Routes>
-              {/* ... todas as rotas */}
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </EmployeeProvider>
-    </AuthProvider>
-  );
-};
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AppContent />
-  </QueryClientProvider>
-);
 ```
 
