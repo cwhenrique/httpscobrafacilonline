@@ -1,48 +1,167 @@
 
+# Plano: Consolidar Juros + Multa e Ajustar Opções de Pagamento
 
-# Plano: Corrigir Datas Duplicadas do Empréstimo Maria de Jesus
+## Resumo da Solicitação
 
-## Problema Identificado
+Quando houver **juros por atraso** E **multa**, a mensagem deve:
+1. Mostrar os encargos **consolidados** em uma única linha
+2. Nas opções de pagamento, oferecer **"pagar juros + multa"** (não só juros)
 
-O empréstimo da cliente **Maria de Jesus da Silva Lima** do usuário **nadinbnd53@gmail.com** (Ray Dias) possui duas parcelas com a mesma data:
+## Comportamento Esperado
 
-- **ID do Empréstimo:** `3a66c416-dba5-4a83-948f-9ed42271013f`
-- **Parcelas atuais:** `[2026-02-04, 2026-02-04, 2026-03-04, ...]`
-- **Erro:** Parcelas 1 e 2 estão com a mesma data (04/02/2026)
+| Cenário | Exibição Encargos | Opções de Pagamento |
+|---------|-------------------|---------------------|
+| Só juros (R$ 300) | 📈 Juros por Atraso: R$ 300 | ✅ Total: R$ 1.800 / ⚠️ Só juros: R$ 300 |
+| Só multa (R$ 200) | ⚠️ Multa Aplicada: R$ 200 | ✅ Total: R$ 1.700 (sem opção "só multa") |
+| Juros + Multa (R$ 300 + R$ 200) | 💰 Juros + Multa: R$ 500 | ✅ Total: R$ 2.000 / ⚠️ Juros + Multa: R$ 500 |
 
-## Correção Necessária
+## Arquivos a Modificar
 
-Considerando que o `start_date` é 04/01/2026 e são 12 parcelas mensais, a primeira parcela deveria ser em Janeiro, não Fevereiro duplicado.
+### 1. `src/lib/messageUtils.ts`
 
-**Datas corrigidas:**
+**Função `replaceTemplateVariables()`** - Consolidar encargos:
+
+Atualmente gera linhas separadas:
 ```text
-1.  04/01/2026  (era 04/02 duplicado)
-2.  04/02/2026
-3.  04/03/2026
-4.  04/04/2026
-5.  04/05/2026
-6.  04/06/2026
-7.  04/07/2026
-8.  04/08/2026
-9.  04/09/2026
-10. 04/10/2026
-11. 04/11/2026
-12. 04/12/2026
+{MULTA} → "⚠️ *Multa Aplicada:* +R$ 200,00"
+{JUROS} → "📈 *Juros por Atraso:* +R$ 300,00"
 ```
 
-## Ação
+Nova lógica:
+- Se **ambos > 0**: consolidar em uma linha `💰 *Juros + Multa:* R$ 500,00`
+- Se **só um**: manter linha individual correspondente
 
-Executar UPDATE direto no banco de dados para corrigir o array `installment_dates`:
+**Função `generatePaymentOptions()`** - Ajustar opções:
 
-```sql
-UPDATE loans
-SET installment_dates = '["2026-01-04", "2026-02-04", "2026-03-04", "2026-04-04", "2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04", "2026-09-04", "2026-10-04", "2026-11-04", "2026-12-04"]'::jsonb
-WHERE id = '3a66c416-dba5-4a83-948f-9ed42271013f';
+Atualmente sempre mostra "Só juros + multa" quando há encargos.
+
+Nova lógica:
+- Se **só juros** (multa = 0): mostrar `⚠️ Só juros: R$ X`
+- Se **juros + multa**: mostrar `⚠️ Juros + Multa: R$ X` (deixando claro que não dá pra pagar só juros)
+
+### 2. `src/components/SendOverdueNotification.tsx`
+
+**Função `generateOverdueMessage()`** (linhas 242-248):
+
+Atualmente:
+```typescript
+if (config.includePenalty && overdueInterest > 0) {
+  message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
+}
+if (config.includePenalty && appliedPenalty > 0) {
+  message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
+}
 ```
 
-## Resultado Esperado
+Nova lógica:
+```typescript
+if (config.includePenalty) {
+  if (overdueInterest > 0 && appliedPenalty > 0) {
+    // Consolidado
+    message += `💰 *Juros + Multa:* +${formatCurrency(overdueInterest + appliedPenalty)}\n`;
+  } else if (overdueInterest > 0) {
+    message += `📈 *Juros por Atraso (${data.daysOverdue}d):* +${formatCurrency(overdueInterest)}\n`;
+  } else if (appliedPenalty > 0) {
+    message += `⚠️ *Multa Aplicada:* +${formatCurrency(appliedPenalty)}\n`;
+  }
+}
+```
 
-1. As 12 parcelas terão datas únicas e sequenciais (dia 04 de cada mês)
-2. O calendário exibirá corretamente cada parcela
-3. O empréstimo funcionará normalmente para registro de pagamentos
+**Função `generateSimpleOverdueMessage()`** (linhas 330-335):
 
+Aplicar mesma consolidação.
+
+### 3. `src/types/billingMessageConfig.ts`
+
+Adicionar nova variável de template para mensagens customizadas:
+
+```typescript
+{ variable: '{JUROS_MULTA}', description: 'Juros + Multa consolidados (quando ambos existem)' }
+```
+
+## Exemplo Visual da Mensagem
+
+**Antes (separado):**
+```text
+💵 *Valor da Parcela:* R$ 1.500,00
+📈 *Juros por Atraso (5d):* +R$ 300,00
+⚠️ *Multa Aplicada:* +R$ 200,00
+💵 *TOTAL A PAGAR:* R$ 2.000,00
+
+💡 *Opções de Pagamento:*
+✅ Valor total: R$ 2.000,00
+⚠️ Só juros + multa: R$ 500,00
+```
+
+**Depois (consolidado):**
+```text
+💵 *Valor da Parcela:* R$ 1.500,00
+💰 *Juros + Multa:* +R$ 500,00
+💵 *TOTAL A PAGAR:* R$ 2.000,00
+
+💡 *Opções de Pagamento:*
+✅ Valor total: R$ 2.000,00
+⚠️ Juros + Multa: R$ 500,00
+   (Parcela de R$ X segue para próximo mês)
+```
+
+**Quando só tem juros (sem multa):**
+```text
+💵 *Valor da Parcela:* R$ 1.500,00
+📈 *Juros por Atraso (5d):* +R$ 300,00
+💵 *TOTAL A PAGAR:* R$ 1.800,00
+
+💡 *Opções de Pagamento:*
+✅ Valor total: R$ 1.800,00
+⚠️ Só juros: R$ 300,00
+   (Parcela de R$ X segue para próximo mês)
+```
+
+## Seção Técnica
+
+### Alteração em `generatePaymentOptions()`
+
+```typescript
+export const generatePaymentOptions = (
+  totalAmount: number,
+  interestAmount: number | undefined,
+  principalAmount: number | undefined,
+  isDaily: boolean | undefined,
+  penaltyAmount?: number,
+  overdueInterestAmount?: number
+): string => {
+  if (!interestAmount || interestAmount <= 0 || isDaily || !principalAmount || principalAmount <= 0) {
+    return '';
+  }
+  
+  const hasOverdueInterest = (overdueInterestAmount || 0) > 0;
+  const hasPenalty = (penaltyAmount || 0) > 0;
+  
+  // Total de encargos (juros contrato + juros atraso + multa)
+  const totalEncargos = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
+  
+  // Valor da parcela original
+  const parcelaOriginal = principalAmount + interestAmount;
+  
+  let message = `💡 *Opções de Pagamento:*\n`;
+  message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
+  
+  if (hasOverdueInterest && hasPenalty) {
+    // Quando tem AMBOS: opção é pagar juros + multa (não só juros)
+    message += `⚠️ Juros + Multa: ${formatCurrency(totalEncargos)}\n`;
+  } else {
+    // Quando tem só juros (ou nenhum encargo extra)
+    message += `⚠️ Só juros: ${formatCurrency(totalEncargos)}\n`;
+  }
+  
+  message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
+  
+  return message;
+};
+```
+
+## Impacto
+
+- Mensagens ficam mais claras e objetivas
+- Cliente entende que quando há multa, não pode pagar só juros
+- Compatível com templates customizados (nova variável {JUROS_MULTA})
