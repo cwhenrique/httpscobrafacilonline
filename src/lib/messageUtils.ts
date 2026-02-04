@@ -188,15 +188,26 @@ export const generatePaymentOptions = (
     return '';
   }
   
-  // "Só juros + multa" = juros do contrato + juros por atraso + multa
-  const totalInterestAndPenalties = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
+  const hasOverdueInterest = (overdueInterestAmount || 0) > 0;
+  const hasPenalty = (penaltyAmount || 0) > 0;
+  
+  // Total de encargos (juros contrato + juros atraso + multa)
+  const totalEncargos = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
   
   // Valor da parcela original (principal + juros do contrato)
   const parcelaOriginal = principalAmount + interestAmount;
   
   let message = `💡 *Opções de Pagamento:*\n`;
   message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
-  message += `⚠️ Só juros + multa: ${formatCurrency(totalInterestAndPenalties)}\n`;
+  
+  if (hasOverdueInterest && hasPenalty) {
+    // Quando tem AMBOS: opção é pagar juros + multa (não só juros)
+    message += `⚠️ Juros + Multa: ${formatCurrency(totalEncargos)}\n`;
+  } else {
+    // Quando tem só juros (ou nenhum encargo extra)
+    message += `⚠️ Só juros: ${formatCurrency(totalEncargos)}\n`;
+  }
+  
   message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   
   return message;
@@ -251,15 +262,25 @@ export const replaceTemplateVariables = (
     ? `Parcela ${data.installmentNumber}/${data.totalInstallments}`
     : 'Pagamento';
 
-  // Linhas condicionais para multa, juros e total
+  // Linhas condicionais para multa, juros e total - consolidados quando ambos existem
+  const hasJuros = data.overdueInterestAmount && data.overdueInterestAmount > 0;
+  const hasMulta = data.penaltyAmount && data.penaltyAmount > 0;
+  
   let multaLine = '';
-  if (data.penaltyAmount && data.penaltyAmount > 0) {
-    multaLine = `⚠️ *Multa Aplicada:* +${formatCurrency(data.penaltyAmount)}\n`;
-  }
-
   let jurosLine = '';
-  if (data.overdueInterestAmount && data.overdueInterestAmount > 0) {
-    jurosLine = `📈 *Juros por Atraso:* +${formatCurrency(data.overdueInterestAmount)}\n`;
+  let jurosMultaLine = '';
+  
+  if (hasJuros && hasMulta) {
+    // Consolidar em uma linha só
+    const totalEncargos = (data.overdueInterestAmount || 0) + (data.penaltyAmount || 0);
+    jurosMultaLine = `💰 *Juros + Multa:* +${formatCurrency(totalEncargos)}\n`;
+  } else {
+    if (hasMulta) {
+      multaLine = `⚠️ *Multa Aplicada:* +${formatCurrency(data.penaltyAmount!)}\n`;
+    }
+    if (hasJuros) {
+      jurosLine = `📈 *Juros por Atraso:* +${formatCurrency(data.overdueInterestAmount!)}\n`;
+    }
   }
 
   let totalLine = '';
@@ -294,6 +315,7 @@ export const replaceTemplateVariables = (
     .replace(/\{DIAS_PARA_VENCER\}/g, String(data.daysUntilDue || 0))
     .replace(/\{MULTA\}/g, multaLine)
     .replace(/\{JUROS\}/g, jurosLine)
+    .replace(/\{JUROS_MULTA\}/g, jurosMultaLine)
     .replace(/\{TOTAL\}/g, totalLine)
     .replace(/\{PROGRESSO\}/g, progressBar)
     .replace(/\{PIX\}/g, pixSection)
