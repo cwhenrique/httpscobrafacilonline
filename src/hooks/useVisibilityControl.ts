@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function useVisibilityControl() {
+  const queryClient = useQueryClient();
+  
   useEffect(() => {
     // Marcar que o app está ativo na sessão
     sessionStorage.setItem('pwa_session_active', 'true');
@@ -9,6 +12,19 @@ export function useVisibilityControl() {
       if (document.visibilityState === 'visible') {
         // Voltou ao app - apenas manter sessão ativa
         sessionStorage.setItem('pwa_session_active', 'true');
+        
+        // Verificar quanto tempo ficou oculto
+        const lastHidden = sessionStorage.getItem('pwa_last_hidden');
+        const hiddenDuration = lastHidden ? Date.now() - parseInt(lastHidden) : 0;
+        
+        // Se ficou oculto por mais de 30 segundos, invalidar cache para buscar dados frescos
+        if (hiddenDuration > 30000) {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+          queryClient.invalidateQueries({ queryKey: ['clients'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-health'] });
+        }
       } else {
         // Saiu do app - registrar momento
         sessionStorage.setItem('pwa_last_hidden', Date.now().toString());
@@ -52,5 +68,5 @@ export function useVisibilityControl() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []);
+  }, [queryClient]);
 }
