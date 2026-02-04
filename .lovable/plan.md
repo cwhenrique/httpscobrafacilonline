@@ -1,77 +1,128 @@
 
 
-# Diagnóstico: Inconsistência no Empréstimo Brisa Keviene
+# Plano: Mostrar Total de Clientes Cadastrados no Dashboard
 
-## Problema Encontrado
+## Problema Identificado
 
-O empréstimo mostra:
-- **Restante a receber (remaining_balance):** R$ 150,00
-- **Parcelas em aberto (6 parcelas × R$ 35):** R$ 210,00
-- **Diferença:** R$ 60,00
+O card "Clientes" no Dashboard mostra **2** quando o usuário tem **7 clientes cadastrados**.
 
-## Causa Raiz
-
-Analisei os dados e identifiquei **dois problemas sobrepostos**:
-
-### 1. Multa não contabilizada no remaining_balance
-- Há uma multa de R$ 20,00 aplicada (`[DAILY_PENALTY:10:20.00]`)
-- Esta multa deveria aumentar o total a receber para R$ 720,00
-- O remaining_balance atual não inclui esse valor
-
-### 2. Taxas de renovação descontadas incorretamente
-- Algumas parcelas foram pagas com valor extra (R$ 55 ao invés de R$ 35)
-- Esses R$ 20 extras por parcela são taxas de renovação
-- Porém foram contabilizados como abatimento do saldo, reduzindo incorretamente o remaining_balance
-
-## Correção Necessária
-
-O remaining_balance correto deveria ser calculado assim:
-```text
-Total original:      R$ 700,00
-+ Multa aplicada:    R$  20,00
-= Total a receber:   R$ 720,00
-- Total pago:        R$ 550,00
-= Restante correto:  R$ 170,00
-```
-
-Porém, considerando que **6 parcelas** ainda estão em aberto (índices 14-19), o cálculo deveria mostrar:
-```text
-6 parcelas × R$ 35 = R$ 210,00 em aberto
-+ Multa ainda não paga (R$ 20 - já incluso nos R$ 550?)
-```
-
-## Plano de Correção
-
-### Opção 1: Correção Manual Pontual
-Atualizar o remaining_balance deste empréstimo específico para o valor correto.
-
-### Opção 2: Correção Sistêmica
-Revisar a lógica de pagamento para garantir que:
-1. Multas (`DAILY_PENALTY`) sejam incluídas no total a receber
-2. Taxas de renovação não reduzam o remaining_balance das parcelas base
-
-## Correção Imediata Sugerida
-
-Executar um UPDATE para corrigir o remaining_balance deste empréstimo:
+**Causa:** O campo `activeClients` vem da função RPC `get_dashboard_stats` que conta apenas **clientes com empréstimos ativos**:
 
 ```sql
-UPDATE loans 
-SET remaining_balance = 210.00,
-    updated_at = NOW()
-WHERE id = '3973df2e-fb4c-4b04-8609-e4516f623092';
+COUNT(DISTINCT CASE WHEN l.status != 'paid' THEN l.client_id END) as active_clients
 ```
 
-O valor R$ 210,00 corresponde às 6 parcelas ainda não pagas (índices 14-19).
+O usuário tem 7 clientes cadastrados, mas apenas 2 deles possuem empréstimos não pagos.
+
+## Solução
+
+Adicionar uma nova consulta para contar o **total de clientes cadastrados** e usar esse valor no Dashboard.
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useDashboardStats.ts` | Adicionar query para contar total de clientes |
+| `src/pages/Dashboard.tsx` | Usar o novo campo `totalClients` no card |
+
+## Alterações Detalhadas
+
+### 1. `src/hooks/useDashboardStats.ts`
+
+Adicionar nova propriedade `totalClients` na interface e buscar via `Promise.all`:
+
+```typescript
+// Na interface DashboardStats, adicionar:
+totalClients: number;
+
+// No fetchDashboardStats, adicionar query:
+{ count: clientsCount },  // Nova query
+
+// No Promise.all:
+supabase.from('clients').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+
+// No return:
+totalClients: clientsCount || 0,
+```
+
+### 2. `src/pages/Dashboard.tsx`
+
+Alterar o card de Clientes para usar `totalClients`:
+
+```typescript
+// Antes:
+{
+  title: 'Clientes',
+  value: stats.activeClients.toString(),
+  subtitle: 'cadastrados',
+  ...
+}
+
+// Depois:
+{
+  title: 'Clientes',
+  value: stats.totalClients.toString(),
+  subtitle: 'cadastrados',
+  ...
+}
+```
+
+## Resultado Esperado
+
+| Antes | Depois |
+|-------|--------|
+| Clientes: 2 (com empréstimos ativos) | Clientes: 7 (total cadastrados) |
+
+O card agora refletirá o total real de clientes na aba Clientes.
 
 ## Seção Técnica
 
-A investigação revelou que o trigger `recalculate_loan_total_paid` pode não estar considerando corretamente:
-- Tags `[DAILY_PENALTY]` para incluir multas no saldo
-- A distinção entre pagamento de parcela base vs taxa de renovação
+### Código Completo - `useDashboardStats.ts`
 
-Os arquivos envolvidos seriam:
-- `src/pages/Loans.tsx` - lógica de registro de pagamento
-- Trigger PostgreSQL `recalculate_loan_total_paid` - recálculo automático do saldo
+```typescript
+// Interface atualizada
+export interface DashboardStats {
+  // ... campos existentes ...
+  totalClients: number;  // NOVO
+}
 
-Deseja que eu corrija o remaining_balance deste empréstimo e/ou investigue a causa sistêmica para evitar reincidência?
+// Default stats
+const defaultStats: DashboardStats = {
+  // ... campos existentes ...
+  totalClients: 0,  // NOVO
+};
+
+// Na função fetchDashboardStats, adicionar ao Promise.all:
+const [
+  { data: loanStats, error: loanStatsError },
+  { count: loanCount },
+  // ... outros counts ...
+  { count: clientsCount },  // NOVO - Total de clientes cadastrados
+] = await Promise.all([
+  supabase.rpc('get_dashboard_stats', { p_user_id: userId }),
+  // ... queries existentes ...
+  supabase.from('clients').select('id', { count: 'exact', head: true }).eq('user_id', userId),  // NOVO
+]);
+
+// No return:
+return {
+  // ... campos existentes ...
+  activeClients: Number(rpcData?.active_clients || 0),  // Manter para compatibilidade
+  totalClients: clientsCount || 0,  // NOVO
+};
+```
+
+### Código Completo - `Dashboard.tsx`
+
+```typescript
+// No array financialCards, alterar:
+{
+  title: 'Clientes',
+  value: stats.totalClients.toString(),  // Alterado de activeClients para totalClients
+  subtitle: 'cadastrados',
+  icon: Users,
+  color: 'text-primary',
+  bg: 'bg-primary/10',
+},
+```
 
