@@ -15,13 +15,14 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 interface IPTVDashboardProps {
   fees: MonthlyFee[];
   payments: MonthlyFeePayment[];
+  serverCost?: number;
 }
 
 const formatCurrency = (value: number) => {
   return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 };
 
-export default function IPTVDashboard({ fees, payments }: IPTVDashboardProps) {
+export default function IPTVDashboard({ fees, payments, serverCost = 0 }: IPTVDashboardProps) {
   const stats = useMemo(() => {
     const activeFees = fees.filter(f => f.is_active);
     const mrr = activeFees.reduce((acc, f) => acc + f.amount, 0);
@@ -121,10 +122,12 @@ export default function IPTVDashboard({ fees, payments }: IPTVDashboardProps) {
 
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+  const profit = stats.mrr - serverCost;
+
   return (
     <div className="space-y-4">
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <Card>
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -148,6 +151,21 @@ export default function IPTVDashboard({ fees, payments }: IPTVDashboardProps) {
               <div>
                 <p className="text-sm font-bold text-primary truncate">{formatCurrency(stats.mrr)}</p>
                 <p className="text-xs text-muted-foreground">MRR</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Profit Card */}
+        <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-emerald-500 truncate">{formatCurrency(profit)}</p>
+                <p className="text-xs text-muted-foreground">Lucro</p>
               </div>
             </div>
           </CardContent>

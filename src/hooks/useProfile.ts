@@ -44,6 +44,10 @@ export interface Profile {
   affiliate_email: string | null;
   // Billing message configuration
   billing_message_config: BillingMessageConfig | null;
+  // IPTV Server configuration
+  iptv_server_name: string | null;
+  iptv_server_url: string | null;
+  iptv_server_cost: number | null;
 }
 
 export function useProfile() {
