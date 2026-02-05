@@ -1232,19 +1232,37 @@ export default function ProductSales() {
     pending: filteredSales.reduce((acc, s) => acc + s.remaining_balance, 0),
   };
 
-  // Subscription helpers
-  const getCurrentMonthPayment = (feeId: string) => {
+  // Subscription helpers - busca o próximo pagamento pendente ao invés de apenas o mês atual
+  const getNextPendingPayment = (feeId: string) => {
+    // Buscar todos os pagamentos desta assinatura
+    const feePaymentsList = feePayments.filter(p => p.monthly_fee_id === feeId);
+    
+    // Ordenar por due_date e pegar o primeiro pendente
+    const pendingPayments = feePaymentsList
+      .filter(p => p.status !== 'paid')
+      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    
+    // Se houver pagamento pendente, retornar ele
+    if (pendingPayments.length > 0) {
+      return pendingPayments[0];
+    }
+    
+    // Se não houver pendentes, verificar se há algum pago recente (para mostrar status "pago")
     const currentMonth = format(new Date(), 'yyyy-MM-01');
-    return feePayments.find(p => p.monthly_fee_id === feeId && p.reference_month === currentMonth);
+    const paidThisMonth = feePaymentsList.find(
+      p => p.reference_month === currentMonth && p.status === 'paid'
+    );
+    
+    return paidThisMonth || null;
   };
 
   const getSubscriptionStatus = (fee: MonthlyFee) => {
     if (!fee.is_active) return 'inactive';
-    const currentPayment = getCurrentMonthPayment(fee.id);
-    if (!currentPayment) return 'no_charge';
-    if (currentPayment.status === 'paid') return 'paid';
-    if (isPast(parseISO(currentPayment.due_date)) && !isToday(parseISO(currentPayment.due_date))) return 'overdue';
-    if (isToday(parseISO(currentPayment.due_date))) return 'due_today';
+    const payment = getNextPendingPayment(fee.id);
+    if (!payment) return 'no_charge';
+    if (payment.status === 'paid') return 'paid';
+    if (isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date))) return 'overdue';
+    if (isToday(parseISO(payment.due_date))) return 'due_today';
     return 'pending';
   };
 
@@ -2601,7 +2619,7 @@ export default function ProductSales() {
               ) : (
                 filteredSubscriptions.map((fee) => {
                   const status = getSubscriptionStatus(fee);
-                  const currentPayment = getCurrentMonthPayment(fee.id);
+                  const currentPayment = getNextPendingPayment(fee.id);
                   const amountWithInterest = currentPayment && fee.interest_rate 
                     ? calculateWithInterest(currentPayment, fee.interest_rate)
                     : currentPayment?.amount || fee.amount;
