@@ -1256,6 +1256,9 @@ export type Database = {
           has_seen_loan_form_tutorial: boolean | null
           has_seen_loans_tutorial: boolean | null
           id: string
+          iptv_server_cost: number | null
+          iptv_server_name: string | null
+          iptv_server_url: string | null
           is_active: boolean
           max_employees: number | null
           payment_link: string | null
@@ -1291,6 +1294,9 @@ export type Database = {
           has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
           id: string
+          iptv_server_cost?: number | null
+          iptv_server_name?: string | null
+          iptv_server_url?: string | null
           is_active?: boolean
           max_employees?: number | null
           payment_link?: string | null
@@ -1326,6 +1332,9 @@ export type Database = {
           has_seen_loan_form_tutorial?: boolean | null
           has_seen_loans_tutorial?: boolean | null
           id?: string
+          iptv_server_cost?: number | null
+          iptv_server_name?: string | null
+          iptv_server_url?: string | null
           is_active?: boolean
           max_employees?: number | null
           payment_link?: string | null

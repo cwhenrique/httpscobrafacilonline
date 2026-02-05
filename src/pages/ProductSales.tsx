@@ -66,6 +66,7 @@ import MessagePreviewDialog from '@/components/MessagePreviewDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import IPTVDashboard from '@/components/iptv/IPTVDashboard';
 import IPTVPlanManager from '@/components/iptv/IPTVPlanManager';
+import IPTVServerConfig from '@/components/iptv/IPTVServerConfig';
 import IPTVSubscriptionForm from '@/components/iptv/IPTVSubscriptionForm';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
@@ -2569,7 +2570,7 @@ export default function ProductSales() {
           {/* ASSINATURAS TAB */}
           <TabsContent value="subscriptions" className="mt-4 space-y-4">
             {/* IPTV Dashboard */}
-            <IPTVDashboard fees={monthlyFees} payments={feePayments} />
+            <IPTVDashboard fees={monthlyFees} payments={feePayments} serverCost={profile?.iptv_server_cost || 0} />
 
             {/* Search and Actions */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2583,6 +2584,7 @@ export default function ProductSales() {
                 />
               </div>
               <div className="flex gap-2">
+                <IPTVServerConfig />
                 <IPTVPlanManager />
                 <Button className="gap-2" onClick={() => setIsSubscriptionOpen(true)}>
                   <Plus className="w-4 h-4" />
