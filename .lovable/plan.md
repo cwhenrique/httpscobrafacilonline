@@ -1,122 +1,102 @@
 
-# Plano: Corrigir Exibição do Botão "Pagar" nas Assinaturas
+# Plano: Corrigir Auto-Renovação de Assinaturas IPTV
 
 ## Problema Identificado
 
-Quando uma assinatura é paga, o sistema gera automaticamente o pagamento do próximo mês. Porém, o botão "Pagar" não aparece imediatamente para o próximo mês porque a função `getCurrentMonthPayment` só busca pagamentos do **mês de referência atual** (ex: `2026-02-01` se estamos em fevereiro).
+Ao pagar uma assinatura, o próximo mês **não está sendo gerado automaticamente**. Isso acontece porque a função `markAsPaid` busca o pagamento na lista local do React Query (`payments`), que pode estar desatualizada ou vazia no momento da chamada.
 
-### Fluxo Atual (com bug):
-1. Usuário paga janeiro → status `paid`
-2. Sistema gera pagamento de fevereiro automaticamente
-3. Função `getCurrentMonthPayment` busca por `reference_month = '2026-02-01'` (mês atual)
-4. **Se ainda estamos em janeiro**, não encontra pagamento → status `no_charge` → sem botão "Pagar"
-5. **Se estamos em fevereiro**, encontra o pagamento → botão "Pagar" aparece
+### Código com Bug (linha 439 de useMonthlyFees.ts):
+```typescript
+const payment = payments.find(p => p.id === paymentId);
+if (!payment) throw new Error('Pagamento não encontrado');
+```
 
-### Fluxo Correto (a implementar):
-1. Usuário paga janeiro → status `paid`
-2. Sistema gera pagamento de fevereiro automaticamente
-3. Função busca o **próximo pagamento pendente** (independente do mês)
-4. Sempre mostra o próximo pagamento a pagar
+Se o `payments` não contém o registro (lista desatualizada), a função falha silenciosamente e não gera o próximo mês.
 
 ## Solução
 
-Modificar a lógica para buscar o **pagamento pendente mais próximo** ao invés de apenas o pagamento do mês atual.
+Modificar a função `markAsPaid` para buscar o pagamento **diretamente do banco de dados** ao invés de depender da lista local.
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/ProductSales.tsx` | Modificar funções `getCurrentMonthPayment` e `getSubscriptionStatus` |
+| `src/hooks/useMonthlyFees.ts` | Buscar pagamento do banco em vez da lista local |
 
-## Alterações Detalhadas
+## Alteração Detalhada
 
-### `src/pages/ProductSales.tsx`
-
-Substituir a função `getCurrentMonthPayment` por `getNextPendingPayment`:
+### `src/hooks/useMonthlyFees.ts` (linhas 437-492)
 
 ```typescript
-// ANTES (linhas 1236-1239):
-const getCurrentMonthPayment = (feeId: string) => {
-  const currentMonth = format(new Date(), 'yyyy-MM-01');
-  return feePayments.find(p => p.monthly_fee_id === feeId && p.reference_month === currentMonth);
-};
-
-// DEPOIS:
-const getNextPendingPayment = (feeId: string) => {
-  // Buscar todos os pagamentos desta assinatura
-  const feePaymentsList = feePayments.filter(p => p.monthly_fee_id === feeId);
-  
-  // Ordenar por due_date e pegar o primeiro pendente
-  const pendingPayments = feePaymentsList
-    .filter(p => p.status !== 'paid')
-    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-  
-  // Se houver pagamento pendente, retornar ele
-  if (pendingPayments.length > 0) {
-    return pendingPayments[0];
+// ANTES:
+const markAsPaid = useMutation({
+  mutationFn: async ({ paymentId, paidDate, paidAmount }) => {
+    const payment = payments.find(p => p.id === paymentId);  // BUG!
+    if (!payment) throw new Error('Pagamento não encontrado');
+    // ...resto do código
   }
-  
-  // Se não houver pendentes, verificar se há algum pago recente (para mostrar status "pago")
-  const currentMonth = format(new Date(), 'yyyy-MM-01');
-  const paidThisMonth = feePaymentsList.find(
-    p => p.reference_month === currentMonth && p.status === 'paid'
-  );
-  
-  return paidThisMonth || null;
-};
-```
-
-Atualizar a função `getSubscriptionStatus`:
-
-```typescript
-// ANTES (linhas 1241-1249):
-const getSubscriptionStatus = (fee: MonthlyFee) => {
-  if (!fee.is_active) return 'inactive';
-  const currentPayment = getCurrentMonthPayment(fee.id);
-  if (!currentPayment) return 'no_charge';
-  if (currentPayment.status === 'paid') return 'paid';
-  if (isPast(parseISO(currentPayment.due_date)) && !isToday(parseISO(currentPayment.due_date))) return 'overdue';
-  if (isToday(parseISO(currentPayment.due_date))) return 'due_today';
-  return 'pending';
-};
+});
 
 // DEPOIS:
-const getSubscriptionStatus = (fee: MonthlyFee) => {
-  if (!fee.is_active) return 'inactive';
-  const payment = getNextPendingPayment(fee.id);
-  if (!payment) return 'no_charge';
-  if (payment.status === 'paid') return 'paid';
-  if (isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date))) return 'overdue';
-  if (isToday(parseISO(payment.due_date))) return 'due_today';
-  return 'pending';
-};
+const markAsPaid = useMutation({
+  mutationFn: async ({ paymentId, paidDate, paidAmount }) => {
+    // Buscar o pagamento diretamente do banco para garantir dados atualizados
+    const { data: payment, error: fetchError } = await supabase
+      .from('monthly_fee_payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single();
+    
+    if (fetchError || !payment) throw new Error('Pagamento não encontrado');
+    // ...resto do código (continua igual)
+  }
+});
 ```
 
-Atualizar as referências de `getCurrentMonthPayment` para `getNextPendingPayment` em:
-- Linha 2604: `const currentPayment = getNextPendingPayment(fee.id);`
-- Linha 2717: condição `{currentPayment && currentPayment.status !== 'paid' && (...`
+## Correção dos Dados Existentes
+
+Também preciso gerar o pagamento de março para o cliente "devedor 02" que ficou sem renovação:
+
+```sql
+INSERT INTO monthly_fee_payments (user_id, monthly_fee_id, reference_month, amount, due_date, status)
+SELECT 
+  mf.user_id,
+  mf.id,
+  '2026-03-01'::date,
+  mf.amount,
+  MAKE_DATE(2026, 3, mf.due_day),
+  'pending'
+FROM monthly_fees mf
+JOIN monthly_fee_payments mfp ON mfp.monthly_fee_id = mf.id
+JOIN clients c ON c.id = mf.client_id
+WHERE c.full_name ILIKE '%devedor 02%'
+  AND mfp.reference_month = '2026-02-01'
+  AND mfp.status = 'paid'
+  AND NOT EXISTS (
+    SELECT 1 FROM monthly_fee_payments mfp2 
+    WHERE mfp2.monthly_fee_id = mf.id 
+    AND mfp2.reference_month = '2026-03-01'
+  );
+```
 
 ## Resultado Esperado
 
 | Antes | Depois |
 |-------|--------|
-| Após pagar janeiro, não aparece botão | Após pagar janeiro, aparece botão "Pagar fevereiro" |
-| Status mostra "pago" sem opção de pagar próximo | Status mostra o próximo pagamento pendente |
-| Precisa esperar virar o mês para pagar | Pode pagar imediatamente após renovação automática |
+| Pagar assinatura não gera próximo mês | Pagar sempre gera o próximo mês automaticamente |
+| Lista local pode estar desatualizada | Busca dados frescos do banco |
+| "devedor 02" ficou quitado | "devedor 02" terá cobrança de março pendente |
 
 ## Seção Técnica
 
-### Por que essa mudança é necessária?
+### Por que o bug acontece?
 
-A lógica anterior usava `reference_month === currentMonth` para identificar o pagamento ativo. Isso funcionava bem quando:
-- O mês de referência sempre correspondia ao mês atual
-- Pagamentos eram criados no início do mês
+1. O hook `useMonthlyFeePayments()` é chamado sem `feeId` na página ProductSales
+2. Ele busca todos os pagamentos uma vez e armazena em `payments`
+3. Quando `markAsPaid` é chamado, ele usa `payments.find()` para encontrar o registro
+4. Se o `payments` não foi re-fetched após a última atualização, pode não conter o registro
+5. `payments.find()` retorna `undefined` e a função para antes de gerar o próximo mês
 
-Mas falhava quando:
-- O pagamento era gerado automaticamente para o próximo mês
-- O usuário pagava no final do mês
+### Solução robusta
 
-A nova lógica busca o **próximo pagamento pendente por data de vencimento**, garantindo que:
-1. Sempre mostre o próximo pagamento a ser feito
-2. Se todos estiverem pagos, mostre o status "pago" para o mês atual
-3. Funcione independente de quando o pagamento foi criado
+Buscar diretamente do Supabase garante que sempre teremos os dados mais recentes, independente do estado do cache do React Query.
