@@ -291,6 +291,7 @@ export default function ProductSales() {
     interest_rate: 0,
     due_day: 10,
   });
+  const [editSubscriptionNewDueDate, setEditSubscriptionNewDueDate] = useState<Date | undefined>(undefined);
   const [historyDialogFee, setHistoryDialogFee] = useState<MonthlyFee | null>(null);
   const { user } = useAuth();
 
@@ -1266,14 +1267,44 @@ export default function ProductSales() {
     return 'pending';
   };
 
-  const filteredSubscriptions = monthlyFees.filter(fee => {
-    if (subscriptionStatusFilter === 'all') return true;
-    if (subscriptionStatusFilter === 'active') return fee.is_active;
-    const status = getSubscriptionStatus(fee);
-    if (subscriptionStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
-    if (subscriptionStatusFilter === 'overdue') return status === 'overdue';
-    return true;
-  });
+  const filteredSubscriptions = monthlyFees
+    .filter(fee => {
+      if (subscriptionStatusFilter === 'all') return true;
+      if (subscriptionStatusFilter === 'active') return fee.is_active;
+      const status = getSubscriptionStatus(fee);
+      if (subscriptionStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+      if (subscriptionStatusFilter === 'overdue') return status === 'overdue';
+      return true;
+    })
+    .sort((a, b) => {
+      const statusA = getSubscriptionStatus(a);
+      const statusB = getSubscriptionStatus(b);
+      
+      // Prioridade de status: overdue > due_today > pending > paid > no_charge > inactive
+      const priority: Record<string, number> = { 
+        overdue: 0, 
+        due_today: 1, 
+        pending: 2, 
+        paid: 3,
+        no_charge: 4,
+        inactive: 5
+      };
+      
+      if (priority[statusA] !== priority[statusB]) {
+        return priority[statusA] - priority[statusB];
+      }
+      
+      // Dentro do mesmo status, ordenar por data de vencimento
+      const paymentA = getNextPendingPayment(a.id);
+      const paymentB = getNextPendingPayment(b.id);
+      
+      if (paymentA && paymentB) {
+        return new Date(paymentA.due_date).getTime() - new Date(paymentB.due_date).getTime();
+      }
+      
+      // Fallback: ordenar por nome do cliente
+      return (a.client?.full_name || '').localeCompare(b.client?.full_name || '');
+    });
 
   const subscriptionStats = {
     total: monthlyFees.length,
@@ -3563,7 +3594,12 @@ export default function ProductSales() {
         {/* Edit Subscription Dialog */}
         <Dialog 
           open={!!editingSubscriptionId} 
-          onOpenChange={(open) => !open && setEditingSubscriptionId(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingSubscriptionId(null);
+              setEditSubscriptionNewDueDate(undefined);
+            }
+          }}
         >
           <DialogContent>
             <DialogHeader>
@@ -3592,14 +3628,33 @@ export default function ProductSales() {
               </div>
               
               <div className="space-y-2">
-                <Label>Dia de Vencimento</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={editSubscriptionForm.due_day}
-                  onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, due_day: parseInt(e.target.value) || 10 }))}
-                />
+                <Label>Alterar Data de Vencimento</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {editSubscriptionNewDueDate 
+                        ? format(editSubscriptionNewDueDate, 'dd/MM/yyyy', { locale: ptBR })
+                        : `Dia ${editSubscriptionForm.due_day} de cada mês`
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={editSubscriptionNewDueDate}
+                      onSelect={setEditSubscriptionNewDueDate}
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  {editSubscriptionNewDueDate 
+                    ? `A cobrança atual será movida para ${format(editSubscriptionNewDueDate, 'dd/MM/yyyy', { locale: ptBR })} e renovações futuras seguirão o dia ${Math.min(getDate(editSubscriptionNewDueDate), 28)}.`
+                    : 'Selecione uma nova data para alterar o vencimento da cobrança atual e futuras renovações.'
+                  }
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -3621,17 +3676,40 @@ export default function ProductSales() {
             </div>
             
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingSubscriptionId(null)}>
+              <Button variant="outline" onClick={() => {
+                setEditingSubscriptionId(null);
+                setEditSubscriptionNewDueDate(undefined);
+              }}>
                 Cancelar
               </Button>
               <Button 
                 onClick={async () => {
                   if (editingSubscriptionId) {
+                    // Calcular novo due_day a partir da data selecionada
+                    let newDueDay = editSubscriptionForm.due_day;
+                    if (editSubscriptionNewDueDate) {
+                      newDueDay = Math.min(getDate(editSubscriptionNewDueDate), 28);
+                    }
+                    
+                    // Atualizar a assinatura (due_day)
                     await updateFee.mutateAsync({
                       id: editingSubscriptionId,
-                      data: editSubscriptionForm,
+                      data: { ...editSubscriptionForm, due_day: newDueDay },
                     });
+                    
+                    // Se uma nova data foi selecionada, atualizar o pagamento pendente
+                    if (editSubscriptionNewDueDate) {
+                      const pendingPayment = getNextPendingPayment(editingSubscriptionId);
+                      if (pendingPayment && pendingPayment.status !== 'paid') {
+                        await updateFeePayment.mutateAsync({
+                          paymentId: pendingPayment.id,
+                          data: { due_date: format(editSubscriptionNewDueDate, 'yyyy-MM-dd') }
+                        });
+                      }
+                    }
+                    
                     setEditingSubscriptionId(null);
+                    setEditSubscriptionNewDueDate(undefined);
                   }
                 }}
               >
