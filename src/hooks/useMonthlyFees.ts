@@ -436,8 +436,14 @@ export function useMonthlyFeePayments(feeId?: string) {
   // Mark as paid and auto-generate next month
   const markAsPaid = useMutation({
     mutationFn: async ({ paymentId, paidDate, paidAmount }: { paymentId: string; paidDate: string; paidAmount?: number }) => {
-      const payment = payments.find(p => p.id === paymentId);
-      if (!payment) throw new Error('Pagamento não encontrado');
+      // Buscar o pagamento diretamente do banco para garantir dados atualizados
+      const { data: payment, error: fetchError } = await supabase
+        .from('monthly_fee_payments')
+        .select('*')
+        .eq('id', paymentId)
+        .single();
+      
+      if (fetchError || !payment) throw new Error('Pagamento não encontrado');
 
       const updateData: Partial<MonthlyFeePayment> = {
         status: 'paid',
