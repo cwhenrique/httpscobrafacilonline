@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { format, parseISO, isPast, isToday } from 'date-fns';
+import { format, parseISO, isPast, isToday, differenceInDays } from 'date-fns';
 import { 
   Car, 
   CheckCircle,
@@ -41,6 +41,9 @@ import { useProfile } from '@/hooks/useProfile';
 import { generateContractReceipt, ContractReceiptData, PaymentReceiptData } from '@/lib/pdfGenerator';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 
 export default function Vehicles() {
   const { vehicles, isLoading: loading, createVehicle, updateVehicle, deleteVehicle, updateVehicleWithPayments } = useVehicles();
@@ -498,28 +501,100 @@ export default function Vehicles() {
                     </div>
                     {expandedVehicle === vehicle.id && (
                       <div className="mt-4 pt-4 border-t">
-                        <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1">
-                          {vehiclePaymentsForCard.map((payment) => (
-                            <div key={payment.id} className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
-                              payment.status === 'paid' ? 'bg-primary/10 text-primary' :
-                              isPast(parseISO(payment.due_date)) && !isToday(parseISO(payment.due_date)) ? 'bg-destructive/10 text-destructive' : 'bg-muted'
-                            )}>
-                              <div>
-                                <span className="font-medium">{payment.installment_number}ª</span>
-                                <span className="ml-2">{format(parseISO(payment.due_date), "dd/MM/yy")}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold">{formatCurrency(payment.amount)}</span>
-                                {payment.status !== 'paid' ? (
-                                  <Button size="sm" variant="default" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
-                                    Pagar
-                                  </Button>
-                                ) : (
-                                  <Check className="w-4 h-4 text-primary" />
+                        <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
+                          {vehiclePaymentsForCard.map((payment) => {
+                            const paymentDueDate = parseISO(payment.due_date);
+                            const isPaymentOverdue = payment.status !== 'paid' && isPast(paymentDueDate) && !isToday(paymentDueDate);
+                            const isPaymentDueToday = payment.status !== 'paid' && isToday(paymentDueDate);
+                            const isPaymentPending = payment.status !== 'paid' && !isPast(paymentDueDate);
+                            const daysOverdue = isPaymentOverdue ? differenceInDays(new Date(), paymentDueDate) : 0;
+                            const daysUntilDue = isPaymentPending ? Math.max(1, differenceInDays(paymentDueDate, new Date())) : 0;
+                            const paidPaymentsCount = vehiclePaymentsForCard.filter(p => p.status === 'paid').length;
+                            const allDueDates = vehiclePaymentsForCard.map(p => p.due_date);
+
+                            return (
+                              <div key={payment.id} className="space-y-2">
+                                <div className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
+                                  payment.status === 'paid' ? 'bg-primary/10 text-primary' :
+                                  isPaymentOverdue ? 'bg-destructive/10 text-destructive' : 'bg-muted'
+                                )}>
+                                  <div>
+                                    <span className="font-medium">{payment.installment_number}ª</span>
+                                    <span className="ml-2">{format(paymentDueDate, "dd/MM/yy")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">{formatCurrency(payment.amount)}</span>
+                                    {payment.status !== 'paid' ? (
+                                      <Button size="sm" variant="default" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={() => openVehiclePaymentDialog(payment, vehicle)}>
+                                        Pagar
+                                      </Button>
+                                    ) : (
+                                      <Check className="w-4 h-4 text-primary" />
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* WhatsApp billing buttons */}
+                                {payment.status !== 'paid' && vehicle.buyer_phone && (
+                                  <div className="pl-2">
+                                    {isPaymentOverdue && (
+                                      <SendOverdueNotification
+                                        data={{
+                                          clientName: vehicle.buyer_name || vehicle.seller_name,
+                                          clientPhone: vehicle.buyer_phone,
+                                          contractType: 'vehicle',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: vehicle.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          daysOverdue: daysOverdue,
+                                          loanId: vehicle.id,
+                                          paidCount: paidPaymentsCount,
+                                          installmentDates: allDueDates,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                    {isPaymentDueToday && (
+                                      <SendDueTodayNotification
+                                        data={{
+                                          clientName: vehicle.buyer_name || vehicle.seller_name,
+                                          clientPhone: vehicle.buyer_phone,
+                                          contractType: 'vehicle',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: vehicle.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          loanId: vehicle.id,
+                                          paidCount: paidPaymentsCount,
+                                          installmentDates: allDueDates,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                    {isPaymentPending && (
+                                      <SendEarlyNotification
+                                        data={{
+                                          clientName: vehicle.buyer_name || vehicle.seller_name,
+                                          clientPhone: vehicle.buyer_phone,
+                                          contractType: 'vehicle',
+                                          installmentNumber: payment.installment_number,
+                                          totalInstallments: vehicle.installments,
+                                          amount: payment.amount,
+                                          dueDate: payment.due_date,
+                                          daysUntilDue: daysUntilDue,
+                                          loanId: vehicle.id,
+                                          paidCount: paidPaymentsCount,
+                                          installmentDates: allDueDates,
+                                        }}
+                                        className="w-full"
+                                      />
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
