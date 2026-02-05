@@ -39,7 +39,7 @@ import { ClientSelector, formatFullAddress } from '@/components/ClientSelector';
 import { Client } from '@/types/database';
 
 import { useContracts, Contract, CreateContractData, ContractPayment, UpdateContractData } from '@/hooks/useContracts';
-import { useContractExpenses } from '@/hooks/useContractExpenses';
+import { useContractExpenses, EXPENSE_CATEGORIES } from '@/hooks/useContractExpenses';
 import { ContractExpensesDialog } from '@/components/ContractExpensesDialog';
 import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useClients } from '@/hooks/useClients';
@@ -189,7 +189,7 @@ export default function ProductSales() {
   
   // Contracts hooks
   const { contracts, allContractPayments, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
-  const { allExpenses: contractExpenses, getTotalExpensesByContract } = useContractExpenses();
+  const { allExpenses: contractExpenses, getTotalExpensesByContract, createExpense } = useContractExpenses();
   
   // Monthly Fees (Subscriptions) hooks
   const { fees: monthlyFees, isLoading: feesLoading, createFee, updateFee, deleteFee, toggleActive, generatePayment } = useMonthlyFees();
@@ -247,6 +247,12 @@ export default function ProductSales() {
   const [historicalPaidInstallments, setHistoricalPaidInstallments] = useState<number[]>([]);
   const [contractsStatusFilter, setContractsStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
   const [expensesDialogContract, setExpensesDialogContract] = useState<Contract | null>(null);
+  const [contractInitialExpenses, setContractInitialExpenses] = useState<Array<{
+    amount: number;
+    category: string;
+    description: string;
+    expense_date: string;
+  }>>([]);
 
   // Contract payment dialog states
   const [contractPaymentDialogOpen, setContractPaymentDialogOpen] = useState(false);
@@ -444,6 +450,7 @@ export default function ProductSales() {
     setSelectedContractClientId(null);
     setIsContractHistorical(false);
     setHistoricalPaidInstallments([]);
+    setContractInitialExpenses([]);
   };
 
   // Handler for contract client selection
@@ -505,6 +512,26 @@ export default function ProductSales() {
 
   const deselectAllHistoricalInstallments = () => {
     setHistoricalPaidInstallments([]);
+  };
+
+  // Initial expenses functions for vehicle rental contracts
+  const addInitialExpense = () => {
+    setContractInitialExpenses([...contractInitialExpenses, {
+      amount: 0,
+      category: 'manutencao',
+      description: '',
+      expense_date: format(new Date(), 'yyyy-MM-dd')
+    }]);
+  };
+
+  const updateInitialExpense = (index: number, field: string, value: any) => {
+    const updated = [...contractInitialExpenses];
+    updated[index] = { ...updated[index], [field]: value };
+    setContractInitialExpenses(updated);
+  };
+
+  const removeInitialExpense = (index: number) => {
+    setContractInitialExpenses(contractInitialExpenses.filter((_, i) => i !== index));
   };
 
 
@@ -588,7 +615,13 @@ export default function ProductSales() {
     }
   }, [formData.is_historical]);
 
-  // Select all past installments
+  // Clear initial expenses when contract type changes from vehicle rental
+  useEffect(() => {
+    if (contractForm.contract_type !== 'aluguel_veiculo') {
+      setContractInitialExpenses([]);
+    }
+  }, [contractForm.contract_type]);
+
   const selectAllPastInstallments = () => {
     const todayDate = new Date();
     todayDate.setHours(0, 0, 0, 0);
@@ -821,7 +854,23 @@ export default function ProductSales() {
       historical_paid_installments: isContractHistorical ? historicalPaidInstallments : undefined,
     };
     
-    await createContract.mutateAsync(formDataWithHistorical);
+    const result = await createContract.mutateAsync(formDataWithHistorical);
+    
+    // Create initial expenses if any were added for vehicle rental
+    if (result && contractInitialExpenses.length > 0) {
+      for (const expense of contractInitialExpenses) {
+        if (expense.amount > 0) {
+          await createExpense.mutateAsync({
+            contract_id: result.id,
+            amount: expense.amount,
+            category: expense.category,
+            description: expense.description || undefined,
+            expense_date: expense.expense_date,
+          });
+        }
+      }
+    }
+    
     setIsContractOpen(false);
     resetContractForm();
   };
@@ -2072,6 +2121,83 @@ export default function ProductSales() {
                             />
                           </div>
                         </div>
+                      </div>
+                    )}
+                    
+                    {/* Initial Expenses for Vehicle Rental - Only shown when aluguel_veiculo is selected */}
+                    {contractForm.contract_type === 'aluguel_veiculo' && (
+                      <div className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                            <Receipt className="w-4 h-4" />
+                            <Label className="font-medium">Gastos Iniciais (opcional)</Label>
+                          </div>
+                          <Button 
+                            type="button"
+                            variant="outline" 
+                            size="sm"
+                            onClick={addInitialExpense}
+                            className="h-7 text-xs"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Adicionar
+                          </Button>
+                        </div>
+                        
+                        {contractInitialExpenses.length > 0 && (
+                          <div className="space-y-2">
+                            {contractInitialExpenses.map((expense, index) => (
+                              <div key={index} className="flex items-center gap-2 p-2 rounded-lg bg-background border">
+                                <Select value={expense.category} onValueChange={(v) => updateInitialExpense(index, 'category', v)}>
+                                  <SelectTrigger className="w-[130px] h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {EXPENSE_CATEGORIES.map(cat => (
+                                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input 
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Valor"
+                                  className="w-24 h-8"
+                                  value={expense.amount || ''}
+                                  onChange={(e) => updateInitialExpense(index, 'amount', parseFloat(e.target.value) || 0)}
+                                />
+                                <Input 
+                                  placeholder="Descrição (opcional)"
+                                  className="flex-1 h-8"
+                                  value={expense.description}
+                                  onChange={(e) => updateInitialExpense(index, 'description', e.target.value)}
+                                />
+                                <Button 
+                                  type="button"
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => removeInitialExpense(index)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                            <div className="text-sm text-muted-foreground text-right">
+                              Total: <span className="font-medium text-destructive">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                  contractInitialExpenses.reduce((sum, e) => sum + e.amount, 0)
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {contractInitialExpenses.length === 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Adicione gastos como seguro, IPVA, manutenção, etc. que já foram pagos para este veículo.
+                          </p>
+                        )}
                       </div>
                     )}
                     
