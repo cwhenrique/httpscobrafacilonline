@@ -893,6 +893,8 @@ export type Database = {
           due_day: number
           id: string
           interest_rate: number | null
+          iptv_server_name: string | null
+          iptv_server_url: string | null
           is_active: boolean
           is_demo: boolean | null
           last_renewal_at: string | null
@@ -916,6 +918,8 @@ export type Database = {
           due_day?: number
           id?: string
           interest_rate?: number | null
+          iptv_server_name?: string | null
+          iptv_server_url?: string | null
           is_active?: boolean
           is_demo?: boolean | null
           last_renewal_at?: string | null
@@ -939,6 +943,8 @@ export type Database = {
           due_day?: number
           id?: string
           interest_rate?: number | null
+          iptv_server_name?: string | null
+          iptv_server_url?: string | null
           is_active?: boolean
           is_demo?: boolean | null
           last_renewal_at?: string | null

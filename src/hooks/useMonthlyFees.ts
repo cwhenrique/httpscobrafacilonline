@@ -40,6 +40,9 @@ export interface MonthlyFee {
   demo_expires_at: string | null;
   last_renewal_at: string | null;
   renewal_count: number | null;
+  // Per-subscription server info
+  iptv_server_name: string | null;
+  iptv_server_url: string | null;
   client?: {
     id: string;
     full_name: string;
@@ -78,6 +81,9 @@ export interface CreateMonthlyFeeData {
   referral_source?: string;
   is_demo?: boolean;
   demo_expires_at?: string;
+  // Per-subscription server info
+  iptv_server_name?: string;
+  iptv_server_url?: string;
   // New client inline creation fields
   create_new_client?: boolean;
   new_client_name?: string;
@@ -104,6 +110,9 @@ export interface UpdateMonthlyFeeData {
   demo_expires_at?: string;
   last_renewal_at?: string;
   renewal_count?: number;
+  // Per-subscription server info
+  iptv_server_name?: string;
+  iptv_server_url?: string;
 }
 
 export function useMonthlyFees() {
@@ -182,6 +191,9 @@ export function useMonthlyFees() {
           demo_expires_at: data.demo_expires_at || null,
           last_renewal_at: new Date().toISOString(),
           renewal_count: 0,
+          // Per-subscription server info
+          iptv_server_name: data.iptv_server_name || null,
+          iptv_server_url: data.iptv_server_url || null,
         })
         .select()
         .single();

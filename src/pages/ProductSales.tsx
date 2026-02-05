@@ -45,7 +45,7 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt, Server, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -291,6 +291,8 @@ export default function ProductSales() {
     description: '',
     interest_rate: 0,
     due_day: 10,
+    iptv_server_name: '',
+    iptv_server_url: '',
   });
   const [editSubscriptionNewDueDate, setEditSubscriptionNewDueDate] = useState<Date | undefined>(undefined);
   const [historyDialogFee, setHistoryDialogFee] = useState<MonthlyFee | null>(null);
@@ -2760,6 +2762,26 @@ export default function ProductSales() {
                                 </span>
                               </div>
                               
+                              {/* Server Info */}
+                              {fee.iptv_server_name && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Server className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Servidor:</span>
+                                  <span className="font-medium">{fee.iptv_server_name}</span>
+                                  {fee.iptv_server_url && (
+                                    <a 
+                                      href={fee.iptv_server_url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:underline flex items-center gap-1 text-xs"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      abrir painel
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                              
                               <Separator className="my-2" />
                               
                               {/* Ações de Gerenciamento */}
@@ -2840,6 +2862,8 @@ export default function ProductSales() {
                                       description: fee.description || 'IPTV',
                                       interest_rate: fee.interest_rate || 0,
                                       due_day: fee.due_day,
+                                      iptv_server_name: fee.iptv_server_name || '',
+                                      iptv_server_url: fee.iptv_server_url || '',
                                     });
                                   }}
                                 >
@@ -3683,6 +3707,43 @@ export default function ProductSales() {
                   onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, interest_rate: parseFloat(e.target.value) || 0 }))}
                   placeholder="0.0 = sem multa"
                 />
+              </div>
+              
+              {/* Server Info */}
+              <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Server className="w-4 h-4" />
+                  Servidor IPTV
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Nome do Servidor</Label>
+                    <Input
+                      value={editSubscriptionForm.iptv_server_name}
+                      onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, iptv_server_name: e.target.value }))}
+                      placeholder="Ex: MegaTV, IPTVBrasil..."
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Link do Painel</Label>
+                    <div className="flex gap-1">
+                      <Input
+                        value={editSubscriptionForm.iptv_server_url}
+                        onChange={(e) => setEditSubscriptionForm(prev => ({ ...prev, iptv_server_url: e.target.value }))}
+                        placeholder="https://painel.servidor.com"
+                        className="h-9"
+                      />
+                      {editSubscriptionForm.iptv_server_url && (
+                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" asChild>
+                          <a href={editSubscriptionForm.iptv_server_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
