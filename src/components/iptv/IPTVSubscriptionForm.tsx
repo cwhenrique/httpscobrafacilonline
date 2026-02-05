@@ -25,7 +25,7 @@ import { useIPTVPlans } from '@/hooks/useIPTVPlans';
 import { Client } from '@/types/database';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Eye, EyeOff, RefreshCw, Copy, UserPlus, Users } from 'lucide-react';
+import { Calendar, Eye, EyeOff, RefreshCw, Copy, UserPlus, Users, ExternalLink, Server } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -92,6 +92,9 @@ export default function IPTVSubscriptionForm({
     referral_source: '',
     is_demo: false,
     demo_expires_at: '',
+    // Per-subscription server info
+    iptv_server_name: '',
+    iptv_server_url: '',
     // New client fields
     create_new_client: false,
     new_client_name: '',
@@ -181,6 +184,8 @@ export default function IPTVSubscriptionForm({
       referral_source: '',
       is_demo: false,
       demo_expires_at: '',
+      iptv_server_name: '',
+      iptv_server_url: '',
       create_new_client: false,
       new_client_name: '',
       new_client_phone: '',
@@ -435,7 +440,43 @@ export default function IPTVSubscriptionForm({
             </div>
           </div>
 
-          {/* Credit Expiration */}
+          {/* Server Info */}
+          <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Server className="w-4 h-4" />
+              Servidor IPTV
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Nome do Servidor</Label>
+                <Input
+                  value={formData.iptv_server_name || ''}
+                  onChange={(e) => setFormData({ ...formData, iptv_server_name: e.target.value })}
+                  placeholder="Ex: MegaTV, IPTVBrasil..."
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Link do Painel</Label>
+                <div className="flex gap-1">
+                  <Input
+                    value={formData.iptv_server_url || ''}
+                    onChange={(e) => setFormData({ ...formData, iptv_server_url: e.target.value })}
+                    placeholder="https://painel.servidor.com"
+                    className="h-9"
+                  />
+                  {formData.iptv_server_url && (
+                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" asChild>
+                      <a href={formData.iptv_server_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Data de Expiração do Crédito</Label>
             <Popover open={creditExpiresCalendarOpen} onOpenChange={setCreditExpiresCalendarOpen}>
