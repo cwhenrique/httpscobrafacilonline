@@ -2914,6 +2914,15 @@ export default function ProductSales() {
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-2 border-t">
                           <div className="flex items-center gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs gap-1"
+                              onClick={() => setHistoryDialogFee(fee)}
+                            >
+                              <History className="w-3 h-3" />
+                              Histórico
+                            </Button>
                             {fee.client?.phone && (
                               <>
                                 <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" asChild>
