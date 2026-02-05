@@ -1,45 +1,148 @@
-# Plano: Gastos Iniciais no Formulário de Contrato de Veículo
 
-## ✅ IMPLEMENTADO
+# Plano: Adicionar Botões de Cobrança WhatsApp nos Veículos
 
-Funcionalidade para registrar gastos iniciais (manutenção, seguro, documentação, etc.) diretamente ao criar um novo contrato de aluguel de veículo.
+## Objetivo
 
----
-
-## Alterações Realizadas
-
-### 1. Importação de categorias de gastos
-- Adicionado import de `EXPENSE_CATEGORIES` e `createExpense` do hook `useContractExpenses`
-
-### 2. Estado para gastos iniciais
-- Adicionado `contractInitialExpenses` state no componente
-
-### 3. Funções auxiliares
-- `addInitialExpense()` - Adiciona novo gasto à lista
-- `updateInitialExpense()` - Atualiza campo de um gasto
-- `removeInitialExpense()` - Remove gasto da lista
-
-### 4. Seção visual no formulário
-- Nova seção "Gastos Iniciais (opcional)" aparece quando `contract_type === 'aluguel_veiculo'`
-- Campos: Categoria (select), Valor, Descrição, botão remover
-- Exibe total dos gastos
-
-### 5. Criação de gastos junto com contrato
-- `handleCreateContract()` modificado para criar gastos após o contrato ser criado
-- Usa `createExpense.mutateAsync()` para cada gasto com valor > 0
-
-### 6. Limpeza de estado
-- `resetContractForm()` limpa os gastos iniciais
-- `useEffect` limpa gastos quando tipo de contrato muda de veículo para outro
+Adicionar os mesmos botões de cobrança via WhatsApp que existem na área de Empréstimos para a página de Veículos:
+- **Enviar Cobrança** (parcela em atraso)
+- **Vence Hoje** (parcela vencendo hoje)
+- **Antecipar** (parcela pendente futura)
 
 ---
 
-## Resultado
+## Situação Atual
 
-No formulário de **Novo Contrato** (quando tipo = **Aluguel de Veículo**):
+| Área | Botões de Cobrança |
+|------|-------------------|
+| Empréstimos | ✅ SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification |
+| Produtos | ✅ Já implementado no ProductSaleCard.tsx |
+| Contratos | ✅ Já implementado no ProductSales.tsx |
+| Assinaturas IPTV | ✅ Botão "Cobrar" customizado |
+| **Veículos** | ❌ **Não tem** - será implementado |
 
-1. ✅ Após os campos do veículo, aparece seção "Gastos Iniciais (opcional)"
-2. ✅ Botão "Adicionar" para incluir novos gastos
-3. ✅ Para cada gasto: seletor de categoria, valor, descrição e botão de remover
-4. ✅ Total de gastos é exibido
-5. ✅ Ao criar o contrato, todos os gastos são salvos automaticamente
+---
+
+## Alterações Necessárias
+
+### Arquivo: `src/pages/Vehicles.tsx`
+
+#### 1. Importar os componentes de notificação
+
+```typescript
+import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
+```
+
+#### 2. Adicionar botões na lista de parcelas expandida (linha ~500-525)
+
+Para cada parcela na lista expandida do veículo, adicionar os botões condicionalmente:
+
+```tsx
+{vehiclePaymentsForCard.map((payment) => {
+  const paymentDueDate = parseISO(payment.due_date);
+  const isOverdue = payment.status !== 'paid' && isPast(paymentDueDate) && !isToday(paymentDueDate);
+  const isDueToday = payment.status !== 'paid' && isToday(paymentDueDate);
+  const isPending = payment.status !== 'paid' && !isPast(paymentDueDate);
+  const daysOverdue = isOverdue ? Math.floor((new Date().getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
+  const paidPaymentsCount = vehiclePaymentsForCard.filter(p => p.status === 'paid').length;
+
+  return (
+    <div key={payment.id} className="space-y-2">
+      {/* Linha existente com informações da parcela */}
+      <div className={cn("flex items-center justify-between p-2 rounded-lg text-sm", ...)}>
+        ...
+      </div>
+      
+      {/* NOVO: Botões de cobrança WhatsApp */}
+      {payment.status !== 'paid' && vehicle.buyer_phone && (
+        <div className="pl-2">
+          {isOverdue && (
+            <SendOverdueNotification
+              data={{
+                clientName: vehicle.buyer_name || vehicle.seller_name,
+                clientPhone: vehicle.buyer_phone,
+                contractType: 'vehicle',
+                installmentNumber: payment.installment_number,
+                totalInstallments: vehicle.installments,
+                amount: payment.amount,
+                dueDate: payment.due_date,
+                daysOverdue: daysOverdue,
+                loanId: vehicle.id,
+                paidCount: paidPaymentsCount,
+              }}
+              className="w-full"
+            />
+          )}
+          {isDueToday && (
+            <SendDueTodayNotification
+              data={{
+                clientName: vehicle.buyer_name || vehicle.seller_name,
+                clientPhone: vehicle.buyer_phone,
+                contractType: 'vehicle',
+                installmentNumber: payment.installment_number,
+                totalInstallments: vehicle.installments,
+                amount: payment.amount,
+                dueDate: payment.due_date,
+                loanId: vehicle.id,
+                paidCount: paidPaymentsCount,
+              }}
+              className="w-full"
+            />
+          )}
+          {isPending && (
+            <SendEarlyNotification
+              data={{
+                clientName: vehicle.buyer_name || vehicle.seller_name,
+                clientPhone: vehicle.buyer_phone,
+                contractType: 'vehicle',
+                installmentNumber: payment.installment_number,
+                totalInstallments: vehicle.installments,
+                amount: payment.amount,
+                dueDate: payment.due_date,
+                daysUntilDue: daysUntilDue,
+                loanId: vehicle.id,
+                paidCount: paidPaymentsCount,
+              }}
+              className="w-full"
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+})}
+```
+
+#### 3. Adicionar botões no card principal (parcela próxima)
+
+Na área visível do card do veículo (antes de expandir), mostrar o botão de cobrança para a próxima parcela pendente se estiver em atraso ou vencendo hoje.
+
+---
+
+## Resumo
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/Vehicles.tsx` | Importar SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification |
+| `src/pages/Vehicles.tsx` | Adicionar botões na lista expandida de parcelas |
+| `src/pages/Vehicles.tsx` | Adicionar botões no card principal para próxima parcela |
+
+---
+
+## Resultado Final
+
+**No card de cada veículo:**
+- Se a próxima parcela está em atraso: botão vermelho "Enviar Cobrança"
+- Se vence hoje: botão amarelo "Vence Hoje"
+- Se está pendente: botão "Cobrar Antes"
+
+**Na lista expandida de parcelas:**
+- Cada parcela não paga terá seu botão de cobrança correspondente ao status
+
+Os botões funcionarão exatamente como na área de empréstimos:
+1. Aviso de spam ao clicar
+2. Preview da mensagem editável
+3. Envio via WhatsApp configurado
+4. Cooldown de 1 hora por parcela
