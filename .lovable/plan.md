@@ -1,128 +1,144 @@
 
 
-# Plano: Mostrar Total de Clientes Cadastrados no Dashboard
+# Plano: Corrigir Lista de Usuários para Exibir Todos (>1000)
 
 ## Problema Identificado
 
-O card "Clientes" no Dashboard mostra **2** quando o usuário tem **7 clientes cadastrados**.
+O usuário `giovanialvez8@gmail.com` não aparece na lista porque:
 
-**Causa:** O campo `activeClients` vem da função RPC `get_dashboard_stats` que conta apenas **clientes com empréstimos ativos**:
+1. **Total de usuários no banco:** 1.086
+2. **Limite retornado pela API:** 1.000 (limite padrão do Supabase)
+3. **Usuários criados depois dele:** 1.014
 
-```sql
-COUNT(DISTINCT CASE WHEN l.status != 'paid' THEN l.client_id END) as active_clients
-```
+Como a lista é ordenada por data de criação decrescente (mais recentes primeiro), ele está na posição ~1015, fora do corte dos 1000.
 
-O usuário tem 7 clientes cadastrados, mas apenas 2 deles possuem empréstimos não pagos.
+## Causa Raiz
+
+O Supabase tem um **limite máximo padrão de 1000 linhas** por query, independentemente do valor passado no `.limit()`. Mesmo especificando `limit(10000)`, o resultado é truncado em 1000.
 
 ## Solução
 
-Adicionar uma nova consulta para contar o **total de clientes cadastrados** e usar esse valor no Dashboard.
+Usar **paginação com `.range()`** na edge function para buscar todos os usuários em lotes.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useDashboardStats.ts` | Adicionar query para contar total de clientes |
-| `src/pages/Dashboard.tsx` | Usar o novo campo `totalClients` no card |
+| `supabase/functions/list-trial-users/index.ts` | Implementar busca paginada com range() |
 
 ## Alterações Detalhadas
 
-### 1. `src/hooks/useDashboardStats.ts`
+### `supabase/functions/list-trial-users/index.ts`
 
-Adicionar nova propriedade `totalClients` na interface e buscar via `Promise.all`:
-
-```typescript
-// Na interface DashboardStats, adicionar:
-totalClients: number;
-
-// No fetchDashboardStats, adicionar query:
-{ count: clientsCount },  // Nova query
-
-// No Promise.all:
-supabase.from('clients').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-
-// No return:
-totalClients: clientsCount || 0,
-```
-
-### 2. `src/pages/Dashboard.tsx`
-
-Alterar o card de Clientes para usar `totalClients`:
+Modificar para buscar usuários em lotes de 1000:
 
 ```typescript
-// Antes:
-{
-  title: 'Clientes',
-  value: stats.activeClients.toString(),
-  subtitle: 'cadastrados',
-  ...
+// Buscar em lotes para contornar limite de 1000 do Supabase
+const PAGE_SIZE = 1000;
+let allUsers: any[] = [];
+let offset = 0;
+let hasMore = true;
+
+while (hasMore) {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active, subscription_plan, subscription_expires_at, created_at, affiliate_email')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+
+  if (error) throw error;
+
+  if (data && data.length > 0) {
+    allUsers = [...allUsers, ...data];
+    offset += PAGE_SIZE;
+    hasMore = data.length === PAGE_SIZE;
+  } else {
+    hasMore = false;
+  }
 }
 
-// Depois:
-{
-  title: 'Clientes',
-  value: stats.totalClients.toString(),
-  subtitle: 'cadastrados',
-  ...
-}
+console.log(`Found ${allUsers.length} users`);
+return new Response(JSON.stringify({ success: true, users: allUsers }), ...);
 ```
 
 ## Resultado Esperado
 
 | Antes | Depois |
 |-------|--------|
-| Clientes: 2 (com empréstimos ativos) | Clientes: 7 (total cadastrados) |
-
-O card agora refletirá o total real de clientes na aba Clientes.
+| "Todos os Usuários (1000)" | "Todos os Usuários (1086)" |
+| giovanialvez8@gmail.com não aparece | giovanialvez8@gmail.com aparece na busca |
 
 ## Seção Técnica
 
-### Código Completo - `useDashboardStats.ts`
+### Por que `.range()` em vez de `.limit()`?
+
+O Supabase/PostgREST tem um limite de resposta padrão de 1000 linhas configurado no servidor. A função `.limit()` é limitada por esse máximo. Usar `.range(start, end)` permite paginar e buscar em lotes.
+
+### Código Completo
 
 ```typescript
-// Interface atualizada
-export interface DashboardStats {
-  // ... campos existentes ...
-  totalClients: number;  // NOVO
-}
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Default stats
-const defaultStats: DashboardStats = {
-  // ... campos existentes ...
-  totalClients: 0,  // NOVO
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Na função fetchDashboardStats, adicionar ao Promise.all:
-const [
-  { data: loanStats, error: loanStatsError },
-  { count: loanCount },
-  // ... outros counts ...
-  { count: clientsCount },  // NOVO - Total de clientes cadastrados
-] = await Promise.all([
-  supabase.rpc('get_dashboard_stats', { p_user_id: userId }),
-  // ... queries existentes ...
-  supabase.from('clients').select('id', { count: 'exact', head: true }).eq('user_id', userId),  // NOVO
-]);
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-// No return:
-return {
-  // ... campos existentes ...
-  activeClients: Number(rpcData?.active_clients || 0),  // Manter para compatibilidade
-  totalClients: clientsCount || 0,  // NOVO
-};
-```
+  try {
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
 
-### Código Completo - `Dashboard.tsx`
+    // Fetch all users using pagination to bypass 1000 row limit
+    const PAGE_SIZE = 1000;
+    let allUsers: any[] = [];
+    let offset = 0;
+    let hasMore = true;
 
-```typescript
-// No array financialCards, alterar:
-{
-  title: 'Clientes',
-  value: stats.totalClients.toString(),  // Alterado de activeClients para totalClients
-  subtitle: 'cadastrados',
-  icon: Users,
-  color: 'text-primary',
-  bg: 'bg-primary/10',
-},
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, full_name, phone, temp_password, trial_expires_at, is_active, subscription_plan, subscription_expires_at, created_at, affiliate_email')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (error) {
+        console.error('Error fetching users:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        allUsers = [...allUsers, ...data];
+        offset += PAGE_SIZE;
+        // If we got less than PAGE_SIZE, we've reached the end
+        hasMore = data.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`Found ${allUsers.length} users (fetched in ${Math.ceil(offset / PAGE_SIZE)} batches)`);
+
+    return new Response(
+      JSON.stringify({ success: true, users: allUsers }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
 ```
 
