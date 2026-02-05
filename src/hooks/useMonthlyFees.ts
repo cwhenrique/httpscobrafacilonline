@@ -5,6 +5,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { addMonths, setDate, format } from 'date-fns';
 
+// Helper to parse "YYYY-MM-DD" as local date (avoiding UTC interpretation)
+function parseDateLocal(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day || 1);
+}
+
+// Helper specifically for reference_month "YYYY-MM-01" -> first day of that month in local time
+function parseMonthStartLocal(referenceMonth: string): Date {
+  const [year, month] = referenceMonth.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+}
+
 export interface MonthlyFee {
   id: string;
   user_id: string;
@@ -296,7 +308,7 @@ export function useMonthlyFees() {
         throw new Error('Cobrança já existe para este mês');
       }
 
-      const refDate = new Date(referenceMonth);
+      const refDate = parseMonthStartLocal(referenceMonth);
       const dueDate = setDate(refDate, fee.due_day);
 
       const { data, error } = await supabase
@@ -461,8 +473,8 @@ export function useMonthlyFeePayments(feeId?: string) {
 
       if (error) throw error;
 
-      // Auto-generate next month payment
-      const currentRefMonth = new Date(payment.reference_month);
+      // Auto-generate next month payment (using local date to avoid UTC issues)
+      const currentRefMonth = parseMonthStartLocal(payment.reference_month);
       const nextMonth = addMonths(currentRefMonth, 1);
       const nextReferenceMonth = format(nextMonth, 'yyyy-MM-01');
 
