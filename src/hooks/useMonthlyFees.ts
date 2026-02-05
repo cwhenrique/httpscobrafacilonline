@@ -467,39 +467,70 @@ export function useMonthlyFeePayments(feeId?: string) {
       const nextReferenceMonth = format(nextMonth, 'yyyy-MM-01');
 
       // Check if payment for next month already exists
-      const { data: existingNext } = await supabase
+      const { data: existingNext, error: existingError } = await supabase
         .from('monthly_fee_payments')
         .select('id')
         .eq('monthly_fee_id', payment.monthly_fee_id)
         .eq('reference_month', nextReferenceMonth)
         .maybeSingle();
 
+      if (existingError) {
+        console.error('Erro ao verificar próximo mês:', existingError);
+        throw new Error('Pagamento registrado, mas falhou ao verificar próximo mês');
+      }
+
+      let nextMonthGenerated = false;
+
       if (!existingNext) {
         // Get fee info for due_day and amount
-        const { data: fee } = await supabase
+        const { data: fee, error: feeError } = await supabase
           .from('monthly_fees')
           .select('due_day, amount, is_active')
           .eq('id', payment.monthly_fee_id)
           .single();
 
+        if (feeError) {
+          console.error('Erro ao buscar assinatura:', feeError);
+          throw new Error('Pagamento registrado, mas falhou ao buscar dados da assinatura');
+        }
+
         // Only generate if subscription is active
         if (fee?.is_active) {
           const nextDueDate = setDate(nextMonth, fee.due_day);
           
-          await supabase.from('monthly_fee_payments').insert({
-            user_id: payment.user_id,
-            monthly_fee_id: payment.monthly_fee_id,
-            reference_month: nextReferenceMonth,
-            amount: fee.amount,
-            due_date: format(nextDueDate, 'yyyy-MM-dd'),
-            status: 'pending',
-          });
+          const { error: insertError } = await supabase
+            .from('monthly_fee_payments')
+            .insert({
+              user_id: payment.user_id,
+              monthly_fee_id: payment.monthly_fee_id,
+              reference_month: nextReferenceMonth,
+              amount: fee.amount,
+              due_date: format(nextDueDate, 'yyyy-MM-dd'),
+              status: 'pending',
+            });
+
+          if (insertError) {
+            console.error('Erro ao gerar próximo mês:', insertError);
+            throw new Error('Pagamento registrado, mas falhou ao criar cobrança do próximo mês');
+          }
+          
+          nextMonthGenerated = true;
         }
       }
+
+      return { nextMonthGenerated, existedAlready: !!existingNext };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['monthly-fee-payments'] });
-      toast.success('Pagamento registrado! Próximo mês gerado.');
+      queryClient.invalidateQueries({ queryKey: ['monthly-fees'] });
+      
+      if (result?.nextMonthGenerated) {
+        toast.success('Pagamento registrado! Próximo mês gerado.');
+      } else if (result?.existedAlready) {
+        toast.success('Pagamento registrado!');
+      } else {
+        toast.success('Pagamento registrado!');
+      }
     },
     onError: (error: Error) => {
       console.error('Error marking payment as paid:', error);
