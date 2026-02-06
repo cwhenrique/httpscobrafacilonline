@@ -1,115 +1,92 @@
 
-### Diagnóstico (por que ainda aparece R$ 300 e parcela R$ 180)
+## Plano: Correção Definitiva do Remaining Balance para Contratos de Juros Antigos
 
-Pelos prints, o sistema está tratando o pagamento de “juros antigos” (R$ 120) como se fosse abatimento do “restante a receber”, porque em alguns pontos da tela de pagamento ele calcula:
+### Problema Identificado
 
-- **Restante a receber (no modal)** = `totalToReceive - total_paid`  
-Como `total_paid` inclui esses R$ 120 (juros), acaba virando **420 - 120 = 300**.
+Através da análise dos logs de rede, identifiquei a causa raiz:
 
-Além disso, no seletor de parcelas, ele está mostrando “Pago: R$ 120” e “Falta: R$ 180” porque:
-- o modal tenta identificar “pagamento só juros” usando **tags dentro do `loan.notes`** (ex.: `[INTEREST_ONLY_PAYMENT]` e `[INTEREST_ONLY_PAID:...]`)
-- mas hoje, no fluxo de “juros antigos”, essas tags ficam **apenas nas notas do pagamento** (`loan_payments.notes`) como `[INTEREST_ONLY_PAYMENT] [HISTORICAL_INTEREST_ONLY_PAID:...]`, e **não** ficam no `loan.notes`
-- então o modal não reconhece como “só juros” e usa o `total_paid` como se fosse pagamento parcial da parcela
+1. **Empréstimo criado corretamente** com `remaining_balance: 420`
+2. **Mas o PATCH subsequente** (após registrar juros históricos) atualiza para `remaining_balance: 300`
 
-Resultado: visualmente parece abatimento, mesmo que a intenção seja “juros recebidos sem mexer no total do contrato”.
+O Request Body do PATCH mostra:
+```json
+{
+  "remaining_balance": 300,  // ← ERRADO! Deveria ser 420
+  "due_date": "2026-02-20",
+  "installment_dates": ["2026-02-20"]
+}
+```
 
----
+### Causa Raiz
 
-### Objetivo do ajuste (regra correta)
-Para contratos de **Juros Antigos** (tag `[HISTORICAL_INTEREST_CONTRACT]`):
+A condição no código verifica:
+```typescript
+const isSinglePayment = formData.payment_type === 'single';
+```
 
-1) **Restante a receber deve continuar sendo o total do contrato**  
-   - `remaining_balance` deve ficar **sempre = principal + total_interest**  
-   - pagamentos de juros antigos entram como **lucro realizado / total_paid**, mas **não** reduzem o “restante a receber”.
+Mas o usuário está criando com `payment_type: "installment"` com 1 parcela, não `"single"`. Portanto, `isSinglePayment = false`, e o código executa:
+```typescript
+correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
+// = 300 + 120 - 120 = 300 ← ERRADO
+```
 
-2) O modal de pagamento e a lista de parcelas devem:
-   - **não usar `total_paid` para reduzir o restante**
-   - reconhecer corretamente que houve “pagamento só juros” e **não marcar parcela como parcialmente paga** por isso.
+### Solução Correta
 
----
+Para contratos de **Juros Antigos** (que têm a tag `[HISTORICAL_INTEREST_CONTRACT]`), o `remaining_balance` deve **SEMPRE** ser mantido como `principal + total_interest`, independentemente do `payment_type`.
 
-### Mudanças que vou fazer (sem alterar banco/estrutura, só lógica de tela e updates do empréstimo)
+A regra de negócio é:
+- Juros históricos são registros de **juros JÁ RECEBIDOS**
+- Eles NÃO reduzem o saldo devedor
+- O contrato ainda espera receber o **valor total (principal + juros)**
 
-#### A) Corrigir o update do empréstimo ao registrar juros antigos (criação)
-Arquivo: `src/pages/Loans.tsx` (bloco de criação com `selectedHistoricalInterestInstallments`)
+### Alterações no arquivo `src/pages/Loans.tsx`
 
-1) **Manter `remaining_balance` sempre no total (420)** quando estiver registrando juros antigos:
-   - Trocar a regra atual que subtrai `totalHistoricalInterest` quando não é `single`
-   - Nova regra: se é contrato com juros antigos (nesse bloco já é), então:
-     - `correctedRemainingBalance = principal + correctedTotalInterest` (sempre)
+**Linha ~3736-3756**: Substituir a verificação por `isSinglePayment` por uma verificação de **contrato de juros antigos**:
 
-2) **Adicionar tags no `loan.notes` para o front reconhecer “pagamento só juros”**
-   - Garantir que `loan.notes` receba:
-     - `[INTEREST_ONLY_PAYMENT]` (marcador geral)
-     - e, para cada parcela de juros marcada como paga, adicionar também:
-       - `[INTEREST_ONLY_PAID:idx:valor:data]`
-   - Isso fará o modal/cronograma reconhecer corretamente via `getInterestOnlyPaymentsFromNotes(...)` (que hoje lê `[INTEREST_ONLY_PAID:...]`).
+```typescript
+// ANTES (incorreto):
+const isSinglePayment = formData.payment_type === 'single';
+// ...
+const correctedRemainingBalance = isSinglePayment
+  ? principal + correctedTotalInterest
+  : principal + correctedTotalInterest - totalHistoricalInterest;
 
-> Importante: isso não muda nenhum valor financeiro, só “ensina” a UI que aqueles pagamentos foram só juros.
+// DEPOIS (correto):
+// Para contratos de Juros Antigos, NUNCA subtrair do remaining_balance
+// Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento
+// Esta lógica se aplica a QUALQUER payment_type (single, installment, etc.)
+const correctedRemainingBalance = principal + correctedTotalInterest;
+// (Sempre manter o total do contrato - juros antigos entram só em total_paid)
+```
 
----
+Além disso, para evitar alterar `due_date` e `installment_dates` desnecessariamente:
 
-#### B) Corrigir o modal de pagamento para contratos de Juros Antigos
-Arquivo: `src/pages/Loans.tsx` (cálculos dentro do `handlePaymentSubmit` e do modal)
+```typescript
+// ANTES:
+if (!isSinglePayment) {
+  updateData.due_date = nextDueDate;
+  updateData.installment_dates = updatedDates;
+}
 
-1) Onde hoje existe:
-   - `const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);`
-   
-   Vou ajustar para:
-   - Se `selectedLoan.notes` contém `[HISTORICAL_INTEREST_CONTRACT]`:
-     - `remainingToReceive = selectedLoan.remaining_balance` (que ficará 420 após o ajuste A)
-   - Caso contrário, mantém a lógica atual.
+// DEPOIS:
+// Para Juros Antigos de parcela única (1 parcela), não alterar datas
+const isSingleInstallment = (formData.payment_type === 'single' || 
+                              parseInt(formData.installments || '1') === 1);
+if (!isSingleInstallment) {
+  updateData.due_date = nextDueDate;
+  updateData.installment_dates = updatedDates;
+}
+```
 
-2) Ajustar também qualquer trecho do modal que use `selectedLoan.total_paid` para inferir “parcial pago” em contratos de juros antigos, para **não interpretar juros como abatimento**.
+### Aplicar mesma correção para empréstimos diários
 
----
+Na seção de empréstimos diários (~linhas 3040-3120), aplicar a mesma lógica: **NUNCA subtrair juros históricos do `remaining_balance`**.
 
-#### C) Evitar que a parcela apareça como “parcialmente paga” só porque teve juros antigos
-Arquivo: `src/pages/Loans.tsx` (função `getInstallmentStatus` dentro do bloco do modal de parcelas, onde existe fallback por `total_paid`)
+### Resultado Esperado
 
-Hoje, mesmo com várias proteções, ainda pode acontecer de cair em alguma lógica de “fallback” e considerar `total_paid` como pagamento de parcela.
-
-Vou adicionar uma trava explícita:
-- Se o contrato tem `[HISTORICAL_INTEREST_CONTRACT]`, o status de “pago/parcial” da parcela deve depender apenas de:
-  - tags `[PARTIAL_PAID:...]` (pagamento de parcela)
-  - e não de `total_paid` (que aqui é juros)
-
-Com isso:
-- “Pago: 120 / Falta: 180” deixa de existir nesse cenário
-- A parcela volta a aparecer como **Valor: 420 / Falta: 420** (e, separadamente, mostrar que “juros já pagos: 120”)
-
----
-
-### Como vamos validar (passo a passo)
-1) Criar empréstimo:
-   - Principal 300
-   - Juros 40% (120)
-   - Total a receber 420
-   - Marcar 1 pagamento de juros antigo (120) com data 20/01
-2) Conferir no card:
-   - **Restante a receber: 420**
-   - **Parcela: 1x 420**
-   - **Pago: 120** (lucro realizado ok)
-3) Abrir modal “Pagar”:
-   - Topo deve mostrar **Restante: 420**
-   - Lista de parcela deve mostrar **Falta: 420** (não 180)
-   - E deve indicar (em roxo/verde conforme já existe no layout) que houve juros pagos
-
----
-
-### Arquivo(s) envolvidos
-- `src/pages/Loans.tsx` (principal):
-  - bloco de criação com registro de juros antigos (onde atualiza `remaining_balance` e `notes`)
-  - cálculos do modal de pagamento (`remainingToReceive`)
-  - `getInstallmentStatus` (evitar fallback por `total_paid` para juros antigos)
-
----
-
-### Observação importante sobre dados já criados
-Isso corrige:
-- novos empréstimos criados daqui pra frente
-- e também a exibição no modal (mesmo para empréstimos antigos), desde que:
-  - ou o `loan.notes` já tenha `[HISTORICAL_INTEREST_CONTRACT]`
-  - e/ou a nova lógica do modal use `remaining_balance` para esse caso
-
-Se você já tem contratos antigos criados com `remaining_balance = 300` no banco, eles vão continuar 300 até serem recalculados. Se for o caso, eu incluo no final um ajuste opcional (um botão/ação de “recalcular contrato de juros antigos” para voltar `remaining_balance` para 420), mas primeiro vamos corrigir a lógica principal acima.
+Após a correção:
+- Empréstimo criado: `remaining_balance = 420`
+- PATCH após juros históricos: `remaining_balance = 420` (mantido)
+- `due_date` e `installment_dates` não alterados para parcela única
+- `total_paid = 120` (juros antigos)
+- Card exibe: **Restante a receber: R$ 420** e **Parcela: 1x R$ 420**
