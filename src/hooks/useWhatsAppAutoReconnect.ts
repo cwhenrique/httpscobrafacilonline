@@ -12,6 +12,7 @@ interface WhatsAppStatus {
   waitingForScan?: boolean;
   message?: string;
   reconnected?: boolean;
+  canAttemptReconnect?: boolean;
 }
 
 interface UseWhatsAppAutoReconnectOptions {
@@ -22,6 +23,9 @@ interface UseWhatsAppAutoReconnectOptions {
   onStatusChange?: (status: WhatsAppStatus | null) => void;
 }
 
+const MAX_CONSECUTIVE_FAILURES = 3;
+const MIN_BACKOFF_MS = 60 * 1000; // 1 minuto mínimo entre tentativas após falha
+
 export function useWhatsAppAutoReconnect({
   userId,
   instanceId,
@@ -31,47 +35,94 @@ export function useWhatsAppAutoReconnect({
 }: UseWhatsAppAutoReconnectOptions) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isCheckingRef = useRef(false);
+  const consecutiveFailuresRef = useRef(0);
+  const lastFailureTimeRef = useRef<number>(0);
+  const isFirstCheckRef = useRef(true);
 
   const checkAndReconnect = useCallback(async () => {
     if (!userId || !instanceId || isCheckingRef.current) return;
 
+    // Se atingiu o máximo de falhas, parar de tentar
+    if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+      console.log('[WhatsApp Auto-Reconnect] Max failures reached, stopping automatic attempts');
+      return;
+    }
+
+    // Aplicar backoff após falhas
+    if (consecutiveFailuresRef.current > 0) {
+      const timeSinceLastFailure = Date.now() - lastFailureTimeRef.current;
+      if (timeSinceLastFailure < MIN_BACKOFF_MS) {
+        console.log(`[WhatsApp Auto-Reconnect] Backoff active, waiting ${Math.ceil((MIN_BACKOFF_MS - timeSinceLastFailure) / 1000)}s`);
+        return;
+      }
+    }
+
     isCheckingRef.current = true;
     
     try {
-      console.log('[WhatsApp Auto-Reconnect] Checking instance status...');
+      // Na primeira verificação, apenas lê o status (sem tentar reconectar)
+      // Nas verificações seguintes, tenta reconectar se desconectado
+      const shouldAttemptReconnect = !isFirstCheckRef.current;
+      
+      console.log(`[WhatsApp Auto-Reconnect] Checking status (attemptReconnect: ${shouldAttemptReconnect})`);
       
       const { data, error } = await supabase.functions.invoke('whatsapp-check-status', {
-        body: { userId, attemptReconnect: true }
+        body: { userId, attemptReconnect: shouldAttemptReconnect }
       });
 
       if (error) {
         console.error('[WhatsApp Auto-Reconnect] Error checking status:', error);
+        consecutiveFailuresRef.current++;
+        lastFailureTimeRef.current = Date.now();
         return;
       }
 
       const status = data as WhatsAppStatus;
       console.log('[WhatsApp Auto-Reconnect] Status:', status);
 
+      // Marcar primeira verificação como concluída
+      isFirstCheckRef.current = false;
+
       // Notify about status change
       if (onStatusChange) {
         onStatusChange(status);
       }
 
-      // If reconnected automatically, show toast
+      // Se reconectou automaticamente, mostrar toast
       if (status?.reconnected) {
         toast.success('WhatsApp reconectado automaticamente!');
-      }
-      
-      // If disconnected and couldn't reconnect, just log (don't spam toasts)
-      if (!status?.connected && status?.needsNewQR) {
-        console.log('[WhatsApp Auto-Reconnect] Instance needs new QR code');
+        consecutiveFailuresRef.current = 0;
+      } else if (status?.connected) {
+        // Conexão OK, resetar contador de falhas
+        consecutiveFailuresRef.current = 0;
+      } else {
+        // Desconectado
+        consecutiveFailuresRef.current++;
+        lastFailureTimeRef.current = Date.now();
+        
+        // Se atingiu máximo de falhas, notificar usuário
+        if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+          console.log('[WhatsApp Auto-Reconnect] Max failures reached. User needs to reconnect manually.');
+          // Não mostrar toast aqui para não ser intrusivo
+        } else if (status?.needsNewQR) {
+          console.log('[WhatsApp Auto-Reconnect] Instance needs new QR code');
+        }
       }
     } catch (error) {
       console.error('[WhatsApp Auto-Reconnect] Exception:', error);
+      consecutiveFailuresRef.current++;
+      lastFailureTimeRef.current = Date.now();
     } finally {
       isCheckingRef.current = false;
     }
   }, [userId, instanceId, onStatusChange]);
+
+  // Função para resetar o contador de falhas (pode ser chamada externamente)
+  const resetFailures = useCallback(() => {
+    consecutiveFailuresRef.current = 0;
+    lastFailureTimeRef.current = 0;
+    isFirstCheckRef.current = true;
+  }, []);
 
   useEffect(() => {
     // Clear any existing interval
@@ -79,6 +130,11 @@ export function useWhatsAppAutoReconnect({
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+
+    // Reset state when dependencies change
+    consecutiveFailuresRef.current = 0;
+    lastFailureTimeRef.current = 0;
+    isFirstCheckRef.current = true;
 
     // Only start monitoring if enabled and we have required data
     if (!enabled || !userId || !instanceId) {
@@ -88,7 +144,7 @@ export function useWhatsAppAutoReconnect({
 
     console.log(`[WhatsApp Auto-Reconnect] Starting monitoring (interval: ${intervalMs / 1000}s)`);
 
-    // Do an initial check immediately
+    // Do an initial check immediately (passive, no reconnect)
     checkAndReconnect();
 
     // Set up the interval
@@ -103,5 +159,9 @@ export function useWhatsAppAutoReconnect({
     };
   }, [enabled, userId, instanceId, intervalMs, checkAndReconnect]);
 
-  return { checkNow: checkAndReconnect };
+  return { 
+    checkNow: checkAndReconnect,
+    resetFailures,
+    consecutiveFailures: consecutiveFailuresRef.current,
+  };
 }
