@@ -1,130 +1,95 @@
 
-# Plano: Corrigir Persistência de Conexão WhatsApp
+
+# Plano: Corrigir Loop de Verificações e Persistência de Conexão WhatsApp
 
 ## Problema Identificado
 
-Ao analisar os logs da Evolution API, identifico que as instâncias do WhatsApp estão perdendo a conexão quando o usuário sai ou recarrega a página. Os logs mostram:
+Analisando os logs de rede, identifico **dois problemas críticos**:
 
-```
-Instance state: close, isConnected: false
-Attempting to restart instance: cf_f83121f6_mlb0dqqy
-State after restart: connecting
-```
+### 1. Excesso de Chamadas Duplicadas
+O sistema está fazendo **mais de 20 chamadas** ao `whatsapp-check-status` em apenas 10 segundos! Isso acontece porque:
+- O hook `useWhatsAppAutoReconnect` dispara ao montar
+- A verificação inicial em `checkWhatsAppStatus` também dispara
+- O `useEffect` pode estar sendo re-executado devido a mudanças de dependências
+- Pode haver múltiplas instâncias do hook sendo criadas
 
-Isso indica que a conexão não está sendo mantida como deveria. O problema ocorre porque:
+### 2. Estado "connecting" Persistente
+A instância está presa em `status: "connecting"` mesmo após o QR ser escaneado, o que indica que:
+- A Evolution API não está recebendo a confirmação de conexão
+- Ou a sessão não está sendo salva corretamente no servidor
 
-1. **A verificação inicial tenta reconectar agressivamente** - Ao carregar a página, o sistema verifica o status e, se estiver desconectado, tenta reconectar imediatamente, o que gera um novo QR Code
-2. **O hook `useWhatsAppAutoReconnect` chama com `attemptReconnect: true`** mesmo na primeira verificação, o que pode causar loops de reconexão
-3. **A instância pode ter sido deslogada do lado do WhatsApp** (por exemplo, se o usuário deslogou do celular ou a sessão expirou)
+## Solução
 
-## Solução Proposta
+### Etapa 1: Remover Verificação Duplicada
 
-### 1. Melhorar a Verificação Inicial (sem tentativa de reconexão automática)
+O problema está em ter **duas fontes de verificação** competindo:
+1. `checkWhatsAppStatus()` no `useEffect` inicial
+2. `useWhatsAppAutoReconnect` que também faz uma verificação imediata
 
-Modificar `checkWhatsAppStatus` para que a **primeira verificação ao carregar a página seja apenas de leitura**, sem tentar reconectar. Só tentará reconectar após comando explícito do usuário ou pelo monitoramento em background.
+Precisamos unificar para ter apenas UMA fonte de verdade.
 
-### 2. Separar Verificação de Status vs Reconexão
+### Etapa 2: Simplificar o Hook Auto-Reconnect
 
-- **Verificação passiva**: Apenas lê o estado atual da Evolution API sem modificar nada
-- **Reconexão ativa**: Tenta restart/connect, mas apenas quando solicitado explicitamente
+Remover a verificação imediata do hook e deixar apenas o intervalo de 2 minutos.
 
-### 3. Adicionar Proteção contra Loops de Reconexão
+### Etapa 3: Adicionar Debounce/Throttle
 
-Se a instância falhar em reconectar 3 vezes seguidas, parar de tentar e notificar o usuário que precisa escanear o QR Code novamente.
-
-### 4. Melhorar a Lógica do Hook Auto-Reconnect
-
-O hook `useWhatsAppAutoReconnect` deve:
-- Não tentar reconectar se acabou de verificar e está desconectado
-- Esperar pelo menos 1 minuto após uma falha antes de tentar novamente
-- Limitar tentativas consecutivas de reconexão
+Garantir que apenas uma verificação aconteça por vez, independente de quantos re-renders ocorram.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/Profile.tsx` | Primeira verificação sem `attemptReconnect` |
-| `src/hooks/useWhatsAppAutoReconnect.ts` | Adicionar controle de tentativas e backoff |
-| `supabase/functions/whatsapp-check-status/index.ts` | Separar lógica de verificação vs reconexão, não fazer restart se não solicitado |
+| `src/hooks/useWhatsAppAutoReconnect.ts` | Remover verificação imediata, apenas intervalo de 2 min |
+| `src/pages/Profile.tsx` | Simplificar verificação inicial, evitar duplicação |
 
-## Detalhamento Técnico
+## Mudanças Específicas
 
-### Profile.tsx - Verificação Inicial Passiva
+### useWhatsAppAutoReconnect.ts
 
+Remover a linha 148 que faz a verificação imediata:
+```typescript
+// REMOVER:
+// checkAndReconnect();
+
+// Apenas configurar o intervalo de 2 minutos
+intervalRef.current = setInterval(checkAndReconnect, intervalMs);
+```
+
+### Profile.tsx
+
+Manter apenas a verificação inicial que já existe:
 ```typescript
 useEffect(() => {
   if (user) {
     fetchStats();
-    // ✅ Primeira verificação SEM tentar reconectar
-    checkWhatsAppStatus(false); 
+    checkWhatsAppStatus(false); // Verificação passiva
   }
 }, [user]);
 ```
 
-### useWhatsAppAutoReconnect.ts - Controle de Tentativas
-
-```typescript
-const consecutiveFailuresRef = useRef(0);
-const MAX_CONSECUTIVE_FAILURES = 3;
-
-const checkAndReconnect = useCallback(async () => {
-  // Se já falhou muitas vezes, não tenta mais
-  if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
-    console.log('[Auto-Reconnect] Max failures reached, stopping');
-    return;
-  }
-  
-  // ... verificação existente ...
-  
-  if (!status?.connected) {
-    consecutiveFailuresRef.current++;
-  } else {
-    consecutiveFailuresRef.current = 0;
-  }
-}, [...]);
-```
-
-### whatsapp-check-status - Modo Somente Leitura
-
-```typescript
-// Se attemptReconnect=false, apenas retorna o status sem tentar modificar
-if (!attemptReconnect) {
-  return new Response(JSON.stringify({ 
-    connected: isConnected,
-    status: state,
-    instanceName,
-    phoneNumber,
-    // Indica que pode tentar reconectar manualmente
-    canAttemptReconnect: !isConnected && (state === 'close' || state === 'disconnected'),
-  }), {...});
-}
-```
+E garantir que o hook `useWhatsAppAutoReconnect` só inicie o intervalo, sem verificação imediata.
 
 ## Fluxo Corrigido
 
-```
-[Usuário abre página de Perfil]
+```text
+[Página carrega]
          ↓
-[checkWhatsAppStatus(false)] ← Apenas lê status
+[checkWhatsAppStatus(false)] ← Uma única verificação passiva
          ↓
-    ┌────┴────┐
-    │         │
-  OPEN      CLOSE/DISCONNECTED
-    │         │
-  ✅ OK    UI mostra "Reconectar"
-            ou "Gerar QR Code"
+[UI mostra status atual]
          ↓
 [A cada 2 min: useWhatsAppAutoReconnect]
          ↓
-[Se desconectado E < 3 falhas → tenta reconectar]
+[Se desconectado → tenta reconectar]
          ↓
-[Se >= 3 falhas → para e mostra aviso]
+[Se conectado → atualiza UI]
 ```
 
 ## Benefícios
 
-1. **Sem loops de reconexão**: Limita tentativas automáticas
-2. **Experiência melhor**: Usuário não vê QR Code aleatório ao abrir página
-3. **Economia de recursos**: Menos chamadas desnecessárias à Evolution API
-4. **Diagnóstico claro**: Se a conexão não persiste, o usuário sabe que precisa agir
+1. **Sem chamadas duplicadas**: Apenas uma verificação inicial
+2. **Menos carga no servidor**: Verificações espaçadas de 2 minutos
+3. **Conexão estável**: Sem interferência de múltiplas tentativas simultâneas
+4. **UX melhorada**: Usuário não vê estado inconsistente
 
