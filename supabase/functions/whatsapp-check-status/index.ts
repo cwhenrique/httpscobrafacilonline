@@ -58,6 +58,49 @@ serve(async (req) => {
     const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
     const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
     console.log('Using Evolution API base URL:', evolutionApiUrl);
+    console.log('API Key prefix:', evolutionApiKey.substring(0, 8) + '...');
+
+    // Evolution API request helper with auth fallback
+    const evolutionFetch = async (
+      url: string,
+      init: RequestInit & { headers?: Record<string, string> } = {}
+    ) => {
+      const baseHeaders = (init.headers ?? {}) as Record<string, string>;
+
+      // Try 1: apikey header
+      let resp = await fetch(url, {
+        ...init,
+        headers: {
+          ...baseHeaders,
+          apikey: evolutionApiKey,
+        },
+      });
+
+      if (resp.status === 401) {
+        console.log('Auth failed with apikey header, trying Bearer token...');
+        // Try 2: Authorization Bearer header
+        resp = await fetch(url, {
+          ...init,
+          headers: {
+            ...baseHeaders,
+            Authorization: `Bearer ${evolutionApiKey}`,
+          },
+        });
+      }
+
+      if (resp.status === 401) {
+        console.log('Auth failed with Bearer, trying query param...');
+        // Try 3: apikey as query parameter
+        const u = new URL(url);
+        if (!u.searchParams.get('apikey')) u.searchParams.set('apikey', evolutionApiKey);
+        resp = await fetch(u.toString(), {
+          ...init,
+          headers: baseHeaders,
+        });
+      }
+
+      return resp;
+    };
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -92,11 +135,8 @@ serve(async (req) => {
     console.log(`Checking status for instance: ${instanceName}`);
 
     // Check connection state
-    const stateResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+    const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
       method: 'GET',
-      headers: {
-        'apikey': evolutionApiKey,
-      },
     });
 
     const stateText = await stateResponse.text();
@@ -109,12 +149,9 @@ serve(async (req) => {
       // Try to restart/create the instance
       if (attemptReconnect) {
         try {
-          const createResponse = await fetch(`${evolutionApiUrl}/instance/create`, {
+          const createResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
             method: 'POST',
-            headers: {
-              'apikey': evolutionApiKey,
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               instanceName: instanceName,
               qrcode: true,
@@ -191,9 +228,8 @@ serve(async (req) => {
         
         if (isConnected) {
           try {
-            const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+            const fetchResponse = await evolutionFetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
               method: 'GET',
-              headers: { 'apikey': evolutionApiKey },
             });
             
             if (fetchResponse.ok) {
@@ -230,12 +266,9 @@ serve(async (req) => {
         
         try {
           // Method 1: Try restart endpoint
-          const restartResponse = await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+          const restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
             method: 'POST',
-            headers: {
-              'apikey': evolutionApiKey,
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
           });
           
           console.log('Restart response:', restartResponse.status);
@@ -245,11 +278,8 @@ serve(async (req) => {
             await new Promise(resolve => setTimeout(resolve, 3000));
             
             // Check status again
-            const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+            const recheckResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
               method: 'GET',
-              headers: {
-                'apikey': evolutionApiKey,
-              },
             });
             
             if (recheckResponse.ok) {
@@ -276,11 +306,8 @@ serve(async (req) => {
         // Method 2: If restart didn't fully connect, try connect endpoint
         if (!isConnected && !needsNewQR) {
           try {
-            const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+            const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
               method: 'GET',
-              headers: {
-                'apikey': evolutionApiKey,
-              },
             });
             
             console.log('Connect response:', connectResponse.status);
@@ -296,11 +323,8 @@ serve(async (req) => {
                 // Wait a bit and check status
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                const recheckResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+                const recheckResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
                   method: 'GET',
-                  headers: {
-                    'apikey': evolutionApiKey,
-                  },
                 });
                 
                 if (recheckResponse.ok) {
@@ -342,11 +366,8 @@ serve(async (req) => {
         // Always try to fetch the phone number if connected (even if we have one stored)
         try {
           // Method 1: Try fetchInstances - this has ownerJid
-          const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+          const fetchResponse = await evolutionFetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
             method: 'GET',
-            headers: {
-              'apikey': evolutionApiKey,
-            },
           });
           
           if (fetchResponse.ok) {
@@ -368,11 +389,8 @@ serve(async (req) => {
         // Method 2: Try to get from connection state if not found
         if (!phoneNumber) {
           try {
-            const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+            const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
               method: 'GET',
-              headers: {
-                'apikey': evolutionApiKey,
-              },
             });
             
             if (connectResponse.ok) {
