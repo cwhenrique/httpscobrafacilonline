@@ -240,19 +240,29 @@ export default function ReportsSales() {
         activeCount++;
         totalPending += Number(sale.remaining_balance || 0);
         
-        // Check if any payment is overdue
-        const hasOverdue = productPayments?.some((p: any) => 
+        // Find oldest overdue payment date
+        const overduePayments = productPayments?.filter((p: any) => 
           p.product_sale_id === sale.id && 
           p.status === 'pending' && 
           new Date(p.due_date) < new Date()
-        );
-        if (hasOverdue) {
+        ) || [];
+        
+        if (overduePayments.length > 0) {
+          // Get the oldest overdue date for sorting
+          const oldestDueDate = overduePayments.reduce((oldest: Date, p: any) => {
+            const dueDate = new Date(p.due_date);
+            return dueDate < oldest ? dueDate : oldest;
+          }, new Date(overduePayments[0].due_date));
+          
           overdueCount++;
           totalOverdue += Number(sale.remaining_balance);
-          overdueSales.push(sale);
+          overdueSales.push({ ...sale, oldestDueDate });
         }
       }
     });
+    
+    // Sort by oldest due date first (most urgent)
+    overdueSales.sort((a, b) => a.oldestDueDate.getTime() - b.oldestDueDate.getTime());
 
     return {
       totalSold,
@@ -295,19 +305,29 @@ export default function ReportsSales() {
         activeCount++;
         totalPending += Number(vehicle.remaining_balance || 0);
         
-        // Check if any payment is overdue
-        const hasOverdue = vehiclePayments?.some((p: any) => 
+        // Find oldest overdue payment date
+        const overduePayments = vehiclePayments?.filter((p: any) => 
           p.vehicle_id === vehicle.id && 
           p.status === 'pending' && 
           new Date(p.due_date) < new Date()
-        );
-        if (hasOverdue) {
+        ) || [];
+        
+        if (overduePayments.length > 0) {
+          // Get the oldest overdue date for sorting
+          const oldestDueDate = overduePayments.reduce((oldest: Date, p: any) => {
+            const dueDate = new Date(p.due_date);
+            return dueDate < oldest ? dueDate : oldest;
+          }, new Date(overduePayments[0].due_date));
+          
           overdueCount++;
           totalOverdue += Number(vehicle.remaining_balance);
-          overdueVehicles.push(vehicle);
+          overdueVehicles.push({ ...vehicle, oldestDueDate });
         }
       }
     });
+    
+    // Sort by oldest due date first (most urgent)
+    overdueVehicles.sort((a, b) => a.oldestDueDate.getTime() - b.oldestDueDate.getTime());
 
     return {
       totalSold,
@@ -358,21 +378,32 @@ export default function ReportsSales() {
         
         totalPending += Math.max(0, pendingAmount);
         
-        // Check if any payment is overdue
-        const hasOverdue = contractPaymentsList.some((p: any) => 
+        // Find oldest overdue payment date
+        const overduePayments = contractPaymentsList.filter((p: any) => 
           p.status === 'pending' && 
           new Date(p.due_date) < new Date()
         );
-        if (hasOverdue) {
+        
+        if (overduePayments.length > 0) {
+          // Get the oldest overdue date for sorting
+          const oldestDueDate = overduePayments.reduce((oldest: Date, p: any) => {
+            const dueDate = new Date(p.due_date);
+            return dueDate < oldest ? dueDate : oldest;
+          }, new Date(overduePayments[0].due_date));
+          
           overdueCount++;
           totalOverdue += Math.max(0, pendingAmount);
           overdueContracts.push({
             ...contract,
-            pendingAmount: Math.max(0, pendingAmount)
+            pendingAmount: Math.max(0, pendingAmount),
+            oldestDueDate
           });
         }
       }
     });
+    
+    // Sort by oldest due date first (most urgent)
+    overdueContracts.sort((a, b) => a.oldestDueDate.getTime() - b.oldestDueDate.getTime());
 
     return {
       totalValue,
@@ -416,6 +447,7 @@ export default function ReportsSales() {
               clientName: fee.client?.full_name || 'Cliente',
               clientPhone: fee.client?.phone || null,
               description: fee.description || 'Assinatura',
+              dueDateObj: new Date(payment.due_date),
             });
           }
         } else {
@@ -423,6 +455,9 @@ export default function ReportsSales() {
         }
       }
     });
+    
+    // Sort by oldest due date first (most urgent)
+    overdueSubscriptions.sort((a, b) => a.dueDateObj.getTime() - b.dueDateObj.getTime());
 
     return {
       monthlyRecurring,
