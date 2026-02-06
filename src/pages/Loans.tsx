@@ -3101,22 +3101,30 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const nextDueDate = format(nextDate, 'yyyy-MM-dd');
       const updatedDates = [nextDueDate];
       
-      // 🆕 CORREÇÃO: Para empréstimos diários com juros antigos, manter installments original
+      // 🆕 CORREÇÃO DEFINITIVA: Para empréstimos diários com juros antigos, manter installments original
       // Os juros históricos são apenas registros de juros já recebidos, não parcelas adicionais
       const originalInstallments = parseInt(formData.installments || '1');
       
-      // 🆕 CORREÇÃO: Para empréstimos diários, NÃO subtrair juros históricos do remaining_balance
+      // 🆕 CORREÇÃO DEFINITIVA: Para empréstimos diários, NUNCA subtrair juros históricos do remaining_balance
       // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
-      // O contrato ainda espera receber o valor total das parcelas
+      // O contrato ainda espera receber o valor total das parcelas (dailyAmount * originalInstallments)
       const correctedRemainingBalance = dailyAmount * originalInstallments;
       
-      await supabase.from('loans').update({
+      // 🆕 CORREÇÃO: Para parcela única, NÃO alterar due_date e installment_dates
+      const isSingleInstallment = originalInstallments === 1;
+      const updateDataDaily: Record<string, unknown> = {
         notes: currentNotes.trim(),
-        due_date: nextDueDate,
-        installment_dates: updatedDates,
         remaining_balance: correctedRemainingBalance,
         // NÃO alterar installments - manter valor original
-      }).eq('id', loanId);
+      };
+      
+      // Só alterar datas se tiver mais de 1 parcela
+      if (!isSingleInstallment) {
+        updateDataDaily.due_date = nextDueDate;
+        updateDataDaily.installment_dates = updatedDates;
+      }
+      
+      await supabase.from('loans').update(updateDataDaily).eq('id', loanId);
       
       await fetchLoans();
       
@@ -3747,12 +3755,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         correctedTotalInterest = principal * (rate / 100);
       }
       
-      // 🆕 CORREÇÃO: Para parcela única (single) com juros antigos, NÃO subtrair do remaining_balance
+      // 🆕 CORREÇÃO DEFINITIVA: Para contratos de Juros Antigos, NUNCA subtrair do remaining_balance
       // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
-      // O contrato ainda espera receber o valor total (principal + juros)
-      const correctedRemainingBalance = isSinglePayment
-        ? principal + correctedTotalInterest  // Parcela única: manter total do contrato
-        : principal + correctedTotalInterest - totalHistoricalInterest;  // Outros: pode subtrair
+      // O contrato ainda espera receber o valor total (principal + juros), independente do payment_type
+      // Esta regra se aplica a QUALQUER tipo de pagamento (single, installment, etc.)
+      const correctedRemainingBalance = principal + correctedTotalInterest;
       
       // Construir objeto de update condicionalmente
       const updateData: Record<string, unknown> = {
@@ -3761,9 +3768,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         remaining_balance: correctedRemainingBalance,
       };
       
-      // Só alterar due_date, installment_dates se NÃO for parcela única
-      // Para single payment, manter a data de vencimento original
-      if (!isSinglePayment) {
+      // 🆕 CORREÇÃO: Verificar se é parcela única (tipo single OU installment com 1 parcela)
+      // Para parcela única, NÃO alterar due_date e installment_dates
+      const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
+      if (!isSingleInstallment) {
         updateData.due_date = nextDueDate;
         updateData.installment_dates = updatedDates;
       }
