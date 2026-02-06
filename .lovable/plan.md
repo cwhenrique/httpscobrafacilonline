@@ -1,115 +1,130 @@
 
-# Plano: Agendamento de Relatórios Diários via WhatsApp
+# Plano: Corrigir Persistência de Conexão WhatsApp
 
-## Visão Geral
+## Problema Identificado
 
-Adicionar na página de Perfil, logo abaixo da seção de WhatsApp conectado, uma nova seção para o usuário configurar os horários em que deseja receber o relatório atualizado de empréstimos. Os relatórios serão enviados automaticamente para o WhatsApp do usuário nos horários selecionados, enquanto a instância estiver conectada.
-
-## Grupos de Horários
-
-O usuário poderá selecionar um ou mais horários em três períodos:
-
-| Período | Horários Disponíveis |
-|---------|---------------------|
-| **Manhã** | 07:00, 08:00, 09:00 |
-| **Tarde** | 12:00, 13:00, 14:00 |
-| **Fim do Dia** | 17:00, 18:00, 19:00 |
-
-## Design da Interface
-
-A seção aparecerá somente quando o WhatsApp estiver conectado e mostrará:
+Ao analisar os logs da Evolution API, identifico que as instâncias do WhatsApp estão perdendo a conexão quando o usuário sai ou recarrega a página. Os logs mostram:
 
 ```
-📅 Receber Relatórios Diários
-Escolha os horários para receber seu relatório de cobranças automaticamente.
-
-[Manhã]
-☐ 07h  ☐ 08h  ☐ 09h
-
-[Tarde]  
-☐ 12h  ☐ 13h  ☐ 14h
-
-[Fim do Dia]
-☐ 17h  ☐ 18h  ☐ 19h
+Instance state: close, isConnected: false
+Attempting to restart instance: cf_f83121f6_mlb0dqqy
+State after restart: connecting
 ```
 
----
+Isso indica que a conexão não está sendo mantida como deveria. O problema ocorre porque:
 
-## Detalhamento Técnico
+1. **A verificação inicial tenta reconectar agressivamente** - Ao carregar a página, o sistema verifica o status e, se estiver desconectado, tenta reconectar imediatamente, o que gera um novo QR Code
+2. **O hook `useWhatsAppAutoReconnect` chama com `attemptReconnect: true`** mesmo na primeira verificação, o que pode causar loops de reconexão
+3. **A instância pode ter sido deslogada do lado do WhatsApp** (por exemplo, se o usuário deslogou do celular ou a sessão expirou)
 
-### 1. Alteração no Banco de Dados
+## Solução Proposta
 
-Adicionar coluna `report_schedule_hours` na tabela `profiles`:
+### 1. Melhorar a Verificação Inicial (sem tentativa de reconexão automática)
 
-```sql
-ALTER TABLE profiles 
-ADD COLUMN report_schedule_hours integer[] DEFAULT '{}';
-```
+Modificar `checkWhatsAppStatus` para que a **primeira verificação ao carregar a página seja apenas de leitura**, sem tentar reconectar. Só tentará reconectar após comando explícito do usuário ou pelo monitoramento em background.
 
-Esta coluna armazenará um array de inteiros representando os horários selecionados (ex: `[7, 8, 12, 17]` para 07h, 08h, 12h e 17h).
+### 2. Separar Verificação de Status vs Reconexão
 
-### 2. Atualização do Hook useProfile
+- **Verificação passiva**: Apenas lê o estado atual da Evolution API sem modificar nada
+- **Reconexão ativa**: Tenta restart/connect, mas apenas quando solicitado explicitamente
 
-Adicionar `report_schedule_hours` à interface `Profile` e ao `fetchProfile`.
+### 3. Adicionar Proteção contra Loops de Reconexão
 
-### 3. Nova Seção na Página Profile.tsx
+Se a instância falhar em reconectar 3 vezes seguidas, parar de tentar e notificar o usuário que precisa escanear o QR Code novamente.
 
-Inserir logo após a seção de "WhatsApp Conectado" (linhas ~1681):
+### 4. Melhorar a Lógica do Hook Auto-Reconnect
 
-- Card com título "Receber Relatórios Diários"
-- Três grupos de checkboxes (Manhã, Tarde, Fim do Dia)
-- Cada checkbox corresponde a um horário específico
-- Ao marcar/desmarcar, salvar automaticamente no perfil
-
-### 4. Modificação da Edge Function `daily-summary`
-
-Atualizar para:
-
-1. Receber o parâmetro `targetHour` indicando qual horário está sendo executado
-2. Filtrar apenas usuários que têm esse horário em seu `report_schedule_hours`
-3. Enviar apenas para usuários que optaram por aquele horário específico
-
-### 5. Atualização dos Cron Jobs
-
-Os cron jobs existentes (7h, 8h, 12h) precisarão ser atualizados para passar o parâmetro `targetHour` e adicionar os novos horários (9h, 13h, 14h, 17h, 18h, 19h).
-
----
-
-## Fluxo de Funcionamento
-
-```text
-[Usuário conecta WhatsApp]
-         ↓
-[Nova seção de agendamento aparece]
-         ↓
-[Usuário seleciona: 08h, 12h, 18h]
-         ↓
-[Preferências salvas em profiles.report_schedule_hours = [8, 12, 18]]
-         ↓
-[Cron job às 08:00]
-         ↓
-[Edge function filtra: só usuários com 8 no array]
-         ↓
-[Relatório enviado apenas para quem escolheu 08h]
-```
-
----
+O hook `useWhatsAppAutoReconnect` deve:
+- Não tentar reconectar se acabou de verificar e está desconectado
+- Esperar pelo menos 1 minuto após uma falha antes de tentar novamente
+- Limitar tentativas consecutivas de reconexão
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `profiles` (banco) | Nova coluna `report_schedule_hours integer[]` |
-| `src/hooks/useProfile.ts` | Adicionar campo ao tipo Profile |
-| `src/pages/Profile.tsx` | Nova seção com checkboxes de horários |
-| `supabase/functions/daily-summary/index.ts` | Filtrar por `targetHour` |
-| Cron jobs no Supabase | Adicionar novos horários e parâmetro |
+| `src/pages/Profile.tsx` | Primeira verificação sem `attemptReconnect` |
+| `src/hooks/useWhatsAppAutoReconnect.ts` | Adicionar controle de tentativas e backoff |
+| `supabase/functions/whatsapp-check-status/index.ts` | Separar lógica de verificação vs reconexão, não fazer restart se não solicitado |
 
----
+## Detalhamento Técnico
+
+### Profile.tsx - Verificação Inicial Passiva
+
+```typescript
+useEffect(() => {
+  if (user) {
+    fetchStats();
+    // ✅ Primeira verificação SEM tentar reconectar
+    checkWhatsAppStatus(false); 
+  }
+}, [user]);
+```
+
+### useWhatsAppAutoReconnect.ts - Controle de Tentativas
+
+```typescript
+const consecutiveFailuresRef = useRef(0);
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+const checkAndReconnect = useCallback(async () => {
+  // Se já falhou muitas vezes, não tenta mais
+  if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+    console.log('[Auto-Reconnect] Max failures reached, stopping');
+    return;
+  }
+  
+  // ... verificação existente ...
+  
+  if (!status?.connected) {
+    consecutiveFailuresRef.current++;
+  } else {
+    consecutiveFailuresRef.current = 0;
+  }
+}, [...]);
+```
+
+### whatsapp-check-status - Modo Somente Leitura
+
+```typescript
+// Se attemptReconnect=false, apenas retorna o status sem tentar modificar
+if (!attemptReconnect) {
+  return new Response(JSON.stringify({ 
+    connected: isConnected,
+    status: state,
+    instanceName,
+    phoneNumber,
+    // Indica que pode tentar reconectar manualmente
+    canAttemptReconnect: !isConnected && (state === 'close' || state === 'disconnected'),
+  }), {...});
+}
+```
+
+## Fluxo Corrigido
+
+```
+[Usuário abre página de Perfil]
+         ↓
+[checkWhatsAppStatus(false)] ← Apenas lê status
+         ↓
+    ┌────┴────┐
+    │         │
+  OPEN      CLOSE/DISCONNECTED
+    │         │
+  ✅ OK    UI mostra "Reconectar"
+            ou "Gerar QR Code"
+         ↓
+[A cada 2 min: useWhatsAppAutoReconnect]
+         ↓
+[Se desconectado E < 3 falhas → tenta reconectar]
+         ↓
+[Se >= 3 falhas → para e mostra aviso]
+```
 
 ## Benefícios
 
-1. **Controle total**: Usuário escolhe exatamente quando quer receber
-2. **Flexibilidade**: Pode selecionar múltiplos horários
-3. **Economia de recursos**: Só envia para quem realmente quer
-4. **Experiência melhorada**: Não recebe relatórios indesejados
+1. **Sem loops de reconexão**: Limita tentativas automáticas
+2. **Experiência melhor**: Usuário não vê QR Code aleatório ao abrir página
+3. **Economia de recursos**: Menos chamadas desnecessárias à Evolution API
+4. **Diagnóstico claro**: Se a conexão não persiste, o usuário sabe que precisa agir
+
