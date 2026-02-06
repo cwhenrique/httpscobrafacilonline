@@ -2533,22 +2533,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               return date >= today; // >= para incluir "vence hoje"
             });
             
-            // 🆕 CORREÇÃO: Se há uma data que é HOJE ou no futuro, NÃO está em atraso
-            if (isHistoricalInterestContract && futureDates.length > 0) {
-              // Buscar a próxima data não paga que seja >= hoje
-              const nextValidDate = dates.slice(paidInstallments).find(d => d >= todayStr);
-              if (nextValidDate) {
-                const nextValidDateObj = new Date(nextValidDate + 'T12:00:00');
-                nextValidDateObj.setHours(0, 0, 0, 0);
-                // Só está em atraso se hoje > próxima data válida não paga
-                isOverdue = today > nextValidDateObj;
+            // 🆕 CORREÇÃO SIMPLIFICADA: Para contratos de juros antigos
+            // Verificar a primeira parcela NÃO COBERTA por pagamento de juros
+            // paidInstallments = quantidade de parcelas com juros já pagos
+            if (isHistoricalInterestContract) {
+              if (paidInstallments < dates.length) {
+                // Há parcelas não cobertas por pagamentos de juros
+                const nextUnpaidDate = dates[paidInstallments];
+                const nextUnpaidDateObj = new Date(nextUnpaidDate + 'T12:00:00');
+                nextUnpaidDateObj.setHours(0, 0, 0, 0);
+                
+                // Em atraso se hoje > data da próxima parcela não coberta
+                isOverdue = today > nextUnpaidDateObj;
                 if (isOverdue) {
-                  overdueDate = nextValidDate;
-                  overdueInstallmentIndex = dates.indexOf(nextValidDate);
-                  daysOverdue = Math.ceil((today.getTime() - nextValidDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                  overdueDate = nextUnpaidDate;
+                  overdueInstallmentIndex = paidInstallments;
+                  daysOverdue = Math.ceil((today.getTime() - nextUnpaidDateObj.getTime()) / (1000 * 60 * 60 * 24));
                 }
               }
-              // Se não há data não paga >= hoje, não está em atraso (juros históricos já cobrem)
+              // Se paidInstallments >= dates.length, todas as parcelas estão cobertas
+              // Contrato não está em atraso (usuário terá que renovar ou quitar)
             } else if (futureDates.length === 0 && paidInstallments < dates.length) {
               const overdueCheckDate = new Date(dates[paidInstallments] + 'T12:00:00');
               overdueCheckDate.setHours(0, 0, 0, 0);
