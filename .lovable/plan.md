@@ -1,138 +1,116 @@
 
 
-## Plano: Corrigir Atraso Incorreto e Rollover de Data para Contratos de Juros Antigos
+## Plano: Corrigir Lógica de Atraso para Contratos de Juros Antigos
 
 ### Problema Identificado
 
-Ao criar um empréstimo de "Juros Antigos" com 1 parcela (ex: R$ 300 + R$ 120 de juros = R$ 420), e marcar que já recebeu o pagamento de juros da parcela 20/01/2026:
+O sistema está impedindo que contratos de juros antigos apareçam no filtro de "atrasados" quando deveriam. O problema ocorre porque:
 
-1. **O sistema mostra a parcela como "em atraso"** (17 dias)
-2. **Deveria mostrar como "juros pago"** e o vencimento rolado para 20/02/2026
+1. A função `getInterestPaidInstallmentsCount()` conta corretamente as parcelas com juros pagos
+2. Esse valor é usado para calcular `paidInstallments`
+3. Mas a lógica de verificação de atraso (linhas 2537-2550) tem um bug:
+   - Quando `futureDates.length > 0`, ele busca apenas datas `>= hoje`
+   - Se `paidInstallments = 1` (juros pago da parcela 1), e a parcela 2 tem data no passado, ele **não detecta o atraso**
+
+**Exemplo do bug:**
+- Contrato com 1 parcela, juros pago em 20/01/2026 (parcela 1 coberta)
+- `paidInstallments = 1`
+- `dates.slice(1)` = vazio (só tinha 1 parcela)
+- Sistema não encontra data em atraso porque não há mais parcelas após a coberta
+
+**Cenário que deveria funcionar:**
+- Se o usuário alterar a data do contrato para uma data passada (ex: 10/01/2026)
+- E não houver pagamento de juros para essa data
+- O contrato deveria aparecer em atraso
 
 ### Causa Raiz
 
-Existem **dois problemas** no código:
-
-**Problema 1: Data não é atualizada para parcela única**
-
-No arquivo `src/pages/Loans.tsx` (linhas ~3771-3777), quando é parcela única, o código **não atualiza** `due_date` e `installment_dates`:
-
-```typescript
-const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
-if (!isSingleInstallment) {  // ← AQUI: Se é parcela única, NÃO atualiza datas
-  updateData.due_date = nextDueDate;
-  updateData.installment_dates = updatedDates;
-}
-```
-
-Para contratos de juros antigos, quando o usuário paga o juros de uma parcela, a data deveria rolar para o próximo mês (20/01 → 20/02).
-
-**Problema 2: Contagem de parcelas não considera juros pagos**
-
-A função `getPaidInstallmentsCount()` (linhas 294-394) conta apenas parcelas com tag `[PARTIAL_PAID:]`, mas **não conta** parcelas com tag `[INTEREST_ONLY_PAID:]`. Isso faz com que:
-
-- `paidInstallments = 0` (mesmo tendo pago juros)
-- A lógica de atraso verifica `dates.slice(paidInstallments)` = `dates.slice(0)` = todas as datas
-- A data 20/01/2026 < hoje (06/02/2026) → sistema marca como "em atraso"
+A lógica atual está usando `futureDates` (datas >= hoje) para verificar se há atraso, mas deveria verificar se há **datas não cobertas** (após `paidInstallments`) que estão no passado.
 
 ### Solução
 
-#### A) Atualizar `due_date` para contratos de juros antigos com parcela única
+Simplificar a lógica para contratos de juros antigos:
 
-Quando for um contrato de juros antigos (`[HISTORICAL_INTEREST_CONTRACT]`) com 1 parcela, **devemos atualizar** a data de vencimento para a próxima data do ciclo, mesmo sendo parcela única.
+1. Encontrar a próxima parcela **não coberta** (após `paidInstallments`)
+2. Se essa parcela tem data no passado → em atraso
+3. Se essa parcela tem data no futuro ou hoje → não está em atraso
 
-**Mudança no bloco de empréstimos normais (~linhas 3771-3777):**
+### Alteração no arquivo `src/pages/Loans.tsx`
+
+**Linhas ~2537-2580**: Substituir a lógica complexa por uma mais simples e correta:
 
 ```typescript
-// ANTES:
-const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
-if (!isSingleInstallment) {
-  updateData.due_date = nextDueDate;
-  updateData.installment_dates = updatedDates;
+// ANTES (complexo e com bugs):
+if (isHistoricalInterestContract && futureDates.length > 0) {
+  const nextValidDate = dates.slice(paidInstallments).find(d => d >= todayStr);
+  if (nextValidDate) {
+    // ...lógica
+  }
+  // Se não há data não paga >= hoje, não está em atraso (ERRADO!)
+} else if (futureDates.length === 0 && paidInstallments < dates.length) {
+  // ...
 }
 
-// DEPOIS:
-const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
-// 🆕 Para contratos de juros antigos, SEMPRE atualizar a data para a próxima do ciclo
-// Isso garante que o vencimento "role" para o próximo mês após pagar o juros
-if (!isSingleInstallment || formData.is_historical_contract) {
-  updateData.due_date = nextDueDate;
-  updateData.installment_dates = updatedDates;
-}
-```
-
-**Mesma mudança no bloco de empréstimos diários (~linhas 3121-3125):**
-
-```typescript
-// DEPOIS:
-if (!isSingleInstallment || formData.is_historical_contract) {
-  updateDataDaily.due_date = nextDueDate;
-  updateDataDaily.installment_dates = updatedDates;
-}
-```
-
-#### B) Ajustar lógica de contagem para contratos de juros antigos
-
-Na função `getLoanStatus()` (~linhas 2513-2567), para contratos `[HISTORICAL_INTEREST_CONTRACT]`, precisamos contar quantas parcelas tiveram juros pagos via `[INTEREST_ONLY_PAID:]` e usar esse valor como `paidInstallments`:
-
-**Adicionar helper function (antes da função `getLoanStatus`):**
-
-```typescript
-// Helper para contar parcelas com juros pagos (para contratos de juros antigos)
-const getInterestPaidInstallmentsCount = (notes: string | null): number => {
-  const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(notes);
-  // Cada índice único de INTEREST_ONLY_PAID representa uma parcela com juros pago
-  const uniqueIndices = new Set(interestOnlyPayments.map(p => p.installmentIndex));
-  return uniqueIndices.size;
-};
-```
-
-**Modificar `getLoanStatus` (~linha 2464):**
-
-```typescript
-// ANTES:
-const paidInstallments = getPaidInstallmentsCount(loan);
-
-// DEPOIS:
-// Para contratos de juros antigos, considerar parcelas com juros pagos como "cobertas"
-let paidInstallments = getPaidInstallmentsCount(loan);
+// DEPOIS (simples e correto):
 if (isHistoricalInterestContract) {
-  const interestPaidCount = getInterestPaidInstallmentsCount(loan.notes);
-  paidInstallments = Math.max(paidInstallments, interestPaidCount);
+  // Para contratos de juros antigos, verificar a primeira parcela NÃO COBERTA
+  // paidInstallments = quantidade de parcelas com juros já pagos
+  if (paidInstallments < dates.length) {
+    // Há parcelas não cobertas por pagamentos de juros
+    const nextUnpaidDate = dates[paidInstallments];
+    const nextUnpaidDateObj = new Date(nextUnpaidDate + 'T12:00:00');
+    nextUnpaidDateObj.setHours(0, 0, 0, 0);
+    
+    // Em atraso se hoje > data da próxima parcela não coberta
+    isOverdue = today > nextUnpaidDateObj;
+    if (isOverdue) {
+      overdueDate = nextUnpaidDate;
+      overdueInstallmentIndex = paidInstallments;
+      daysOverdue = Math.ceil((today.getTime() - nextUnpaidDateObj.getTime()) / (1000 * 60 * 60 * 24));
+    }
+  }
+  // Se paidInstallments >= dates.length, todas as parcelas estão cobertas
+  // Contrato não está em atraso (usuário terá que renovar ou quitar)
 }
 ```
+
+### Comportamento Esperado Após Correção
+
+**Cenário 1: Juros pago, data rolou para o futuro**
+- Principal: R$ 300, Juros: R$ 120, Total: R$ 420
+- Data original: 20/01/2026, pagou juros → data rolou para 20/02/2026
+- `paidInstallments = 1`, `dates = ["2026-02-20"]`
+- Próxima não coberta: `dates[1]` = undefined (parcela única, só 1 data)
+- **Resultado**: NÃO está em atraso ✅
+
+**Cenário 2: Data alterada para o passado, sem pagamento**
+- Data alterada para 10/01/2026
+- Nenhum pagamento de juros registrado
+- `paidInstallments = 0`, `dates = ["2026-01-10"]`
+- Próxima não coberta: `dates[0]` = "2026-01-10" < hoje (06/02)
+- **Resultado**: EM ATRASO ✅ (aparece no filtro de atrasados)
+
+**Cenário 3: Múltiplas parcelas, algumas com juros pago**
+- 3 parcelas: 20/01, 20/02, 20/03
+- Juros pago em 20/01 e 20/02
+- `paidInstallments = 2`, `dates = ["2026-01-20", "2026-02-20", "2026-03-20"]`
+- Próxima não coberta: `dates[2]` = "2026-03-20" > hoje
+- **Resultado**: NÃO está em atraso ✅
+
+**Cenário 4: Múltiplas parcelas, parcela vencida sem juros**
+- 3 parcelas: 20/01, 20/02, 20/03
+- Apenas juros pago em 20/01
+- `paidInstallments = 1`, hoje = 25/02
+- Próxima não coberta: `dates[1]` = "2026-02-20" < hoje (25/02)
+- **Resultado**: EM ATRASO ✅
 
 ### Arquivos a Modificar
 
-- **`src/pages/Loans.tsx`**:
-  - Adicionar helper function `getInterestPaidInstallmentsCount()`
-  - Modificar `getLoanStatus()` para considerar juros pagos em contratos históricos
-  - Modificar bloco de atualização de datas para empréstimos normais (linhas ~3771-3777)
-  - Modificar bloco de atualização de datas para empréstimos diários (linhas ~3121-3125)
+- **`src/pages/Loans.tsx`**: Simplificar a lógica de atraso para contratos de juros antigos (linhas ~2536-2580)
 
-### Resultado Esperado
+### Resultado Final
 
-Após a correção, um empréstimo de juros antigos:
-- Principal: R$ 300
-- Juros: 40% = R$ 120
-- Total a receber: R$ 420
-- Marcado juros pago em 20/01/2026
-
-Exibirá:
-- **Vencimento**: 20/02/2026 (próximo mês)
-- **Status**: Não está em atraso
-- **Parcela**: 1x R$ 420
-- **Juros pago**: R$ 120
-
-### Validação
-
-1. Criar empréstimo de juros antigos com:
-   - Principal R$ 300, Juros 40%, Parcela única
-   - Data de início: 20/01/2026
-   - Marcar pagamento de juros da parcela 1 (R$ 120)
-2. Verificar que:
-   - Vencimento mostra 20/02/2026
-   - Card NÃO mostra "em atraso"
-   - Restante a receber: R$ 420
-   - Pago: R$ 120 (juros históricos)
+Contratos de juros antigos:
+- Aparecem no filtro de atrasados quando há parcelas não cobertas por pagamento de juros e a data dessa parcela está no passado
+- NÃO aparecem em atraso quando todas as parcelas estão cobertas ou a próxima data é futura/hoje
 
