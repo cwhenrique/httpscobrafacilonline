@@ -3078,7 +3078,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         }
       }
       
-      // Adicionar tags ao empréstimo
+      // 🆕 CORREÇÃO: Adicionar tags ao loan.notes para o front reconhecer "pagamento só juros"
+      // Isso permite que getInstallmentStatus() identifique corretamente os pagamentos de juros
+      currentNotes += ` [INTEREST_ONLY_PAYMENT]`;
+      for (const idx of successfulPayments) {
+        const interestAmount = customHistoricalInterestAmounts[idx] !== undefined 
+          ? customHistoricalInterestAmounts[idx] 
+          : defaultInterestPerInstallment;
+        const installmentDate = installmentDates[idx] || format(addMonths(new Date(formData.start_date + 'T12:00:00'), idx), 'yyyy-MM-dd');
+        currentNotes += ` [INTEREST_ONLY_PAID:${idx}:${interestAmount.toFixed(2)}:${installmentDate}]`;
+      }
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
       // 🆕 CORREÇÃO: Calcular a PRÓXIMA data do ciclo baseada na última parcela histórica paga
@@ -3703,7 +3712,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         }
       }
       
-      // Adicionar tags ao empréstimo
+      // 🆕 CORREÇÃO: Adicionar tags ao loan.notes para o front reconhecer "pagamento só juros"
+      // Isso permite que getInstallmentStatus() identifique corretamente os pagamentos de juros
+      currentNotes += ` [INTEREST_ONLY_PAYMENT]`;
+      for (const idx of successfulPayments) {
+        const interestAmount = customHistoricalInterestAmounts[idx] !== undefined 
+          ? customHistoricalInterestAmounts[idx] 
+          : defaultInterestPerInstallment;
+        const installmentDate = generateInstallmentDate(formData.start_date, idx, frequency);
+        currentNotes += ` [INTEREST_ONLY_PAID:${idx}:${interestAmount.toFixed(2)}:${installmentDate}]`;
+      }
       currentNotes += ` [TOTAL_HISTORICAL_INTEREST_RECEIVED:${totalHistoricalInterest.toFixed(2)}]`;
       
       // 🆕 CORREÇÃO: Calcular a PRÓXIMA data do ciclo baseada na última parcela histórica paga
@@ -4040,7 +4058,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }
     
     const interestPerInstallment = totalInterest / numInstallments;
-    const remainingToReceive = totalToReceive - (selectedLoan.total_paid || 0);
+    
+    // 🆕 CORREÇÃO: Para contratos de Juros Antigos, usar remaining_balance diretamente
+    // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
+    const isHistoricalInterestContract = (selectedLoan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
+    const remainingToReceive = isHistoricalInterestContract
+      ? selectedLoan.remaining_balance  // Juros antigos: usar remaining_balance (que é o total do contrato)
+      : totalToReceive - (selectedLoan.total_paid || 0);  // Outros: calcular normalmente
     
     const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
     
@@ -11967,9 +11991,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PAID:') ||
                         (selectedLoan.notes || '').includes('[PARTIAL_INTEREST_PENDING:') ||
                         (selectedLoan.notes || '').includes('[INTEREST_CLEARED:');
+                      // 🆕 CORREÇÃO: Detectar contrato de juros antigos - NUNCA usar fallback por total_paid
+                      const isHistoricalInterestContract = (selectedLoan.notes || '').includes('[HISTORICAL_INTEREST_CONTRACT]');
                       
-                      // IMPORTANTE: Não usar fallback se há pagamentos parciais de juros, pois esses NÃO devem abater da parcela
-                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTracking && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
+                      // IMPORTANTE: Não usar fallback se há pagamentos parciais de juros ou é contrato de juros antigos
+                      // Pois nesses casos o total_paid NÃO deve abater da parcela
+                      if (!hasAnyTrackingTags && !hasInterestOnlyTag && !hasPartialInterestTracking && !isHistoricalInterestContract && selectedLoan.total_paid && selectedLoan.total_paid > 0) {
                         // Calcular quantas parcelas completas foram pagas
                         const paidInstallmentsCount = Math.floor(selectedLoan.total_paid / totalPerInstallment);
                         if (index < paidInstallmentsCount) {
