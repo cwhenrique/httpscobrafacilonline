@@ -131,6 +131,55 @@ const sendWhatsAppList = async (phone: string, listData: ListData): Promise<bool
   }
 };
 
+// Send push notification
+const sendPushNotification = async (
+  supabase: any,
+  userId: string,
+  title: string,
+  body: string,
+  url?: string
+): Promise<void> => {
+  try {
+    // Get user's push subscriptions
+    const { data: subscriptions } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (!subscriptions || subscriptions.length === 0) return;
+
+    // Send via edge function
+    for (const sub of subscriptions) {
+      try {
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              userId,
+              title,
+              body,
+              url,
+            }),
+          }
+        );
+        if (response.ok) {
+          console.log(`Push notification sent to user ${userId}`);
+        }
+      } catch (e) {
+        console.error(`Failed to send push to user ${userId}:`, e);
+      }
+    }
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+};
+
 const getContractId = (id: string): string => {
   return `EMP-${id.substring(0, 4).toUpperCase()}`;
 };
@@ -354,6 +403,15 @@ const handler = async (req: Request): Promise<Response> => {
         const sent = await sendWhatsAppList(profile.phone, listData);
         if (sent) {
           sentCount++;
+          
+          // Also send push notification
+          await sendPushNotification(
+            supabase,
+            userId,
+            `⏰ Parcela vence hoje - ${loan.clientName}`,
+            `Parcela ${loan.currentInstallment}/${loan.totalInstallments} de ${formatCurrency(loan.installmentAmount)}`,
+            '/loans'
+          );
         }
       }
     }
