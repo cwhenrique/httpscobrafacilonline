@@ -1,148 +1,115 @@
 
-# Plano: Adicionar Botões de Cobrança WhatsApp nos Veículos
+# Plano: Cancelar PWA Push e Manter Relatórios WhatsApp
 
-## Objetivo
+## Resumo
 
-Adicionar os mesmos botões de cobrança via WhatsApp que existem na área de Empréstimos para a página de Veículos:
-- **Enviar Cobrança** (parcela em atraso)
-- **Vence Hoje** (parcela vencendo hoje)
-- **Antecipar** (parcela pendente futura)
+O sistema de **relatórios via WhatsApp já está funcionando** corretamente. Vou remover a implementação de PWA Push Notifications que foi adicionada, mantendo o sistema existente de notificações via WhatsApp.
 
 ---
 
 ## Situação Atual
 
-| Área | Botões de Cobrança |
-|------|-------------------|
-| Empréstimos | ✅ SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification |
-| Produtos | ✅ Já implementado no ProductSaleCard.tsx |
-| Contratos | ✅ Já implementado no ProductSales.tsx |
-| Assinaturas IPTV | ✅ Botão "Cobrar" customizado |
-| **Veículos** | ❌ **Não tem** - será implementado |
+### O que já está funcionando (WhatsApp):
+
+| Horário | Função | Descrição |
+|---------|--------|-----------|
+| 7h (10h UTC) | `morning-greeting` | Saudação matinal com resumo rápido |
+| 8h (11h UTC) | `daily-summary` | Relatório detalhado dos empréstimos |
+| 12h (15h UTC) | `daily-summary` | Lembrete com cobranças pendentes |
+
+Os cron jobs já estão configurados com batches para processar múltiplos usuários.
+
+### O que será removido (PWA Push):
+
+| Item | Arquivo |
+|------|---------|
+| Componente UI | `src/components/PushNotificationSettings.tsx` |
+| Hook | `src/hooks/usePushNotifications.ts` |
+| Service Worker | `public/sw-push.js` |
+| Edge Function | `supabase/functions/send-push-notification/index.ts` |
+| Edge Function | `supabase/functions/get-vapid-public-key/index.ts` |
+| Tabela DB | `push_subscriptions` |
+| Import no Settings | Remover referência em Settings.tsx |
 
 ---
 
-## Alterações Necessárias
+## Alterações
 
-### Arquivo: `src/pages/Vehicles.tsx`
+### 1. Remover arquivos PWA Push
 
-#### 1. Importar os componentes de notificação
+**Arquivos a deletar:**
+- `src/components/PushNotificationSettings.tsx`
+- `src/hooks/usePushNotifications.ts`
+- `public/sw-push.js`
+- `supabase/functions/send-push-notification/index.ts`
+- `supabase/functions/get-vapid-public-key/index.ts`
+
+### 2. Atualizar Settings.tsx
+
+Remover o import e uso do `PushNotificationSettings`:
 
 ```typescript
-import SendOverdueNotification from '@/components/SendOverdueNotification';
-import SendDueTodayNotification from '@/components/SendDueTodayNotification';
-import { SendEarlyNotification } from '@/components/SendEarlyNotification';
+// REMOVER esta linha:
+import { PushNotificationSettings } from '@/components/PushNotificationSettings';
+
+// REMOVER este componente do JSX:
+<PushNotificationSettings />
 ```
 
-#### 2. Adicionar botões na lista de parcelas expandida (linha ~500-525)
+### 3. Limpar Tabela do Banco
 
-Para cada parcela na lista expandida do veículo, adicionar os botões condicionalmente:
+A tabela `push_subscriptions` será removida via migration.
 
-```tsx
-{vehiclePaymentsForCard.map((payment) => {
-  const paymentDueDate = parseISO(payment.due_date);
-  const isOverdue = payment.status !== 'paid' && isPast(paymentDueDate) && !isToday(paymentDueDate);
-  const isDueToday = payment.status !== 'paid' && isToday(paymentDueDate);
-  const isPending = payment.status !== 'paid' && !isPast(paymentDueDate);
-  const daysOverdue = isOverdue ? Math.floor((new Date().getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-  const daysUntilDue = isPending ? Math.max(1, Math.floor((paymentDueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
-  const paidPaymentsCount = vehiclePaymentsForCard.filter(p => p.status === 'paid').length;
+### 4. Atualizar config.toml
 
-  return (
-    <div key={payment.id} className="space-y-2">
-      {/* Linha existente com informações da parcela */}
-      <div className={cn("flex items-center justify-between p-2 rounded-lg text-sm", ...)}>
-        ...
-      </div>
-      
-      {/* NOVO: Botões de cobrança WhatsApp */}
-      {payment.status !== 'paid' && vehicle.buyer_phone && (
-        <div className="pl-2">
-          {isOverdue && (
-            <SendOverdueNotification
-              data={{
-                clientName: vehicle.buyer_name || vehicle.seller_name,
-                clientPhone: vehicle.buyer_phone,
-                contractType: 'vehicle',
-                installmentNumber: payment.installment_number,
-                totalInstallments: vehicle.installments,
-                amount: payment.amount,
-                dueDate: payment.due_date,
-                daysOverdue: daysOverdue,
-                loanId: vehicle.id,
-                paidCount: paidPaymentsCount,
-              }}
-              className="w-full"
-            />
-          )}
-          {isDueToday && (
-            <SendDueTodayNotification
-              data={{
-                clientName: vehicle.buyer_name || vehicle.seller_name,
-                clientPhone: vehicle.buyer_phone,
-                contractType: 'vehicle',
-                installmentNumber: payment.installment_number,
-                totalInstallments: vehicle.installments,
-                amount: payment.amount,
-                dueDate: payment.due_date,
-                loanId: vehicle.id,
-                paidCount: paidPaymentsCount,
-              }}
-              className="w-full"
-            />
-          )}
-          {isPending && (
-            <SendEarlyNotification
-              data={{
-                clientName: vehicle.buyer_name || vehicle.seller_name,
-                clientPhone: vehicle.buyer_phone,
-                contractType: 'vehicle',
-                installmentNumber: payment.installment_number,
-                totalInstallments: vehicle.installments,
-                amount: payment.amount,
-                dueDate: payment.due_date,
-                daysUntilDue: daysUntilDue,
-                loanId: vehicle.id,
-                paidCount: paidPaymentsCount,
-              }}
-              className="w-full"
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-})}
-```
-
-#### 3. Adicionar botões no card principal (parcela próxima)
-
-Na área visível do card do veículo (antes de expandir), mostrar o botão de cobrança para a próxima parcela pendente se estiver em atraso ou vencendo hoje.
+Remover as entradas:
+- `[functions.send-push-notification]`
+- `[functions.get-vapid-public-key]`
 
 ---
 
-## Resumo
+## Sistema de Relatórios WhatsApp (Mantido)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/pages/Vehicles.tsx` | Importar SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification |
-| `src/pages/Vehicles.tsx` | Adicionar botões na lista expandida de parcelas |
-| `src/pages/Vehicles.tsx` | Adicionar botões no card principal para próxima parcela |
+O sistema atual funciona assim:
+
+1. **Usuário conecta WhatsApp** na página de Perfil
+2. **Cron jobs** rodam automaticamente às 8h e 12h
+3. **Edge Function `daily-summary`** busca:
+   - Empréstimos em aberto (`status: pending/overdue`)
+   - Veículos e produtos pendentes
+   - Calcula valores vencendo hoje e em atraso
+4. **Mensagem enviada** para o próprio número do usuário
+
+### Mensagem de exemplo (8h):
+
+```
+📋 *Relatório do Dia*
+📅 06/02/2026
+━━━━━━━━━━━━━━━━
+
+⏰ *VENCE HOJE:* R$ 1.500,00
+• João Silva - R$ 500
+• Maria Santos - R$ 1.000
+
+🚨 *EM ATRASO:* R$ 2.000,00
+• Pedro Alves (3 dias) - R$ 800
+• Ana Costa (7 dias) - R$ 1.200
+
+━━━━━━━━━━━━━━━━
+💰 Total Pendente: R$ 3.500,00
+```
 
 ---
 
-## Resultado Final
+## Resumo Final
 
-**No card de cada veículo:**
-- Se a próxima parcela está em atraso: botão vermelho "Enviar Cobrança"
-- Se vence hoje: botão amarelo "Vence Hoje"
-- Se está pendente: botão "Cobrar Antes"
+| Ação | Descrição |
+|------|-----------|
+| ❌ Deletar | 5 arquivos de PWA Push |
+| ❌ Remover | Tabela `push_subscriptions` |
+| ❌ Limpar | Referencias em Settings.tsx |
+| ✅ Manter | Sistema de relatórios WhatsApp (8h e 12h) |
+| ✅ Manter | Todas as Edge Functions de WhatsApp |
+| ✅ Manter | Cron jobs configurados |
 
-**Na lista expandida de parcelas:**
-- Cada parcela não paga terá seu botão de cobrança correspondente ao status
-
-Os botões funcionarão exatamente como na área de empréstimos:
-1. Aviso de spam ao clicar
-2. Preview da mensagem editável
-3. Envio via WhatsApp configurado
-4. Cooldown de 1 hora por parcela
+O sistema de notificações continuará funcionando via WhatsApp como antes, sem necessidade de PWA Push.
