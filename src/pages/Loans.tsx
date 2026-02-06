@@ -393,6 +393,14 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   return paidCount;
 };
 
+// 🆕 Helper para contar parcelas com juros pagos (para contratos de juros antigos)
+// Cada índice único de INTEREST_ONLY_PAID representa uma parcela com juros pago
+const getInterestPaidInstallmentsCount = (notes: string | null): number => {
+  const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(notes);
+  const uniqueIndices = new Set(interestOnlyPayments.map(p => p.installmentIndex));
+  return uniqueIndices.size;
+};
+
 // 🆕 Função para encontrar a parcela que vence EXATAMENTE hoje
 // Retorna null se nenhuma parcela vence hoje
 type LoanForTodayCheck = {
@@ -2461,7 +2469,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }> = [];
     
     if (!isPaid && remainingToReceive > 0) {
-      const paidInstallments = getPaidInstallmentsCount(loan);
+      // 🆕 Para contratos de juros antigos, considerar parcelas com juros pagos como "cobertas"
+      let paidInstallments = getPaidInstallmentsCount(loan);
+      if (isHistoricalInterestContract) {
+        const interestPaidCount = getInterestPaidInstallmentsCount(loan.notes);
+        paidInstallments = Math.max(paidInstallments, interestPaidCount);
+      }
       const dates = (loan.installment_dates as string[]) || [];
       
       // Para empréstimos diários, verificar TODAS as parcelas não pagas que já venceram
@@ -3118,8 +3131,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         // NÃO alterar installments - manter valor original
       };
       
-      // Só alterar datas se tiver mais de 1 parcela
-      if (!isSingleInstallment) {
+      // 🆕 CORREÇÃO: Para contratos de juros antigos, SEMPRE atualizar a data para a próxima do ciclo
+      // Isso garante que o vencimento "role" para o próximo mês após pagar o juros
+      if (!isSingleInstallment || formData.is_historical_contract) {
         updateDataDaily.due_date = nextDueDate;
         updateDataDaily.installment_dates = updatedDates;
       }
@@ -3769,9 +3783,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       };
       
       // 🆕 CORREÇÃO: Verificar se é parcela única (tipo single OU installment com 1 parcela)
-      // Para parcela única, NÃO alterar due_date e installment_dates
+      // Para parcela única normal, NÃO alterar due_date e installment_dates
+      // MAS para contratos de juros antigos, SEMPRE atualizar a data para a próxima do ciclo
+      // Isso garante que o vencimento "role" para o próximo mês após pagar o juros
       const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
-      if (!isSingleInstallment) {
+      if (!isSingleInstallment || formData.is_historical_contract) {
         updateData.due_date = nextDueDate;
         updateData.installment_dates = updatedDates;
       }
