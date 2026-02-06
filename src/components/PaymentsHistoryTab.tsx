@@ -378,7 +378,7 @@ export function PaymentsHistoryTab() {
               <p>Nenhum pagamento registrado neste período.</p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[500px]">
+            <ScrollArea className="h-[500px]">
               <Table>
                 <TableHeader>
                   <TableRow>
