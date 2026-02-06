@@ -131,6 +131,38 @@ const sendWhatsAppList = async (phone: string, listData: ListData): Promise<bool
   }
 };
 
+// Send push notification
+const sendPushNotification = async (
+  userId: string,
+  title: string,
+  body: string,
+  url?: string
+): Promise<void> => {
+  try {
+    const response = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          userId,
+          title,
+          body,
+          url,
+        }),
+      }
+    );
+    if (response.ok) {
+      console.log(`Push notification sent to user ${userId}`);
+    }
+  } catch (e) {
+    console.error(`Failed to send push to user ${userId}:`, e);
+  }
+};
+
 const getContractId = (id: string): string => {
   return `EMP-${id.substring(0, 4).toUpperCase()}`;
 };
@@ -560,6 +592,14 @@ const handler = async (req: Request): Promise<Response> => {
           const sent = await sendWhatsAppList(profile.phone, listData);
           if (sent) {
             sentCount++;
+            
+            // Also send push notification
+            await sendPushNotification(
+              userId,
+              `🚨 ${alertDay} dia${alertDay > 1 ? 's' : ''} em atraso - ${loan.clientName}`,
+              `Saldo devedor: ${formatCurrency(loan.remainingBalance)}`,
+              '/loans'
+            );
           }
         }
       }

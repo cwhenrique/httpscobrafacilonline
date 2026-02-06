@@ -79,6 +79,8 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: false,
         navigateFallback: null,
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Import push notification handler
+        importScripts: ['/sw-push.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
 import BillingMessageConfigCard from '@/components/BillingMessageConfigCard';
+import { PushNotificationSettings } from '@/components/PushNotificationSettings';
 
 // Emails com acesso privilegiado ao assistente de voz (independente do plano)
 const VOICE_PRIVILEGED_EMAILS = [
@@ -339,6 +340,9 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
             )}
           </Button>
         </form>
+
+        {/* Push Notifications Settings */}
+        <PushNotificationSettings />
 
         {/* WhatsApp para Clientes - Migração para Meu Perfil */}
         <Card className="shadow-soft border-blue-500/20">
