@@ -45,7 +45,7 @@ import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData
 import { useClients } from '@/hooks/useClients';
 import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt, Server, ExternalLink } from 'lucide-react';
+import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt, Server, ExternalLink, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfile } from '@/hooks/useProfile';
@@ -71,6 +71,7 @@ import IPTVSubscriptionForm from '@/components/iptv/IPTVSubscriptionForm';
 import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
+import IPTVSubscriptionListView from '@/components/iptv/IPTVSubscriptionListView';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -278,6 +279,7 @@ export default function ProductSales() {
   const [selectedSubscriptionPayment, setSelectedSubscriptionPayment] = useState<{ paymentId: string; amount: number; feeId: string } | null>(null);
   const [subscriptionPaymentDate, setSubscriptionPaymentDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<'all' | 'active' | 'pending' | 'overdue'>('all');
+  const [subscriptionViewMode, setSubscriptionViewMode] = useState<'cards' | 'list'>('cards');
   const [isSendingCharge, setIsSendingCharge] = useState<Record<string, boolean>>({});
   const [expandedSubscriptions, setExpandedSubscriptions] = useState<Record<string, boolean>>({});
   const [showChargePreview, setShowChargePreview] = useState(false);
@@ -2733,41 +2735,79 @@ export default function ProductSales() {
               isPending={createFee.isPending}
             />
 
-            {/* Status Filters */}
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={subscriptionStatusFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSubscriptionStatusFilter('all')}
-              >
-                Todas ({subscriptionStats.total})
-              </Button>
-              <Button
-                variant={subscriptionStatusFilter === 'active' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSubscriptionStatusFilter('active')}
-              >
-                Ativas ({subscriptionStats.active})
-              </Button>
-              <Button
-                variant={subscriptionStatusFilter === 'pending' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSubscriptionStatusFilter('pending')}
-              >
-                Pendentes ({subscriptionStats.pending})
-              </Button>
-              <Button
-                variant={subscriptionStatusFilter === 'overdue' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSubscriptionStatusFilter('overdue')}
-                className={subscriptionStatusFilter === 'overdue' ? 'bg-destructive hover:bg-destructive/90' : ''}
-              >
-                <AlertTriangle className="w-3 h-3 mr-1" />
-                Atrasados ({subscriptionStats.overdue})
-              </Button>
+            {/* Status Filters + View Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={subscriptionStatusFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSubscriptionStatusFilter('all')}
+                >
+                  Todas ({subscriptionStats.total})
+                </Button>
+                <Button
+                  variant={subscriptionStatusFilter === 'active' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSubscriptionStatusFilter('active')}
+                >
+                  Ativas ({subscriptionStats.active})
+                </Button>
+                <Button
+                  variant={subscriptionStatusFilter === 'pending' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSubscriptionStatusFilter('pending')}
+                >
+                  Pendentes ({subscriptionStats.pending})
+                </Button>
+                <Button
+                  variant={subscriptionStatusFilter === 'overdue' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSubscriptionStatusFilter('overdue')}
+                  className={subscriptionStatusFilter === 'overdue' ? 'bg-destructive hover:bg-destructive/90' : ''}
+                >
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  Atrasados ({subscriptionStats.overdue})
+                </Button>
+              </div>
+              
+              {/* View Mode Toggle */}
+              <div className="flex items-center gap-1 border rounded-lg p-0.5">
+                <Button
+                  variant={subscriptionViewMode === 'cards' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-8 px-3 gap-1.5"
+                  onClick={() => setSubscriptionViewMode('cards')}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Cards</span>
+                </Button>
+                <Button
+                  variant={subscriptionViewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-8 px-3 gap-1.5"
+                  onClick={() => setSubscriptionViewMode('list')}
+                >
+                  <List className="w-4 h-4" />
+                  <span className="hidden sm:inline">Lista</span>
+                </Button>
+              </div>
             </div>
 
-            {/* Subscriptions List */}
+            {/* Subscriptions List/Cards View */}
+            {subscriptionViewMode === 'list' ? (
+              <IPTVSubscriptionListView
+                subscriptions={filteredSubscriptions}
+                payments={feePayments}
+                getSubscriptionStatus={getSubscriptionStatus}
+                getNextPendingPayment={getNextPendingPayment}
+                calculateWithInterest={calculateWithInterest}
+                onToggleActive={(id, isActive) => toggleActive.mutate({ id, is_active: isActive })}
+                onDelete={(id) => setDeleteSubscriptionId(id)}
+                onOpenPaymentDialog={openSubscriptionPaymentDialog}
+                onOpenHistory={(fee) => setHistoryDialogFee(fee)}
+                formatCurrency={formatCurrency}
+              />
+            ) : (
             <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
               {filteredSubscriptions.length === 0 ? (
                 <Card className="col-span-full">
@@ -3136,6 +3176,7 @@ export default function ProductSales() {
                 })
               )}
             </div>
+            )}
           </TabsContent>
         </Tabs>
 
