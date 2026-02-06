@@ -135,8 +135,7 @@ export function PaymentsHistoryTab() {
         .gte('payment_date', startStr)
         .lte('payment_date', endStr)
         .order('payment_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(500);
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Erro ao carregar pagamentos:', error);
