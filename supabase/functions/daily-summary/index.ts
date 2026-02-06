@@ -533,57 +533,13 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
       
-      // EM ATRASO - List ALL clients separated by category
+      // EM ATRASO - Summary only (no individual listing)
       if (hasOverdue) {
+        const totalOverdueClients = overdueLoans.length + overdueVehicles.length + overdueProducts.length;
+        
         messageText += `🚨 *EM ATRASO*\n`;
-        messageText += `💸 Total: ${formatCurrency(grandTotalOverdue)}\n\n`;
-        
-        // Separate loans by type
-        const overdueDailyLoans = overdueLoans.filter(l => l.paymentType === 'daily');
-        const overdueOtherLoans = overdueLoans.filter(l => l.paymentType !== 'daily');
-
-        // DIÁRIOS EM ATRASO - Separate section
-        if (overdueDailyLoans.length > 0) {
-          const dailyTotal = overdueDailyLoans.reduce((sum, l) => sum + l.amount, 0);
-          messageText += `📅 *DIÁRIOS* (${overdueDailyLoans.length})\n`;
-          overdueDailyLoans.forEach(l => {
-            messageText += `• ${l.clientName}: ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(dailyTotal)}\n\n`;
-        }
-        
-        // OUTROS EMPRÉSTIMOS EM ATRASO - Separate section
-        if (overdueOtherLoans.length > 0) {
-          const otherTotal = overdueOtherLoans.reduce((sum, l) => sum + l.amount, 0);
-          messageText += `💰 *OUTROS EMPRÉSTIMOS* (${overdueOtherLoans.length})\n`;
-          overdueOtherLoans.forEach(l => {
-            const typeLabel = l.paymentType === 'weekly' ? 'sem' : 
-                              l.paymentType === 'biweekly' ? 'quin' : 
-                              l.paymentType === 'single' ? 'único' : 'mens';
-            messageText += `• ${l.clientName} (${typeLabel}): ${formatCurrency(l.amount)} (${l.daysOverdue}d)\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(otherTotal)}\n\n`;
-        }
-        
-        // VEÍCULOS EM ATRASO - Separate section
-        if (overdueVehicles.length > 0) {
-          const vehicleTotal = overdueVehicles.reduce((sum, v) => sum + v.amount, 0);
-          messageText += `🚗 *VEÍCULOS* (${overdueVehicles.length})\n`;
-          overdueVehicles.forEach(v => {
-            messageText += `• ${v.buyerName}: ${formatCurrency(v.amount)} (${v.daysOverdue}d)\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(vehicleTotal)}\n\n`;
-        }
-        
-        // PRODUTOS EM ATRASO - Separate section
-        if (overdueProducts.length > 0) {
-          const productTotal = overdueProducts.reduce((sum, p) => sum + p.amount, 0);
-          messageText += `📦 *PRODUTOS* (${overdueProducts.length})\n`;
-          overdueProducts.forEach(p => {
-            messageText += `• ${p.clientName}: ${formatCurrency(p.amount)} (${p.daysOverdue}d)\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(productTotal)}\n\n`;
-        }
+        messageText += `👥 ${totalOverdueClients} cliente${totalOverdueClients > 1 ? 's' : ''} em atraso\n`;
+        messageText += `💸 Total pendente: ${formatCurrency(grandTotalOverdue)}\n\n`;
       }
       
       messageText += `━━━━━━━━━━━━━━━━\n`;
