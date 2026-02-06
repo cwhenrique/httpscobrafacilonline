@@ -1,92 +1,138 @@
 
-## Plano: Correção Definitiva do Remaining Balance para Contratos de Juros Antigos
+
+## Plano: Corrigir Atraso Incorreto e Rollover de Data para Contratos de Juros Antigos
 
 ### Problema Identificado
 
-Através da análise dos logs de rede, identifiquei a causa raiz:
+Ao criar um empréstimo de "Juros Antigos" com 1 parcela (ex: R$ 300 + R$ 120 de juros = R$ 420), e marcar que já recebeu o pagamento de juros da parcela 20/01/2026:
 
-1. **Empréstimo criado corretamente** com `remaining_balance: 420`
-2. **Mas o PATCH subsequente** (após registrar juros históricos) atualiza para `remaining_balance: 300`
-
-O Request Body do PATCH mostra:
-```json
-{
-  "remaining_balance": 300,  // ← ERRADO! Deveria ser 420
-  "due_date": "2026-02-20",
-  "installment_dates": ["2026-02-20"]
-}
-```
+1. **O sistema mostra a parcela como "em atraso"** (17 dias)
+2. **Deveria mostrar como "juros pago"** e o vencimento rolado para 20/02/2026
 
 ### Causa Raiz
 
-A condição no código verifica:
-```typescript
-const isSinglePayment = formData.payment_type === 'single';
-```
+Existem **dois problemas** no código:
 
-Mas o usuário está criando com `payment_type: "installment"` com 1 parcela, não `"single"`. Portanto, `isSinglePayment = false`, e o código executa:
-```typescript
-correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
-// = 300 + 120 - 120 = 300 ← ERRADO
-```
+**Problema 1: Data não é atualizada para parcela única**
 
-### Solução Correta
-
-Para contratos de **Juros Antigos** (que têm a tag `[HISTORICAL_INTEREST_CONTRACT]`), o `remaining_balance` deve **SEMPRE** ser mantido como `principal + total_interest`, independentemente do `payment_type`.
-
-A regra de negócio é:
-- Juros históricos são registros de **juros JÁ RECEBIDOS**
-- Eles NÃO reduzem o saldo devedor
-- O contrato ainda espera receber o **valor total (principal + juros)**
-
-### Alterações no arquivo `src/pages/Loans.tsx`
-
-**Linha ~3736-3756**: Substituir a verificação por `isSinglePayment` por uma verificação de **contrato de juros antigos**:
+No arquivo `src/pages/Loans.tsx` (linhas ~3771-3777), quando é parcela única, o código **não atualiza** `due_date` e `installment_dates`:
 
 ```typescript
-// ANTES (incorreto):
-const isSinglePayment = formData.payment_type === 'single';
-// ...
-const correctedRemainingBalance = isSinglePayment
-  ? principal + correctedTotalInterest
-  : principal + correctedTotalInterest - totalHistoricalInterest;
-
-// DEPOIS (correto):
-// Para contratos de Juros Antigos, NUNCA subtrair do remaining_balance
-// Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento
-// Esta lógica se aplica a QUALQUER payment_type (single, installment, etc.)
-const correctedRemainingBalance = principal + correctedTotalInterest;
-// (Sempre manter o total do contrato - juros antigos entram só em total_paid)
+const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
+if (!isSingleInstallment) {  // ← AQUI: Se é parcela única, NÃO atualiza datas
+  updateData.due_date = nextDueDate;
+  updateData.installment_dates = updatedDates;
+}
 ```
 
-Além disso, para evitar alterar `due_date` e `installment_dates` desnecessariamente:
+Para contratos de juros antigos, quando o usuário paga o juros de uma parcela, a data deveria rolar para o próximo mês (20/01 → 20/02).
+
+**Problema 2: Contagem de parcelas não considera juros pagos**
+
+A função `getPaidInstallmentsCount()` (linhas 294-394) conta apenas parcelas com tag `[PARTIAL_PAID:]`, mas **não conta** parcelas com tag `[INTEREST_ONLY_PAID:]`. Isso faz com que:
+
+- `paidInstallments = 0` (mesmo tendo pago juros)
+- A lógica de atraso verifica `dates.slice(paidInstallments)` = `dates.slice(0)` = todas as datas
+- A data 20/01/2026 < hoje (06/02/2026) → sistema marca como "em atraso"
+
+### Solução
+
+#### A) Atualizar `due_date` para contratos de juros antigos com parcela única
+
+Quando for um contrato de juros antigos (`[HISTORICAL_INTEREST_CONTRACT]`) com 1 parcela, **devemos atualizar** a data de vencimento para a próxima data do ciclo, mesmo sendo parcela única.
+
+**Mudança no bloco de empréstimos normais (~linhas 3771-3777):**
 
 ```typescript
 // ANTES:
-if (!isSinglePayment) {
+const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
+if (!isSingleInstallment) {
   updateData.due_date = nextDueDate;
   updateData.installment_dates = updatedDates;
 }
 
 // DEPOIS:
-// Para Juros Antigos de parcela única (1 parcela), não alterar datas
-const isSingleInstallment = (formData.payment_type === 'single' || 
-                              parseInt(formData.installments || '1') === 1);
-if (!isSingleInstallment) {
+const isSingleInstallment = isSinglePayment || parseInt(formData.installments || '1') === 1;
+// 🆕 Para contratos de juros antigos, SEMPRE atualizar a data para a próxima do ciclo
+// Isso garante que o vencimento "role" para o próximo mês após pagar o juros
+if (!isSingleInstallment || formData.is_historical_contract) {
   updateData.due_date = nextDueDate;
   updateData.installment_dates = updatedDates;
 }
 ```
 
-### Aplicar mesma correção para empréstimos diários
+**Mesma mudança no bloco de empréstimos diários (~linhas 3121-3125):**
 
-Na seção de empréstimos diários (~linhas 3040-3120), aplicar a mesma lógica: **NUNCA subtrair juros históricos do `remaining_balance`**.
+```typescript
+// DEPOIS:
+if (!isSingleInstallment || formData.is_historical_contract) {
+  updateDataDaily.due_date = nextDueDate;
+  updateDataDaily.installment_dates = updatedDates;
+}
+```
+
+#### B) Ajustar lógica de contagem para contratos de juros antigos
+
+Na função `getLoanStatus()` (~linhas 2513-2567), para contratos `[HISTORICAL_INTEREST_CONTRACT]`, precisamos contar quantas parcelas tiveram juros pagos via `[INTEREST_ONLY_PAID:]` e usar esse valor como `paidInstallments`:
+
+**Adicionar helper function (antes da função `getLoanStatus`):**
+
+```typescript
+// Helper para contar parcelas com juros pagos (para contratos de juros antigos)
+const getInterestPaidInstallmentsCount = (notes: string | null): number => {
+  const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(notes);
+  // Cada índice único de INTEREST_ONLY_PAID representa uma parcela com juros pago
+  const uniqueIndices = new Set(interestOnlyPayments.map(p => p.installmentIndex));
+  return uniqueIndices.size;
+};
+```
+
+**Modificar `getLoanStatus` (~linha 2464):**
+
+```typescript
+// ANTES:
+const paidInstallments = getPaidInstallmentsCount(loan);
+
+// DEPOIS:
+// Para contratos de juros antigos, considerar parcelas com juros pagos como "cobertas"
+let paidInstallments = getPaidInstallmentsCount(loan);
+if (isHistoricalInterestContract) {
+  const interestPaidCount = getInterestPaidInstallmentsCount(loan.notes);
+  paidInstallments = Math.max(paidInstallments, interestPaidCount);
+}
+```
+
+### Arquivos a Modificar
+
+- **`src/pages/Loans.tsx`**:
+  - Adicionar helper function `getInterestPaidInstallmentsCount()`
+  - Modificar `getLoanStatus()` para considerar juros pagos em contratos históricos
+  - Modificar bloco de atualização de datas para empréstimos normais (linhas ~3771-3777)
+  - Modificar bloco de atualização de datas para empréstimos diários (linhas ~3121-3125)
 
 ### Resultado Esperado
 
-Após a correção:
-- Empréstimo criado: `remaining_balance = 420`
-- PATCH após juros históricos: `remaining_balance = 420` (mantido)
-- `due_date` e `installment_dates` não alterados para parcela única
-- `total_paid = 120` (juros antigos)
-- Card exibe: **Restante a receber: R$ 420** e **Parcela: 1x R$ 420**
+Após a correção, um empréstimo de juros antigos:
+- Principal: R$ 300
+- Juros: 40% = R$ 120
+- Total a receber: R$ 420
+- Marcado juros pago em 20/01/2026
+
+Exibirá:
+- **Vencimento**: 20/02/2026 (próximo mês)
+- **Status**: Não está em atraso
+- **Parcela**: 1x R$ 420
+- **Juros pago**: R$ 120
+
+### Validação
+
+1. Criar empréstimo de juros antigos com:
+   - Principal R$ 300, Juros 40%, Parcela única
+   - Data de início: 20/01/2026
+   - Marcar pagamento de juros da parcela 1 (R$ 120)
+2. Verificar que:
+   - Vencimento mostra 20/02/2026
+   - Card NÃO mostra "em atraso"
+   - Restante a receber: R$ 420
+   - Pago: R$ 120 (juros históricos)
+
