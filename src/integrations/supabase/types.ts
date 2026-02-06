@@ -1361,6 +1361,45 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          device_name: string | null
+          endpoint: string
+          id: string
+          is_active: boolean | null
+          last_used_at: string | null
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          device_name?: string | null
+          endpoint: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          device_name?: string | null
+          endpoint?: string
+          id?: string
+          is_active?: boolean | null
+          last_used_at?: string | null
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscription_reactivations: {
         Row: {
           created_at: string | null
