@@ -1272,6 +1272,7 @@ export type Database = {
           pix_key: string | null
           pix_key_type: string | null
           pix_pre_message: string | null
+          report_schedule_hours: number[] | null
           subscription_expires_at: string | null
           subscription_plan: string | null
           temp_password: string | null
@@ -1310,6 +1311,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           pix_pre_message?: string | null
+          report_schedule_hours?: number[] | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null
           temp_password?: string | null
@@ -1348,6 +1350,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           pix_pre_message?: string | null
+          report_schedule_hours?: number[] | null
           subscription_expires_at?: string | null
           subscription_plan?: string | null
           temp_password?: string | null
