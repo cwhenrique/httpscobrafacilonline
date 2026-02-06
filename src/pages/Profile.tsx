@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useWhatsAppAutoReconnect } from '@/hooks/useWhatsAppAutoReconnect';
 import { useAffiliateLinks } from '@/hooks/useAffiliateLinks';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -311,14 +312,30 @@ export default function Profile() {
     }
   }, [user?.id]);
 
-  // Helper function to check if user has a paid plan
-  const isPaidPlan = (): boolean => {
+  // Check if user has a paid plan (computed value for hooks)
+  const hasPaidPlan = (() => {
     if (!profile?.subscription_plan) return false;
     const paidPlans = ['monthly', 'quarterly', 'annual', 'lifetime', 'mensal', 'trimestral', 'anual', 'vitalicio'];
     return paidPlans.some(plan => 
       profile.subscription_plan?.toLowerCase().includes(plan)
     );
-  };
+  })();
+
+  // Helper function for event handlers
+  const isPaidPlan = (): boolean => hasPaidPlan;
+
+  // Auto-reconnect WhatsApp every 2 minutes
+  useWhatsAppAutoReconnect({
+    userId: user?.id,
+    instanceId: profile?.whatsapp_instance_id,
+    enabled: hasPaidPlan && !!profile?.whatsapp_instance_id,
+    intervalMs: 2 * 60 * 1000, // 2 minutes
+    onStatusChange: (status) => {
+      if (status) {
+        setWhatsappStatus(status);
+      }
+    },
+  });
 
   const handleReconnectWhatsApp = async () => {
     if (!user?.id) return;
