@@ -35,6 +35,49 @@ serve(async (req) => {
     const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
     const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
     console.log('Using Evolution API base URL:', evolutionApiUrl);
+    console.log('API Key prefix:', evolutionApiKey.substring(0, 8) + '...');
+
+    // Evolution API request helper with auth fallback
+    const evolutionFetch = async (
+      url: string,
+      init: RequestInit & { headers?: Record<string, string> } = {}
+    ) => {
+      const baseHeaders = (init.headers ?? {}) as Record<string, string>;
+
+      // Try 1: apikey header
+      let resp = await fetch(url, {
+        ...init,
+        headers: {
+          ...baseHeaders,
+          apikey: evolutionApiKey,
+        },
+      });
+
+      if (resp.status === 401) {
+        console.log('Auth failed with apikey header, trying Bearer token...');
+        // Try 2: Authorization Bearer header
+        resp = await fetch(url, {
+          ...init,
+          headers: {
+            ...baseHeaders,
+            Authorization: `Bearer ${evolutionApiKey}`,
+          },
+        });
+      }
+
+      if (resp.status === 401) {
+        console.log('Auth failed with Bearer, trying query param...');
+        // Try 3: apikey as query parameter
+        const u = new URL(url);
+        if (!u.searchParams.get('apikey')) u.searchParams.set('apikey', evolutionApiKey);
+        resp = await fetch(u.toString(), {
+          ...init,
+          headers: baseHeaders,
+        });
+      }
+
+      return resp;
+    };
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -58,11 +101,8 @@ serve(async (req) => {
     console.log(`Getting QR code for instance: ${instanceName}, forceReset: ${forceReset}`);
 
     // First, check current state
-    const stateResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+    const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
       method: 'GET',
-      headers: {
-        'apikey': evolutionApiKey,
-      },
     });
 
     if (stateResponse.ok) {
@@ -86,11 +126,8 @@ serve(async (req) => {
         console.log('Instance is stuck in connecting state or reset requested, doing logout first...');
         
         try {
-          const logoutResponse = await fetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
+          const logoutResponse = await evolutionFetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
             method: 'DELETE',
-            headers: {
-              'apikey': evolutionApiKey,
-            },
           });
           console.log('Logout response:', logoutResponse.status);
           
@@ -104,11 +141,8 @@ serve(async (req) => {
 
     // Get new QR code by connecting
     console.log('Requesting new QR code...');
-    const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+    const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
       method: 'GET',
-      headers: {
-        'apikey': evolutionApiKey,
-      },
     });
 
     const connectText = await connectResponse.text();
@@ -119,12 +153,9 @@ serve(async (req) => {
       console.log('Connect failed, trying restart...');
       
       try {
-        const restartResponse = await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+        const restartResponse = await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
           method: 'POST',
-          headers: {
-            'apikey': evolutionApiKey,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         
         console.log('Restart response:', restartResponse.status);
@@ -134,11 +165,8 @@ serve(async (req) => {
           await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Try connect again
-          const retryConnectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+          const retryConnectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
             method: 'GET',
-            headers: {
-              'apikey': evolutionApiKey,
-            },
           });
           
           if (retryConnectResponse.ok) {
@@ -193,21 +221,15 @@ serve(async (req) => {
       console.log('No QR code in response, attempting restart...');
       
       try {
-        await fetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
+        await evolutionFetch(`${evolutionApiUrl}/instance/restart/${instanceName}`, {
           method: 'POST',
-          headers: {
-            'apikey': evolutionApiKey,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        const retryResponse = await fetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
+        const retryResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
           method: 'GET',
-          headers: {
-            'apikey': evolutionApiKey,
-          },
         });
         
         if (retryResponse.ok) {
