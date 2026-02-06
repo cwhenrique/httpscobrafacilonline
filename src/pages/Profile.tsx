@@ -175,7 +175,8 @@ export default function Profile() {
   useEffect(() => {
     if (user) {
       fetchStats();
-      checkWhatsAppStatus();
+      // ✅ Verificação passiva (sem tentar reconectar) - evita loops de reconexão
+      checkWhatsAppStatus(false);
     }
   }, [user]);
 

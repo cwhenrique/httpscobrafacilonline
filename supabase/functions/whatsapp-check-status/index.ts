@@ -160,7 +160,7 @@ serve(async (req) => {
       let needsNewQR = false;
       let statusMessage = '';
 
-      console.log(`Instance state: ${state}, isConnected: ${isConnected}`);
+      console.log(`Instance state: ${state}, isConnected: ${isConnected}, attemptReconnect: ${attemptReconnect}`);
 
       // Handle "connecting" state - this means QR was shown but not scanned or connection is stuck
       if (state === 'connecting') {
@@ -174,7 +174,51 @@ serve(async (req) => {
           instanceName,
           needsNewQR: false, // Don't suggest new QR yet, user might be scanning
           waitingForScan: true,
-          message: 'Aguardando leitura do QR Code...'
+          message: 'Aguardando leitura do QR Code...',
+          canAttemptReconnect: false,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ✅ MODO SOMENTE LEITURA: Se attemptReconnect=false, apenas retorna o status atual
+      // Isso evita loops de reconexão ao carregar a página
+      if (!attemptReconnect) {
+        console.log('Passive check mode - returning current status without reconnection attempt');
+        
+        // Get phone number if connected
+        let phoneNumber = profile.whatsapp_connected_phone;
+        
+        if (isConnected) {
+          try {
+            const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
+              method: 'GET',
+              headers: { 'apikey': evolutionApiKey },
+            });
+            
+            if (fetchResponse.ok) {
+              const instances = await fetchResponse.json();
+              const instance = Array.isArray(instances) ? instances[0] : instances;
+              const extractedPhone = extractPhoneNumber(instance);
+              if (extractedPhone) {
+                phoneNumber = extractedPhone;
+              }
+            }
+          } catch (e) {
+            console.log('Could not fetch phone number:', e);
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          connected: isConnected,
+          status: state,
+          instanceName,
+          phoneNumber: phoneNumber || null,
+          connectedAt: profile.whatsapp_connected_at,
+          needsNewQR: !isConnected && (state === 'close' || state === 'disconnected'),
+          // Indica se pode tentar reconectar manualmente
+          canAttemptReconnect: !isConnected && (state === 'close' || state === 'disconnected'),
+          message: !isConnected ? 'Desconectado. Clique em Reconectar ou gere um novo QR Code.' : undefined,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
