@@ -3092,18 +3092,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const nextDueDate = format(nextDate, 'yyyy-MM-dd');
       const updatedDates = [nextDueDate];
       
-      // 🆕 CORREÇÃO: Calcular total_interest e remaining_balance corretos
-      // Total de parcelas = históricas pagas + 1 futura
-      const totalInstallmentsCount = selectedHistoricalInterestInstallments.length + 1;
-      // Para diários: remaining_balance = (dailyAmount × totalInstallments) - juros já pagos
-      const correctedRemainingBalance = (dailyAmount * totalInstallmentsCount) - totalHistoricalInterest;
+      // 🆕 CORREÇÃO: Para empréstimos diários com juros antigos, manter installments original
+      // Os juros históricos são apenas registros de juros já recebidos, não parcelas adicionais
+      const originalInstallments = parseInt(formData.installments || '1');
+      
+      // Para diários: remaining_balance = (dailyAmount × installments originais) - juros já pagos
+      const correctedRemainingBalance = (dailyAmount * originalInstallments) - totalHistoricalInterest;
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
         due_date: nextDueDate,
         installment_dates: updatedDates,
         remaining_balance: correctedRemainingBalance,
-        installments: totalInstallmentsCount,
+        // NÃO alterar installments - manter valor original
       }).eq('id', loanId);
       
       await fetchLoans();
@@ -3710,16 +3711,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const nextDueDate = generateInstallmentDate(formData.start_date, nextInstallmentIndex, frequency);
       const updatedDates = [nextDueDate];
       
-      // 🆕 CORREÇÃO: Calcular total_interest e remaining_balance corretos
-      // Total de parcelas = históricas pagas + 1 futura
-      const totalInstallmentsCount = selectedHistoricalInterestInstallments.length + 1;
+      // 🆕 CORREÇÃO: Para parcela única (single) com juros antigos, NÃO alterar installments
+      // Os juros históricos são apenas registros de juros já recebidos, não parcelas adicionais
+      const isSinglePayment = formData.payment_type === 'single';
+      const originalInstallments = isSinglePayment ? 1 : parseInt(formData.installments || '1');
       
-      // Calcular juros total baseado no interest_mode
+      // Calcular juros total baseado no interest_mode e número ORIGINAL de parcelas
       let correctedTotalInterest: number;
       if (formData.interest_mode === 'per_installment') {
-        correctedTotalInterest = principal * (rate / 100) * totalInstallmentsCount;
+        correctedTotalInterest = principal * (rate / 100) * originalInstallments;
       } else if (formData.interest_mode === 'compound') {
-        correctedTotalInterest = principal * Math.pow(1 + (rate / 100), totalInstallmentsCount) - principal;
+        correctedTotalInterest = principal * Math.pow(1 + (rate / 100), originalInstallments) - principal;
       } else {
         // on_total - juros único sobre o principal
         correctedTotalInterest = principal * (rate / 100);
@@ -3728,14 +3730,21 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // remaining_balance = principal + juros totais - juros já pagos
       const correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
       
-      await supabase.from('loans').update({
+      // Construir objeto de update condicionalmente
+      const updateData: Record<string, unknown> = {
         notes: currentNotes.trim(),
-        due_date: nextDueDate,
-        installment_dates: updatedDates,
         total_interest: correctedTotalInterest,
         remaining_balance: correctedRemainingBalance,
-        installments: totalInstallmentsCount,
-      }).eq('id', loanId);
+      };
+      
+      // Só alterar due_date, installment_dates se NÃO for parcela única
+      // Para single payment, manter a data de vencimento original
+      if (!isSinglePayment) {
+        updateData.due_date = nextDueDate;
+        updateData.installment_dates = updatedDates;
+      }
+      
+      await supabase.from('loans').update(updateData).eq('id', loanId);
       
       await fetchLoans();
       
