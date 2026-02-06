@@ -48,6 +48,8 @@ export interface Profile {
   iptv_server_name: string | null;
   iptv_server_url: string | null;
   iptv_server_cost: number | null;
+  // Report schedule hours
+  report_schedule_hours: number[] | null;
 }
 
 export function useProfile() {

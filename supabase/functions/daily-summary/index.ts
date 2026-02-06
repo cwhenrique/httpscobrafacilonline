@@ -39,6 +39,7 @@ interface ProfileWithWhatsApp {
   whatsapp_connected_phone: string | null;
   evolution_api_url: string | null;
   evolution_api_key: string | null;
+  report_schedule_hours: number[] | null;
 }
 
 // Send WhatsApp message to user's own instance (self-message)
@@ -116,15 +117,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Parse request body to check if this is a reminder (12h) or report (7h), testPhone, and batch params
+    // Parse request body to check if this is a reminder (12h) or report (7h), testPhone, targetHour, and batch params
     let isReminder = false;
     let testPhone: string | null = null;
+    let targetHour: number | null = null;
     let batch = 0;
     let batchSize = 3; // Reduzido para evitar timeout do pg_net (5s)
     try {
       const body = await req.json();
       isReminder = body.isReminder === true;
       testPhone = body.testPhone || null;
+      targetHour = typeof body.targetHour === 'number' ? body.targetHour : null;
       batch = typeof body.batch === 'number' ? body.batch : 0;
       batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
     } catch {
@@ -140,7 +143,7 @@ const handler = async (req: Request): Promise<Response> => {
     const todayStr = today.toISOString().split('T')[0];
 
     console.log(`Generating ${isReminder ? 'reminder (12h)' : 'report (7h)'} for:`, todayStr);
-    console.log(`Batch: ${batch}, Batch size: ${batchSize}`);
+    console.log(`Target hour: ${targetHour}, Batch: ${batch}, Batch size: ${batchSize}`);
     if (testPhone) {
       console.log("TEST MODE - sending only to:", testPhone);
     }
@@ -148,7 +151,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all ACTIVE PAYING users with WhatsApp connected
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key, report_schedule_hours')
       .eq('is_active', true)
       .not('phone', 'is', null)
       .not('whatsapp_instance_id', 'is', null) // Only users with WhatsApp connected
@@ -183,6 +186,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     for (const profile of (profiles || []) as ProfileWithWhatsApp[]) {
       if (!profile.phone) continue;
+
+      // If targetHour is specified (from cron), filter by user's scheduled hours
+      if (targetHour !== null && !testPhone) {
+        const scheduleHours = profile.report_schedule_hours || [];
+        if (scheduleHours.length === 0 || !scheduleHours.includes(targetHour)) {
+          console.log(`User ${profile.id} not subscribed to hour ${targetHour}, skipping`);
+          continue;
+        }
+      }
 
       // ============= QUERIES PARALELAS PARA PERFORMANCE =============
       const [loansResult, loanPaymentsResult, vehiclePaymentsResult, productPaymentsResult] = await Promise.all([

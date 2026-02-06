@@ -65,6 +65,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import CompanyLogoUpload from '@/components/CompanyLogoUpload';
+import ReportScheduleSection from '@/components/ReportScheduleSection';
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -1820,6 +1821,16 @@ export default function Profile() {
             )}
           </CardContent>
         </Card>
+
+        {/* Report Schedule Section - only show when WhatsApp is connected */}
+        {whatsappStatus?.connected && (
+          <ReportScheduleSection
+            scheduleHours={profile?.report_schedule_hours || []}
+            onUpdate={async (hours) => {
+              return await updateProfile({ report_schedule_hours: hours } as any);
+            }}
+          />
+        )}
 
         <Card className="shadow-soft">
           <CardHeader>
