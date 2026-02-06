@@ -144,10 +144,8 @@ export function useWhatsAppAutoReconnect({
 
     console.log(`[WhatsApp Auto-Reconnect] Starting monitoring (interval: ${intervalMs / 1000}s)`);
 
-    // Do an initial check immediately (passive, no reconnect)
-    checkAndReconnect();
-
-    // Set up the interval
+    // NÃO fazer verificação imediata - Profile.tsx já faz isso via checkWhatsAppStatus(false)
+    // Apenas configurar o intervalo de 2 minutos para verificações subsequentes
     intervalRef.current = setInterval(checkAndReconnect, intervalMs);
 
     return () => {
