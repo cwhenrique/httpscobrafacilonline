@@ -3096,8 +3096,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Os juros históricos são apenas registros de juros já recebidos, não parcelas adicionais
       const originalInstallments = parseInt(formData.installments || '1');
       
-      // Para diários: remaining_balance = (dailyAmount × installments originais) - juros já pagos
-      const correctedRemainingBalance = (dailyAmount * originalInstallments) - totalHistoricalInterest;
+      // 🆕 CORREÇÃO: Para empréstimos diários, NÃO subtrair juros históricos do remaining_balance
+      // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
+      // O contrato ainda espera receber o valor total das parcelas
+      const correctedRemainingBalance = dailyAmount * originalInstallments;
       
       await supabase.from('loans').update({
         notes: currentNotes.trim(),
@@ -3727,8 +3729,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         correctedTotalInterest = principal * (rate / 100);
       }
       
-      // remaining_balance = principal + juros totais - juros já pagos
-      const correctedRemainingBalance = principal + correctedTotalInterest - totalHistoricalInterest;
+      // 🆕 CORREÇÃO: Para parcela única (single) com juros antigos, NÃO subtrair do remaining_balance
+      // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
+      // O contrato ainda espera receber o valor total (principal + juros)
+      const correctedRemainingBalance = isSinglePayment
+        ? principal + correctedTotalInterest  // Parcela única: manter total do contrato
+        : principal + correctedTotalInterest - totalHistoricalInterest;  // Outros: pode subtrair
       
       // Construir objeto de update condicionalmente
       const updateData: Record<string, unknown> = {
