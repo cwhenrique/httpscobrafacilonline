@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useProductSales, useProductSalePayments } from '@/hooks/useProductSales';
 import { useVehicles, useVehiclePayments } from '@/hooks/useVehicles';
+import { useContracts } from '@/hooks/useContracts';
+import { useMonthlyFees, useMonthlyFeePayments } from '@/hooks/useMonthlyFees';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,11 +18,13 @@ import {
   DollarSign,
   Percent,
   ShoppingBag,
-  Truck
+  Truck,
+  FileText,
+  Repeat
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { subMonths, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { subMonths, parseISO, startOfDay, endOfDay, isWithinInterval, format } from 'date-fns';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { motion } from 'framer-motion';
 import { PeriodFilter, PeriodType } from '@/components/reports/PeriodFilter';
 
@@ -85,6 +89,9 @@ export default function ReportsSales() {
   const { payments: productPayments } = useProductSalePayments();
   const { vehicles, isLoading: vehiclesLoading } = useVehicles();
   const { payments: vehiclePayments } = useVehiclePayments();
+  const { contracts, allContractPayments, isLoading: contractsLoading } = useContracts();
+  const { fees: monthlyFees, isLoading: feesLoading } = useMonthlyFees();
+  const { payments: feePayments } = useMonthlyFeePayments();
 
   const handlePeriodChange = (period: PeriodType, newStartDate: Date, newEndDate: Date) => {
     setStartDate(newStartDate);
@@ -123,10 +130,26 @@ export default function ReportsSales() {
     });
   }, [vehicles, startDate, endDate]);
 
+  // Filter contracts by period (only receivable - a receber)
+  const filteredContracts = useMemo(() => {
+    if (!contracts) return [];
+    
+    return contracts.filter((contract: any) => {
+      if (contract.bill_type !== 'receivable') return false;
+      const contractDate = parseISO(contract.contract_date || contract.created_at);
+      return isWithinInterval(contractDate, { 
+        start: startOfDay(startDate), 
+        end: endOfDay(endDate) 
+      });
+    });
+  }, [contracts, startDate, endDate]);
+
   // Calculate payments received in period
   const paymentsInPeriod = useMemo(() => {
     let productReceived = 0;
     let vehicleReceived = 0;
+    let contractReceived = 0;
+    let subscriptionReceived = 0;
     
     productPayments?.forEach((payment: any) => {
       if (payment.status === 'paid' && payment.paid_date) {
@@ -151,9 +174,45 @@ export default function ReportsSales() {
         }
       }
     });
+
+    // Contract payments
+    allContractPayments?.forEach((payment: any) => {
+      if (payment.status === 'paid' && payment.paid_date) {
+        // Check if the contract is receivable
+        const contract = contracts?.find((c: any) => c.id === payment.contract_id);
+        if (contract?.bill_type !== 'receivable') return;
+        
+        const paidDate = parseISO(payment.paid_date);
+        if (isWithinInterval(paidDate, { 
+          start: startOfDay(startDate), 
+          end: endOfDay(endDate) 
+        })) {
+          contractReceived += Number(payment.amount);
+        }
+      }
+    });
+
+    // Subscription payments
+    feePayments?.forEach((payment: any) => {
+      if (payment.status === 'paid' && payment.payment_date) {
+        const paidDate = parseISO(payment.payment_date);
+        if (isWithinInterval(paidDate, { 
+          start: startOfDay(startDate), 
+          end: endOfDay(endDate) 
+        })) {
+          subscriptionReceived += Number(payment.amount);
+        }
+      }
+    });
     
-    return { productReceived, vehicleReceived, total: productReceived + vehicleReceived };
-  }, [productPayments, vehiclePayments, startDate, endDate]);
+    return { 
+      productReceived, 
+      vehicleReceived, 
+      contractReceived,
+      subscriptionReceived,
+      total: productReceived + vehicleReceived + contractReceived + subscriptionReceived 
+    };
+  }, [productPayments, vehiclePayments, allContractPayments, feePayments, contracts, startDate, endDate]);
 
   // Product stats (filtered by period for flow metrics)
   const productStats = useMemo(() => {
@@ -265,15 +324,140 @@ export default function ReportsSales() {
     };
   }, [filteredVehicles, vehicles, vehiclePayments, paymentsInPeriod]);
 
+  // Contract stats (only receivable contracts)
+  const contractStats = useMemo(() => {
+    // Flow metrics - filtered by period
+    let totalValue = 0;
+    
+    filteredContracts.forEach((contract: any) => {
+      totalValue += Number(contract.amount_to_receive);
+    });
+
+    // Balance metrics - ALL active receivable contracts
+    let totalPending = 0;
+    let totalOverdue = 0;
+    let overdueCount = 0;
+    let activeCount = 0;
+    let paidCount = 0;
+    const overdueContracts: any[] = [];
+
+    const receivableContracts = contracts?.filter((c: any) => c.bill_type === 'receivable') || [];
+
+    receivableContracts.forEach((contract: any) => {
+      if (contract.status === 'paid') {
+        paidCount++;
+      } else {
+        activeCount++;
+        
+        // Calculate pending from contract payments
+        const contractPaymentsList = allContractPayments?.filter((p: any) => p.contract_id === contract.id) || [];
+        const paidAmount = contractPaymentsList
+          .filter((p: any) => p.status === 'paid')
+          .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+        const pendingAmount = Number(contract.amount_to_receive) - paidAmount;
+        
+        totalPending += Math.max(0, pendingAmount);
+        
+        // Check if any payment is overdue
+        const hasOverdue = contractPaymentsList.some((p: any) => 
+          p.status === 'pending' && 
+          new Date(p.due_date) < new Date()
+        );
+        if (hasOverdue) {
+          overdueCount++;
+          totalOverdue += Math.max(0, pendingAmount);
+          overdueContracts.push({
+            ...contract,
+            pendingAmount: Math.max(0, pendingAmount)
+          });
+        }
+      }
+    });
+
+    return {
+      totalValue,
+      totalReceived: paymentsInPeriod.contractReceived,
+      totalPending,
+      totalOverdue,
+      paidCount,
+      overdueCount,
+      activeCount,
+      overdueContracts,
+      contractsCount: filteredContracts.length,
+    };
+  }, [filteredContracts, contracts, allContractPayments, paymentsInPeriod]);
+
+  // Subscription stats
+  const subscriptionStats = useMemo(() => {
+    // Monthly recurring revenue (active subscriptions)
+    const activeSubscriptions = monthlyFees?.filter((f: any) => f.is_active) || [];
+    const monthlyRecurring = activeSubscriptions.reduce((sum: number, f: any) => sum + Number(f.amount), 0);
+
+    // Balance metrics
+    let totalPending = 0;
+    let totalOverdue = 0;
+    let overdueCount = 0;
+    const overdueSubscriptions: any[] = [];
+
+    // Get all pending/overdue payments
+    feePayments?.forEach((payment: any) => {
+      if (payment.status === 'pending' || payment.status === 'overdue') {
+        const fee = monthlyFees?.find((f: any) => f.id === payment.monthly_fee_id);
+        const isOverdue = new Date(payment.due_date) < new Date();
+        
+        if (isOverdue) {
+          totalOverdue += Number(payment.amount);
+          overdueCount++;
+          
+          // Add to overdue list with client info
+          if (fee) {
+            overdueSubscriptions.push({
+              ...payment,
+              clientName: fee.client?.full_name || 'Cliente',
+              clientPhone: fee.client?.phone || null,
+              description: fee.description || 'Assinatura',
+            });
+          }
+        } else {
+          totalPending += Number(payment.amount);
+        }
+      }
+    });
+
+    return {
+      monthlyRecurring,
+      totalReceived: paymentsInPeriod.subscriptionReceived,
+      totalPending,
+      totalOverdue,
+      overdueCount,
+      overdueSubscriptions,
+      activeCount: activeSubscriptions.length,
+    };
+  }, [monthlyFees, feePayments, paymentsInPeriod]);
+
   // Pie chart data
   const pieData = useMemo(() => {
     return [
       { name: 'Produtos', value: productStats.totalSold, fill: CHART_COLORS[0] },
       { name: 'Veículos', value: vehicleStats.totalSold, fill: CHART_COLORS[1] },
-    ];
-  }, [productStats, vehicleStats]);
+      { name: 'Contratos', value: contractStats.totalValue, fill: CHART_COLORS[2] },
+      { name: 'Assinaturas', value: subscriptionStats.totalReceived, fill: CHART_COLORS[3] },
+    ].filter(item => item.value > 0);
+  }, [productStats, vehicleStats, contractStats, subscriptionStats]);
 
-  const loading = salesLoading || vehiclesLoading;
+  // Combined totals
+  const combinedTotals = useMemo(() => {
+    return {
+      totalSold: productStats.totalSold + vehicleStats.totalSold + contractStats.totalValue,
+      totalReceived: paymentsInPeriod.total,
+      totalProfit: productStats.totalProfit + vehicleStats.totalProfit + contractStats.totalValue, // Contracts have no cost
+      totalOverdue: productStats.totalOverdue + vehicleStats.totalOverdue + contractStats.totalOverdue + subscriptionStats.totalOverdue,
+      overdueCount: productStats.overdueCount + vehicleStats.overdueCount + contractStats.overdueCount + subscriptionStats.overdueCount,
+      itemsCount: productStats.salesCount + vehicleStats.vehiclesCount + contractStats.contractsCount,
+    };
+  }, [productStats, vehicleStats, contractStats, subscriptionStats, paymentsInPeriod]);
+
+  const loading = salesLoading || vehiclesLoading || contractsLoading || feesLoading;
 
   return (
     <DashboardLayout>
@@ -282,7 +466,7 @@ export default function ReportsSales() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-display">Relatório de Vendas</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Produtos e Veículos
+            Produtos, Veículos, Contratos e Assinaturas
           </p>
         </div>
 
@@ -300,22 +484,22 @@ export default function ReportsSales() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatCard
             label="Vendido no Período"
-            value={formatCurrency(productStats.totalSold + vehicleStats.totalSold)}
+            value={formatCurrency(combinedTotals.totalSold)}
             icon={DollarSign}
             iconColor="text-primary"
             bgColor="bg-primary/10"
-            subtitle={`${productStats.salesCount + vehicleStats.vehiclesCount} vendas`}
+            subtitle={`${combinedTotals.itemsCount} vendas`}
           />
           <StatCard
             label="Recebido no Período"
-            value={formatCurrency(paymentsInPeriod.total)}
+            value={formatCurrency(combinedTotals.totalReceived)}
             icon={CheckCircle}
             iconColor="text-emerald-500"
             bgColor="bg-emerald-500/10"
           />
           <StatCard
             label="Lucro no Período"
-            value={formatCurrency(productStats.totalProfit + vehicleStats.totalProfit)}
+            value={formatCurrency(combinedTotals.totalProfit)}
             icon={TrendingUp}
             iconColor="text-purple-500"
             bgColor="bg-purple-500/10"
@@ -323,11 +507,11 @@ export default function ReportsSales() {
           />
           <StatCard
             label="Em Atraso (Total)"
-            value={formatCurrency(productStats.totalOverdue + vehicleStats.totalOverdue)}
+            value={formatCurrency(combinedTotals.totalOverdue)}
             icon={AlertTriangle}
             iconColor="text-destructive"
             bgColor="bg-destructive/10"
-            subtitle={`${productStats.overdueCount + vehicleStats.overdueCount} itens`}
+            subtitle={`${combinedTotals.overdueCount} itens`}
           />
         </div>
 
@@ -370,16 +554,24 @@ export default function ReportsSales() {
           </CardContent>
         </Card>
 
-        {/* Tabs for Products and Vehicles */}
+        {/* Tabs for Products, Vehicles, Contracts, Subscriptions */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 max-w-2xl">
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
-              Produtos
+              <span className="hidden sm:inline">Produtos</span>
             </TabsTrigger>
             <TabsTrigger value="vehicles" className="gap-2">
               <Car className="w-4 h-4" />
-              Veículos
+              <span className="hidden sm:inline">Veículos</span>
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="gap-2">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Contratos</span>
+            </TabsTrigger>
+            <TabsTrigger value="subscriptions" className="gap-2">
+              <Repeat className="w-4 h-4" />
+              <span className="hidden sm:inline">Assinaturas</span>
             </TabsTrigger>
           </TabsList>
 
@@ -518,6 +710,153 @@ export default function ReportsSales() {
                             {formatCurrency(vehicle.remaining_balance)}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{vehicle.buyer_phone || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Contracts Tab */}
+          <TabsContent value="contracts" className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatCard
+                label="Valor no Período"
+                value={formatCurrency(contractStats.totalValue)}
+                icon={FileText}
+                iconColor="text-purple-500"
+                bgColor="bg-purple-500/10"
+                subtitle={`${contractStats.contractsCount} contratos`}
+              />
+              <StatCard
+                label="Recebido no Período"
+                value={formatCurrency(contractStats.totalReceived)}
+                icon={CheckCircle}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+              />
+              <StatCard
+                label="Pendente (Total)"
+                value={formatCurrency(contractStats.totalPending)}
+                icon={Clock}
+                iconColor="text-yellow-500"
+                bgColor="bg-yellow-500/10"
+                subtitle={`${contractStats.activeCount} ativos`}
+              />
+              <StatCard
+                label="Em Atraso"
+                value={formatCurrency(contractStats.totalOverdue)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                subtitle={`${contractStats.overdueCount} contratos`}
+              />
+            </div>
+
+            {contractStats.overdueContracts.length > 0 && (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="w-5 h-5" />
+                    Contratos em Atraso
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead className="text-right">Valor em Atraso</TableHead>
+                        <TableHead>Telefone</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contractStats.overdueContracts.map((contract: any) => (
+                        <TableRow key={contract.id}>
+                          <TableCell className="font-medium">{contract.contract_type}</TableCell>
+                          <TableCell>{contract.client_name}</TableCell>
+                          <TableCell className="text-right text-destructive font-bold">
+                            {formatCurrency(contract.pendingAmount)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{contract.client_phone || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Subscriptions Tab */}
+          <TabsContent value="subscriptions" className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatCard
+                label="Receita Mensal"
+                value={formatCurrency(subscriptionStats.monthlyRecurring)}
+                icon={Repeat}
+                iconColor="text-blue-500"
+                bgColor="bg-blue-500/10"
+                subtitle={`${subscriptionStats.activeCount} assinaturas ativas`}
+              />
+              <StatCard
+                label="Recebido no Período"
+                value={formatCurrency(subscriptionStats.totalReceived)}
+                icon={CheckCircle}
+                iconColor="text-emerald-500"
+                bgColor="bg-emerald-500/10"
+              />
+              <StatCard
+                label="Pendente"
+                value={formatCurrency(subscriptionStats.totalPending)}
+                icon={Clock}
+                iconColor="text-yellow-500"
+                bgColor="bg-yellow-500/10"
+              />
+              <StatCard
+                label="Em Atraso"
+                value={formatCurrency(subscriptionStats.totalOverdue)}
+                icon={AlertTriangle}
+                iconColor="text-destructive"
+                bgColor="bg-destructive/10"
+                subtitle={`${subscriptionStats.overdueCount} cobranças`}
+              />
+            </div>
+
+            {subscriptionStats.overdueSubscriptions.length > 0 && (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="w-5 h-5" />
+                    Assinaturas em Atraso
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Telefone</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {subscriptionStats.overdueSubscriptions.map((payment: any) => (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-medium">{payment.description}</TableCell>
+                          <TableCell>{payment.clientName}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {format(parseISO(payment.due_date), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell className="text-right text-destructive font-bold">
+                            {formatCurrency(payment.amount)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{payment.clientPhone || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
