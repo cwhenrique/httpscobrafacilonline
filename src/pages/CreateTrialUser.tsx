@@ -183,6 +183,24 @@ export default function CreateTrialUser() {
     };
   }, [users]);
 
+  // Filter trial users for Diego's view
+  const trialUsers = useMemo(() => {
+    return users.filter(u => u.subscription_plan === 'trial' || !u.subscription_plan);
+  }, [users]);
+
+  // Filtered trial users for Diego's search
+  const filteredTrialUsers = useMemo(() => {
+    let result = trialUsers;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(user => 
+        (user.full_name?.toLowerCase().includes(query)) ||
+        (user.email?.toLowerCase().includes(query))
+      );
+    }
+    return result;
+  }, [trialUsers, searchQuery]);
+
   const filteredUsers = useMemo(() => {
     let result = users;
     const now = new Date();
@@ -1148,10 +1166,10 @@ export default function CreateTrialUser() {
               </TabsContent>
             </Tabs>
         ) : (
-          // Trial creator only - no tabs, just the form
-          <div className="max-w-md mx-auto">
-            {/* Create Form */}
-            <Card className="border-primary">
+          // Trial creator only - form + trial users list
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Create Form - 1 column */}
+            <Card className="border-primary h-fit">
               <CardHeader className="text-center">
                 <div className="mx-auto w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mb-4">
                   <UserPlus className="w-6 h-6 text-primary" />
@@ -1261,6 +1279,100 @@ export default function CreateTrialUser() {
                     )}
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Trial Users List - 2 columns */}
+            <Card className="border-primary lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    <CardTitle>Usuários Trial ({trialUsers.length})</CardTitle>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loadingUsers}>
+                    <RefreshCw className={`w-4 h-4 ${loadingUsers ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                {/* Search field */}
+                <div className="relative mt-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome ou email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredTrialUsers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {searchQuery ? 'Nenhum usuário encontrado para a busca.' : 'Nenhum usuário Trial cadastrado.'}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Telefone</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Cadastrado em</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTrialUsers.slice(0, 50).map((user) => {
+                            const now = new Date();
+                            let statusLabel = 'Trial';
+                            let statusClass = 'bg-primary/20 text-primary';
+                            
+                            if (user.trial_expires_at) {
+                              const expiresAt = new Date(user.trial_expires_at);
+                              if (expiresAt < now) {
+                                statusLabel = 'Expirado';
+                                statusClass = 'bg-destructive/20 text-destructive';
+                              } else {
+                                statusLabel = `Até ${format(expiresAt, "dd/MM HH:mm", { locale: ptBR })}`;
+                                statusClass = 'bg-accent text-accent-foreground';
+                              }
+                            }
+                            
+                            return (
+                              <TableRow key={user.id}>
+                                <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
+                                <TableCell className="text-muted-foreground">{user.email || '-'}</TableCell>
+                                <TableCell>{user.phone || '-'}</TableCell>
+                                <TableCell>
+                                  <span className={`text-xs px-2 py-1 rounded ${statusClass}`}>
+                                    {statusLabel}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {user.created_at 
+                                    ? format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR })
+                                    : '-'
+                                  }
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {filteredTrialUsers.length > 50 && (
+                      <p className="text-sm text-muted-foreground text-center">
+                        Mostrando 50 de {filteredTrialUsers.length} usuários. Use a busca para encontrar usuários específicos.
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
