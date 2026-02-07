@@ -68,13 +68,16 @@ import { ClientSelector } from '@/components/ClientSelector';
 import { useProfile } from '@/hooks/useProfile';
 import { CheckDiscountCard } from '@/components/CheckDiscountCard';
 
+import { CheckDiscountFilterType } from '@/hooks/useCheckDiscounts';
+
 export default function CheckDiscounts() {
   const { profile, loading: profileLoading } = useProfile();
   const { effectiveUserId } = useEmployeeContext();
   const { 
     filteredChecks, 
     loading, 
-    stats, 
+    stats,
+    filterCounts,
     statusFilter, 
     setStatusFilter,
     searchTerm,
@@ -509,29 +512,78 @@ export default function CheckDiscounts() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por número, banco, emitente ou cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as CheckDiscountStatus | 'all')}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filtrar status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="in_wallet">Em Carteira</SelectItem>
-              <SelectItem value="compensated">Compensados</SelectItem>
-              <SelectItem value="returned">Devolvidos</SelectItem>
-              <SelectItem value="in_collection">Em Cobrança</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filter Tabs - Like Loans */}
+        <div className="flex flex-wrap items-center gap-2 border-b pb-3">
+          <Button
+            variant={statusFilter === 'open' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setStatusFilter('open')}
+            className="gap-1.5 h-8"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            Em Aberto
+            {filterCounts.open > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{filterCounts.open}</Badge>
+            )}
+          </Button>
+          <Button
+            variant={statusFilter === 'overdue' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setStatusFilter('overdue')}
+            className="gap-1.5 h-8"
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Em Atraso
+            {filterCounts.overdue > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{filterCounts.overdue}</Badge>
+            )}
+          </Button>
+          <Button
+            variant={statusFilter === 'paid' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setStatusFilter('paid')}
+            className="gap-1.5 h-8"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Quitados
+            {filterCounts.paid > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{filterCounts.paid}</Badge>
+            )}
+          </Button>
+          <Button
+            variant={statusFilter === 'in_collection' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setStatusFilter('in_collection')}
+            className="gap-1.5 h-8"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Em Cobrança
+            {filterCounts.inCollection > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{filterCounts.inCollection}</Badge>
+            )}
+          </Button>
+          <Button
+            variant={statusFilter === 'all' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setStatusFilter('all')}
+            className="gap-1.5 h-8"
+          >
+            Todos
+            {filterCounts.all > 0 && (
+              <Badge variant="outline" className="ml-1 h-5 px-1.5 text-xs">{filterCounts.all}</Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar cheque..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
         {/* Checks List */}

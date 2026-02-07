@@ -15,10 +15,12 @@ import {
 } from '@/types/checkDiscount';
 import { differenceInDays } from 'date-fns';
 
+export type CheckDiscountFilterType = 'all' | 'open' | 'paid' | 'overdue' | CheckDiscountStatus;
+
 export function useCheckDiscounts() {
   const { effectiveUserId, isEmployee } = useEmployeeContext();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<CheckDiscountStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<CheckDiscountFilterType>('open');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch all check discounts
@@ -81,12 +83,51 @@ export function useCheckDiscounts() {
     };
   }, [checkDiscounts]);
 
+  // Helper to check if a check is overdue
+  const isCheckOverdue = useCallback((check: CheckDiscount) => {
+    if (check.status !== 'in_wallet') return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(check.due_date + 'T12:00:00');
+    return dueDate < today;
+  }, []);
+
+  // Filter counts for UI badges
+  const filterCounts = useMemo(() => {
+    const all = checkDiscounts.length;
+    const open = checkDiscounts.filter(c => c.status === 'in_wallet').length;
+    const paid = checkDiscounts.filter(c => c.status === 'compensated').length;
+    const overdue = checkDiscounts.filter(c => isCheckOverdue(c)).length;
+    const inCollection = checkDiscounts.filter(c => c.status === 'in_collection').length;
+    const returned = checkDiscounts.filter(c => c.status === 'returned').length;
+    
+    return { all, open, paid, overdue, inCollection, returned };
+  }, [checkDiscounts, isCheckOverdue]);
+
   // Filtered checks
   const filteredChecks = useMemo(() => {
     let filtered = checkDiscounts;
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(c => c.status === statusFilter);
+    // Apply status filter
+    switch (statusFilter) {
+      case 'all':
+        // No filter
+        break;
+      case 'open':
+        filtered = filtered.filter(c => c.status === 'in_wallet');
+        break;
+      case 'paid':
+        filtered = filtered.filter(c => c.status === 'compensated');
+        break;
+      case 'overdue':
+        filtered = filtered.filter(c => isCheckOverdue(c));
+        break;
+      case 'in_wallet':
+      case 'compensated':
+      case 'returned':
+      case 'in_collection':
+        filtered = filtered.filter(c => c.status === statusFilter);
+        break;
     }
 
     if (searchTerm) {
@@ -101,7 +142,7 @@ export function useCheckDiscounts() {
     }
 
     return filtered;
-  }, [checkDiscounts, statusFilter, searchTerm]);
+  }, [checkDiscounts, statusFilter, searchTerm, isCheckOverdue]);
 
   // Create check discount
   const createMutation = useMutation({
@@ -401,6 +442,7 @@ export function useCheckDiscounts() {
     filteredChecks,
     loading,
     stats,
+    filterCounts,
     statusFilter,
     setStatusFilter,
     searchTerm,
