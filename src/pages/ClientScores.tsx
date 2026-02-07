@@ -128,6 +128,7 @@ export default function ClientScores() {
       profitFromPaidLoans: number;
       profitFromActiveLoans: number;
       recoveryBonus: number;
+      overdueLoansCount: number;
     }>();
     
     loans.forEach(loan => {
@@ -141,6 +142,7 @@ export default function ClientScores() {
         profitFromPaidLoans: 0,
         profitFromActiveLoans: 0,
         recoveryBonus: 0,
+        overdueLoansCount: 0,
       };
       
       // Lucro previsto = total de juros do contrato
@@ -157,6 +159,7 @@ export default function ClientScores() {
       
       // Contar por status e separar lucro
       const isPaid = loan.status === 'paid';
+      const isOverdue = loan.status === 'overdue';
       
       // Acumular extra profit para calcular bônus de recuperação
       const newExtraProfit = existing.extraProfit + extraProfit;
@@ -172,6 +175,7 @@ export default function ClientScores() {
         profitFromPaidLoans: existing.profitFromPaidLoans + (isPaid ? realizedProfit : 0),
         profitFromActiveLoans: existing.profitFromActiveLoans + (isPaid ? 0 : realizedProfit),
         recoveryBonus,
+        overdueLoansCount: existing.overdueLoansCount + (isOverdue ? 1 : 0),
       });
     });
     
@@ -632,7 +636,7 @@ export default function ClientScores() {
                             <Badge className={`text-xs ${scoreColor}`}>
                               {getScoreIcon(score)} {score} - {scoreLabel}
                             </Badge>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <CheckCircle2 className="w-3 h-3 text-green-500" />
                                 {client.on_time_payments || 0} em dia
@@ -641,6 +645,12 @@ export default function ClientScores() {
                                 <Clock className="w-3 h-3 text-red-500" />
                                 {client.late_payments || 0} atrasados
                               </span>
+                              {profit && profit.overdueLoansCount > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-orange-500" />
+                                  {profit.overdueLoansCount} {profit.overdueLoansCount === 1 ? 'empréstimo' : 'empréstimos'} em atraso
+                                </span>
+                              )}
                             </div>
                           </div>
                           
