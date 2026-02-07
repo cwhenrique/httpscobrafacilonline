@@ -108,14 +108,28 @@ export function useCheckDiscounts() {
     mutationFn: async (formData: CheckDiscountFormData) => {
       if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
-      const daysUntilDue = getDaysUntilDue(formData.discount_date, formData.due_date);
-      const discountAmount = calculateDiscountAmount(
-        formData.nominal_value,
-        formData.discount_rate,
-        formData.discount_type,
-        daysUntilDue
-      );
-      const netValue = calculateNetValue(formData.nominal_value, discountAmount);
+      let discountAmount: number;
+      let netValue: number;
+      let purchaseValue: number;
+
+      // Check if user provided purchase_value directly (direct mode)
+      if (formData.purchase_value && formData.purchase_value > 0) {
+        // Direct mode: use provided purchase value
+        purchaseValue = formData.purchase_value;
+        discountAmount = formData.nominal_value - purchaseValue;
+        netValue = purchaseValue;
+      } else {
+        // Calculated mode: use rate formula
+        const daysUntilDue = getDaysUntilDue(formData.discount_date, formData.due_date);
+        discountAmount = calculateDiscountAmount(
+          formData.nominal_value,
+          formData.discount_rate,
+          formData.discount_type,
+          daysUntilDue
+        );
+        netValue = calculateNetValue(formData.nominal_value, discountAmount);
+        purchaseValue = netValue;
+      }
 
       const { data, error } = await supabase
         .from('check_discounts')
@@ -135,7 +149,7 @@ export function useCheckDiscounts() {
           net_value: netValue,
           payment_method: formData.payment_method,
           notes: formData.notes || null,
-          purchase_value: formData.purchase_value || null,
+          purchase_value: purchaseValue,
           seller_name: formData.seller_name || null,
           status: 'in_wallet',
         })
