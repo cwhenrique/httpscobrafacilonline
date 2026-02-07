@@ -68,21 +68,21 @@ export function CheckDiscountCard({
     ? (profit / check.purchase_value) * 100
     : 0;
 
-  // Card border/background styles based on status
+  // Card border/background styles based on status - more visible colors
   const getCardStyles = () => {
     if (isPaid) {
-      return 'border-green-500/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10';
+      return 'border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10';
     }
     if (isOverdue || isReturned) {
-      return 'border-destructive/50 bg-gradient-to-r from-red-50/50 to-transparent dark:from-red-900/10';
+      return 'border-red-500 bg-red-500/5 hover:bg-red-500/10';
     }
     if (isInCollection) {
-      return 'border-orange-500/50 bg-gradient-to-r from-orange-50/50 to-transparent dark:from-orange-900/10';
+      return 'border-orange-500 bg-orange-500/5 hover:bg-orange-500/10';
     }
     if (isDueSoon) {
-      return 'border-yellow-500/50 bg-gradient-to-r from-yellow-50/50 to-transparent dark:from-yellow-900/10';
+      return 'border-amber-500 bg-amber-500/5 hover:bg-amber-500/10';
     }
-    return '';
+    return 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10';
   };
 
   // Status badge styles
@@ -135,153 +135,153 @@ export function CheckDiscountCard({
   };
 
   return (
-    <Card className={`transition-all hover:shadow-md ${getCardStyles()}`}>
-      <CardContent className="p-4">
-        <div className="flex flex-col gap-3">
-          {/* Header Row: Status + Check Number + Bank */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
+    <Card className={`transition-all ${getCardStyles()}`}>
+      <CardContent className="p-3">
+        <div className="flex flex-col gap-2">
+          {/* Header Row: Status + Check Number + Bank - Compact */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               {getStatusBadge()}
-              <span className="font-mono font-bold text-lg">#{check.check_number}</span>
-              <span className="flex items-center gap-1 text-muted-foreground text-sm">
-                <Building2 className="h-4 w-4" />
-                {check.bank_name}
-              </span>
+              <span className="font-mono font-bold text-sm">#{check.check_number}</span>
             </div>
             
             {/* Due Date */}
-            <div className="flex items-center gap-1 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className={isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+            <div className="flex items-center gap-1 text-xs">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>
                 {format(new Date(check.due_date + 'T12:00:00'), 'dd/MM/yyyy')}
               </span>
             </div>
           </div>
+          
+          {/* Bank */}
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <Building2 className="h-3 w-3" />
+            {check.bank_name}
+          </div>
 
-          {/* Client / Issuer Info */}
-          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+          {/* Client / Issuer Info - Compact */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
             {check.clients && (
               <span className="flex items-center gap-1">
-                <User className="h-4 w-4" />
+                <User className="h-3 w-3" />
                 {check.clients.full_name}
               </span>
             )}
             {check.issuer_name && (
               <span className="flex items-center gap-1">
-                <CreditCard className="h-4 w-4" />
+                <CreditCard className="h-3 w-3" />
                 {check.issuer_name}
-                {check.issuer_document && ` (${formatCPFCNPJ(check.issuer_document)})`}
-              </span>
-            )}
-            {check.seller_name && (
-              <span className="flex items-center gap-1 text-primary/80">
-                Vendedor: {check.seller_name}
               </span>
             )}
           </div>
 
-          {/* Values Row */}
-          <div className="flex items-center gap-4 flex-wrap">
+          {/* Values Row - Compact Grid for Mobile */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
             {/* Nominal Value */}
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">Valor do Cheque</span>
-              <span className="text-lg font-bold">{formatCurrency(check.nominal_value)}</span>
+              <span className="text-[10px] text-muted-foreground">Valor</span>
+              <span className="text-sm font-bold">{formatCurrency(check.nominal_value)}</span>
             </div>
 
             {/* Purchase Value */}
-            {check.purchase_value && check.purchase_value > 0 && (
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Comprado por</span>
-                <span className="text-lg font-medium">{formatCurrency(check.purchase_value)}</span>
-              </div>
-            )}
+            <div className="flex flex-col">
+              <span className="text-[10px] text-muted-foreground">Compra</span>
+              <span className="text-sm font-medium">
+                {check.purchase_value && check.purchase_value > 0 
+                  ? formatCurrency(check.purchase_value) 
+                  : '-'}
+              </span>
+            </div>
 
             {/* Profit */}
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
+              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <TrendingUp className="h-2.5 w-2.5" />
                 Lucro
               </span>
-              <span className="text-lg font-bold text-green-600">
+              <span className="text-sm font-bold text-emerald-600">
                 {formatCurrency(profit)}
                 {profitRate > 0 && (
-                  <span className="text-xs ml-1 font-normal">({profitRate.toFixed(1)}%)</span>
+                  <span className="text-[9px] ml-0.5 font-normal">({profitRate.toFixed(0)}%)</span>
                 )}
               </span>
             </div>
           </div>
 
-          {/* Debt info for returned/in_collection checks */}
+          {/* Debt info for returned/in_collection checks - Compact */}
           {(isReturned || isInCollection) && check.total_debt && check.total_debt > 0 && (
-            <div className="flex items-center gap-4 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg flex-wrap">
+            <div className="grid grid-cols-3 gap-2 text-xs bg-red-500/10 p-2 rounded-md">
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Dívida Total</span>
-                <span className="font-medium text-destructive">{formatCurrency(check.total_debt)}</span>
+                <span className="text-[10px] text-muted-foreground">Dívida</span>
+                <span className="font-medium text-red-600">{formatCurrency(check.total_debt)}</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Pago</span>
-                <span className="font-medium text-green-600">{formatCurrency(check.total_paid_debt || 0)}</span>
+                <span className="text-[10px] text-muted-foreground">Pago</span>
+                <span className="font-medium text-emerald-600">{formatCurrency(check.total_paid_debt || 0)}</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Restante</span>
+                <span className="text-[10px] text-muted-foreground">Restante</span>
                 <span className="font-medium text-orange-600">
                   {formatCurrency((check.total_debt || 0) - (check.total_paid_debt || 0))}
                 </span>
               </div>
-              {check.installments_count > 1 && (
-                <Badge variant="outline">{check.installments_count}x</Badge>
-              )}
             </div>
           )}
 
-          {/* Actions Row */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50 flex-wrap">
-            {check.status === 'in_wallet' && (
-              <>
+          {/* Actions Row - Compact */}
+          <div className="flex items-center justify-between gap-1 pt-2 border-t border-border/30">
+            <div className="flex items-center gap-1">
+              {check.status === 'in_wallet' && (
+                <>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs px-2"
+                    onClick={() => onCompensate(check)}
+                  >
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Compensar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-600 border-red-300 hover:bg-red-50 h-7 text-xs px-2"
+                    onClick={() => onReturn(check)}
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Devolver
+                  </Button>
+                </>
+              )}
+              {check.status === 'in_collection' && (
                 <Button
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => onCompensate(check)}
+                  className="bg-primary h-7 text-xs px-2"
+                  onClick={() => onPayment(check)}
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                  Compensar
+                  <DollarSign className="h-3 w-3 mr-1" />
+                  Receber
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive border-destructive/50 hover:bg-destructive/10"
-                  onClick={() => onReturn(check)}
-                >
-                  <RotateCcw className="h-4 w-4 mr-1" />
-                  Devolver
-                </Button>
-              </>
-            )}
-            {check.status === 'in_collection' && (
+              )}
+            </div>
+            <div className="flex items-center gap-1">
               <Button
                 size="sm"
-                className="bg-primary"
-                onClick={() => onPayment(check)}
+                variant="ghost"
+                className="h-7 w-7 p-0"
+                onClick={() => onEdit(check)}
               >
-                <DollarSign className="h-4 w-4 mr-1" />
-                Receber
+                <Edit className="h-3.5 w-3.5" />
               </Button>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onEdit(check)}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => onDelete(check)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 w-7 p-0"
+                onClick={() => onDelete(check)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>
