@@ -96,10 +96,10 @@ export default function IPTVSubscriptionListView({
                 const activeMonths = getActiveMonths(fee.id);
 
                 return (
-                  <TableRow 
+                    <TableRow 
                     key={fee.id}
                     className={cn(
-                      "transition-colors",
+                      "transition-colors h-14",
                       !fee.is_active && "opacity-60",
                       status === 'overdue' && "bg-destructive/5 hover:bg-destructive/10",
                       status === 'due_today' && "bg-yellow-500/5 hover:bg-yellow-500/10",
@@ -140,22 +140,21 @@ export default function IPTVSubscriptionListView({
                             {fee.client ? getClientInitials(fee.client.full_name) : '??'}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">{fee.client?.full_name || 'Cliente'}</p>
-                          <p className="text-xs text-muted-foreground truncate">{fee.description || 'Assinatura'}</p>
-                          {fee.client?.phone && (
-                            <div className="flex items-center gap-2 mt-0.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate">{fee.client?.full_name || 'Cliente'}</p>
+                            {fee.client?.phone && (
                               <a 
                                 href={`https://wa.me/55${fee.client.phone.replace(/\D/g, '')}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-xs text-green-600 hover:underline flex items-center gap-0.5"
+                                className="text-green-600 hover:text-green-500 shrink-0"
                               >
-                                <MessageCircle className="w-3 h-3" />
-                                {fee.client.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}
+                                <MessageCircle className="w-3.5 h-3.5" />
                               </a>
-                            </div>
-                          )}
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{fee.description || 'Assinatura'}</p>
                         </div>
                       </div>
                     </TableCell>
