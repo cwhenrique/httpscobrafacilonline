@@ -97,6 +97,9 @@ export default function CheckDiscounts() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCheck, setSelectedCheck] = useState<CheckDiscount | null>(null);
 
+  // Calculation mode: 'direct' = user enters purchase value, 'calculated' = use rate formula
+  const [calculationMode, setCalculationMode] = useState<'direct' | 'calculated'>('direct');
+
   // Form state
   const [formData, setFormData] = useState<CheckDiscountFormData>({
     client_id: null,
@@ -128,26 +131,43 @@ export default function CheckDiscounts() {
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentNotes, setPaymentNotes] = useState('');
 
-  // Calculated values for form preview
+  // Calculated values for form preview - supports both modes
   const calculatedValues = useMemo(() => {
-    if (!formData.nominal_value || !formData.due_date || !formData.discount_date) {
-      return { days: 0, discountAmount: 0, netValue: 0, effectiveRate: 0 };
+    if (!formData.nominal_value) {
+      return { days: 0, discountAmount: 0, netValue: 0, purchaseValue: 0, profit: 0, profitRate: 0 };
     }
 
-    const days = getDaysUntilDue(formData.discount_date, formData.due_date);
-    const discountAmount = calculateDiscountAmount(
-      formData.nominal_value,
-      formData.discount_rate,
-      formData.discount_type,
-      days
-    );
-    const netValue = calculateNetValue(formData.nominal_value, discountAmount);
-    const effectiveRate = formData.discount_type === 'proportional' 
-      ? (formData.discount_rate / 30) * days 
-      : formData.discount_rate;
+    let purchaseValue = 0;
+    let discountAmount = 0;
 
-    return { days, discountAmount, netValue, effectiveRate };
-  }, [formData]);
+    if (calculationMode === 'direct') {
+      // User entered purchase value directly
+      purchaseValue = formData.purchase_value || 0;
+      discountAmount = formData.nominal_value - purchaseValue;
+    } else {
+      // Calculate based on rate
+      if (!formData.due_date || !formData.discount_date) {
+        return { days: 0, discountAmount: 0, netValue: 0, purchaseValue: 0, profit: 0, profitRate: 0 };
+      }
+      const days = getDaysUntilDue(formData.discount_date, formData.due_date);
+      discountAmount = calculateDiscountAmount(
+        formData.nominal_value,
+        formData.discount_rate,
+        formData.discount_type,
+        days
+      );
+      purchaseValue = formData.nominal_value - discountAmount;
+    }
+
+    const netValue = purchaseValue; // What user pays
+    const profit = formData.nominal_value - purchaseValue;
+    const profitRate = purchaseValue > 0 ? (profit / purchaseValue) * 100 : 0;
+    const days = formData.due_date && formData.discount_date 
+      ? getDaysUntilDue(formData.discount_date, formData.due_date) 
+      : 0;
+
+    return { days, discountAmount, netValue, purchaseValue, profit, profitRate };
+  }, [formData, calculationMode]);
 
   // Client risk check
   const selectedClientRisk = useMemo(() => {
@@ -245,6 +265,7 @@ export default function CheckDiscounts() {
       seller_name: '',
     });
     setSelectedCheck(null);
+    setCalculationMode('direct');
   };
 
   const handleOpenForm = (check?: CheckDiscount) => {
@@ -266,6 +287,8 @@ export default function CheckDiscounts() {
         purchase_value: check.purchase_value || 0,
         seller_name: check.seller_name || '',
       });
+      // Detect mode: if purchase_value exists and is different from calculated, use direct mode
+      setCalculationMode(check.purchase_value && check.purchase_value > 0 ? 'direct' : 'calculated');
     } else {
       resetForm();
     }
@@ -589,37 +612,44 @@ export default function CheckDiscounts() {
                           </span>
                         </div>
 
-                        {/* Values */}
-                        <div className="flex items-center gap-4 text-sm flex-wrap">
+                        {/* Values - Improved to show profit clearly */}
+                        <div className="flex items-center gap-3 text-sm flex-wrap">
                           <span>
-                            <span className="text-muted-foreground">Valor:</span>{' '}
+                            <span className="text-muted-foreground">Cheque:</span>{' '}
                             <span className="font-medium">{formatCurrency(check.nominal_value)}</span>
                           </span>
-                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            <span className="text-muted-foreground">Líquido:</span>{' '}
-                            <span className="font-medium text-primary">{formatCurrency(check.net_value)}</span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            ({check.discount_rate}% {check.discount_type === 'proportional' ? 'proporcional' : 'fixo'})
-                          </span>
+                          {check.purchase_value && check.purchase_value > 0 && (
+                            <>
+                              <span className="text-muted-foreground">•</span>
+                              <span>
+                                <span className="text-muted-foreground">Comprado por:</span>{' '}
+                                <span className="font-medium">{formatCurrency(check.purchase_value)}</span>
+                              </span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="flex items-center gap-1 text-green-600 font-medium">
+                                <TrendingUp className="h-3 w-3" />
+                                Lucro: {formatCurrency(check.nominal_value - check.purchase_value)}
+                              </span>
+                            </>
+                          )}
+                          {(!check.purchase_value || check.purchase_value === 0) && (
+                            <>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                              <span>
+                                <span className="text-muted-foreground">Lucro:</span>{' '}
+                                <span className="font-medium text-green-600">{formatCurrency(check.discount_amount)}</span>
+                              </span>
+                            </>
+                          )}
                         </div>
 
-                        {/* Check Origin Info */}
-                        {(check.seller_name || check.purchase_value) && (
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                            {check.seller_name && (
-                              <span className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                Comprado de: {check.seller_name}
-                              </span>
-                            )}
-                            {check.purchase_value && check.purchase_value > 0 && (
-                              <span className="flex items-center gap-1">
-                                <DollarSign className="h-3 w-3" />
-                                Valor pago: {formatCurrency(check.purchase_value)}
-                              </span>
-                            )}
+                        {/* Seller info */}
+                        {check.seller_name && (
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              Vendedor: {check.seller_name}
+                            </span>
                           </div>
                         )}
 
@@ -817,88 +847,175 @@ export default function CheckDiscounts() {
 
             <Separator />
 
-            {/* Discount Calculation */}
+            {/* Calculation Mode Toggle */}
             <div className="space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <Percent className="h-4 w-4" />
-                Cálculo do Desconto
-              </h4>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Data do Desconto</Label>
-                  <Input
-                    type="date"
-                    value={formData.discount_date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, discount_date: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Taxa (% ao mês)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.discount_rate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, discount_rate: parseFloat(e.target.value) || 0 }))}
-                  />
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Valores da Operação
+                </h4>
+                <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calculationMode === 'direct' ? 'default' : 'ghost'}
+                    onClick={() => setCalculationMode('direct')}
+                    className="text-xs h-7"
+                  >
+                    <Banknote className="h-3 w-3 mr-1" />
+                    Valor Direto
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calculationMode === 'calculated' ? 'default' : 'ghost'}
+                    onClick={() => setCalculationMode('calculated')}
+                    className="text-xs h-7"
+                  >
+                    <Percent className="h-3 w-3 mr-1" />
+                    Calcular por Taxa
+                  </Button>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Tipo de Desconto</Label>
-                <RadioGroup
-                  value={formData.discount_type}
-                  onValueChange={(v) => setFormData(prev => ({ ...prev, discount_type: v as DiscountType }))}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="proportional" id="proportional" />
-                    <Label htmlFor="proportional" className="cursor-pointer">
-                      Proporcional aos dias
-                    </Label>
+              {calculationMode === 'direct' ? (
+                /* Direct Mode: User enters purchase value */
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Valor de Compra (quanto você pagou) *</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.purchase_value || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, purchase_value: parseFloat(e.target.value) || 0 }))}
+                        className="pl-10"
+                        placeholder="900,00"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Digite quanto você pagou para adquirir este cheque
+                    </p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="percentage" id="percentage" />
-                    <Label htmlFor="percentage" className="cursor-pointer">
-                      Percentual fixo
-                    </Label>
+                  <div className="space-y-2">
+                    <Label>Comprado de (vendedor)</Label>
+                    <Input
+                      value={formData.seller_name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, seller_name: e.target.value }))}
+                      placeholder="Nome do vendedor"
+                    />
                   </div>
-                </RadioGroup>
-              </div>
+                </div>
+              ) : (
+                /* Calculated Mode: Use rate formula */
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Data do Desconto</Label>
+                      <Input
+                        type="date"
+                        value={formData.discount_date}
+                        onChange={(e) => setFormData(prev => ({ ...prev, discount_date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Taxa (% ao mês)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={formData.discount_rate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, discount_rate: parseFloat(e.target.value) || 0 }))}
+                      />
+                    </div>
+                  </div>
 
-              {/* Calculation Preview */}
-              {formData.nominal_value > 0 && formData.due_date && (
-                <Card className="bg-muted/50">
-                  <CardContent className="p-4 space-y-2">
+                  <div className="space-y-2">
+                    <Label>Tipo de Desconto</Label>
+                    <RadioGroup
+                      value={formData.discount_type}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, discount_type: v as DiscountType }))}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="proportional" id="proportional" />
+                        <Label htmlFor="proportional" className="cursor-pointer">
+                          Proporcional aos dias
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="percentage" id="percentage" />
+                        <Label htmlFor="percentage" className="cursor-pointer">
+                          Percentual fixo
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Comprado de (vendedor)</Label>
+                      <Input
+                        value={formData.seller_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, seller_name: e.target.value }))}
+                        placeholder="Nome do vendedor"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Improved Calculation Preview - shows profit clearly */}
+              {formData.nominal_value > 0 && (calculationMode === 'direct' ? formData.purchase_value > 0 : formData.due_date) && (
+                <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-sm">Resumo da Operação</span>
+                    </div>
+                    
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Valor Nominal:</span>
+                      <span className="text-muted-foreground">Valor do Cheque:</span>
                       <span className="font-medium">{formatCurrency(formData.nominal_value)}</span>
                     </div>
+                    
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Dias até vencimento:</span>
-                      <span className="font-medium">{calculatedValues.days} dias</span>
+                      <span className="text-muted-foreground">Valor de Compra:</span>
+                      <span className="font-medium">- {formatCurrency(calculatedValues.purchaseValue)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Taxa efetiva:</span>
-                      <span className="font-medium">{calculatedValues.effectiveRate.toFixed(2)}%</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Valor do Desconto:</span>
-                      <span className="font-medium text-red-600">- {formatCurrency(calculatedValues.discountAmount)}</span>
-                    </div>
+                    
+                    {calculationMode === 'calculated' && calculatedValues.days > 0 && (
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>({calculatedValues.days} dias × {formData.discount_rate}% ao mês)</span>
+                      </div>
+                    )}
+                    
                     <Separator />
-                    <div className="flex justify-between">
-                      <span className="font-medium">Valor Líquido:</span>
-                      <span className="text-lg font-bold text-primary">{formatCurrency(calculatedValues.netValue)}</span>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium flex items-center gap-1">
+                        <CircleDollarSign className="h-4 w-4 text-green-600" />
+                        Lucro:
+                      </span>
+                      <span className="text-xl font-bold text-green-600">
+                        {formatCurrency(calculatedValues.profit)}
+                      </span>
                     </div>
+                    
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Lucro Esperado:</span>
-                      <span className="font-medium text-green-600">{formatCurrency(calculatedValues.discountAmount)}</span>
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <BarChart3 className="h-3 w-3" />
+                        Rentabilidade:
+                      </span>
+                      <span className="font-medium text-primary">
+                        {calculatedValues.profitRate.toFixed(2)}%
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
               )}
             </div>
+
 
             <Separator />
 
@@ -919,44 +1036,6 @@ export default function CheckDiscounts() {
                     <SelectItem value="transfer">Transferência</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Check Origin (Optional) */}
-            <div className="space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Origem do Cheque (opcional)
-              </h4>
-              <p className="text-sm text-muted-foreground">
-                Preencha se o cliente comprou este cheque de terceiros
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Valor Pago pelo Cheque</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.purchase_value || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, purchase_value: parseFloat(e.target.value) || 0 }))}
-                      className="pl-10"
-                      placeholder="0,00"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Comprado de</Label>
-                  <Input
-                    value={formData.seller_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, seller_name: e.target.value }))}
-                    placeholder="Nome do vendedor"
-                  />
-                </div>
               </div>
             </div>
 
