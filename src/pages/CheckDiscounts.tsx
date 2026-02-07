@@ -66,6 +66,7 @@ import {
 } from '@/types/checkDiscount';
 import { ClientSelector } from '@/components/ClientSelector';
 import { useProfile } from '@/hooks/useProfile';
+import { CheckDiscountCard } from '@/components/CheckDiscountCard';
 
 export default function CheckDiscounts() {
   const { profile, loading: profileLoading } = useProfile();
@@ -551,187 +552,22 @@ export default function CheckDiscounts() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredChecks.map((check) => {
-              const daysUntilDue = getDaysUntilDue(format(new Date(), 'yyyy-MM-dd'), check.due_date);
-              const isOverdue = daysUntilDue < 0 && check.status === 'in_wallet';
-              const isDueSoon = daysUntilDue >= 0 && daysUntilDue <= 7 && check.status === 'in_wallet';
-              
-              return (
-                <Card 
-                  key={check.id} 
-                  className={`transition-all ${
-                    isOverdue ? 'border-red-300 dark:border-red-800' : 
-                    isDueSoon ? 'border-orange-300 dark:border-orange-800' : ''
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                      {/* Status Badge & Check Info */}
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge className={getStatusColor(check.status)}>
-                            {getStatusLabel(check.status)}
-                          </Badge>
-                          <span className="font-mono font-medium">#{check.check_number}</span>
-                          <span className="text-muted-foreground">-</span>
-                          <span className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            {check.bank_name}
-                          </span>
-                          {isDueSoon && (
-                            <Badge variant="outline" className="border-orange-300 text-orange-600">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Vence em {daysUntilDue} dias
-                            </Badge>
-                          )}
-                          {isOverdue && (
-                            <Badge variant="destructive">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Vencido há {Math.abs(daysUntilDue)} dias
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                          {check.clients && (
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {check.clients.full_name}
-                            </span>
-                          )}
-                          {check.issuer_name && (
-                            <span className="flex items-center gap-1">
-                              <CreditCard className="h-3 w-3" />
-                              {check.issuer_name}
-                              {check.issuer_document && ` (${formatCPFCNPJ(check.issuer_document)})`}
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Vence: {format(new Date(check.due_date + 'T12:00:00'), 'dd/MM/yyyy')}
-                          </span>
-                        </div>
-
-                        {/* Values - Improved to show profit clearly */}
-                        <div className="flex items-center gap-3 text-sm flex-wrap">
-                          <span>
-                            <span className="text-muted-foreground">Cheque:</span>{' '}
-                            <span className="font-medium">{formatCurrency(check.nominal_value)}</span>
-                          </span>
-                          {check.purchase_value && check.purchase_value > 0 && (
-                            <>
-                              <span className="text-muted-foreground">•</span>
-                              <span>
-                                <span className="text-muted-foreground">Comprado por:</span>{' '}
-                                <span className="font-medium">{formatCurrency(check.purchase_value)}</span>
-                              </span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="flex items-center gap-1 text-green-600 font-medium">
-                                <TrendingUp className="h-3 w-3" />
-                                Lucro: {formatCurrency(check.nominal_value - check.purchase_value)}
-                              </span>
-                            </>
-                          )}
-                          {(!check.purchase_value || check.purchase_value === 0) && (
-                            <>
-                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                              <span>
-                                <span className="text-muted-foreground">Lucro:</span>{' '}
-                                <span className="font-medium text-green-600">{formatCurrency(check.discount_amount)}</span>
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Seller info */}
-                        {check.seller_name && (
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              Vendedor: {check.seller_name}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Debt info for returned/in_collection checks */}
-                        {(check.status === 'returned' || check.status === 'in_collection') && (
-                          <div className="flex items-center gap-4 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-lg flex-wrap">
-                            <span className="text-red-600 dark:text-red-400">
-                              <span className="font-medium">Dívida:</span> {formatCurrency(check.total_debt || 0)}
-                            </span>
-                            <span className="text-green-600 dark:text-green-400">
-                              <span className="font-medium">Pago:</span> {formatCurrency(check.total_paid_debt || 0)}
-                            </span>
-                            <span className="text-orange-600 dark:text-orange-400">
-                              <span className="font-medium">Restante:</span>{' '}
-                              {formatCurrency((check.total_debt || 0) - (check.total_paid_debt || 0))}
-                            </span>
-                            {check.installments_count > 1 && (
-                              <Badge variant="outline">{check.installments_count}x</Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {check.status === 'in_wallet' && (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-green-600 border-green-300 hover:bg-green-50"
-                              onClick={() => handleCompensate(check)}
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-1" />
-                              Compensar
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="text-red-600 border-red-300 hover:bg-red-50"
-                              onClick={() => handleOpenReturn(check)}
-                            >
-                              <RotateCcw className="h-4 w-4 mr-1" />
-                              Devolver
-                            </Button>
-                          </>
-                        )}
-                        {check.status === 'in_collection' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="text-primary"
-                            onClick={() => handleOpenPayment(check)}
-                          >
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            Receber
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => handleOpenForm(check)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          className="text-destructive"
-                          onClick={() => {
-                            setSelectedCheck(check);
-                            setIsDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filteredChecks.map((check) => (
+              <CheckDiscountCard
+                key={check.id}
+                check={check}
+                onCompensate={handleCompensate}
+                onReturn={handleOpenReturn}
+                onPayment={handleOpenPayment}
+                onEdit={handleOpenForm}
+                onDelete={(c) => {
+                  setSelectedCheck(c);
+                  setIsDeleteDialogOpen(true);
+                }}
+                formatCurrency={formatCurrency}
+                formatCPFCNPJ={formatCPFCNPJ}
+              />
+            ))}
           </div>
         )}
       </div>
