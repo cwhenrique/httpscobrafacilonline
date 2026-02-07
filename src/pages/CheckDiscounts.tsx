@@ -65,8 +65,10 @@ import {
   BANKS,
 } from '@/types/checkDiscount';
 import { ClientSelector } from '@/components/ClientSelector';
+import { useProfile } from '@/hooks/useProfile';
 
 export default function CheckDiscounts() {
+  const { profile, loading: profileLoading } = useProfile();
   const { effectiveUserId } = useEmployeeContext();
   const { 
     filteredChecks, 
@@ -153,8 +155,8 @@ export default function CheckDiscounts() {
     return getClientCheckHistory(formData.client_id);
   }, [formData.client_id, getClientCheckHistory]);
 
-  // Feature is locked for all users - requires purchase
-  const isFeatureLocked = true;
+  // Feature is unlocked if user has check_discount_enabled
+  const isFeatureLocked = !profile?.check_discount_enabled;
 
   if (isFeatureLocked) {
     const whatsappNumber = '5511999999999'; // Número para compra
