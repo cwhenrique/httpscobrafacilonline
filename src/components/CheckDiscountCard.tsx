@@ -20,6 +20,11 @@ import {
   CheckDiscount,
   getStatusLabel,
 } from '@/types/checkDiscount';
+import {
+  SendCheckOverdueNotification,
+  SendCheckDueTodayNotification,
+  SendCheckEarlyNotification,
+} from './CheckDiscountNotifications';
 
 interface CheckDiscountCardProps {
   check: CheckDiscount;
@@ -226,6 +231,21 @@ export function CheckDiscountCard({
                   {formatCurrency((check.total_debt || 0) - (check.total_paid_debt || 0))}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* WhatsApp Notification Buttons */}
+          {check.status === 'in_wallet' && check.clients?.phone && (
+            <div className="flex flex-wrap items-center gap-1 pt-1">
+              {isOverdue && (
+                <SendCheckOverdueNotification check={check} daysUntilDue={daysUntilDue} />
+              )}
+              {daysUntilDue === 0 && !isOverdue && (
+                <SendCheckDueTodayNotification check={check} daysUntilDue={daysUntilDue} />
+              )}
+              {daysUntilDue > 0 && daysUntilDue <= 7 && (
+                <SendCheckEarlyNotification check={check} daysUntilDue={daysUntilDue} />
+              )}
             </div>
           )}
 
