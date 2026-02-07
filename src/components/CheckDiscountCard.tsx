@@ -1,5 +1,4 @@
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { format, differenceInDays, parseISO } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,6 @@ import {
 import {
   CheckDiscount,
   getStatusLabel,
-  getDaysUntilDue,
 } from '@/types/checkDiscount';
 
 interface CheckDiscountCardProps {
@@ -34,6 +32,12 @@ interface CheckDiscountCardProps {
   formatCPFCNPJ: (value: string) => string;
 }
 
+// Helper to parse date string locally (avoiding timezone issues)
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export function CheckDiscountCard({
   check,
   onCompensate,
@@ -44,8 +48,11 @@ export function CheckDiscountCard({
   formatCurrency,
   formatCPFCNPJ,
 }: CheckDiscountCardProps) {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const daysUntilDue = getDaysUntilDue(today, check.due_date);
+  // Calculate days difference properly (can be negative for overdue)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = parseLocalDate(check.due_date);
+  const daysUntilDue = differenceInDays(dueDate, today);
   const isOverdue = daysUntilDue < 0 && check.status === 'in_wallet';
   const isDueSoon = daysUntilDue >= 0 && daysUntilDue <= 7 && check.status === 'in_wallet';
   const isPaid = check.status === 'compensated';
