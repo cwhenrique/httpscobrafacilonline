@@ -1250,6 +1250,7 @@ export type Database = {
           billing_message_config: Json | null
           billing_signature_name: string | null
           cash_flow_initial_balance: number | null
+          check_discount_enabled: boolean | null
           company_logo_url: string | null
           company_name: string | null
           created_at: string
@@ -1289,6 +1290,7 @@ export type Database = {
           billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
+          check_discount_enabled?: boolean | null
           company_logo_url?: string | null
           company_name?: string | null
           created_at?: string
@@ -1328,6 +1330,7 @@ export type Database = {
           billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
+          check_discount_enabled?: boolean | null
           company_logo_url?: string | null
           company_name?: string | null
           created_at?: string
