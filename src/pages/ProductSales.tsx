@@ -2836,7 +2836,7 @@ export default function ProductSales() {
                         status === 'paid' && "bg-green-500/10 border-green-500/40",
                         status === 'pending' && "bg-muted/20"
                       )}
-                      style={fee.card_color ? { borderLeftWidth: '4px', borderLeftColor: fee.card_color } : undefined}
+                      style={fee.card_color ? { borderWidth: '2px', borderColor: fee.card_color } : undefined}
                     >
                       {/* Alert Icons */}
                       {status === 'overdue' && (
