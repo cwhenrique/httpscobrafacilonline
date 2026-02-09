@@ -105,7 +105,7 @@ export default function IPTVSubscriptionListView({
                       status === 'due_today' && "bg-yellow-500/5 hover:bg-yellow-500/10",
                       status === 'paid' && "bg-green-500/5 hover:bg-green-500/10"
                     )}
-                    style={fee.card_color ? { borderLeftWidth: '4px', borderLeftColor: fee.card_color } : undefined}
+                    style={fee.card_color ? { borderWidth: '2px', borderColor: fee.card_color } : undefined}
                   >
                     {/* Status */}
                     <TableCell>
