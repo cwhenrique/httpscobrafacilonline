@@ -189,7 +189,7 @@ export default function ProductSales() {
   
   
   // Contracts hooks
-  const { contracts, allContractPayments, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, updatePaymentDueDate } = useContracts();
+  const { contracts, allContractPayments, isLoading: contractsLoading, createContract, updateContract, deleteContract, getContractPayments, markPaymentAsPaid, revertPayment, updatePaymentDueDate } = useContracts();
   const { allExpenses: contractExpenses, getTotalExpensesByContract, createExpense } = useContractExpenses();
   
   // Monthly Fees (Subscriptions) hooks
@@ -2663,7 +2663,26 @@ export default function ProductSales() {
                                         <Check className="w-3 h-3" />
                                       </Button>
                                     ) : (
-                                      <Check className="w-4 h-4 text-primary" />
+                                      <div className="flex items-center gap-1">
+                                        {payment.paid_date && (
+                                          <span className="text-[10px] text-muted-foreground">
+                                            {format(parseISO(payment.paid_date), "dd/MM")}
+                                          </span>
+                                        )}
+                                        <Check className="w-4 h-4 text-primary" />
+                                        <Button 
+                                          size="sm" 
+                                          variant="ghost" 
+                                          className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                          onClick={async () => {
+                                            await revertPayment.mutateAsync(payment.id);
+                                            const updatedPayments = await getContractPayments(contract.id);
+                                            setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
+                                          }}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
