@@ -2829,13 +2829,14 @@ export default function ProductSales() {
                     <Card 
                       key={fee.id}
                       className={cn(
-                        "transition-all hover:shadow-md relative",
+                        "transition-all hover:shadow-md relative overflow-hidden",
                         !fee.is_active && "opacity-60",
                         status === 'overdue' && "bg-destructive/10 border-destructive/50",
                         status === 'due_today' && "bg-yellow-500/10 border-yellow-500/50",
                         status === 'paid' && "bg-green-500/10 border-green-500/40",
                         status === 'pending' && "bg-muted/20"
                       )}
+                      style={fee.card_color ? { borderLeftWidth: '4px', borderLeftColor: fee.card_color } : undefined}
                     >
                       {/* Alert Icons */}
                       {status === 'overdue' && (
