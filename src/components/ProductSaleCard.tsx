@@ -73,7 +73,7 @@ export default function ProductSaleCard({
       "transition-all hover:shadow-md relative",
       status === 'paid' && "bg-primary/5 border-primary/30",
       status === 'overdue' && "bg-destructive/5 border-destructive/30",
-      status === 'due_today' && "bg-yellow-500/5 border-yellow-500/30"
+      status === 'due_today' && "bg-orange-500/15 border-orange-500/40"
     )}>
       {/* Alert Icons */}
       {status === 'overdue' && (
@@ -85,7 +85,7 @@ export default function ProductSaleCard({
       )}
       {status === 'due_today' && (
         <div className="absolute -top-2 -right-2 animate-pulse z-10">
-          <div className="bg-yellow-500 text-white rounded-full p-1.5 shadow-lg">
+          <div className="bg-orange-500 text-white rounded-full p-1.5 shadow-lg">
             <Clock className="w-4 h-4" />
           </div>
         </div>
@@ -98,14 +98,14 @@ export default function ProductSaleCard({
               "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
               status === 'paid' && "bg-primary/20",
               status === 'overdue' && "bg-destructive/20",
-              status === 'due_today' && "bg-yellow-500/20",
+              status === 'due_today' && "bg-orange-500/20",
               status === 'pending' && "bg-muted"
             )}>
               <Package className={cn(
                 "w-5 h-5",
                 status === 'paid' && "text-primary",
                 status === 'overdue' && "text-destructive",
-                status === 'due_today' && "text-yellow-600",
+                status === 'due_today' && "text-orange-600",
                 status === 'pending' && "text-muted-foreground"
               )} />
             </div>
@@ -121,7 +121,7 @@ export default function ProductSaleCard({
             "text-xs flex-shrink-0",
             status === 'paid' && "bg-primary/20 text-primary border-primary/30",
             status === 'overdue' && "bg-destructive text-destructive-foreground",
-            status === 'due_today' && "bg-yellow-500/20 text-yellow-600 border-yellow-500/30",
+            status === 'due_today' && "bg-orange-500/20 text-orange-600 border-orange-500/30",
             status === 'pending' && ""
           )} variant={status === 'pending' ? 'secondary' : 'default'}>
             {status === 'paid' && 'Quitado'}
@@ -242,7 +242,7 @@ export default function ProductSaleCard({
         {nextDuePayment && status !== 'paid' && status !== 'overdue' && (
           <div className={cn(
             "p-2.5 rounded-lg mb-3",
-            status === 'due_today' && "bg-yellow-500/10",
+            status === 'due_today' && "bg-orange-500/15",
             status === 'pending' && "bg-muted/50"
           )}>
             <div className="flex items-center justify-between">
@@ -255,7 +255,7 @@ export default function ProductSaleCard({
               <div className="text-right">
                 <p className={cn(
                   "font-semibold text-sm",
-                  status === 'due_today' && "text-yellow-600"
+                  status === 'due_today' && "text-orange-600"
                 )}>
                   {format(parseISO(nextDuePayment.due_date), "dd/MM/yyyy", { locale: ptBR })}
                 </p>
