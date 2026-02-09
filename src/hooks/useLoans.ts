@@ -262,7 +262,7 @@ export function useLoans() {
 
     // PROTEÇÃO ANTI-DUPLICAÇÃO: Verificar pagamento idêntico nos últimos 10 segundos
     // SKIP para pagamentos de contratos históricos (múltiplas parcelas registradas de uma vez)
-    const isHistoricalPayment = payment.notes?.includes('[CONTRATO_ANTIGO]') || payment.notes?.includes('[HISTORICAL_CONTRACT]');
+    const isHistoricalPayment = payment.notes?.includes('[CONTRATO_ANTIGO]') || payment.notes?.includes('[HISTORICAL_CONTRACT]') || payment.notes?.includes('[HISTORICAL_INTEREST_ONLY_PAID');
     
     if (!isHistoricalPayment) {
       const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
