@@ -72,6 +72,7 @@ import SendOverdueNotification from '@/components/SendOverdueNotification';
 import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import IPTVSubscriptionListView from '@/components/iptv/IPTVSubscriptionListView';
+import ContractListView from '@/components/ContractListView';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -247,6 +248,7 @@ export default function ProductSales() {
   const [isContractHistorical, setIsContractHistorical] = useState(false);
   const [historicalPaidInstallments, setHistoricalPaidInstallments] = useState<number[]>([]);
   const [contractsStatusFilter, setContractsStatusFilter] = useState<'all' | 'pending' | 'overdue' | 'paid'>('all');
+  const [contractViewMode, setContractViewMode] = useState<'cards' | 'list'>('cards');
   const [expensesDialogContract, setExpensesDialogContract] = useState<Contract | null>(null);
   const [contractInitialExpenses, setContractInitialExpenses] = useState<Array<{
     amount: number;
@@ -1978,9 +1980,31 @@ export default function ProductSales() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+              <div className="flex items-center gap-3 flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                </div>
+                <div className="flex items-center gap-1 border rounded-lg p-0.5">
+                  <Button
+                    variant={contractViewMode === 'cards' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 px-3 gap-1.5"
+                    onClick={() => setContractViewMode('cards')}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span className="hidden sm:inline">Cards</span>
+                  </Button>
+                  <Button
+                    variant={contractViewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 px-3 gap-1.5"
+                    onClick={() => setContractViewMode('list')}
+                  >
+                    <List className="w-4 h-4" />
+                    <span className="hidden sm:inline">Lista</span>
+                  </Button>
+                </div>
               </div>
               <Dialog open={isContractOpen} onOpenChange={(open) => {
                 setIsContractOpen(open);
@@ -2353,6 +2377,16 @@ export default function ProductSales() {
                   <p className="text-muted-foreground text-sm">Crie contratos de aluguel ou mensalidades</p>
                 </CardContent>
               </Card>
+            ) : contractViewMode === 'list' ? (
+              <ContractListView
+                contracts={filteredContracts}
+                allContractPayments={allContractPayments}
+                getContractStatus={getContractStatus}
+                formatCurrency={formatCurrency}
+                onOpenPaymentDialog={openContractPaymentDialog}
+                onDelete={(id) => setDeleteContractId(id)}
+                onEdit={openEditContractDialog}
+              />
             ) : (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredContracts.map((contract) => (
@@ -2370,7 +2404,6 @@ export default function ProductSales() {
                           <div>
                             <p className="font-semibold">{contract.client_name}</p>
                             <p className="text-xs text-muted-foreground">{getContractTypeLabel(contract.contract_type)}</p>
-                            {/* Show vehicle plate for vehicle rentals */}
                             {contract.contract_type === 'aluguel_veiculo' && contract.notes?.includes('[VEÍCULO]') && (
                               <div className="flex items-center gap-1 text-xs text-primary font-medium mt-0.5">
                                 <Car className="w-3 h-3" />
@@ -2402,7 +2435,6 @@ export default function ProductSales() {
                           <span className="font-bold text-primary">{formatCurrency(contract.amount_to_receive)}</span>
                         </div>
                         
-                        {/* Seção de Gastos e Lucro - apenas para aluguel de veículo */}
                         {contract.contract_type === 'aluguel_veiculo' && (() => {
                           const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
                           const totalReceived = payments
@@ -2434,7 +2466,6 @@ export default function ProductSales() {
                         })()}
                       </div>
                       
-                      {/* Status e botão de cobrança WhatsApp direto no card */}
                       {contract.status !== 'paid' && (() => {
                         const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
                         const nextPendingPayment = payments
@@ -2453,7 +2484,6 @@ export default function ProductSales() {
                         
                         return (
                           <div className="mb-3 space-y-2">
-                            {/* Badge de status */}
                             <div className={cn(
                               "p-2 rounded-lg text-sm flex items-center justify-between",
                               isOverdue && "bg-destructive/10",
@@ -2473,7 +2503,6 @@ export default function ProductSales() {
                               <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
                             </div>
                             
-                            {/* Botão de cobrança WhatsApp - apenas se tiver telefone */}
                             {contract.client_phone && isOverdue && (
                               <SendOverdueNotification
                                 data={{
@@ -2527,7 +2556,7 @@ export default function ProductSales() {
                           </div>
                         );
                       })()}
-                      
+
                       {/* Botão Pagar Parcela do Mês */}
                       {contract.status !== 'paid' && (() => {
                         const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
@@ -2623,7 +2652,6 @@ export default function ProductSales() {
                                                       newDueDate: format(newPaymentDueDate, 'yyyy-MM-dd')
                                                     });
                                                     setEditingPaymentDueDateId(null);
-                                                    // Reload contract payments
                                                     const updatedPayments = await getContractPayments(contract.id);
                                                     setContractPayments(prev => ({ ...prev, [contract.id]: updatedPayments }));
                                                   }
@@ -2686,7 +2714,6 @@ export default function ProductSales() {
                                     )}
                                   </div>
                                 </div>
-                                {/* WhatsApp notification buttons for contracts */}
                                 {payment.status !== 'paid' && contract.client_phone && (
                                   <div className="pl-2">
                                     {isOverdue && (
