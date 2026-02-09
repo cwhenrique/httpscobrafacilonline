@@ -202,24 +202,41 @@ export default function BillingMessageConfigCard() {
           </div>
         </div>
 
-        {/* Save Button */}
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Templates
-            </>
-          )}
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setTemplates({
+                overdue: DEFAULT_TEMPLATE_OVERDUE,
+                dueToday: DEFAULT_TEMPLATE_DUE_TODAY,
+                early: DEFAULT_TEMPLATE_EARLY,
+              });
+              toast.success('Todos os templates restaurados para o padrão');
+            }}
+            className="flex-1"
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Resetar Todos
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar Templates
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
