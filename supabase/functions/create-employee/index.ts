@@ -37,13 +37,13 @@ serve(async (req) => {
 
     // Extrair token e validar usuário
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !user) {
-      console.error('Erro de autenticação:', userError?.message);
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error('Erro de autenticação:', claimsError?.message);
       throw new Error('Usuário não autenticado');
     }
 
-    const ownerId = user.id;
+    const ownerId = claimsData.claims.sub as string;
     const { name, email, phone, password, permissions } = await req.json();
 
     console.log('Criando funcionário:', { ownerId, name, email, phone: phone ? '***' : null, permissions });

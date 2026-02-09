@@ -7,13 +7,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-whatsapp]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-whatsapp-to-client]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-whatsapp-cobrafacil]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-loan-reminders]
 verify_jwt = false
@@ -61,16 +61,16 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whatsapp-create-instance]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whatsapp-get-qrcode]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whatsapp-check-status]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whatsapp-disconnect]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whatsapp-voice-webhook]
 verify_jwt = false
@@ -79,7 +79,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whatsapp-configure-voice-webhook]
-verify_jwt = true
+verify_jwt = false
 
 [functions.admin-reset-password]
 verify_jwt = false
@@ -106,16 +106,16 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.create-employee]
-verify_jwt = true
+verify_jwt = false
 
 [functions.update-employee]
-verify_jwt = true
+verify_jwt = false
 
 [functions.delete-employee]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whatsapp-get-pairing-code]
-verify_jwt = true
+verify_jwt = false
 
 [functions.admin-toggle-user-status]
 verify_jwt = false
@@ -148,7 +148,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whatsapp-force-reset]
-verify_jwt = true
+verify_jwt = false
 
 [functions.fix-daily-loan-balances]
 verify_jwt = false
