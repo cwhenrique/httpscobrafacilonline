@@ -307,6 +307,26 @@ export function useContracts() {
     },
   });
 
+  const revertPayment = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from('contract_payments')
+        .update({ status: 'pending', paid_date: null })
+        .eq('id', paymentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['contract_payments'] });
+      queryClient.invalidateQueries({ queryKey: ['all_contract_payments'] });
+      toast.success('Pagamento revertido com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao reverter pagamento: ' + error.message);
+    },
+  });
+
   return {
     contracts,
     allContractPayments,
@@ -317,6 +337,7 @@ export function useContracts() {
     deleteContract,
     getContractPayments,
     markPaymentAsPaid,
+    revertPayment,
     updatePaymentDueDate,
   };
 }
