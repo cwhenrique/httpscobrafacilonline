@@ -2528,6 +2528,25 @@ export default function ProductSales() {
                         );
                       })()}
                       
+                      {/* Botão Pagar Parcela do Mês */}
+                      {contract.status !== 'paid' && (() => {
+                        const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
+                        const nextPending = payments
+                          .filter(p => p.status !== 'paid')
+                          .sort((a, b) => parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime())[0];
+                        if (!nextPending) return null;
+                        return (
+                          <Button 
+                            size="sm" 
+                            className="w-full mb-2 gap-2"
+                            onClick={() => openContractPaymentDialog(nextPending, contract)}
+                          >
+                            <Check className="w-4 h-4" />
+                            Pagar {nextPending.installment_number}ª parcela - {format(parseISO(nextPending.due_date), "dd/MM")} ({formatCurrency(nextPending.amount)})
+                          </Button>
+                        );
+                      })()}
+
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="flex-1" onClick={() => toggleContractExpand(contract.id)}>
                           {expandedContract === contract.id ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
