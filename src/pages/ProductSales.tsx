@@ -2560,17 +2560,17 @@ export default function ProductSales() {
                             <div className={cn(
                               "p-2 rounded-lg text-sm flex items-center justify-between",
                               isOverdue && "bg-destructive/10",
-                              isDueToday && "bg-yellow-500/10",
+                              isDueToday && "bg-orange-500/15",
                               isPending && "bg-muted"
                             )}>
                               <div className="flex items-center gap-2">
                                 {isOverdue && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                                {isDueToday && <Clock className="w-4 h-4 text-yellow-600" />}
+                                {isDueToday && <Clock className="w-4 h-4 text-orange-600" />}
                                 {isPending && <Calendar className="w-4 h-4 text-muted-foreground" />}
                                 <span>
                                   {nextPendingPayment.installment_number}ª parcela - {format(paymentDate, "dd/MM")}
                                   {isOverdue && <span className="text-destructive font-medium ml-1">({daysOverdue}d atraso)</span>}
-                                  {isDueToday && <span className="text-yellow-600 font-medium ml-1">(Vence Hoje)</span>}
+                                  {isDueToday && <span className="text-orange-600 font-medium ml-1">(Vence Hoje)</span>}
                                 </span>
                               </div>
                               <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
@@ -2679,7 +2679,7 @@ export default function ProductSales() {
                                 <div className={cn("flex items-center justify-between p-2 rounded-lg text-sm",
                                   payment.status === 'paid' ? 'bg-primary/10 text-primary' :
                                   isOverdue ? 'bg-destructive/10 text-destructive' : 
-                                  isDueToday ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400' : 'bg-muted'
+                                  isDueToday ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400' : 'bg-muted'
                                 )}>
                                   <div className="flex items-center">
                                     <span className="font-medium">{payment.installment_number}ª</span>

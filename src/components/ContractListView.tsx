@@ -88,7 +88,7 @@ export default function ContractListView({
                     className={cn(
                       "transition-colors h-14",
                       isOverdue && "bg-destructive/10 hover:bg-destructive/15",
-                      isDueToday && "bg-yellow-500/10 hover:bg-yellow-500/15",
+                      isDueToday && "bg-orange-500/15 hover:bg-orange-500/20",
                       isDueThisMonth && "bg-yellow-400/10 hover:bg-yellow-400/15",
                       status === 'paid' && "bg-primary/5 hover:bg-primary/10"
                     )}
@@ -102,7 +102,7 @@ export default function ContractListView({
                           </div>
                         )}
                         {isDueToday && (
-                          <div className="bg-yellow-500 text-white rounded-full p-1.5">
+                          <div className="bg-orange-500 text-white rounded-full p-1.5">
                             <Clock className="w-3 h-3" />
                           </div>
                         )}
