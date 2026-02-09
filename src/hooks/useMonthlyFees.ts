@@ -43,6 +43,8 @@ export interface MonthlyFee {
   // Per-subscription server info
   iptv_server_name: string | null;
   iptv_server_url: string | null;
+  // Card color for visual identification
+  card_color: string | null;
   client?: {
     id: string;
     full_name: string;
@@ -84,6 +86,8 @@ export interface CreateMonthlyFeeData {
   // Per-subscription server info
   iptv_server_name?: string;
   iptv_server_url?: string;
+  // Card color
+  card_color?: string;
   // New client inline creation fields
   create_new_client?: boolean;
   new_client_name?: string;
@@ -113,6 +117,8 @@ export interface UpdateMonthlyFeeData {
   // Per-subscription server info
   iptv_server_name?: string;
   iptv_server_url?: string;
+  // Card color
+  card_color?: string;
 }
 
 export function useMonthlyFees() {
@@ -194,6 +200,8 @@ export function useMonthlyFees() {
           // Per-subscription server info
           iptv_server_name: data.iptv_server_name || null,
           iptv_server_url: data.iptv_server_url || null,
+          // Card color
+          card_color: data.card_color || null,
         })
         .select()
         .single();

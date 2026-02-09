@@ -884,6 +884,7 @@ export type Database = {
       monthly_fees: {
         Row: {
           amount: number
+          card_color: string | null
           client_id: string
           created_at: string
           credit_expires_at: string | null
@@ -909,6 +910,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          card_color?: string | null
           client_id: string
           created_at?: string
           credit_expires_at?: string | null
@@ -934,6 +936,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          card_color?: string | null
           client_id?: string
           created_at?: string
           credit_expires_at?: string | null

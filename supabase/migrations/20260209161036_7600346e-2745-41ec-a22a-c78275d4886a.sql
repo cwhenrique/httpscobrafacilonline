@@ -1,0 +1,1 @@
+ALTER TABLE public.monthly_fees ADD COLUMN card_color text DEFAULT NULL;

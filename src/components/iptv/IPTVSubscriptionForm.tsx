@@ -25,7 +25,7 @@ import { useIPTVPlans } from '@/hooks/useIPTVPlans';
 import { Client } from '@/types/database';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Eye, EyeOff, RefreshCw, Copy, UserPlus, Users, ExternalLink, Server } from 'lucide-react';
+import { Calendar, Eye, EyeOff, RefreshCw, Copy, UserPlus, Users, ExternalLink, Server, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -95,6 +95,8 @@ export default function IPTVSubscriptionForm({
     // Per-subscription server info
     iptv_server_name: '',
     iptv_server_url: '',
+    // Card color
+    card_color: '',
     // New client fields
     create_new_client: false,
     new_client_name: '',
@@ -186,6 +188,7 @@ export default function IPTVSubscriptionForm({
       demo_expires_at: '',
       iptv_server_name: '',
       iptv_server_url: '',
+      card_color: '',
       create_new_client: false,
       new_client_name: '',
       new_client_phone: '',
@@ -472,9 +475,49 @@ export default function IPTVSubscriptionForm({
                       </a>
                     </Button>
                   )}
-                </div>
               </div>
             </div>
+
+            {/* Card Color */}
+            <div className="space-y-2">
+              <Label className="text-sm flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                Cor do Card
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: '', label: 'Padrão' },
+                  { value: '#ef4444', label: 'Vermelho' },
+                  { value: '#f97316', label: 'Laranja' },
+                  { value: '#eab308', label: 'Amarelo' },
+                  { value: '#22c55e', label: 'Verde' },
+                  { value: '#06b6d4', label: 'Ciano' },
+                  { value: '#3b82f6', label: 'Azul' },
+                  { value: '#8b5cf6', label: 'Roxo' },
+                  { value: '#ec4899', label: 'Rosa' },
+                ].map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    title={color.label}
+                    onClick={() => setFormData({ ...formData, card_color: color.value })}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 transition-all",
+                      formData.card_color === color.value
+                        ? "border-foreground scale-110 ring-2 ring-foreground/20"
+                        : "border-border hover:scale-105",
+                      !color.value && "bg-muted"
+                    )}
+                    style={color.value ? { backgroundColor: color.value } : undefined}
+                  >
+                    {formData.card_color === color.value && (
+                      <span className="flex items-center justify-center text-white text-xs font-bold drop-shadow">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           </div>
 
           <div className="space-y-2">
