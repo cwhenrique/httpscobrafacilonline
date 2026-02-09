@@ -2430,7 +2430,7 @@ export default function ProductSales() {
                       </div>
                       
                       {/* Status e botão de cobrança WhatsApp direto no card */}
-                      {contract.status !== 'paid' && contract.client_phone && (() => {
+                      {contract.status !== 'paid' && (() => {
                         const payments = contractPayments[contract.id] || allContractPayments.filter(p => p.contract_id === contract.id);
                         const nextPendingPayment = payments
                           .filter(p => p.status !== 'paid')
@@ -2468,8 +2468,8 @@ export default function ProductSales() {
                               <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
                             </div>
                             
-                            {/* Botão de cobrança WhatsApp */}
-                            {isOverdue && (
+                            {/* Botão de cobrança WhatsApp - apenas se tiver telefone */}
+                            {contract.client_phone && isOverdue && (
                               <SendOverdueNotification
                                 data={{
                                   clientName: contract.client_name,
@@ -2486,7 +2486,7 @@ export default function ProductSales() {
                                 className="w-full"
                               />
                             )}
-                            {isDueToday && (
+                            {contract.client_phone && isDueToday && (
                               <SendDueTodayNotification
                                 data={{
                                   clientName: contract.client_name,
@@ -2502,7 +2502,7 @@ export default function ProductSales() {
                                 className="w-full"
                               />
                             )}
-                            {isPending && (
+                            {contract.client_phone && isPending && (
                               <SendEarlyNotification
                                 data={{
                                   clientName: contract.client_name,
