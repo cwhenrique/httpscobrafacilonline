@@ -1096,6 +1096,9 @@ export default function ProductSales() {
     const paymentDate = parseISO(nextPendingPayment.due_date);
     if (isPast(paymentDate) && !isToday(paymentDate)) return 'overdue';
     if (isToday(paymentDate)) return 'due_today';
+    // Check if due this month
+    const now = new Date();
+    if (paymentDate.getMonth() === now.getMonth() && paymentDate.getFullYear() === now.getFullYear()) return 'due_this_month';
     return 'pending';
   };
 
@@ -1107,10 +1110,10 @@ export default function ProductSales() {
     if (contractsStatusFilter === 'all') return true;
     
     const status = getContractStatus(contract);
-    if (contractsStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
+    if (contractsStatusFilter === 'pending') return status === 'pending' || status === 'due_today' || status === 'due_this_month';
     return status === contractsStatusFilter;
   }).sort((a, b) => {
-    const statusOrder: Record<string, number> = { overdue: 0, due_today: 1, pending: 2, paid: 3 };
+    const statusOrder: Record<string, number> = { overdue: 0, due_today: 1, due_this_month: 2, pending: 3, paid: 4 };
     const statusA = getContractStatus(a);
     const statusB = getContractStatus(b);
     const orderA = statusOrder[statusA] ?? 2;
@@ -1129,7 +1132,7 @@ export default function ProductSales() {
     total: contracts.filter(c => c.bill_type === 'receivable').length,
     pending: contracts.filter(c => {
       const status = getContractStatus(c);
-      return c.bill_type === 'receivable' && (status === 'pending' || status === 'due_today');
+      return c.bill_type === 'receivable' && (status === 'pending' || status === 'due_today' || status === 'due_this_month');
     }).length,
     overdue: contracts.filter(c => c.bill_type === 'receivable' && getContractStatus(c) === 'overdue').length,
     paid: contracts.filter(c => c.bill_type === 'receivable' && getContractStatus(c) === 'paid').length,
@@ -1171,6 +1174,8 @@ export default function ProductSales() {
         return 'bg-destructive/10 border-destructive/40';
       case 'due_today':
         return 'bg-yellow-500/10 border-yellow-500/40';
+      case 'due_this_month':
+        return 'bg-yellow-500/5 border-yellow-500/30';
       default:
         return '';
     }
