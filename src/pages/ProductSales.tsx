@@ -1175,7 +1175,7 @@ export default function ProductSales() {
       case 'due_today':
         return 'bg-yellow-500/10 border-yellow-500/40';
       case 'due_this_month':
-        return 'bg-yellow-500/5 border-yellow-500/30';
+        return 'bg-yellow-400/20 border-yellow-500/60';
       default:
         return '';
     }
