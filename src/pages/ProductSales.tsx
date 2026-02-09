@@ -1109,6 +1109,19 @@ export default function ProductSales() {
     const status = getContractStatus(contract);
     if (contractsStatusFilter === 'pending') return status === 'pending' || status === 'due_today';
     return status === contractsStatusFilter;
+  }).sort((a, b) => {
+    const statusOrder: Record<string, number> = { overdue: 0, due_today: 1, pending: 2, paid: 3 };
+    const statusA = getContractStatus(a);
+    const statusB = getContractStatus(b);
+    const orderA = statusOrder[statusA] ?? 2;
+    const orderB = statusOrder[statusB] ?? 2;
+    if (orderA !== orderB) return orderA - orderB;
+    // Within same status, sort by earliest next pending payment
+    const paymentsA = allContractPayments.filter(p => p.contract_id === a.id && p.status !== 'paid');
+    const paymentsB = allContractPayments.filter(p => p.contract_id === b.id && p.status !== 'paid');
+    const nextA = paymentsA.length > 0 ? new Date(paymentsA[0].due_date).getTime() : Infinity;
+    const nextB = paymentsB.length > 0 ? new Date(paymentsB[0].due_date).getTime() : Infinity;
+    return nextA - nextB;
   });
 
   // Contract stats
@@ -2338,7 +2351,7 @@ export default function ProductSales() {
             ) : (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredContracts.map((contract) => (
-                  <Card key={contract.id} className={cn("transition-all", contract.status === 'paid' && 'bg-primary/10 border-primary/40')}>
+                  <Card key={contract.id} className={cn("transition-all", getCardStyles(getContractStatus(contract)))}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
