@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,7 @@ import { useContractExpenses, EXPENSE_CATEGORIES } from '@/hooks/useContractExpe
 import { ContractExpensesDialog } from '@/components/ContractExpensesDialog';
 import { useMonthlyFees, useMonthlyFeePayments, MonthlyFee, CreateMonthlyFeeData } from '@/hooks/useMonthlyFees';
 import { useClients } from '@/hooks/useClients';
-import { format, parseISO, isPast, isToday, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
+import { format, parseISO, isPast, isToday, isBefore, addMonths, addDays, getDate, setDate, getDaysInMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Check, Trash2, Edit, ShoppingBag, User, DollarSign, Calendar, ChevronDown, ChevronUp, Package, Banknote, FileSignature, FileText, AlertTriangle, TrendingUp, Pencil, Tv, Power, MessageCircle, Phone, Bell, Loader2, Clock, CheckCircle, History, Car, Receipt, Server, ExternalLink, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -73,6 +73,7 @@ import SendDueTodayNotification from '@/components/SendDueTodayNotification';
 import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import IPTVSubscriptionListView from '@/components/iptv/IPTVSubscriptionListView';
 import ContractListView from '@/components/ContractListView';
+import TabCalendarDialog, { CalendarEvent } from '@/components/TabCalendarDialog';
 
 // Subcomponente para lista de parcelas de produtos com scroll automático
 interface ProductInstallment {
@@ -307,6 +308,11 @@ export default function ProductSales() {
   const [editSubscriptionNewDueDate, setEditSubscriptionNewDueDate] = useState<Date | undefined>(undefined);
   const [historyDialogFee, setHistoryDialogFee] = useState<MonthlyFee | null>(null);
   const { user } = useAuth();
+
+  // Calendar dialog states
+  const [productsCalendarOpen, setProductsCalendarOpen] = useState(false);
+  const [contractsCalendarOpen, setContractsCalendarOpen] = useState(false);
+  const [subscriptionsCalendarOpen, setSubscriptionsCalendarOpen] = useState(false);
 
   // Receipt preview states
   const [isReceiptPreviewOpen, setIsReceiptPreviewOpen] = useState(false);
@@ -1307,6 +1313,61 @@ export default function ProductSales() {
     pending: filteredSales.reduce((acc, s) => acc + s.remaining_balance, 0),
   };
 
+  // Calendar events for Products tab
+  const productCalendarEvents: CalendarEvent[] = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return (allSalePayments || []).filter(p => p.status !== 'paid').map(p => ({
+      id: p.id,
+      clientName: p.productSale?.client_name || 'Cliente',
+      amount: p.amount,
+      dueDate: p.due_date,
+      status: p.status,
+      installmentNumber: p.installment_number,
+      totalInstallments: p.productSale?.installments,
+      description: p.productSale?.product_name,
+      isOverdue: isBefore(parseISO(p.due_date), today),
+    }));
+  }, [allSalePayments]);
+
+  // Calendar events for Contracts tab
+  const contractCalendarEvents: CalendarEvent[] = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return (allContractPayments || []).filter(p => p.status !== 'paid').map(p => {
+      const contract = contracts?.find(c => c.id === p.contract_id);
+      return {
+        id: p.id,
+        clientName: contract?.client_name || 'Cliente',
+        amount: p.amount,
+        dueDate: p.due_date,
+        status: p.status,
+        installmentNumber: p.installment_number,
+        totalInstallments: contract?.installments,
+        description: contract ? getContractTypeLabel(contract.contract_type) : undefined,
+        isOverdue: isBefore(parseISO(p.due_date), today),
+      };
+    });
+  }, [allContractPayments, contracts]);
+
+  // Calendar events for Subscriptions tab
+  const subscriptionCalendarEvents: CalendarEvent[] = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return (feePayments || []).filter(p => p.status !== 'paid').map(p => {
+      const fee = monthlyFees?.find(f => f.id === p.monthly_fee_id);
+      return {
+        id: p.id,
+        clientName: fee?.client?.full_name || 'Cliente',
+        amount: p.amount,
+        dueDate: p.due_date,
+        status: p.status,
+        description: fee?.description || 'Assinatura',
+        isOverdue: isBefore(parseISO(p.due_date), today),
+      };
+    });
+  }, [feePayments, monthlyFees]);
+
   // Subscription helpers - busca o próximo pagamento pendente ao invés de apenas o mês atual
   const getNextPendingPayment = (feeId: string) => {
     // Buscar todos os pagamentos desta assinatura
@@ -1536,13 +1597,18 @@ export default function ProductSales() {
                   className="pl-9"
                 />
               </div>
-              <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Nova Venda
-                  </Button>
-                </DialogTrigger>
+              <div className="flex gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setProductsCalendarOpen(true)}>
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">Calendário</span>
+                </Button>
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Nova Venda
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Nova Venda de Produto</DialogTitle>
@@ -1835,6 +1901,7 @@ export default function ProductSales() {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             {/* Status Filters */}
@@ -2006,13 +2073,18 @@ export default function ProductSales() {
                   </Button>
                 </div>
               </div>
-              <Dialog open={isContractOpen} onOpenChange={(open) => {
-                setIsContractOpen(open);
-                if (!open) resetContractForm();
-              }}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
-                </DialogTrigger>
+              <div className="flex gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setContractsCalendarOpen(true)}>
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">Calendário</span>
+                </Button>
+                <Dialog open={isContractOpen} onOpenChange={(open) => {
+                  setIsContractOpen(open);
+                  if (!open) resetContractForm();
+                }}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>Novo Contrato</DialogTitle></DialogHeader>
                   <div className="space-y-4 py-4">
@@ -2367,6 +2439,7 @@ export default function ProductSales() {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             {filteredContracts.length === 0 ? (
@@ -2797,6 +2870,10 @@ export default function ProductSales() {
                 />
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setSubscriptionsCalendarOpen(true)}>
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">Calendário</span>
+                </Button>
                 <IPTVServerConfig />
                 <IPTVPlanManager />
                 <Button className="gap-2" onClick={() => setIsSubscriptionOpen(true)}>
@@ -4050,6 +4127,25 @@ export default function ProductSales() {
             onOpenChange={(open) => !open && setExpensesDialogContract(null)}
           />
         )}
+        {/* Tab Calendar Dialogs */}
+        <TabCalendarDialog
+          open={productsCalendarOpen}
+          onOpenChange={setProductsCalendarOpen}
+          title="Calendário de Produtos"
+          events={productCalendarEvents}
+        />
+        <TabCalendarDialog
+          open={contractsCalendarOpen}
+          onOpenChange={setContractsCalendarOpen}
+          title="Calendário de Contratos"
+          events={contractCalendarEvents}
+        />
+        <TabCalendarDialog
+          open={subscriptionsCalendarOpen}
+          onOpenChange={setSubscriptionsCalendarOpen}
+          title="Calendário de Assinaturas"
+          events={subscriptionCalendarEvents}
+        />
       </div>
     </DashboardLayout>
   );
