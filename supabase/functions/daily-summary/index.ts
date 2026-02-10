@@ -188,10 +188,13 @@ const handler = async (req: Request): Promise<Response> => {
       if (!profile.phone) continue;
 
       // If targetHour is specified (from cron), filter by user's scheduled hours
+      // Users WITHOUT any schedule configured receive reports at default hours (8h and 12h)
       if (targetHour !== null && !testPhone) {
         const scheduleHours = profile.report_schedule_hours || [];
-        if (scheduleHours.length === 0 || !scheduleHours.includes(targetHour)) {
-          console.log(`User ${profile.id} not subscribed to hour ${targetHour}, skipping`);
+        const DEFAULT_HOURS = [8, 12];
+        const effectiveHours = scheduleHours.length > 0 ? scheduleHours : DEFAULT_HOURS;
+        if (!effectiveHours.includes(targetHour)) {
+          console.log(`User ${profile.id} not subscribed to hour ${targetHour} (effective: ${effectiveHours.join(',')}), skipping`);
           continue;
         }
       }
