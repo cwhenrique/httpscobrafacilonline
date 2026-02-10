@@ -731,15 +731,15 @@ export default function ReportsLoans() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30">Quitado</Badge>;
-      case 'overdue':
-        return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Em Atraso</Badge>;
-      default:
-        return <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">Em Dia</Badge>;
+  const getStatusBadge = (loan: any) => {
+    // Usar cálculo em tempo real ao invés do status estático do banco
+    if (loan.status === 'paid' || (loan.remaining_balance !== undefined && loan.remaining_balance <= 0.01)) {
+      return <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30">Quitado</Badge>;
     }
+    if (isLoanOverdue(loan)) {
+      return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Em Atraso</Badge>;
+    }
+    return <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">Em Dia</Badge>;
   };
 
   return (
@@ -1335,7 +1335,7 @@ export default function ReportsLoans() {
                           {formatCurrency(loan.remaining_balance)}
                         </TableCell>
                         <TableCell className="text-center">
-                          {getStatusBadge(loan.status)}
+                          {getStatusBadge(loan)}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground text-xs sm:text-sm hidden lg:table-cell">
                           {formatDate(loan.due_date)}
