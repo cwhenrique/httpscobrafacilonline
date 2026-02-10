@@ -6231,6 +6231,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         const count = e.target.value;
                         const numInstallments = parseInt(count) || 0;
                         
+                        // Sync persisted state to prevent useEffect from overwriting
+                        setDailyInstallmentCount(count);
+                        
                         // Auto-generate dates when count changes and we have start_date
                         if (formData.start_date && count && numInstallments > 0) {
                           const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
@@ -6264,7 +6267,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           setFormData(prev => ({ ...prev, daily_period: count, installments: count }));
                           setInstallmentDates([]);
                         }
-                      }} 
+                      }}
                       placeholder="Ex: 20, 25, 30..."
                       className="h-9 sm:h-10 text-sm"
                     />
