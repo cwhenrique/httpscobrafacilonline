@@ -554,8 +554,24 @@ export default function CalendarView() {
             </CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               {selectedDate ? (
-                selectedDateEvents.length > 0 ? (
-                  <div className="h-[400px] sm:h-[500px] overflow-y-auto pr-2 sm:pr-4">
+                  selectedDateEvents.length > 0 ? (
+                  <>
+                    {/* Total do dia */}
+                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 mb-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Total a cobrar no dia</span>
+                        <span className="text-lg sm:text-xl font-bold text-primary">
+                          {formatCurrency(selectedDateEvents.reduce((sum, e) => sum + e.installmentValue, 0))}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {selectedDateEvents.length} {selectedDateEvents.length === 1 ? 'parcela' : 'parcelas'}
+                        {selectedDateEvents.filter(e => e.type === 'loan').length > 0 && ` • ${selectedDateEvents.filter(e => e.type === 'loan').length} empréstimo(s)`}
+                        {selectedDateEvents.filter(e => e.type === 'vehicle').length > 0 && ` • ${selectedDateEvents.filter(e => e.type === 'vehicle').length} veículo(s)`}
+                        {selectedDateEvents.filter(e => e.type === 'product').length > 0 && ` • ${selectedDateEvents.filter(e => e.type === 'product').length} produto(s)`}
+                      </p>
+                    </div>
+                    <div className="h-[340px] sm:h-[440px] overflow-y-auto pr-2 sm:pr-4">
                     <div className="space-y-2 sm:space-y-3">
                       {selectedDateEvents.map((event, index) => (
                         <div 
@@ -683,7 +699,8 @@ export default function CalendarView() {
                         </div>
                       ))}
                     </div>
-                  </div>
+                    </div>
+                  </>
                 ) : (
                   <div className="text-center py-8 sm:py-12">
                     <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
