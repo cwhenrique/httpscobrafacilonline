@@ -592,6 +592,41 @@ export default function Bills() {
     }
   };
 
+  // Função para materializar conta virtual em real e abrir edição (para ajustar valor)
+  const handleEditVirtualBill = async (virtualBill: VirtualBill) => {
+    if (!virtualBill.isVirtual || !virtualBill.originalBillId) return;
+    
+    const originalBill = bills.find(b => b.id === virtualBill.originalBillId);
+    if (!originalBill) {
+      toast.error('Erro ao encontrar conta original');
+      return;
+    }
+    
+    try {
+      const newBill = await createBill.mutateAsync({
+        description: originalBill.description,
+        payee_name: originalBill.payee_name,
+        amount: virtualBill.amount,
+        due_date: virtualBill.due_date,
+        category: originalBill.category || 'outros',
+        is_recurring: false,
+        recurrence_months: null,
+        pix_key: originalBill.pix_key || '',
+        notes: originalBill.notes || '',
+        owner_type: originalBill.owner_type || 'personal',
+      });
+      
+      if (newBill) {
+        // Abrir diálogo de edição com a conta recém-criada
+        openEditDialog(newBill as Bill);
+        toast.success('Conta criada para este mês. Ajuste o valor e salve.');
+      }
+    } catch (error) {
+      console.error('Erro ao criar conta para edição:', error);
+      toast.error('Erro ao criar conta');
+    }
+  };
+
   const handleEdit = async () => {
     if (!editingBill) return;
 
@@ -1310,6 +1345,18 @@ export default function Bills() {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                      )}
+                      {/* Botão de editar valor para contas virtuais */}
+                      {isVirtual && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="bg-white/10 hover:bg-white/20 text-white border-white/30"
+                          onClick={() => handleEditVirtualBill(bill as VirtualBill)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          <span className="text-xs">Editar Valor</span>
+                        </Button>
                       )}
                       {/* Botões de editar e excluir - não mostrar para contas virtuais */}
                       {!isVirtual && (
