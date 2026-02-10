@@ -154,9 +154,9 @@ const handler = async (req: Request): Promise<Response> => {
       .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key, report_schedule_hours')
       .eq('is_active', true)
       .not('phone', 'is', null)
-      .not('whatsapp_instance_id', 'is', null) // Only users with WhatsApp connected
+      .not('whatsapp_instance_id', 'is', null)
       .not('whatsapp_connected_phone', 'is', null)
-      .not('subscription_plan', 'eq', 'trial') // Only paying customers
+      .not('subscription_plan', 'eq', 'trial')
       .order('id');
     
     console.log("Querying PAYING users with WhatsApp connected only");
@@ -165,7 +165,6 @@ const handler = async (req: Request): Promise<Response> => {
     if (testPhone) {
       let cleanTestPhone = testPhone.replace(/\D/g, '');
       if (!cleanTestPhone.startsWith('55')) cleanTestPhone = '55' + cleanTestPhone;
-      // Match last 9 digits
       profilesQuery = profilesQuery.ilike('phone', `%${cleanTestPhone.slice(-9)}%`);
     } else {
       // Apply pagination for batch processing
@@ -194,9 +193,10 @@ const handler = async (req: Request): Promise<Response> => {
         const DEFAULT_HOURS = [8, 12];
         const effectiveHours = scheduleHours.length > 0 ? scheduleHours : DEFAULT_HOURS;
         if (!effectiveHours.includes(targetHour)) {
-          console.log(`User ${profile.id} not subscribed to hour ${targetHour} (effective: ${effectiveHours.join(',')}), skipping`);
+          console.log(`User ${profile.id} skipped - hour ${targetHour} not in [${effectiveHours.join(',')}]`);
           continue;
         }
+        console.log(`User ${profile.id} matched hour ${targetHour} (schedule: [${effectiveHours.join(',')}])`);
       }
 
       // ============= QUERIES PARALELAS PARA PERFORMANCE =============
@@ -546,7 +546,8 @@ const handler = async (req: Request): Promise<Response> => {
       }
       
       messageText += `━━━━━━━━━━━━━━━━\n`;
-      messageText += isReminder ? `CobraFácil - 12h` : `CobraFácil - 8h`;
+      const displayHour = targetHour !== null ? targetHour : 8;
+      messageText += `CobraFácil - ${displayHour}h`;
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
       
