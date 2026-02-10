@@ -9864,6 +9864,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   <Search className="w-3 h-3" />
                   {statusFilter === 'all' ? 'Filtros' : 
                     statusFilter === 'pending' ? 'Em Dia' :
+                    statusFilter === 'due_today' ? 'Vence Hoje' :
                     statusFilter === 'paid' ? 'Pagos' :
                     statusFilter === 'overdue' ? 'Atraso' : 'Filtros'
                   }
@@ -9902,6 +9903,23 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p>Empréstimos com pagamentos em dia</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={statusFilter === 'due_today' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => { setStatusFilter('due_today'); setOverdueDaysFilter(null); setIsFiltersExpanded(false); }}
+                          className={`h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 ${statusFilter === 'due_today' ? 'bg-orange-500' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
+                        >
+                          <Clock className="w-3 h-3 mr-1" />
+                          Vence Hoje
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Empréstimos com parcela vencendo hoje</p>
                       </TooltipContent>
                     </Tooltip>
                     
