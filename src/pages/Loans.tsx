@@ -1997,7 +1997,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     due_date: '',
     notes: '',
     daily_amount: '',
-    daily_period: '15',
+    daily_period: '1',
     daily_interest_rate: '', // Taxa de juros para empréstimo diário
     is_historical_contract: false, // Contract being registered retroactively
     send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
@@ -4856,7 +4856,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_mode: 'per_installment', payment_type: 'installment', installments: '1',
       contract_date: format(new Date(), 'yyyy-MM-dd'),
       start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
-      daily_amount: '', daily_period: '15', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
+      daily_amount: '', daily_period: '1', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
       overdue_penalty_enabled: false, overdue_penalty_type: 'percentage', overdue_penalty_value: '',
     });
     setInstallmentDates([]);
@@ -6220,6 +6220,56 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       className="h-9 sm:h-10"
                     />
                   </div>
+                  <div className="space-y-1 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Nº de Parcelas *</Label>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      max="365"
+                      value={formData.daily_period || ''} 
+                      onChange={(e) => {
+                        const count = e.target.value;
+                        const numInstallments = parseInt(count) || 0;
+                        
+                        // Auto-generate dates when count changes and we have start_date
+                        if (formData.start_date && count && numInstallments > 0) {
+                          const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
+                          setInstallmentDates(newDates);
+                          
+                          // Se tem juros definido, recalcular a parcela
+                          const principal = parseFloat(formData.principal_amount) || 0;
+                          const interestRate = parseFloat(formData.daily_interest_rate) || 0;
+                          
+                          if (principal > 0 && interestRate > 0 && newDates.length > 0) {
+                            const totalInterest = principal * (interestRate / 100);
+                            const totalToReceive = principal + totalInterest;
+                            const dailyAmount = totalToReceive / newDates.length;
+                            
+                            setFormData(prev => ({
+                              ...prev,
+                              daily_period: count,
+                              installments: count,
+                              due_date: newDates[newDates.length - 1],
+                              daily_amount: dailyAmount.toFixed(2)
+                            }));
+                          } else if (newDates.length > 0) {
+                            setFormData(prev => ({
+                              ...prev,
+                              daily_period: count,
+                              installments: count,
+                              due_date: newDates[newDates.length - 1]
+                            }));
+                          }
+                        } else {
+                          setFormData(prev => ({ ...prev, daily_period: count, installments: count }));
+                          setInstallmentDates([]);
+                        }
+                      }} 
+                      placeholder="Ex: 20, 25, 30..."
+                      className="h-9 sm:h-10 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Quantas parcelas diárias</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2">
                       <Label className="text-xs sm:text-sm">Valor Emprestado (R$) *</Label>
@@ -6350,56 +6400,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       />
                       <p className="text-[10px] text-muted-foreground">Quando começa</p>
                     </div>
-                  </div>
-                  <div className="space-y-1 sm:space-y-2">
-                    <Label className="text-xs sm:text-sm">Nº de Parcelas *</Label>
-                    <Input 
-                      type="number" 
-                      min="1"
-                      max="365"
-                      value={formData.daily_period || ''} 
-                      onChange={(e) => {
-                        const count = e.target.value;
-                        const numInstallments = parseInt(count) || 0;
-                        
-                        // Auto-generate dates when count changes and we have start_date
-                        if (formData.start_date && count && numInstallments > 0) {
-                          const newDates = generateDailyDates(formData.start_date, numInstallments, skipSaturday, skipSunday, skipHolidays);
-                          setInstallmentDates(newDates);
-                          
-                          // Se tem juros definido, recalcular a parcela
-                          const principal = parseFloat(formData.principal_amount) || 0;
-                          const interestRate = parseFloat(formData.daily_interest_rate) || 0;
-                          
-                          if (principal > 0 && interestRate > 0 && newDates.length > 0) {
-                            const totalInterest = principal * (interestRate / 100);
-                            const totalToReceive = principal + totalInterest;
-                            const dailyAmount = totalToReceive / newDates.length;
-                            
-                            setFormData(prev => ({
-                              ...prev,
-                              daily_period: count,
-                              installments: count,
-                              due_date: newDates[newDates.length - 1],
-                              daily_amount: dailyAmount.toFixed(2)
-                            }));
-                          } else if (newDates.length > 0) {
-                            setFormData(prev => ({
-                              ...prev,
-                              daily_period: count,
-                              installments: count,
-                              due_date: newDates[newDates.length - 1]
-                            }));
-                          }
-                        } else {
-                          setFormData(prev => ({ ...prev, daily_period: count, installments: count }));
-                          setInstallmentDates([]);
-                        }
-                      }} 
-                      placeholder="Ex: 20, 25, 30..."
-                      className="h-9 sm:h-10 text-sm"
-                    />
-                    <p className="text-[10px] text-muted-foreground">Quantas parcelas diárias</p>
                   </div>
                   
                   {/* Opções de pular dias */}
