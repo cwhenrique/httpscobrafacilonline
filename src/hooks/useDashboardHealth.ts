@@ -3,6 +3,7 @@ import { useOperationalStats } from './useOperationalStats';
 import { useProductSales } from './useProductSales';
 import { useVehicles } from './useVehicles';
 import { isBefore, startOfDay, addDays, subDays } from 'date-fns';
+import { calculatePaidInstallments } from '@/lib/calculations';
 
 interface HealthData {
   score: number;
@@ -75,9 +76,8 @@ export function useDashboardHealth() {
     activeLoans.forEach((loan) => {
       const dates = (loan.installment_dates as string[]) || [];
       const installmentValue = (loan.principal_amount + (loan.total_interest || 0)) / (dates.length || 1);
-      const paidCount = installmentValue > 0 
-        ? Math.floor((loan.total_paid || 0) / installmentValue) 
-        : 0;
+      // Usar calculatePaidInstallments para contagem precisa baseada em tags PARTIAL_PAID
+      const paidCount = calculatePaidInstallments(loan as any);
 
       dates.forEach((dateStr, index) => {
         if (index < paidCount) return;
