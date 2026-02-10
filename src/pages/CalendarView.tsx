@@ -539,16 +539,23 @@ export default function CalendarView() {
           {/* Selected Date Details */}
           <Card className="shadow-soft">
             <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
-              <CardTitle className="text-base sm:text-lg">
-                {selectedDate 
-                  ? format(selectedDate, "d 'de' MMMM", { locale: ptBR })
-                  : 'Selecione uma data'}
+              <CardTitle className="text-base sm:text-lg flex items-center justify-between">
+                <span>
+                  {selectedDate 
+                    ? format(selectedDate, "d 'de' MMMM", { locale: ptBR })
+                    : 'Selecione uma data'}
+                </span>
+                {selectedDate && selectedDateEvents.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedDateEvents.length} {selectedDateEvents.length === 1 ? 'cobrança' : 'cobranças'}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               {selectedDate ? (
                 selectedDateEvents.length > 0 ? (
-                  <ScrollArea className="h-[250px] sm:h-[400px] pr-2 sm:pr-4">
+                  <ScrollArea className="h-[400px] sm:h-[500px] pr-2 sm:pr-4">
                     <div className="space-y-2 sm:space-y-3">
                       {selectedDateEvents.map((event, index) => (
                         <div 
