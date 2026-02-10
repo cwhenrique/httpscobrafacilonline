@@ -52,6 +52,10 @@ export interface Profile {
   report_schedule_hours: number[] | null;
   // Check discount feature
   check_discount_enabled: boolean;
+  // Auto client billing
+  auto_client_reports_enabled: boolean;
+  auto_report_hour: number;
+  auto_report_types: string[];
 }
 
 export function useProfile() {
