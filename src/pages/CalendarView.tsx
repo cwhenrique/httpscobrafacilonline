@@ -555,7 +555,7 @@ export default function CalendarView() {
             <CardContent className="p-3 sm:p-6 pt-0">
               {selectedDate ? (
                 selectedDateEvents.length > 0 ? (
-                  <ScrollArea className="h-[400px] sm:h-[500px] pr-2 sm:pr-4">
+                  <div className="h-[400px] sm:h-[500px] overflow-y-auto pr-2 sm:pr-4">
                     <div className="space-y-2 sm:space-y-3">
                       {selectedDateEvents.map((event, index) => (
                         <div 
@@ -683,7 +683,7 @@ export default function CalendarView() {
                         </div>
                       ))}
                     </div>
-                  </ScrollArea>
+                  </div>
                 ) : (
                   <div className="text-center py-8 sm:py-12">
                     <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
