@@ -1250,6 +1250,9 @@ export type Database = {
       profiles: {
         Row: {
           affiliate_email: string | null
+          auto_client_reports_enabled: boolean
+          auto_report_hour: number
+          auto_report_types: string[]
           billing_message_config: Json | null
           billing_signature_name: string | null
           cash_flow_initial_balance: number | null
@@ -1290,6 +1293,9 @@ export type Database = {
         }
         Insert: {
           affiliate_email?: string | null
+          auto_client_reports_enabled?: boolean
+          auto_report_hour?: number
+          auto_report_types?: string[]
           billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
@@ -1330,6 +1336,9 @@ export type Database = {
         }
         Update: {
           affiliate_email?: string | null
+          auto_client_reports_enabled?: boolean
+          auto_report_hour?: number
+          auto_report_types?: string[]
           billing_message_config?: Json | null
           billing_signature_name?: string | null
           cash_flow_initial_balance?: number | null
