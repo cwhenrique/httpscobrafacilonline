@@ -1,27 +1,32 @@
 
+# Correcao do Bug de Amortizacao Duplicada
 
-## Reorganizar layout do card de pasta
+## Problema
 
-### Problema atual
-O nome do cliente nao fica centralizado porque o avatar e os badges estao na mesma linha, empurrando o nome para o lado.
+Ao fazer uma segunda amortizacao, o sistema desconta o valor das amortizacoes anteriores duas vezes:
 
-### Solucao
-Inverter a ordem: nome do cliente primeiro (centralizado, fonte maior), avatar e badges abaixo.
+1. O `principal_amount` no banco ja foi atualizado para o valor reduzido (ex: 900 apos amortizar 100 de 1000)
+2. O codigo le esse valor reduzido (900) e ainda subtrai as amortizacoes anteriores das notas (100)
+3. Resultado: 900 - 100 - 100 = 700, quando deveria ser 900 - 100 = 800
 
-### Alteracoes em `src/components/ClientLoansFolder.tsx`
+## Correcao
 
-**Estrutura atual (linhas ~125-155):**
-1. Avatar + Badges (mesma linha)
-2. Nome do cliente
-3. Valor restante
+Uma unica alteracao na linha 4684 de `src/pages/Loans.tsx`:
 
-**Nova estrutura:**
-1. Nome do cliente - centralizado, fonte maior (`text-base sm:text-lg`)
-2. Avatar + Badge de pasta + Badge de status (linha abaixo)
-3. Valor restante
+```typescript
+// ANTES (bug - desconta previousAmortizations duas vezes):
+const newPrincipal = Math.max(0, originalPrincipal - previousAmortizations - amount);
 
-### Detalhes tecnicos
-- Mover o `<p>` do nome para ANTES do bloco do avatar
-- Aumentar fonte: `text-base sm:text-lg font-bold`
-- Manter `text-center w-full break-words`
-- Avatar + badges ficam centralizados abaixo do nome com `flex items-center justify-center gap-2`
+// DEPOIS (correto - principal_amount ja reflete amortizacoes anteriores):
+const newPrincipal = Math.max(0, originalPrincipal - amount);
+```
+
+Como o `principal_amount` no banco ja e atualizado a cada amortizacao (linha 4703), nao ha necessidade de subtrair `previousAmortizations` novamente.
+
+A variavel `previousAmortizations` continuara sendo calculada pois e usada na nota de reversao (linha 4717), garantindo que a funcionalidade de reverter amortizacoes continue funcionando.
+
+## Detalhes Tecnicos
+
+- **Arquivo**: `src/pages/Loans.tsx`, linha 4684
+- **Impacto**: Apenas a logica de calculo do novo principal na amortizacao
+- **Sem efeitos colaterais**: A tag de amortizacao e a nota de reversao continuam usando os valores corretos
