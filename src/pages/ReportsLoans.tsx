@@ -592,13 +592,6 @@ export default function ReportsLoans() {
       }
     }, 0);
     
-    // Em Atraso - CURRENT STATE (inclui juros por atraso dinâmicos)
-    const overdueAmount = allOverdueLoans.reduce((sum, loan) => {
-      const daysOver = getDaysOverdue(loan);
-      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
-      return sum + Number(loan.remaining_balance || 0) + dynamicInterest;
-    }, 0);
-    
     // Total Recebido - PAYMENTS IN PERIOD
     const totalReceivedInPeriod = paymentsInPeriod.reduce((sum, p) => sum + p.amount, 0);
     
@@ -619,6 +612,13 @@ export default function ReportsLoans() {
     // Active and overdue from loans in period (for tables)
     const activeLoansInPeriod = loansInPeriod.filter(loan => loan.status !== 'paid');
     const overdueLoansInPeriod = activeLoansInPeriod.filter(loan => isLoanOverdue(loan));
+
+    // Em Atraso - FILTERED BY PERIOD (inclui juros por atraso dinâmicos)
+    const overdueAmount = overdueLoansInPeriod.reduce((sum, loan) => {
+      const daysOver = getDaysOverdue(loan);
+      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
+      return sum + Number(loan.remaining_balance || 0) + dynamicInterest;
+    }, 0);
     
     return {
       totalOnStreet,
@@ -628,7 +628,7 @@ export default function ReportsLoans() {
       overdueAmount,
       realizedProfit: realizedProfitInPeriod,
       activeLoansCount: allActiveLoans.length,
-      overdueCount: allOverdueLoans.length,
+      overdueCount: overdueLoansInPeriod.length,
       activeLoans: activeLoansInPeriod,
       overdueLoans: overdueLoansInPeriod,
       totalLent,
