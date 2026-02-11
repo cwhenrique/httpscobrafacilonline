@@ -261,11 +261,10 @@ export default function VehicleCard({
               </span>
             </div>
             {/* Manual overdue notification button */}
-            {vehicle.buyer_phone && (
-              <SendOverdueNotification
+            <SendOverdueNotification
                 data={{
                   clientName: vehicle.buyer_name || 'Cliente',
-                  clientPhone: vehicle.buyer_phone,
+                  clientPhone: vehicle.buyer_phone || '',
                   contractType: 'vehicle',
                   installmentNumber: overduePayment.installment_number,
                   totalInstallments: vehicle.installments,
@@ -276,7 +275,6 @@ export default function VehicleCard({
                 }}
                 className="w-full mt-2"
               />
-            )}
           </div>
         )}
 
@@ -305,11 +303,11 @@ export default function VehicleCard({
               </div>
             </div>
             {/* Due today notification button */}
-            {status === 'due_today' && vehicle.buyer_phone && (
+            {status === 'due_today' && (
               <SendDueTodayNotification
                 data={{
                   clientName: vehicle.buyer_name || 'Cliente',
-                  clientPhone: vehicle.buyer_phone,
+                  clientPhone: vehicle.buyer_phone || '',
                   contractType: 'vehicle',
                   installmentNumber: nextDuePayment.installment_number,
                   totalInstallments: vehicle.installments,
