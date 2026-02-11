@@ -54,7 +54,6 @@ import { cn } from '@/lib/utils';
 import { HistoricalInterestRecords } from '@/components/HistoricalInterestRecords';
 import { PaymentsHistoryTab } from '@/components/PaymentsHistoryTab';
 import { ClientLoansFolder, ClientGroup } from '@/components/ClientLoansFolder';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -7418,7 +7417,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           </TooltipProvider>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price' | 'payments'); setStatusFilter('active'); setOverdueDaysFilter(null); }} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'regular' | 'daily' | 'price' | 'payments'); setStatusFilter('active'); setOverdueDaysFilter(null); setOpenFolderClientId(null); }} className="w-full">
           <TabsList className="mb-4 grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="regular" className="gap-1 sm:gap-2 text-xs sm:text-sm">
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -7934,6 +7933,28 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               }}
             />
           ) : (
+            <>
+            {openFolderClientId && (() => {
+              const client = clients.find(c => c.id === openFolderClientId);
+              if (!client) return null;
+              const clientLoans = sortedLoans.filter(l => l.client_id === openFolderClientId && l.payment_type !== 'daily');
+              const group = clientLoans.length >= 2 ? buildClientGroup(clientLoans) : null;
+              return (
+                <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border">
+                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setOpenFolderClientId(null)}>
+                    <X className="w-4 h-4 mr-1" /> Voltar
+                  </Button>
+                  <Avatar className="h-8 w-8 border border-border">
+                    <AvatarImage src={getAvatarUrl(client.avatar_url, client.full_name, 64)} alt={client.full_name} />
+                    <AvatarFallback className="text-xs bg-muted">{client.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{client.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{clientLoans.length} empréstimo{clientLoans.length > 1 ? 's' : ''}{group ? ` • Restante: ${group.remainingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}</p>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {(() => {
                 // Renderizar todos os cards e agrupar por client_id
@@ -9836,6 +9857,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 });
                 
                 // Agora renderizar: pastas para 2+ empréstimos, cards soltos para 1
+                // Se uma pasta está aberta, mostrar apenas os cards desse cliente
+                if (openFolderClientId && cardsByClient.has(openFolderClientId)) {
+                  const items = cardsByClient.get(openFolderClientId)!;
+                  return items.map(item => item.element);
+                }
+                
                 return clientOrder.map(clientId => {
                   const items = cardsByClient.get(clientId)!;
                   if (items.length >= 2 && items[0].loan.client) {
@@ -9852,6 +9879,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 });
               })()}
             </div>
+            </>
           )}
           </TabsContent>
 
@@ -10289,6 +10317,28 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 }}
               />
             ) : (
+              <>
+              {openFolderClientId && (() => {
+                const client = clients.find(c => c.id === openFolderClientId);
+                if (!client) return null;
+                const clientLoans = sortedLoans.filter(l => l.client_id === openFolderClientId && l.payment_type === 'daily');
+                const group = clientLoans.length >= 2 ? buildClientGroup(clientLoans) : null;
+                return (
+                  <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border">
+                    <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setOpenFolderClientId(null)}>
+                      <X className="w-4 h-4 mr-1" /> Voltar
+                    </Button>
+                    <Avatar className="h-8 w-8 border border-border">
+                      <AvatarImage src={getAvatarUrl(client.avatar_url, client.full_name, 64)} alt={client.full_name} />
+                      <AvatarFallback className="text-xs bg-muted">{client.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{client.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{clientLoans.length} empréstimo{clientLoans.length > 1 ? 's' : ''}{group ? ` • Restante: ${group.remainingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {(() => {
                 const cardsByClient = new Map<string, { loan: Loan; element: React.ReactNode }[]>();
@@ -11707,6 +11757,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 cardsByClient.get(clientId)!.push({ loan, element: cardElement });
                 });
                 
+                if (openFolderClientId && cardsByClient.has(openFolderClientId)) {
+                  const items = cardsByClient.get(openFolderClientId)!;
+                  return items.map(item => item.element);
+                }
+                
                 return clientOrder.map(clientId => {
                   const items = cardsByClient.get(clientId)!;
                   if (items.length >= 2 && items[0].loan.client) {
@@ -11723,6 +11778,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 });
               })()}
               </div>
+              </>
             )}
           </TabsContent>
 
@@ -14853,170 +14909,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         </AlertDialog>
 
 
-        {/* Sheet de Pasta do Cliente */}
-        <Sheet open={!!openFolderClientId} onOpenChange={(open) => !open && setOpenFolderClientId(null)}>
-          <SheetContent side="bottom" className="h-[85vh] overflow-y-auto p-0">
-            {openFolderClientId && (() => {
-              const clientLoans = loans.filter(l => l.client_id === openFolderClientId);
-              const client = clientLoans[0]?.client as Client | undefined;
-              if (!client || clientLoans.length === 0) return null;
-              const group = buildClientGroup(clientLoans);
-              
-              return (
-                <>
-                  <SheetHeader className="p-4 pb-2 sticky top-0 bg-background z-10 border-b">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border-2 border-border">
-                        <AvatarImage src={getAvatarUrl(client.avatar_url, client.full_name, 64)} alt={client.full_name} />
-                        <AvatarFallback className="text-sm font-semibold bg-muted">
-                          {client.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <SheetTitle className="text-base">{client.full_name}</SheetTitle>
-                        <SheetDescription className="text-xs">
-                          {clientLoans.length} empréstimo{clientLoans.length > 1 ? 's' : ''} • Restante: {group.remainingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </SheetDescription>
-                      </div>
-                    </div>
-                    {/* Resumo financeiro */}
-                    <div className="grid grid-cols-4 gap-2 mt-2 text-[11px] sm:text-xs">
-                      <div>
-                        <p className="text-muted-foreground">Emprestado</p>
-                        <p className="font-semibold">{group.totalPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">A Receber</p>
-                        <p className="font-semibold">{group.totalToReceive.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Recebido</p>
-                        <p className="font-semibold text-primary">{group.totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Restante</p>
-                        <p className="font-semibold">{group.remainingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                      </div>
-                    </div>
-                  </SheetHeader>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(() => {
-                      // Re-use the same card rendering approach
-                      // We need to build the cards inline - find matching cards from existing render
-                      const allCardsByClient = new Map<string, { loan: typeof loans[0]; element: React.ReactNode }[]>();
-                      
-                      // Build cards for this client's loans
-                      return clientLoans.map((loan, index) => {
-                        // Find the pre-built card element if available in the existing rendering
-                        // Since we can't easily extract the card JSX, we show a simplified card
-                        const { isPaid, isOverdue } = getLoanStatus(loan);
-                        const paidCount = getPaidInstallmentsCount(loan);
-                        const numInstallments = loan.installments || 1;
-                        const isDaily = loan.payment_type === 'daily';
-                        
-                        let installmentValue = 0;
-                        if (isDaily) {
-                          installmentValue = loan.total_interest || 0;
-                        } else {
-                          const totalWithInterest = loan.principal_amount + (loan.total_interest || 0);
-                          installmentValue = totalWithInterest / numInstallments;
-                        }
-                        
-                        const effectiveInstallmentValue = getEffectiveInstallmentValue(
-                          loan, installmentValue, paidCount
-                        );
-                        
-                        const dates = (loan.installment_dates as string[]) || [];
-                        let nextDueDate: Date | null = null;
-                        if (!isPaid && dates.length > 0 && paidCount < dates.length) {
-                          nextDueDate = new Date(dates[paidCount] + 'T12:00:00');
-                        }
 
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const isDueToday = nextDueDate && (() => {
-                          const d = new Date(nextDueDate!);
-                          d.setHours(0, 0, 0, 0);
-                          return d.getTime() === today.getTime();
-                        })();
-
-                        const cardBorder = isPaid 
-                          ? 'border-primary/50' 
-                          : isOverdue 
-                            ? 'border-destructive/50' 
-                            : isDueToday 
-                              ? 'border-amber-500/50' 
-                              : 'border-border';
-
-                        return (
-                          <Card key={loan.id} className={`overflow-hidden ${cardBorder}`}>
-                            <CardContent className="p-3 sm:p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <DollarSign className="w-4 h-4 text-muted-foreground" />
-                                  <span className="text-sm font-semibold">
-                                    {formatCurrency(loan.principal_amount)}
-                                  </span>
-                                </div>
-                                <Badge className={`text-[10px] px-1.5 py-0 ${
-                                  isPaid ? 'bg-primary text-primary-foreground' :
-                                  isOverdue ? 'bg-destructive text-destructive-foreground' :
-                                  isDueToday ? 'bg-amber-500 text-white' :
-                                  'bg-blue-500 text-white'
-                                }`}>
-                                  {isPaid ? 'Quitado' : isOverdue ? 'Atrasado' : isDueToday ? 'Vence Hoje' : 'Em Dia'}
-                                </Badge>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 gap-1.5 text-[11px] sm:text-xs">
-                                <div>
-                                  <p className="text-muted-foreground">Parcela</p>
-                                  <p className="font-medium">{formatCurrency(effectiveInstallmentValue)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Progresso</p>
-                                  <p className="font-medium">{paidCount}/{numInstallments}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Juros</p>
-                                  <p className="font-medium">{formatPercentage(loan.interest_rate)}% {isDaily ? 'a.d.' : 'a.m.'}</p>
-                                </div>
-                                {nextDueDate && (
-                                  <div>
-                                    <p className="text-muted-foreground">Vencimento</p>
-                                    <p className="font-medium">{format(nextDueDate, 'dd/MM/yyyy')}</p>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mt-2 pt-2 border-t flex items-center justify-between">
-                                <span className="text-[11px] text-muted-foreground">
-                                  Restante: {formatCurrency(loan.remaining_balance)}
-                                </span>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="h-6 text-[10px] px-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenFolderClientId(null);
-                                    setSelectedLoanId(loan.id);
-                                  }}
-                                >
-                                  Ver detalhes
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      });
-                    })()}
-                  </div>
-                </>
-              );
-            })()}
-          </SheetContent>
-        </Sheet>
 
       </div>
     </DashboardLayout>
