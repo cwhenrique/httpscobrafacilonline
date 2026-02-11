@@ -1,28 +1,27 @@
 
-## Mover o nome do cliente para uma linha propria e centralizada
 
-### Problema
-Em monitores com zoom alto, o nome do cliente (ex: "devedor 01") fica espremido na mesma linha dos botoes, mostrando apenas a primeira letra.
+## Reorganizar layout do card de pasta
+
+### Problema atual
+O nome do cliente nao fica centralizado porque o avatar e os badges estao na mesma linha, empurrando o nome para o lado.
 
 ### Solucao
-Separar o nome do cliente em uma linha dedicada, centralizada, acima dos botoes. Isso garante visibilidade em qualquer tamanho de tela.
+Inverter a ordem: nome do cliente primeiro (centralizado, fonte maior), avatar e badges abaixo.
 
-### Alteracoes
+### Alteracoes em `src/components/ClientLoansFolder.tsx`
 
-**1. Card de pasta (ClientLoansFolder.tsx)**
-- Mover o nome `group.client.full_name` para uma linha propria, centralizada, abaixo do avatar
-- Remover o `truncate` e usar `text-center` com quebra de linha natural (`break-words`)
+**Estrutura atual (linhas ~125-155):**
+1. Avatar + Badges (mesma linha)
+2. Nome do cliente
+3. Valor restante
 
-**2. Card individual de emprestimo - aba Mensal (Loans.tsx ~linha 8351)**
-- Separar o nome do cliente dos botoes (Detalhes/Comprovante)
-- Nome fica em linha propria centralizada acima dos botoes
-- Botoes ficam na linha seguinte
-
-**3. Card individual de emprestimo - aba Diario (Loans.tsx ~linha 10516)**
-- Mesma alteracao do card mensal
+**Nova estrutura:**
+1. Nome do cliente - centralizado, fonte maior (`text-base sm:text-lg`)
+2. Avatar + Badge de pasta + Badge de status (linha abaixo)
+3. Valor restante
 
 ### Detalhes tecnicos
-- Trocar layout de `flex items-center justify-between` (nome + botoes lado a lado) para empilhado
-- Nome: `text-center w-full font-semibold text-sm sm:text-lg break-words`
-- Botoes: mantidos em linha separada com `flex justify-end`
-- Na pasta: nome centralizado abaixo do avatar, badge de status ao lado do avatar
+- Mover o `<p>` do nome para ANTES do bloco do avatar
+- Aumentar fonte: `text-base sm:text-lg font-bold`
+- Manter `text-center w-full break-words`
+- Avatar + badges ficam centralizados abaixo do nome com `flex items-center justify-center gap-2`
