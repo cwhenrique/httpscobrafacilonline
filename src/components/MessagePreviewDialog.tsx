@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageCircle, Loader2, Eye, User, Copy, Check, FileText, FileCheck } from 'lucide-react';
+import { MessageCircle, Loader2, Eye, User, Copy, Check, FileText, FileCheck, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MessagePreviewDialogProps {
@@ -22,7 +22,8 @@ interface MessagePreviewDialogProps {
   recipientType: 'self' | 'client';
   onConfirm: (editedMessage: string) => void;
   isSending?: boolean;
-  mode?: 'send' | 'copy';
+  mode?: 'send' | 'copy' | 'whatsapp_link';
+  clientPhone?: string;
 }
 
 export default function MessagePreviewDialog({
@@ -35,6 +36,7 @@ export default function MessagePreviewDialog({
   onConfirm,
   isSending = false,
   mode = 'send',
+  clientPhone,
 }: MessagePreviewDialogProps) {
   const [messageType, setMessageType] = useState<'complete' | 'simple'>('complete');
   const [editedMessage, setEditedMessage] = useState(completeMessage);
@@ -80,6 +82,14 @@ export default function MessagePreviewDialog({
     } catch (error) {
       toast.error('Erro ao copiar texto');
     }
+  };
+
+  const handleOpenWhatsApp = () => {
+    if (!clientPhone) return;
+    const cleanPhone = clientPhone.replace(/\D/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(editedMessage)}`;
+    window.open(url, '_blank');
+    toast.success('WhatsApp aberto! Envie a mensagem.');
   };
 
   return (
@@ -133,7 +143,36 @@ export default function MessagePreviewDialog({
           >
             Cancelar
           </Button>
-          {mode === 'copy' ? (
+          {mode === 'whatsapp_link' ? (
+            <>
+              <Button
+                onClick={handleCopy}
+                disabled={!editedMessage.trim()}
+                variant="outline"
+                className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copiar Texto
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleOpenWhatsApp}
+                disabled={!editedMessage.trim() || !clientPhone}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Abrir no WhatsApp
+              </Button>
+            </>
+          ) : mode === 'copy' ? (
             <Button
               onClick={handleCopy}
               disabled={!editedMessage.trim()}

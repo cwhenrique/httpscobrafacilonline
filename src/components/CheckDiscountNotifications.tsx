@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Loader2, Clock, Bell, AlertTriangle } from 'lucide-react';
+import { MessageCircle, Loader2, Clock, Bell, AlertTriangle, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,11 +71,13 @@ export function CheckNotificationButton({
   const clientPhone = check.clients?.phone;
   const clientName = check.clients?.full_name || check.issuer_name || 'Cliente';
 
-  const canSend =
+  const canSendViaAPI =
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
     clientPhone;
+
+  const canShowButton = !!clientPhone;
 
   // Update cooldown state every minute
   useEffect(() => {
@@ -185,7 +187,7 @@ export function CheckNotificationButton({
   };
 
   const handleSend = async (editedMessage: string) => {
-    if (!canSend) {
+    if (!canSendViaAPI) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('WhatsApp não conectado. Reconecte nas configurações.');
       } else if (!profile?.whatsapp_to_clients_enabled) {
@@ -262,11 +264,15 @@ export function CheckNotificationButton({
   };
 
   const handleButtonClick = () => {
-    if (cooldown) {
+    if (canSendViaAPI && cooldown) {
       toast.error(`Aguarde ${remainingMinutes} minutos para enviar novamente`);
       return;
     }
-    setShowSpamWarning(true);
+    if (canSendViaAPI) {
+      setShowSpamWarning(true);
+    } else {
+      setShowPreview(true);
+    }
   };
 
   const handleConfirmSpamWarning = () => {
@@ -274,7 +280,9 @@ export function CheckNotificationButton({
     setShowPreview(true);
   };
 
-  if (!canSend) return null;
+  if (!canShowButton) return null;
+
+  const previewMode = canSendViaAPI ? 'send' : 'whatsapp_link';
 
   // Button config based on type
   const buttonConfig = {
@@ -307,17 +315,19 @@ export function CheckNotificationButton({
         variant={config.variant}
         size="sm"
         onClick={handleButtonClick}
-        disabled={isSending || cooldown}
-        className={`h-7 text-xs px-2 ${config.className} ${cooldown ? 'opacity-60' : ''} ${className}`}
+        disabled={isSending || (cooldown && !!canSendViaAPI)}
+        className={`h-7 text-xs px-2 ${config.className} ${cooldown && canSendViaAPI ? 'opacity-60' : ''} ${className}`}
       >
         {isSending ? (
           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-        ) : cooldown ? (
+        ) : cooldown && canSendViaAPI ? (
           <Clock className="w-3 h-3 mr-1" />
+        ) : !canSendViaAPI ? (
+          <ExternalLink className="w-3 h-3 mr-1" />
         ) : (
           <Icon className="w-3 h-3 mr-1" />
         )}
-        {isSending ? '...' : cooldown ? `${remainingMinutes}m` : config.label}
+        {isSending ? '...' : cooldown && canSendViaAPI ? `${remainingMinutes}m` : !canSendViaAPI ? 'WhatsApp' : config.label}
         {messageCount > 0 && (
           <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
             {messageCount}x
@@ -340,6 +350,8 @@ export function CheckNotificationButton({
         recipientType="client"
         onConfirm={handleSend}
         isSending={isSending}
+        mode={previewMode}
+        clientPhone={clientPhone}
       />
     </>
   );

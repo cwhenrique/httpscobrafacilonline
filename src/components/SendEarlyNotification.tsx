@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Loader2 } from 'lucide-react';
+import { MessageCircle, Loader2, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useProfile } from '@/hooks/useProfile';
@@ -59,11 +59,13 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const canSend =
+  const canSendViaAPI =
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
     data.clientPhone;
+
+  const canShowButton = !!data.clientPhone;
 
   const generateEarlyMessage = (): string => {
     const config = getBillingConfig(profile?.billing_message_config);
@@ -272,7 +274,11 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
   };
 
   const handleButtonClick = () => {
-    setShowSpamWarning(true);
+    if (canSendViaAPI) {
+      setShowSpamWarning(true);
+    } else {
+      setShowPreview(true);
+    }
   };
 
   const handleConfirmSpamWarning = () => {
@@ -280,7 +286,9 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
     setShowPreview(true);
   };
 
-  if (!canSend) return null;
+  if (!canShowButton) return null;
+
+  const previewMode = canSendViaAPI ? 'send' : 'whatsapp_link';
 
   return (
     <>
@@ -294,10 +302,12 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
         >
           {isSending ? (
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : !canSendViaAPI ? (
+            <ExternalLink className="w-4 h-4 mr-2" />
           ) : (
             <MessageCircle className="w-4 h-4 mr-2" />
           )}
-          {isSending ? 'Enviando...' : 'Cobrar Antes do Prazo'}
+          {isSending ? 'Enviando...' : !canSendViaAPI ? 'Cobrar via WhatsApp' : 'Cobrar Antes do Prazo'}
         </Button>
         {messageCount > 0 && (
           <span className="text-xs text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium">
@@ -321,6 +331,8 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
         recipientType="client"
         onConfirm={handleSend}
         isSending={isSending}
+        mode={previewMode}
+        clientPhone={data.clientPhone}
       />
     </>
   );
