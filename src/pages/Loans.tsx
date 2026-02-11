@@ -8890,11 +8890,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
                           {/* Manual overdue notification button */}
-                          {loan.client?.phone && (
+                          {(
 <SendOverdueNotification
                               data={{
                                 clientName: loan.client?.full_name || 'Cliente',
-                                clientPhone: loan.client.phone,
+                                clientPhone: loan.client?.phone || '',
                                 contractType: 'loan',
                                 installmentNumber: (() => {
                                   const dates = (loan.installment_dates as string[]) || [];
@@ -8949,7 +8949,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <SendDueTodayNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
-                                  clientPhone: loan.client.phone,
+                                  clientPhone: loan.client?.phone || '',
                                   contractType: 'loan',
                                   installmentNumber: todayInfo.installmentNumber,
                                   totalInstallments: todayInfo.totalInstallments,
@@ -9005,11 +9005,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               Lembre o cliente para evitar atrasos
                             </p>
                             {/* Manual due today notification button */}
-                            {loan.client?.phone && (
+                            {(
                               <SendDueTodayNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
-                                  clientPhone: loan.client.phone,
+                                  clientPhone: loan.client?.phone || '',
                                   contractType: 'loan',
                                   installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                   totalInstallments: loan.installments || 1,
@@ -9044,7 +9044,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       )}
                       
                       {/* Early Notification - Contrato normal (não vencido ainda) */}
-                      {!isPaid && !isOverdue && !isDueToday && loan.client?.phone && (
+                      {!isPaid && !isOverdue && !isDueToday && (
                         (() => {
                           const paidCount = getPaidInstallmentsCount(loan);
                           const dates = (loan.installment_dates as string[]) || [];
@@ -9060,7 +9060,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             <SendEarlyNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
-                                  clientPhone: loan.client.phone,
+                                  clientPhone: loan.client?.phone || '',
                                   contractType: 'loan',
                                   installmentNumber: paidCount + 1,
                                   totalInstallments: loan.installments || 1,
@@ -10988,11 +10988,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 : 'Pague a parcela em atraso para regularizar o empréstimo'}
                             </p>
                             {/* Manual overdue notification button */}
-                            {loan.client?.phone && (
+                            {(
                               <SendOverdueNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
-                                  clientPhone: loan.client.phone,
+                                  clientPhone: loan.client?.phone || '',
                                   contractType: 'loan',
                                   installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                   totalInstallments: numInstallments,
@@ -11042,7 +11042,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <SendDueTodayNotification
                                   data={{
                                     clientName: loan.client?.full_name || 'Cliente',
-                                    clientPhone: loan.client.phone,
+                                    clientPhone: loan.client?.phone || '',
                                     contractType: 'loan',
                                     installmentNumber: todayInfo.installmentNumber,
                                     totalInstallments: todayInfo.totalInstallments,
@@ -11086,11 +11086,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 Lembre o cliente para evitar atrasos
                               </p>
                               {/* Manual due today notification button */}
-                              {loan.client?.phone && (
+                              {(
                                 <SendDueTodayNotification
                                   data={{
                                     clientName: loan.client?.full_name || 'Cliente',
-                                    clientPhone: loan.client.phone,
+                                    clientPhone: loan.client?.phone || '',
                                     contractType: 'loan',
                                     installmentNumber: getPaidInstallmentsCount(loan) + 1,
                                     totalInstallments: numInstallments,
@@ -11113,7 +11113,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         )}
                         
                         {/* Early Notification */}
-                        {!isPaid && !isOverdue && !isDueToday && loan.client?.phone && (
+                        {!isPaid && !isOverdue && !isDueToday && (
                           (() => {
                             const paidCount = getPaidInstallmentsCount(loan);
                             const dates = (loan.installment_dates as string[]) || [];
@@ -11129,7 +11129,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <SendEarlyNotification
                                   data={{
                                     clientName: loan.client?.full_name || 'Cliente',
-                                    clientPhone: loan.client.phone,
+                                    clientPhone: loan.client?.phone || '',
                                     contractType: 'loan',
                                     installmentNumber: paidCount + 1,
                                     totalInstallments: numInstallments,
