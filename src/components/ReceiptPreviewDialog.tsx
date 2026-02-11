@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, MessageCircle, Loader2, Copy, Send } from 'lucide-react';
+import { Download, MessageCircle, Loader2, Copy, Send, ExternalLink } from 'lucide-react';
 import { generateContractReceipt, ContractReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
@@ -227,6 +227,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
 
   const hasWhatsAppConnected = !!(profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone);
   const canSendToClient = hasWhatsAppConnected && !!clientPhone && profile?.whatsapp_to_clients_enabled;
+  const canSendToClientViaLink = !canSendToClient && !!clientPhone;
 
   const handleSendWhatsApp = async () => {
     if (!profile?.phone) {
@@ -603,6 +604,15 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
                 </Button>
               )}
             </>
+          ) : canSendToClientViaLink ? (
+            <Button 
+              variant="outline" 
+              onClick={() => setShowClientPreview(true)}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Enviar via WhatsApp
+            </Button>
           ) : (
             <Button 
               variant="outline" 
@@ -658,7 +668,8 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
       recipientType="client"
       onConfirm={handleConfirmSendToClient}
       isSending={isSendingToClient}
-      mode="send"
+      mode={canSendToClient ? 'send' : 'whatsapp_link'}
+      clientPhone={clientPhone}
     />
     </>
   );

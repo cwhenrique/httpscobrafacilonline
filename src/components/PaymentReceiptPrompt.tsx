@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X, FileText, MessageCircle, Loader2, Users, Copy } from 'lucide-react';
+import { Download, X, FileText, MessageCircle, Loader2, Users, Copy, ExternalLink } from 'lucide-react';
 import { generatePaymentReceipt, PaymentReceiptData } from '@/lib/pdfGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
@@ -354,6 +354,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
     profile?.whatsapp_to_clients_enabled &&
     clientPhone;
 
+  const canSendToClientViaLink = !canSendToClient && !!clientPhone;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -457,6 +459,15 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                   </Button>
                 )}
               </>
+            ) : canSendToClientViaLink ? (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowPreviewForClient(true)}
+                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
+                Enviar via WhatsApp
+              </Button>
             ) : (
               <Button 
                 variant="outline" 
@@ -503,6 +514,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
         isSending={isSendingToClient}
+        mode={canSendToClient ? 'send' : 'whatsapp_link'}
+        clientPhone={clientPhone}
       />
 
       {/* WhatsApp not connected dialog */}

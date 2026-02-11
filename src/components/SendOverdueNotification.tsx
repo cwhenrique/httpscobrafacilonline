@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Loader2, Clock } from 'lucide-react';
+import { MessageCircle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
@@ -117,11 +117,13 @@ export default function SendOverdueNotification({
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const canSend =
+  const canSendViaAPI =
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
     data.clientPhone;
+
+  const canShowButton = !!data.clientPhone;
 
   // Update cooldown state every minute
   useEffect(() => {
@@ -368,7 +370,7 @@ export default function SendOverdueNotification({
   };
 
   const handleSend = async (editedMessage: string) => {
-    if (!canSend) {
+    if (!canSendViaAPI) {
       if (!profile?.whatsapp_connected_phone) {
         toast.error('Seu WhatsApp não está conectado. Reconecte nas configurações (QR Code).');
       } else if (!profile?.whatsapp_to_clients_enabled) {
@@ -444,11 +446,15 @@ export default function SendOverdueNotification({
   };
 
   const handleButtonClick = () => {
-    if (cooldown) {
+    if (canSendViaAPI && cooldown) {
       toast.error(`Aguarde ${remainingMinutes} minutos para enviar novamente`);
       return;
     }
-    setShowSpamWarning(true);
+    if (canSendViaAPI) {
+      setShowSpamWarning(true);
+    } else {
+      setShowPreview(true);
+    }
   };
 
   const handleConfirmSpamWarning = () => {
@@ -456,26 +462,33 @@ export default function SendOverdueNotification({
     setShowPreview(true);
   };
 
-  if (!canSend) return null;
+  if (!canShowButton) return null;
+
+  const previewMode = canSendViaAPI ? 'send' : 'whatsapp_link';
 
   return (
     <>
       <Button 
-        variant={cooldown ? 'outline' : variant}
+        variant={cooldown && canSendViaAPI ? 'outline' : variant}
         size={size}
         onClick={handleButtonClick}
-        disabled={isSending || cooldown}
-        className={`${className} ${cooldown ? 'opacity-60' : ''}`}
+        disabled={isSending || (cooldown && !!canSendViaAPI)}
+        className={`${className} ${cooldown && canSendViaAPI ? 'opacity-60' : ''}`}
       >
         {isSending ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             Enviando...
           </>
-        ) : cooldown ? (
+        ) : cooldown && canSendViaAPI ? (
           <>
             <Clock className="w-4 h-4 mr-2" />
             Aguarde {remainingMinutes}min
+          </>
+        ) : !canSendViaAPI ? (
+          <>
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Cobrar via WhatsApp
           </>
         ) : (
           <>
@@ -505,6 +518,8 @@ export default function SendOverdueNotification({
         recipientType="client"
         onConfirm={handleSend}
         isSending={isSending}
+        mode={previewMode}
+        clientPhone={data.clientPhone}
       />
     </>
   );

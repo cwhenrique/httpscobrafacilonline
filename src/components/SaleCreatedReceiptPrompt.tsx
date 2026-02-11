@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign, Users, Loader2, Copy } from 'lucide-react';
+import { MessageCircle, FileText, X, Package, User, Calendar, DollarSign, Users, Loader2, Copy, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -322,6 +322,8 @@ export default function SaleCreatedReceiptPrompt({
     profile?.whatsapp_to_clients_enabled &&
     sale.client_phone;
 
+  const canSendToClientViaLink = !canSendToClient && !!sale.client_phone;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -409,6 +411,15 @@ export default function SaleCreatedReceiptPrompt({
                   </Button>
                 )}
               </>
+            ) : canSendToClientViaLink ? (
+              <Button 
+                variant="outline"
+                onClick={() => setShowPreviewForClient(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Enviar via WhatsApp
+              </Button>
             ) : (
               <Button 
                 variant="outline"
@@ -462,6 +473,8 @@ export default function SaleCreatedReceiptPrompt({
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
         isSending={isSendingToClient}
+        mode={canSendToClient ? 'send' : 'whatsapp_link'}
+        clientPhone={sale.client_phone || undefined}
       />
 
       {/* WhatsApp not connected dialog */}

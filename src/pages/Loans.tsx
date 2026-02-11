@@ -8890,7 +8890,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
                           {/* Manual overdue notification button */}
-                          {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                          {loan.client?.phone && (
 <SendOverdueNotification
                               data={{
                                 clientName: loan.client?.full_name || 'Cliente',
@@ -8942,7 +8942,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           {/* Botão de lembrete do dia para contratos diários em atraso - SÓ mostrar se há parcela vencendo HOJE */}
                           {(() => {
                             const todayInfo = getTodayInstallmentInfo(loan);
-                            if (!todayInfo || !profile?.whatsapp_to_clients_enabled || !loan.client?.phone || loan.payment_type !== 'daily') {
+                            if (!todayInfo || !loan.client?.phone || loan.payment_type !== 'daily') {
                               return null;
                             }
                             return (
@@ -9005,7 +9005,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               Lembre o cliente para evitar atrasos
                             </p>
                             {/* Manual due today notification button */}
-                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                            {loan.client?.phone && (
                               <SendDueTodayNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
@@ -9044,7 +9044,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       )}
                       
                       {/* Early Notification - Contrato normal (não vencido ainda) */}
-                      {!isPaid && !isOverdue && !isDueToday && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                      {!isPaid && !isOverdue && !isDueToday && loan.client?.phone && (
                         (() => {
                           const paidCount = getPaidInstallmentsCount(loan);
                           const dates = (loan.installment_dates as string[]) || [];
@@ -10988,7 +10988,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 : 'Pague a parcela em atraso para regularizar o empréstimo'}
                             </p>
                             {/* Manual overdue notification button */}
-                            {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                            {loan.client?.phone && (
                               <SendOverdueNotification
                                 data={{
                                   clientName: loan.client?.full_name || 'Cliente',
@@ -11035,7 +11035,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             {/* Botão de lembrete do dia para contratos diários em atraso - SÓ mostrar se há parcela vencendo HOJE */}
                             {(() => {
                               const todayInfo = getTodayInstallmentInfo(loan);
-                              if (!todayInfo || !profile?.whatsapp_to_clients_enabled || !loan.client?.phone) {
+                              if (!todayInfo || !loan.client?.phone) {
                                 return null;
                               }
                               return (
@@ -11086,7 +11086,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 Lembre o cliente para evitar atrasos
                               </p>
                               {/* Manual due today notification button */}
-                              {profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                              {loan.client?.phone && (
                                 <SendDueTodayNotification
                                   data={{
                                     clientName: loan.client?.full_name || 'Cliente',
@@ -11113,7 +11113,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         )}
                         
                         {/* Early Notification */}
-                        {!isPaid && !isOverdue && !isDueToday && profile?.whatsapp_to_clients_enabled && loan.client?.phone && (
+                        {!isPaid && !isOverdue && !isDueToday && loan.client?.phone && (
                           (() => {
                             const paidCount = getPaidInstallmentsCount(loan);
                             const dates = (loan.installment_dates as string[]) || [];
