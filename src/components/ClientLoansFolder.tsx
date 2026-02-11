@@ -187,37 +187,39 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
         </div>
 
         {/* Mini loan list */}
-        <div className="border-t border-border/50 px-5 py-3 space-y-2">
-          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">Empréstimos na pasta</p>
-          {loanSummaries.map((loan, idx) => (
-            <div key={loan.id} className="flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-muted/30">
-              <DollarSign className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <span className="text-xs font-medium">
-                    {formatCurrency(loan.principal)}
-                  </span>
-                  {loan.nextDue && !loan.isPaid && (
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      • Venc: {format(new Date(loan.nextDue + 'T12:00:00'), 'dd/MM/yy')}
+        <div className="border-t border-border/50 px-5 py-3">
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-2">Empréstimos na pasta</p>
+          <div className="max-h-[120px] overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+            {loanSummaries.map((loan) => (
+              <div key={loan.id} className="flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-muted/30">
+                <DollarSign className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs font-medium">
+                      {formatCurrency(loan.principal)}
                     </span>
-                  )}
+                    {loan.nextDue && !loan.isPaid && (
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        • Venc: {format(new Date(loan.nextDue + 'T12:00:00'), 'dd/MM/yy')}
+                      </span>
+                    )}
+                  </div>
+                  <Badge 
+                    variant={loan.isPaid ? 'default' : 'outline'} 
+                    className={`text-[9px] px-1.5 py-0 shrink-0 ${
+                      loan.isPaid 
+                        ? 'bg-primary/15 text-primary border-primary/30' 
+                        : loan.remaining === loan.principal 
+                          ? 'text-muted-foreground' 
+                          : 'text-foreground'
+                    }`}
+                  >
+                    {loan.isPaid ? 'Quitado' : formatCurrency(loan.remaining)}
+                  </Badge>
                 </div>
-                <Badge 
-                  variant={loan.isPaid ? 'default' : 'outline'} 
-                  className={`text-[9px] px-1.5 py-0 ${
-                    loan.isPaid 
-                      ? 'bg-primary/15 text-primary border-primary/30' 
-                      : loan.remaining === loan.principal 
-                        ? 'text-muted-foreground' 
-                        : 'text-foreground'
-                  }`}
-                >
-                  {loan.isPaid ? 'Quitado' : formatCurrency(loan.remaining)}
-                </Badge>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Open folder CTA */}
