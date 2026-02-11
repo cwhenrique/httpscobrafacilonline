@@ -2576,11 +2576,11 @@ export default function ProductSales() {
                               <span className="font-semibold">{formatCurrency(nextPendingPayment.amount)}</span>
                             </div>
                             
-                            {contract.client_phone && isOverdue && (
+                            {isOverdue && (
                               <SendOverdueNotification
                                 data={{
                                   clientName: contract.client_name,
-                                  clientPhone: contract.client_phone,
+                                  clientPhone: contract.client_phone || '',
                                   contractType: 'contract',
                                   installmentNumber: nextPendingPayment.installment_number,
                                   totalInstallments: contract.installments,
@@ -2593,11 +2593,11 @@ export default function ProductSales() {
                                 className="w-full"
                               />
                             )}
-                            {contract.client_phone && isDueToday && (
+                            {isDueToday && (
                               <SendDueTodayNotification
                                 data={{
                                   clientName: contract.client_name,
-                                  clientPhone: contract.client_phone,
+                                  clientPhone: contract.client_phone || '',
                                   contractType: 'contract',
                                   installmentNumber: nextPendingPayment.installment_number,
                                   totalInstallments: contract.installments,
@@ -2609,11 +2609,11 @@ export default function ProductSales() {
                                 className="w-full"
                               />
                             )}
-                            {contract.client_phone && isPending && (
+                            {isPending && (
                               <SendEarlyNotification
                                 data={{
                                   clientName: contract.client_name,
-                                  clientPhone: contract.client_phone,
+                                  clientPhone: contract.client_phone || '',
                                   contractType: 'contract',
                                   installmentNumber: nextPendingPayment.installment_number,
                                   totalInstallments: contract.installments,
@@ -2787,13 +2787,13 @@ export default function ProductSales() {
                                     )}
                                   </div>
                                 </div>
-                                {payment.status !== 'paid' && contract.client_phone && (
+                                {payment.status !== 'paid' && (
                                   <div className="pl-2">
                                     {isOverdue && (
                                       <SendOverdueNotification
                                         data={{
                                           clientName: contract.client_name,
-                                          clientPhone: contract.client_phone,
+                                          clientPhone: contract.client_phone || '',
                                           contractType: 'contract',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: contract.installments,
@@ -2810,7 +2810,7 @@ export default function ProductSales() {
                                       <SendDueTodayNotification
                                         data={{
                                           clientName: contract.client_name,
-                                          clientPhone: contract.client_phone,
+                                          clientPhone: contract.client_phone || '',
                                           contractType: 'contract',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: contract.installments,
@@ -2826,7 +2826,7 @@ export default function ProductSales() {
                                       <SendEarlyNotification
                                         data={{
                                           clientName: contract.client_name,
-                                          clientPhone: contract.client_phone,
+                                          clientPhone: contract.client_phone || '',
                                           contractType: 'contract',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: contract.installments,

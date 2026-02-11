@@ -219,11 +219,10 @@ export default function ProductSaleCard({
               </span>
             </div>
             {/* Manual overdue notification button */}
-            {sale.client_phone && (
-              <SendOverdueNotification
+            <SendOverdueNotification
                 data={{
                   clientName: sale.client_name,
-                  clientPhone: sale.client_phone,
+                  clientPhone: sale.client_phone || '',
                   contractType: 'product',
                   installmentNumber: overduePayment.installment_number,
                   totalInstallments: sale.installments,
@@ -234,7 +233,6 @@ export default function ProductSaleCard({
                 }}
                 className="w-full mt-2"
               />
-            )}
           </div>
         )}
 
@@ -263,11 +261,11 @@ export default function ProductSaleCard({
               </div>
             </div>
             {/* Due today notification button */}
-            {status === 'due_today' && sale.client_phone && (
+            {status === 'due_today' && (
               <SendDueTodayNotification
                 data={{
                   clientName: sale.client_name,
-                  clientPhone: sale.client_phone,
+                  clientPhone: sale.client_phone || '',
                   contractType: 'product',
                   installmentNumber: nextDuePayment.installment_number,
                   totalInstallments: sale.installments,
@@ -280,11 +278,11 @@ export default function ProductSaleCard({
               />
             )}
             {/* Early notification button for pending payments */}
-            {status === 'pending' && sale.client_phone && (
+            {status === 'pending' && (
               <SendEarlyNotification
                 data={{
                   clientName: sale.client_name,
-                  clientPhone: sale.client_phone,
+                  clientPhone: sale.client_phone || '',
                   contractType: 'product',
                   installmentNumber: nextDuePayment.installment_number,
                   totalInstallments: sale.installments,

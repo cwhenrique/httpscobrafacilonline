@@ -9,6 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Tv, Check, Trash2, AlertTriangle, Clock, CheckCircle, Phone, MessageCircle, History, Server, ExternalLink } from 'lucide-react';
+import SendOverdueNotification from '@/components/SendOverdueNotification';
+import SendDueTodayNotification from '@/components/SendDueTodayNotification';
+import { SendEarlyNotification } from '@/components/SendEarlyNotification';
 import { cn } from '@/lib/utils';
 import { MonthlyFee, MonthlyFeePayment } from '@/hooks/useMonthlyFees';
 
@@ -227,6 +230,53 @@ export default function IPTVSubscriptionListView({
                     {/* Ações */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {status === 'overdue' && currentPayment && (
+                          <SendOverdueNotification
+                            data={{
+                              clientName: fee.client?.full_name || 'Cliente',
+                              clientPhone: fee.client?.phone || '',
+                              contractType: 'contract',
+                              installmentNumber: 1,
+                              totalInstallments: 1,
+                              amount: amountWithInterest,
+                              dueDate: currentPayment.due_date,
+                              daysOverdue: Math.floor((new Date().getTime() - new Date(currentPayment.due_date).getTime()) / (1000 * 60 * 60 * 24)),
+                              loanId: fee.id,
+                            }}
+                            className="h-7"
+                          />
+                        )}
+                        {status === 'due_today' && currentPayment && (
+                          <SendDueTodayNotification
+                            data={{
+                              clientName: fee.client?.full_name || 'Cliente',
+                              clientPhone: fee.client?.phone || '',
+                              contractType: 'contract',
+                              installmentNumber: 1,
+                              totalInstallments: 1,
+                              amount: amountWithInterest,
+                              dueDate: currentPayment.due_date,
+                              loanId: fee.id,
+                            }}
+                            className="h-7"
+                          />
+                        )}
+                        {status === 'pending' && currentPayment && (
+                          <SendEarlyNotification
+                            data={{
+                              clientName: fee.client?.full_name || 'Cliente',
+                              clientPhone: fee.client?.phone || '',
+                              contractType: 'contract',
+                              installmentNumber: 1,
+                              totalInstallments: 1,
+                              amount: amountWithInterest,
+                              dueDate: currentPayment.due_date,
+                              daysUntilDue: Math.max(1, Math.floor((new Date(currentPayment.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))),
+                              loanId: fee.id,
+                            }}
+                            className="h-7"
+                          />
+                        )}
                         {status !== 'paid' && currentPayment && (
                           <Button 
                             size="sm" 

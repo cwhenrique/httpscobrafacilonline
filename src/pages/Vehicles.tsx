@@ -535,13 +535,13 @@ export default function Vehicles() {
                                 </div>
                                 
                                 {/* WhatsApp billing buttons */}
-                                {payment.status !== 'paid' && vehicle.buyer_phone && (
+                                {payment.status !== 'paid' && (
                                   <div className="pl-2">
                                     {isPaymentOverdue && (
                                       <SendOverdueNotification
                                         data={{
                                           clientName: vehicle.buyer_name || vehicle.seller_name,
-                                          clientPhone: vehicle.buyer_phone,
+                                          clientPhone: vehicle.buyer_phone || '',
                                           contractType: 'vehicle',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: vehicle.installments,
@@ -559,7 +559,7 @@ export default function Vehicles() {
                                       <SendDueTodayNotification
                                         data={{
                                           clientName: vehicle.buyer_name || vehicle.seller_name,
-                                          clientPhone: vehicle.buyer_phone,
+                                          clientPhone: vehicle.buyer_phone || '',
                                           contractType: 'vehicle',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: vehicle.installments,
@@ -576,7 +576,7 @@ export default function Vehicles() {
                                       <SendEarlyNotification
                                         data={{
                                           clientName: vehicle.buyer_name || vehicle.seller_name,
-                                          clientPhone: vehicle.buyer_phone,
+                                          clientPhone: vehicle.buyer_phone || '',
                                           contractType: 'vehicle',
                                           installmentNumber: payment.installment_number,
                                           totalInstallments: vehicle.installments,
