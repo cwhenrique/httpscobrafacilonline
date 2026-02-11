@@ -10479,9 +10479,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <CardContent className="p-3 sm:p-4">
                         {/* Nome em destaque - primeira linha */}
                         <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
-                        <div className="flex items-start gap-2 sm:gap-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div className="relative group flex-shrink-0">
-                            <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                            <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
                               <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
                               <AvatarFallback className={`text-xs sm:text-base font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                 {initials}
@@ -10512,34 +10512,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </button>
                           </div>
                           <div className="flex-1 min-w-0">
-                             {/* LINHA 2: Botões */}
-                             <div className="flex items-center justify-end gap-0.5 sm:gap-1 mt-1">
-                                 <Button 
-                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                   size="sm" 
-                                   className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                   onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
-                                 >
-                                   {expandedLoanId === loan.id ? (
-                                     <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                   ) : (
-                                     <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                   )}
-                                   <span className="hidden sm:inline">Detalhes</span>
-                                 </Button>
-                                 <Button 
-                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                   size="sm" 
-                                   className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                   onClick={() => handleGenerateLoanReceipt(loan)}
-                                 >
-                                   <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                   <span className="hidden sm:inline">Comprovante</span>
-                                 </Button>
-                             </div>
-                            
-                            {/* LINHA 2: Badges de status e tipo */}
-                            <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
+                            {/* Badges de status e tipo */}
+                            <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                               <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
                                 isPaid 
                                   ? 'bg-white/20 text-white border-white/30' 
@@ -10554,7 +10528,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
-                              {/* Badge do funcionário criador (só para donos) */}
                               {!isEmployee && loan.creator_employee && (
                                 <Badge variant="secondary" className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-300 border-violet-500/50">
                                   <UserCheck className="w-2.5 h-2.5 mr-0.5" />
@@ -10562,18 +10535,44 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 </Badge>
                               )}
                             </div>
-                            
-                            {/* LINHA 3: Valor em destaque */}
-                            <p className={`text-lg sm:text-2xl font-bold mt-1.5 sm:mt-2 ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
-                            <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
-                              restante a receber
-                              {(totalAppliedPenaltiesDaily > 0 || dynamicPenaltyAmount > 0) && (
-                                <span className="ml-1 text-red-400 font-medium">
-                                  (+{formatCurrency(totalAppliedPenaltiesDaily + dynamicPenaltyAmount)} juros atraso)
-                                </span>
-                              )}
-                            </p>
                           </div>
+                          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                            <Button 
+                              variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                              size="sm" 
+                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
+                            >
+                              {expandedLoanId === loan.id ? (
+                                <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                              ) : (
+                                <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                              )}
+                              <span className="hidden sm:inline">Detalhes</span>
+                            </Button>
+                            <Button 
+                              variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                              size="sm" 
+                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              onClick={() => handleGenerateLoanReceipt(loan)}
+                            >
+                              <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                              <span className="hidden sm:inline">Comprovante</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Valor restante em destaque */}
+                        <div className="mt-2 text-center">
+                          <p className={`text-xl sm:text-3xl font-bold ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
+                          <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
+                            restante a receber
+                            {(totalAppliedPenaltiesDaily > 0 || dynamicPenaltyAmount > 0) && (
+                              <span className="ml-1 text-red-400 font-medium">
+                                (+{formatCurrency(totalAppliedPenaltiesDaily + dynamicPenaltyAmount)} juros atraso)
+                              </span>
+                            )}
+                          </p>
                         </div>
                         
                         {/* Seção de Valores Resumida - Emprestado e Total */}
