@@ -1,23 +1,17 @@
 
-
-## Ajuste: "Em Atraso" filtrado pelo periodo selecionado
-
-### Problema
-Atualmente, o valor e a quantidade de contratos "Em Atraso" no relatorio de emprestimos mostram dados fixos de todo o portfolio, ignorando o filtro de periodo (mes, semana, etc). Isso dificulta a analise mensal.
+## Atualizar link de compra do Desconto de Cheque
 
 ### O que muda
-- O card "Em Atraso" (valor e quantidade) passara a considerar apenas emprestimos criados dentro do periodo selecionado no filtro
-- A tabela de atrasados ja filtra corretamente, entao nao precisa de ajuste
-- O grafico de barras que mostra "Atraso" tambem sera atualizado automaticamente
+- O botao de compra na tela bloqueada do Desconto de Cheque deixara de apontar para WhatsApp e passara a abrir o link de pagamento do Cakto: `https://pay.cakto.com.br/m2z4unj`
+- Sera adicionada uma nota informando que ao comprar com o email da conta, a funcionalidade e liberada automaticamente
+- O texto do botao sera ajustado para refletir que e um pagamento mensal
 
-### Mudanca tecnica
+### Detalhes tecnicos
 
-**Arquivo:** `src/pages/ReportsLoans.tsx`
+**Arquivo:** `src/pages/CheckDiscounts.tsx` (linhas 186-246)
 
-No calculo de `filteredStats` (linha ~460-637), as variaveis de atraso atualmente usam `loansFilteredByType` (sem filtro de data). A mudanca e:
-
-1. Calcular `overdueAmount` a partir de `overdueLoansInPeriod` (que ja existe e e filtrado por data) em vez de `allOverdueLoans`
-2. Atualizar `overdueCount` para usar `overdueLoansInPeriod.length` em vez de `allOverdueLoans.length`
-
-Isso alinha o card com a tabela, que ja funciona corretamente com o filtro de periodo.
-
+1. Remover as variaveis de WhatsApp (`whatsappNumber`, `whatsappMessage`, `whatsappUrl`)
+2. Substituir o link do botao para `https://pay.cakto.com.br/m2z4unj`
+3. Atualizar o texto de preco de "pagamento unico" para "mensal" (R$ 19,90/mes)
+4. Trocar o icone do botao de `MessageCircle` (WhatsApp) para `CreditCard` ou `ExternalLink`
+5. Adicionar texto informativo abaixo do botao: "Ao efetuar a compra com o email da sua conta, a funcionalidade e liberada automaticamente"
