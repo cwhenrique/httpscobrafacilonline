@@ -1,78 +1,85 @@
 
-
-## Implementação de Cobrança via wa.me em Veículos, Produtos, Contratos e Assinaturas
+## Agrupar Emprestimos por Cliente em Pastas Compactas (Tamanho Normal de Card)
 
 ### Situação Atual
-- Os botões de cobrança estão condicionados a `phone &&` em vários lugares
-- **VehicleCard.tsx**: linhas 264 e 308 (Overdue e DueToday)
-- **Vehicles.tsx**: linha 538 (wrapper dos botões expandidos)
-- **ProductSaleCard.tsx**: linhas 222, 266, 283 (Overdue, DueToday, Early)
-- **ProductSales.tsx - Contratos**: linhas 2579, 2596, 2612, 2790 (Overdue, DueToday, Early - header e expanded)
-- **IPTVSubscriptionListView.tsx**: **SEM botões de cobrança** - precisa adicionar SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification
+- Empréstimos são renderizados em um grid `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` na linha 10195
+- Cada empréstimo ocupa um card individual
+- ClientLoansFolder já existe, mas foi projetado para ocupar linha inteira quando expandido
 
-### Solução
+### Mudança Solicitada
+O usuário quer que:
+1. **Pasta ocupe tamanho normal de um card** (não linha inteira) - se comportar como um card individual no grid
+2. **Texto do card mostrar** algo como "x empréstimos de [Cliente]" em vez de todos os detalhes
+3. **Cores dinâmicas baseadas no status do grupo** - vermelho se tem atraso, amarelo se vence hoje, verde se quitado
+4. **Ao expandir**, mostrar os cards individuais dos empréstimos dentro (possivelmente em um layout diferente, mas sem ocupar a linha inteira do grid pai)
 
-Remover as condicionais `&& phone` que envolvem os componentes de notificação, permitindo que os componentes decidam autonomamente se devem aparecer (via sua lógica interna `canShowButton`). Os componentes já implementam:
-- Verificação de `canShowButton = !!data.clientPhone`
-- Fallback automático para `whatsapp_link` quando sem instância
-- Abertura de `MessagePreviewDialog` com botão "Abrir no WhatsApp"
+### Solução Técnica
 
-#### Mudanças por Arquivo
+**1. Modificar ClientLoansFolder.tsx**
+- Remover estilos que fazem o card ocupar a linha inteira
+- Simplificar o header para modo "compacto" quando não expandido:
+  - Mostrar: avatar + "x empréstimos de [Cliente]" + badge de status
+  - Remover: mostrar todos os totais (totalPrincipal, totalToReceive, etc.) - apenas resumo na linha
+- Ao expandir, conteúdo cresce apenas dentro do card (sem modal ou overlay)
+- Aplicar cores de border/bg baseadas em status: 
+  - Red/destructive se `hasOverdue`
+  - Amber/warning se `hasPending` (vence hoje ou em breve)
+  - Green/primary se `allPaid`
 
-**1. VehicleCard.tsx (2 mudanças)**
-- Linha 264: Remover `vehicle.buyer_phone && (` do SendOverdueNotification
-- Linha 308: Remover `status === 'due_today' && vehicle.buyer_phone && (` do SendDueTodayNotification
-  - Será: `{status === 'due_today' && nextDuePayment && (`
-- Ajustar `clientPhone` para `vehicle.buyer_phone || ''`
+**2. Modificar src/pages/Loans.tsx (renderização)**
+- Adicionar `useMemo` para agrupar `sortedLoans` por `client_id`
+- Criar estado `expandedFolders: Set<string>` para rastrear quais pastas estão abertas
+- Na renderização do grid:
+  - Iterar sobre grupos (ao invés de loans individuais)
+  - Se `group.loans.length >= 2`: renderizar `ClientLoansFolder`
+  - Se `group.loans.length === 1`: renderizar o card individual normal (sem pasta)
+  - Manter estrutura do grid original `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
 
-**2. Vehicles.tsx (1 mudança)**
-- Linha 538: Remover `vehicle.buyer_phone &&` do wrapper que envolve os 3 botões na seção expandida
-- Passar `clientPhone: vehicle.buyer_phone || ''` nos dados
+**3. Conteúdo Expandido**
+- Dentro da pasta, mostrar os cards individuais em grid `grid-cols-1 gap-3` ou similar
+- Usar a função `renderLoanCard` existente para gerar cada card individual
+- Altura da pasta cresce conforme necessário (sem limite fixo)
 
-**3. ProductSaleCard.tsx (3 mudanças)**
-- Linha 222: Remover `sale.client_phone && (` do SendOverdueNotification
-  - Será: `{status === 'overdue' && overduePayment && (`
-- Linha 266: Remover `status === 'due_today' && sale.client_phone && (` do SendDueTodayNotification
-  - Será: `{status === 'due_today' && nextDuePayment && (`
-- Linha 283: Remover `status === 'pending' && sale.client_phone && (` do SendEarlyNotification
-  - Será: `{status === 'pending' && nextDuePayment && (`
-- Ajustar `clientPhone` para `sale.client_phone || ''` em todos
-
-**4. ProductSales.tsx - Contratos (4 mudanças)**
-- Linha 2579: Remover `contract.client_phone && isOverdue &&` do SendOverdueNotification
-  - Será: `{isOverdue && nextPendingPayment && (`
-- Linha 2596: Remover `contract.client_phone && isDueToday &&` do SendDueTodayNotification
-  - Será: `{isDueToday && nextPendingPayment && (`
-- Linha 2612: Remover `contract.client_phone && isPending &&` do SendEarlyNotification
-  - Será: `{isPending && nextPendingPayment && (`
-- Linha 2790: Remover `payment.status !== 'paid' && contract.client_phone &&` do wrapper na lista expandida
-  - Será: `{payment.status !== 'paid' && (`
-- Ajustar `clientPhone` para `contract.client_phone || ''` em todos
-
-**5. IPTVSubscriptionListView.tsx (NOVO - adicionar botões de cobrança)**
+### Cores e Indicadores
 ```text
-Estrutura adicional na célula "Ações" da tabela:
-- Importar: SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification
-- Para cada status:
-  - overdue: renderizar SendOverdueNotification (antes do botão "Pagar")
-  - due_today: renderizar SendDueTodayNotification
-  - pending: renderizar SendEarlyNotification
-- Passar dados do cliente: clientName: fee.client?.full_name || 'Cliente', clientPhone: fee.client?.phone || ''
+Status Compacto (Header do Card):
+- Atrasado (hasOverdue): border-destructive/50, bg-red-500/5 ou similar
+- Vence em Breve (hasPending & isDueToday): border-amber-500/50, bg-amber-500/5
+- Quitado (allPaid): border-primary/50, bg-primary/5
+
+Badge de Quantidade:
+- Mostrar "2 empréstimos", "3 empréstimos", etc.
+
+Ícone da Pasta:
+- FolderOpen quando recolhido
+- ChevronDown/ChevronUp para expandir
 ```
 
-### Resultado Final
-
-Após as mudanças:
-- ✅ Botões de cobrança aparecem em **TODOS** os veículos, produtos, contratos e assinaturas
-- ✅ Com instância: envia via API
-- ✅ Sem instância: abre wa.me com mensagem pré-preenchida
-- ✅ Sem telefone: componente não renderiza o botão (controle interno)
-- ✅ Fluxo intuitivo: usuário vê que falta cadastrar telefone se necessário
+### Fluxo do Usuário
+1. Usuário vê pasta compacta com "2 empréstimos de João" em vermelho se tem atraso
+2. Clica na pasta (ou no ícone de expand)
+3. Pasta expande e mostra os 2 cards individuais dentro
+4. Usuário interage com os cards normalmente
+5. Clica novamente para recolher
 
 ### Sequência de Implementação
-1. VehicleCard.tsx (remover condicionais)
-2. Vehicles.tsx (remover condicionais)
-3. ProductSaleCard.tsx (remover condicionais)
-4. ProductSales.tsx (remover condicionais nos contratos - 4 locais)
-5. IPTVSubscriptionListView.tsx (adicionar botões novos)
+1. Modificar `ClientLoansFolder.tsx` para modo compacto
+2. Adicionar lógica de agrupamento em `src/pages/Loans.tsx` (useMemo)
+3. Adicionar estado `expandedFolders` em `src/pages/Loans.tsx`
+4. Modificar renderização do grid para usar grupos ao invés de loans diretos
+5. Testar com múltiplos empréstimos do mesmo cliente
 
+### Estrutura Visual Final
+```text
+Grid (3 colunas em desktop):
+┌─────────────────┬─────────────────┬─────────────────┐
+│ [📁 2 emprés.] │ [Card Normal]    │ [Card Normal]   │
+│   de João       │                 │                 │
+│   [EXPANDIR ▼]  │                 │                 │
+├─────────────────┤                 │                 │
+│ [Card 1]        │                 │                 │
+│ [Card 2]        │                 │                 │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+A pasta ocupa o mesmo espaço de um card normal. Quando expandida, cresce para acomodar os cards internos.
