@@ -1970,6 +1970,49 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setLoadingPaymentHistory(false);
   };
   
+  // Handle resend receipt from payment history
+  const handleResendReceipt = (payment: any) => {
+    if (!paymentHistoryLoanId) return;
+    const loan = loans.find(l => l.id === paymentHistoryLoanId);
+    if (!loan) return;
+
+    const numInstallments = loan.installments || 1;
+    const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
+    const installmentNumber = installmentMatch ? parseInt(installmentMatch[1]) : getPaidInstallmentsCount(loan);
+
+    // Calculate totalContract
+    let totalContract = 0;
+    const isDaily = loan.payment_type === 'daily';
+    if (isDaily) {
+      const dailyAmount = loan.total_interest || 0;
+      totalContract = dailyAmount * numInstallments;
+    } else if (loan.total_interest !== undefined && loan.total_interest !== null && (loan.total_interest > 0 || loan.interest_rate === 0)) {
+      totalContract = loan.principal_amount + loan.total_interest;
+    } else {
+      totalContract = loan.principal_amount + (loan.principal_amount * (loan.interest_rate / 100) * numInstallments);
+    }
+
+    setPaymentClientPhone(loan.client?.phone || null);
+    setPaymentInstallmentDates((loan.installment_dates as string[]) || []);
+    setPaymentPaidCount(getPaidInstallmentsCount(loan));
+    setPaymentReceiptData({
+      type: 'loan',
+      contractId: loan.id,
+      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
+      billingSignatureName: profile?.billing_signature_name || undefined,
+      clientName: loan.client?.full_name || 'Cliente',
+      installmentNumber: installmentNumber,
+      totalInstallments: numInstallments,
+      amountPaid: payment.amount,
+      paymentDate: payment.payment_date,
+      remainingBalance: Math.max(0, loan.remaining_balance),
+      totalPaid: loan.total_paid || 0,
+      totalContract: totalContract,
+    });
+    setIsPaymentHistoryOpen(false);
+    setIsPaymentReceiptOpen(true);
+  };
+
   // Handle delete payment confirmation
   const handleDeletePayment = async () => {
     if (!deletePaymentId || !paymentHistoryLoanId) return;
@@ -14018,6 +14061,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </>
                           ) : (
                             <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                    onClick={() => handleResendReceipt(payment)}
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Reenviar comprovante</TooltipContent>
+                              </Tooltip>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
