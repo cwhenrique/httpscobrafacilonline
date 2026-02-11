@@ -91,7 +91,7 @@ export default function CheckDiscounts() {
     isCreating,
     isUpdating,
   } = useCheckDiscounts();
-  const { clients } = useClients();
+  const { clients, createClient: createNewClient } = useClients();
 
   // Dialog states
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -99,6 +99,8 @@ export default function CheckDiscounts() {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCheck, setSelectedCheck] = useState<CheckDiscount | null>(null);
+  const [clientMode, setClientMode] = useState<'select' | 'create'>('select');
+  const [newClientData, setNewClientData] = useState({ full_name: '', phone: '', cpf: '', address: '' });
 
   // Calculation mode: 'direct' = user enters purchase value, 'calculated' = use rate formula
   const [calculationMode, setCalculationMode] = useState<'direct' | 'calculated'>('direct');
@@ -267,6 +269,8 @@ export default function CheckDiscounts() {
     });
     setSelectedCheck(null);
     setCalculationMode('direct');
+    setClientMode('select');
+    setNewClientData({ full_name: '', phone: '', cpf: '', address: '' });
   };
 
   const handleOpenForm = (check?: CheckDiscount) => {
@@ -303,10 +307,30 @@ export default function CheckDiscounts() {
     }
 
     try {
+      let clientId = formData.client_id;
+
+      // If creating a new client inline
+      if (clientMode === 'create' && newClientData.full_name.trim()) {
+        const result = await createNewClient({
+          full_name: newClientData.full_name.trim(),
+          phone: newClientData.phone || undefined,
+          cpf: newClientData.cpf || undefined,
+          address: newClientData.address || undefined,
+          client_type: 'loan',
+        });
+        if (result.error) {
+          toast.error('Erro ao criar cliente');
+          return;
+        }
+        clientId = result.data?.id || null;
+      }
+
+      const submitData = { ...formData, client_id: clientId };
+
       if (selectedCheck) {
-        await updateCheck({ id: selectedCheck.id, ...formData });
+        await updateCheck({ id: selectedCheck.id, ...submitData });
       } else {
-        await createCheck(formData);
+        await createCheck(submitData);
       }
       setIsFormOpen(false);
       resetForm();
@@ -636,53 +660,92 @@ export default function CheckDiscounts() {
 
           <div className="space-y-6">
             {/* Client Selection */}
-            <div className="space-y-2">
-              <Label>Cliente (opcional)</Label>
-              <ClientSelector
-                selectedClientId={formData.client_id}
-                onSelect={(client) => setFormData(prev => ({ ...prev, client_id: client?.id || null }))}
-                placeholder="Selecionar cliente"
-              />
-              {selectedClientRisk && selectedClientRisk.total > 0 && (
-                <div className={`text-sm p-2 rounded-lg ${
-                  selectedClientRisk.isHighRisk 
-                    ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
-                    : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                }`}>
-                  {selectedClientRisk.isHighRisk && <AlertTriangle className="h-4 w-4 inline mr-1" />}
-                  Histórico: {selectedClientRisk.total} cheques, {selectedClientRisk.returned} devoluções 
-                  ({selectedClientRisk.returnRate.toFixed(0)}% de devolução)
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Cliente</Label>
+                <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={clientMode === 'select' ? 'default' : 'ghost'}
+                    onClick={() => setClientMode('select')}
+                    className="text-xs h-7"
+                  >
+                    <User className="h-3 w-3 mr-1" />
+                    Existente
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={clientMode === 'create' ? 'default' : 'ghost'}
+                    onClick={() => {
+                      setClientMode('create');
+                      setFormData(prev => ({ ...prev, client_id: null }));
+                    }}
+                    className="text-xs h-7"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Novo
+                  </Button>
+                </div>
+              </div>
+
+              {clientMode === 'select' ? (
+                <>
+                  <ClientSelector
+                    selectedClientId={formData.client_id}
+                    onSelect={(client) => setFormData(prev => ({ ...prev, client_id: client?.id || null }))}
+                    placeholder="Selecionar cliente"
+                  />
+                  {selectedClientRisk && selectedClientRisk.total > 0 && (
+                    <div className={`text-sm p-2 rounded-lg ${
+                      selectedClientRisk.isHighRisk 
+                        ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
+                        : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                    }`}>
+                      {selectedClientRisk.isHighRisk && <AlertTriangle className="h-4 w-4 inline mr-1" />}
+                      Histórico: {selectedClientRisk.total} cheques, {selectedClientRisk.returned} devoluções 
+                      ({selectedClientRisk.returnRate.toFixed(0)}% de devolução)
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 p-4 bg-muted/50 rounded-lg border border-border">
+                  <div className="col-span-2 space-y-2">
+                    <Label>Nome Completo *</Label>
+                    <Input
+                      value={newClientData.full_name}
+                      onChange={(e) => setNewClientData(prev => ({ ...prev, full_name: e.target.value }))}
+                      placeholder="Nome e sobrenome"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Telefone</Label>
+                    <Input
+                      value={newClientData.phone}
+                      onChange={(e) => setNewClientData(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>CPF</Label>
+                    <Input
+                      value={newClientData.cpf}
+                      onChange={(e) => setNewClientData(prev => ({ ...prev, cpf: e.target.value.replace(/\D/g, '') }))}
+                      placeholder="Somente números"
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label>Endereço</Label>
+                    <Input
+                      value={newClientData.address}
+                      onChange={(e) => setNewClientData(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Rua, número, bairro, cidade"
+                    />
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Client Details (auto-filled) */}
-            {formData.client_id && (() => {
-              const selectedClient = clients.find(c => c.id === formData.client_id);
-              if (!selectedClient) return null;
-              return (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg border border-border">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Nome</Label>
-                    <p className="text-sm font-medium">{selectedClient.full_name || '—'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Telefone</Label>
-                    <p className="text-sm font-medium">{selectedClient.phone || '—'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">CPF</Label>
-                    <p className="text-sm font-medium">{selectedClient.cpf || '—'}</p>
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Endereço</Label>
-                    <p className="text-sm font-medium">
-                      {[selectedClient.street, selectedClient.number, selectedClient.neighborhood, selectedClient.city, selectedClient.state].filter(Boolean).join(', ') || selectedClient.address || '—'}
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
 
             <Separator />
 
