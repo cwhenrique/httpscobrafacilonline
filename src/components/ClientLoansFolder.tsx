@@ -136,10 +136,10 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
                     {group.client.full_name}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-xs text-muted-foreground">
-                      {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
-                    </span>
+                    <Badge variant="outline" className="gap-1 text-[11px] px-2 py-0.5 bg-accent/50 border-border">
+                      <FolderOpen className="w-3 h-3" />
+                      📂 Pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
+                    </Badge>
                   </div>
                 </div>
                 <div className="shrink-0">
@@ -223,12 +223,12 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
         </div>
 
         {/* Open folder CTA */}
-        <div className="border-t border-border/50 px-5 py-3.5 flex items-center justify-between bg-primary/10 hover:bg-primary/20 transition-colors rounded-b-lg">
-          <div className="flex items-center gap-2 text-sm text-primary font-semibold">
+        <div className="border-t border-border/50 px-5 py-3.5 flex items-center justify-center rounded-b-lg">
+          <div className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold text-sm py-2.5 px-4 rounded-lg shadow-md hover:bg-primary/90 transition-colors">
             <FolderOpen className="w-4 h-4" />
-            <span>Abrir pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}</span>
+            <span>Abrir Pasta</span>
+            <ChevronRight className="w-4 h-4" />
           </div>
-          <ChevronRight className="w-5 h-5 text-primary" />
         </div>
       </CardContent>
     </Card>
