@@ -8315,6 +8315,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const cardElement = (
                   <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
+                      {/* Nome em destaque - primeira linha */}
+                      <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3">{loan.client?.full_name}</h3>
                       <div className="flex items-start gap-2 sm:gap-4">
                         <div className="relative group flex-shrink-0">
                           <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
@@ -8348,8 +8350,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           </button>
                         </div>
                         <div className="flex-1 min-w-0">
-                            {/* LINHA 1: Nome centralizado */}
-                           <h3 className="font-semibold text-sm sm:text-lg text-center w-full break-words">{loan.client?.full_name}</h3>
                            {/* LINHA 2: Botões */}
                            <div className="flex items-center justify-end gap-0.5 sm:gap-1 mt-1">
                                <Button 
@@ -10479,6 +10479,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const cardElement = (
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                       <CardContent className="p-3 sm:p-4">
+                        {/* Nome em destaque - primeira linha */}
+                        <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3">{loan.client?.full_name}</h3>
                         <div className="flex items-start gap-2 sm:gap-4">
                           <div className="relative group flex-shrink-0">
                             <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
@@ -10512,8 +10514,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </button>
                           </div>
                           <div className="flex-1 min-w-0">
-                            {/* LINHA 1: Nome centralizado */}
-                             <h3 className="font-semibold text-sm sm:text-lg text-center w-full break-words">{loan.client?.full_name}</h3>
                              {/* LINHA 2: Botões */}
                              <div className="flex items-center justify-end gap-0.5 sm:gap-1 mt-1">
                                  <Button 
