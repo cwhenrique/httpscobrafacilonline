@@ -1,7 +1,8 @@
+import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { FolderOpen, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
+import { FolderOpen, AlertTriangle, CheckCircle2, Clock, ChevronRight, DollarSign } from 'lucide-react';
 import { getAvatarUrl, getInitials } from '@/lib/avatarUtils';
 import { Client, Loan } from '@/types/database';
 
@@ -83,6 +84,32 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
 
   const lucroEstimado = group.totalToReceive - group.totalPrincipal;
 
+  // Get mini summaries for each loan
+  const loanSummaries = group.loans.map(loan => {
+    const isPaid = loan.remaining_balance <= 0.01;
+    const dates = (loan.installment_dates as string[]) || [];
+    let nextDue: string | null = null;
+    
+    if (!isPaid && dates.length > 0) {
+      // Find first unpaid date (approximate)
+      const paidCount = Math.floor(((loan.total_paid || 0) / ((loan.principal_amount + (loan.total_interest || 0)) / (loan.installments || 1))) + 0.01);
+      const idx = Math.min(paidCount, dates.length - 1);
+      if (idx < dates.length) {
+        nextDue = dates[idx];
+      }
+    }
+
+    return {
+      id: loan.id,
+      principal: loan.principal_amount,
+      remaining: loan.remaining_balance,
+      isPaid,
+      nextDue,
+      interestRate: loan.interest_rate,
+      paymentType: loan.payment_type,
+    };
+  });
+
   return (
     <Card 
       className={`overflow-hidden transition-all cursor-pointer hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] relative ${getBorderColor()}`} 
@@ -115,7 +142,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
                     </span>
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-1.5">
+                <div className="shrink-0">
                   {getStatusBadge()}
                 </div>
               </div>
@@ -133,7 +160,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
 
         {/* Financial details */}
         <div className="bg-muted/30 border-t border-border/50 px-5 py-3">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <div className="grid grid-cols-2 gap-x-6">
             <div>
               <p className="text-[11px] text-muted-foreground">Emprestado</p>
               <p className="text-sm font-semibold">{formatCurrency(group.totalPrincipal)}</p>
@@ -159,10 +186,44 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
           </div>
         </div>
 
+        {/* Mini loan list */}
+        <div className="border-t border-border/50 px-5 py-3 space-y-2">
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">Empréstimos na pasta</p>
+          {loanSummaries.map((loan, idx) => (
+            <div key={loan.id} className="flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-muted/30">
+              <DollarSign className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-xs font-medium">
+                    {formatCurrency(loan.principal)}
+                  </span>
+                  {loan.nextDue && !loan.isPaid && (
+                    <span className="text-[10px] text-muted-foreground ml-1.5">
+                      • Venc: {format(new Date(loan.nextDue + 'T12:00:00'), 'dd/MM/yy')}
+                    </span>
+                  )}
+                </div>
+                <Badge 
+                  variant={loan.isPaid ? 'default' : 'outline'} 
+                  className={`text-[9px] px-1.5 py-0 ${
+                    loan.isPaid 
+                      ? 'bg-primary/15 text-primary border-primary/30' 
+                      : loan.remaining === loan.principal 
+                        ? 'text-muted-foreground' 
+                        : 'text-foreground'
+                  }`}
+                >
+                  {loan.isPaid ? 'Quitado' : formatCurrency(loan.remaining)}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Open folder CTA */}
         <div className="border-t border-border/50 px-5 py-3.5 flex items-center justify-between bg-primary/10 hover:bg-primary/20 transition-colors rounded-b-lg">
           <div className="flex items-center gap-2 text-sm text-primary font-semibold">
-            <FolderOpen className="w-4.5 h-4.5" />
+            <FolderOpen className="w-4 h-4" />
             <span>Abrir pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}</span>
           </div>
           <ChevronRight className="w-5 h-5 text-primary" />
