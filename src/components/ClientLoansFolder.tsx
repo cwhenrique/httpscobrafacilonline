@@ -1,8 +1,7 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { FolderOpen, FolderClosed, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { FolderClosed, AlertTriangle, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
 import { getAvatarUrl, getInitials } from '@/lib/avatarUtils';
 import { Client, Loan } from '@/types/database';
 
@@ -21,12 +20,10 @@ interface ClientGroup {
 
 interface ClientLoansFolderProps {
   group: ClientGroup;
-  isExpanded: boolean;
-  onToggle: () => void;
-  renderLoanCard: (loan: Loan, index: number) => React.ReactNode;
+  onOpen: () => void;
 }
 
-export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard }: ClientLoansFolderProps) {
+export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
   const initials = getInitials(group.client.full_name);
   const avatarUrl = getAvatarUrl(group.client.avatar_url, group.client.full_name, 64);
 
@@ -78,7 +75,7 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
   };
 
   return (
-    <Card className={`overflow-hidden transition-all cursor-pointer ${getBorderColor()}`} onClick={onToggle}>
+    <Card className={`overflow-hidden transition-all cursor-pointer hover:shadow-md ${getBorderColor()}`} onClick={onOpen}>
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-center gap-2.5">
           <Avatar className="h-9 w-9 border-2 border-border shrink-0">
@@ -90,11 +87,7 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              {isExpanded ? (
-                <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              ) : (
-                <FolderClosed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              )}
+              <FolderClosed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <span className="text-xs sm:text-sm font-semibold truncate">
                 {group.client.full_name}
               </span>
@@ -106,11 +99,7 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
 
           <div className="flex flex-col items-end gap-1 shrink-0">
             {getStatusBadge()}
-            {isExpanded ? (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            )}
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </div>
         </div>
 
@@ -134,24 +123,6 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
           </div>
         </div>
       </CardContent>
-      
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardContent className="border-t bg-muted/20 pt-3 pb-3 px-3">
-              <div className="grid grid-cols-1 gap-3">
-                {group.loans.map((loan, index) => renderLoanCard(loan, index))}
-              </div>
-            </CardContent>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </Card>
   );
 }
