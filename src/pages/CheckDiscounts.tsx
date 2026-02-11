@@ -46,7 +46,6 @@ import {
   ArrowRight,
   BarChart3,
   Lock,
-  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -183,10 +182,6 @@ export default function CheckDiscounts() {
   const isFeatureLocked = !profile?.check_discount_enabled;
 
   if (isFeatureLocked) {
-    const whatsappNumber = '5511999999999'; // Número para compra
-    const whatsappMessage = encodeURIComponent('Olá! Tenho interesse em adquirir o módulo de Desconto de Cheque por R$ 19,90.');
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`;
-
     return (
       <DashboardLayout>
         <div className="min-h-[80vh] flex items-center justify-center p-4">
@@ -232,18 +227,20 @@ export default function CheckDiscounts() {
               <div className="bg-primary/10 rounded-xl p-6">
                 <p className="text-sm text-muted-foreground">Por apenas</p>
                 <p className="text-4xl font-bold text-primary my-1">R$ 19,90</p>
-                <p className="text-sm text-muted-foreground">pagamento único</p>
+                <p className="text-sm text-muted-foreground">mensal</p>
               </div>
 
               <Button 
-                asChild
                 className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-base"
+                onClick={() => window.open('https://pay.cakto.com.br/m2z4unj', '_blank')}
               >
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="mr-2 h-5 w-5" />
-                  Comprar Agora via WhatsApp
-                </a>
+                <CreditCard className="mr-2 h-5 w-5" />
+                Assinar Agora
               </Button>
+
+              <p className="text-xs text-muted-foreground">
+                Ao efetuar a compra com o email da sua conta, a funcionalidade é liberada automaticamente.
+              </p>
             </CardContent>
           </Card>
         </div>
