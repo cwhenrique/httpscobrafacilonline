@@ -27,13 +27,6 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
   const initials = getInitials(group.client.full_name);
   const avatarUrl = getAvatarUrl(group.client.avatar_url, group.client.full_name, 64);
 
-  const getBorderColor = () => {
-    if (group.allPaid) return 'border-primary/40';
-    if (group.hasOverdue) return 'border-destructive/40';
-    if (group.hasDueToday) return 'border-amber-500/40';
-    return 'border-border';
-  };
-
   const getAccentBar = () => {
     if (group.allPaid) return 'bg-primary';
     if (group.hasOverdue) return 'bg-destructive';
@@ -41,10 +34,17 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     return 'bg-muted-foreground/30';
   };
 
+  const getBorderColor = () => {
+    if (group.allPaid) return 'border-primary/30';
+    if (group.hasOverdue) return 'border-destructive/30';
+    if (group.hasDueToday) return 'border-amber-500/30';
+    return 'border-border';
+  };
+
   const getStatusBadge = () => {
     if (group.allPaid) {
       return (
-        <Badge className="bg-primary/15 text-primary border-primary/30 gap-1 text-[10px] px-2 py-0.5">
+        <Badge className="bg-primary/15 text-primary border-primary/30 gap-1 text-[11px] px-2 py-0.5">
           <CheckCircle2 className="w-3 h-3" />
           Quitado
         </Badge>
@@ -52,7 +52,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     }
     if (group.hasOverdue) {
       return (
-        <Badge className="bg-destructive/15 text-destructive border-destructive/30 gap-1 text-[10px] px-2 py-0.5">
+        <Badge className="bg-destructive/15 text-destructive border-destructive/30 gap-1 text-[11px] px-2 py-0.5">
           <AlertTriangle className="w-3 h-3" />
           Atrasado
         </Badge>
@@ -60,7 +60,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     }
     if (group.hasDueToday) {
       return (
-        <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30 gap-1 text-[10px] px-2 py-0.5">
+        <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30 gap-1 text-[11px] px-2 py-0.5">
           <Clock className="w-3 h-3" />
           Vence Hoje
         </Badge>
@@ -68,7 +68,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     }
     if (group.hasPending) {
       return (
-        <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/30 gap-1 text-[10px] px-2 py-0.5">
+        <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/30 gap-1 text-[11px] px-2 py-0.5">
           <Clock className="w-3 h-3" />
           Em Dia
         </Badge>
@@ -81,6 +81,8 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const lucroEstimado = group.totalToReceive - group.totalPrincipal;
+
   return (
     <Card 
       className={`overflow-hidden transition-all cursor-pointer hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] relative ${getBorderColor()}`} 
@@ -89,61 +91,81 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
       {/* Accent bar on left */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${getAccentBar()} rounded-l-lg`} />
       
-      <CardContent className="p-4 pl-5">
-        {/* Header: Avatar + Name + Status */}
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 border-2 border-border shrink-0 shadow-sm">
-            <AvatarImage src={avatarUrl} alt={group.client.full_name} />
-            <AvatarFallback className="text-xs font-bold bg-muted">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate leading-tight">
-              {group.client.full_name}
-            </p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground font-medium">
-                {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''} nesta pasta
-              </span>
+      <CardContent className="p-0">
+        {/* Header section */}
+        <div className="p-4 pb-3 pl-5">
+          <div className="flex items-start gap-3">
+            <Avatar className="h-11 w-11 border-2 border-border shrink-0 shadow-sm mt-0.5">
+              <AvatarImage src={avatarUrl} alt={group.client.full_name} />
+              <AvatarFallback className="text-sm font-bold bg-muted">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm sm:text-base font-semibold truncate leading-tight">
+                    {group.client.full_name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground">
+                      {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {getStatusBadge()}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {getStatusBadge()}
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          {/* Main amount */}
+          <div className="mt-4 text-center">
+            <p className="text-2xl sm:text-3xl font-bold tracking-tight">
+              {formatCurrency(group.remainingBalance)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">restante a receber</p>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-border/60 my-3" />
-
-        {/* Financial Summary */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          <div>
-            <p className="text-muted-foreground text-[11px]">Emprestado</p>
-            <p className="font-semibold">{formatCurrency(group.totalPrincipal)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-[11px]">A Receber</p>
-            <p className="font-semibold">{formatCurrency(group.totalToReceive)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-[11px]">Recebido</p>
-            <p className="font-semibold text-primary">{formatCurrency(group.totalPaid)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-[11px]">Restante</p>
-            <p className="font-semibold">{formatCurrency(group.remainingBalance)}</p>
+        {/* Financial details */}
+        <div className="bg-muted/30 border-t border-border/50 px-5 py-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+              <p className="text-[11px] text-muted-foreground">Emprestado</p>
+              <p className="text-sm font-semibold">{formatCurrency(group.totalPrincipal)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-muted-foreground">Total a Receber</p>
+              <p className="text-sm font-semibold">{formatCurrency(group.totalToReceive)}</p>
+            </div>
           </div>
         </div>
 
-        {/* Footer hint */}
-        <div className="mt-3 flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-muted/50 text-[11px] text-muted-foreground font-medium">
-          <FolderOpen className="w-3 h-3" />
-          Toque para abrir a pasta
+        {/* Profit row */}
+        <div className="border-t border-border/50 px-5 py-3">
+          <div className="grid grid-cols-2 gap-x-6">
+            <div>
+              <p className="text-[11px] text-muted-foreground">💰 Lucro Previsto</p>
+              <p className="text-sm font-semibold">{formatCurrency(lucroEstimado)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-muted-foreground">✅ Recebido</p>
+              <p className="text-sm font-semibold text-primary">{formatCurrency(group.totalPaid)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Open folder CTA */}
+        <div className="border-t border-border/50 px-5 py-3 flex items-center justify-between bg-muted/20 hover:bg-muted/40 transition-colors">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+            <FolderOpen className="w-4 h-4" />
+            <span>Abrir pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </div>
       </CardContent>
     </Card>
