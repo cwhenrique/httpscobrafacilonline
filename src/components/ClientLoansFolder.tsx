@@ -130,18 +130,11 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
             </Avatar>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm sm:text-base font-semibold truncate leading-tight">
-                    {group.client.full_name}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Badge variant="outline" className="gap-1 text-[11px] px-2 py-0.5 bg-accent/50 border-border">
-                      <FolderOpen className="w-3 h-3" />
-                      📂 Pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
-                    </Badge>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline" className="gap-1 text-[11px] px-2 py-0.5 bg-accent/50 border-border">
+                  <FolderOpen className="w-3 h-3" />
+                  📂 {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
+                </Badge>
                 <div className="shrink-0">
                   {getStatusBadge()}
                 </div>
@@ -149,8 +142,13 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
             </div>
           </div>
 
+          {/* Nome do cliente centralizado */}
+          <p className="text-sm sm:text-base font-semibold text-center w-full break-words mt-3 leading-tight">
+            {group.client.full_name}
+          </p>
+
           {/* Main amount */}
-          <div className="mt-4 text-center">
+          <div className="mt-3 text-center">
             <p className="text-2xl sm:text-3xl font-bold tracking-tight">
               {formatCurrency(group.remainingBalance)}
             </p>

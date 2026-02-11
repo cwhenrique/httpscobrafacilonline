@@ -8348,34 +8348,33 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           </button>
                         </div>
                         <div className="flex-1 min-w-0">
-                          {/* LINHA 1: Nome + Botões na mesma linha */}
-                          <div className="flex items-center justify-between gap-1">
-                            <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
-                            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                              <Button 
-                                variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                size="sm" 
-                                className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
-                              >
-                                {expandedLoanId === loan.id ? (
-                                  <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                ) : (
-                                  <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                )}
-                                <span className="hidden sm:inline">Detalhes</span>
-                              </Button>
-                              <Button 
-                                variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                size="sm" 
-                                className={`tutorial-loan-receipt h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                onClick={() => handleGenerateLoanReceipt(loan)}
-                              >
-                                <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                <span className="hidden sm:inline">Comprovante</span>
-                              </Button>
-                            </div>
-                          </div>
+                            {/* LINHA 1: Nome centralizado */}
+                           <h3 className="font-semibold text-sm sm:text-lg text-center w-full break-words">{loan.client?.full_name}</h3>
+                           {/* LINHA 2: Botões */}
+                           <div className="flex items-center justify-end gap-0.5 sm:gap-1 mt-1">
+                               <Button 
+                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                 size="sm" 
+                                 className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                 onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
+                               >
+                                 {expandedLoanId === loan.id ? (
+                                   <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                 ) : (
+                                   <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                 )}
+                                 <span className="hidden sm:inline">Detalhes</span>
+                               </Button>
+                               <Button 
+                                 variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                 size="sm" 
+                                 className={`tutorial-loan-receipt h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                 onClick={() => handleGenerateLoanReceipt(loan)}
+                               >
+                                 <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                 <span className="hidden sm:inline">Comprovante</span>
+                               </Button>
+                           </div>
                           
                           {/* LINHA 2: Badges de status e tipo */}
                           <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
@@ -10513,34 +10512,33 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </button>
                           </div>
                           <div className="flex-1 min-w-0">
-                            {/* LINHA 1: Nome + Botões na mesma linha */}
-                            <div className="flex items-center justify-between gap-1">
-                              <h3 className="font-semibold text-sm sm:text-lg truncate">{loan.client?.full_name}</h3>
-                              <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="sm" 
-                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                  onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
-                                >
-                                  {expandedLoanId === loan.id ? (
-                                    <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                  ) : (
-                                    <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                  )}
-                                  <span className="hidden sm:inline">Detalhes</span>
-                                </Button>
-                                <Button 
-                                  variant={hasSpecialStyle ? 'secondary' : 'outline'} 
-                                  size="sm" 
-                                  className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
-                                  onClick={() => handleGenerateLoanReceipt(loan)}
-                                >
-                                  <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
-                                  <span className="hidden sm:inline">Comprovante</span>
-                                </Button>
-                              </div>
-                            </div>
+                            {/* LINHA 1: Nome centralizado */}
+                             <h3 className="font-semibold text-sm sm:text-lg text-center w-full break-words">{loan.client?.full_name}</h3>
+                             {/* LINHA 2: Botões */}
+                             <div className="flex items-center justify-end gap-0.5 sm:gap-1 mt-1">
+                                 <Button 
+                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                   size="sm" 
+                                   className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                   onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
+                                 >
+                                   {expandedLoanId === loan.id ? (
+                                     <ChevronUp className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                   ) : (
+                                     <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                   )}
+                                   <span className="hidden sm:inline">Detalhes</span>
+                                 </Button>
+                                 <Button 
+                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                   size="sm" 
+                                   className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                   onClick={() => handleGenerateLoanReceipt(loan)}
+                                 >
+                                   <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
+                                   <span className="hidden sm:inline">Comprovante</span>
+                                 </Button>
+                             </div>
                             
                             {/* LINHA 2: Badges de status e tipo */}
                             <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1">
