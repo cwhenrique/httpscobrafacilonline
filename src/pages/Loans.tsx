@@ -4680,8 +4680,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const previousTotalInterest = selectedLoan.total_interest || 0;
       const previousRemainingBalance = selectedLoan.remaining_balance;
       
-      // Novo principal = Original - amortizações anteriores - esta amortização
-      const newPrincipal = Math.max(0, originalPrincipal - previousAmortizations - amount);
+      // Novo principal = principal atual (já reflete amortizações anteriores) - esta amortização
+      const newPrincipal = Math.max(0, originalPrincipal - amount);
       
       // Recalcular juros sobre o novo principal
       const newTotalInterest = newPrincipal * (interestRate / 100);
