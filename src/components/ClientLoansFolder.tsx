@@ -160,12 +160,12 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
         </div>
 
         {/* Open folder CTA */}
-        <div className="border-t border-border/50 px-5 py-3 flex items-center justify-between bg-muted/20 hover:bg-muted/40 transition-colors">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-            <FolderOpen className="w-4 h-4" />
+        <div className="border-t border-border/50 px-5 py-3.5 flex items-center justify-between bg-primary/10 hover:bg-primary/20 transition-colors rounded-b-lg">
+          <div className="flex items-center gap-2 text-sm text-primary font-semibold">
+            <FolderOpen className="w-4.5 h-4.5" />
             <span>Abrir pasta com {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}</span>
           </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          <ChevronRight className="w-5 h-5 text-primary" />
         </div>
       </CardContent>
     </Card>
