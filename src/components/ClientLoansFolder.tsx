@@ -1,10 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { FolderOpen, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, X } from 'lucide-react';
-import { formatCurrency } from '@/lib/calculations';
+import { FolderOpen, FolderClosed, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { getAvatarUrl, getInitials } from '@/lib/avatarUtils';
 import { Client, Loan } from '@/types/database';
 
@@ -17,6 +15,7 @@ interface ClientGroup {
   remainingBalance: number;
   hasOverdue: boolean;
   hasPending: boolean;
+  hasDueToday: boolean;
   allPaid: boolean;
 }
 
@@ -24,35 +23,49 @@ interface ClientLoansFolderProps {
   group: ClientGroup;
   isExpanded: boolean;
   onToggle: () => void;
-  onUngroup?: () => void;
   renderLoanCard: (loan: Loan, index: number) => React.ReactNode;
 }
 
-export function ClientLoansFolder({ group, isExpanded, onToggle, onUngroup, renderLoanCard }: ClientLoansFolderProps) {
+export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard }: ClientLoansFolderProps) {
   const initials = getInitials(group.client.full_name);
   const avatarUrl = getAvatarUrl(group.client.avatar_url, group.client.full_name, 64);
+
+  const getBorderColor = () => {
+    if (group.allPaid) return 'border-primary/50 bg-primary/5';
+    if (group.hasOverdue) return 'border-destructive/50 bg-destructive/5';
+    if (group.hasDueToday) return 'border-amber-500/50 bg-amber-500/5';
+    return 'border-border';
+  };
 
   const getStatusBadge = () => {
     if (group.allPaid) {
       return (
-        <Badge className="bg-primary text-primary-foreground gap-1">
-          <CheckCircle2 className="w-3 h-3" />
+        <Badge className="bg-primary text-primary-foreground gap-1 text-[10px] px-1.5 py-0">
+          <CheckCircle2 className="w-2.5 h-2.5" />
           Quitado
         </Badge>
       );
     }
     if (group.hasOverdue) {
       return (
-        <Badge variant="destructive" className="gap-1">
-          <AlertTriangle className="w-3 h-3" />
+        <Badge variant="destructive" className="gap-1 text-[10px] px-1.5 py-0">
+          <AlertTriangle className="w-2.5 h-2.5" />
           Atrasado
+        </Badge>
+      );
+    }
+    if (group.hasDueToday) {
+      return (
+        <Badge className="bg-amber-500 text-white gap-1 text-[10px] px-1.5 py-0">
+          <Clock className="w-2.5 h-2.5" />
+          Vence Hoje
         </Badge>
       );
     }
     if (group.hasPending) {
       return (
-        <Badge className="bg-blue-500 text-white gap-1">
-          <Clock className="w-3 h-3" />
+        <Badge className="bg-blue-500 text-white gap-1 text-[10px] px-1.5 py-0">
+          <Clock className="w-2.5 h-2.5" />
           Em Dia
         </Badge>
       );
@@ -61,78 +74,42 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, onUngroup, rend
   };
 
   return (
-    <Card className={`overflow-hidden transition-all ${
-      group.hasOverdue ? 'border-destructive/50' : 
-      group.allPaid ? 'border-primary/50 bg-primary/5' : 
-      'border-border'
-    }`}>
-      <CardHeader 
-        className="cursor-pointer hover:bg-muted/50 transition-colors py-3 sm:py-4"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-border">
+    <Card className={`overflow-hidden transition-all cursor-pointer ${getBorderColor()}`} onClick={onToggle}>
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center gap-2.5">
+          <Avatar className="h-9 w-9 border-2 border-border shrink-0">
             <AvatarImage src={avatarUrl} alt={group.client.full_name} />
-            <AvatarFallback className="text-sm font-semibold bg-muted">
+            <AvatarFallback className="text-xs font-semibold bg-muted">
               {initials}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
-              <h3 className="font-semibold text-sm sm:text-base truncate">
-                {group.client.full_name}
-              </h3>
-              <Badge variant="secondary" className="text-xs">
-                {group.loans.length} {group.loans.length === 1 ? 'contrato' : 'contratos'}
-              </Badge>
-              {getStatusBadge()}
-            </div>
-            
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-muted-foreground mt-1.5">
-              <span>
-                <span className="text-muted-foreground/70">Emprestado:</span>{' '}
-                <span className="font-medium text-foreground">{formatCurrency(group.totalPrincipal)}</span>
-              </span>
-              <span>
-                <span className="text-muted-foreground/70">A Receber:</span>{' '}
-                <span className={`font-medium ${group.remainingBalance > 0 ? 'text-amber-500' : 'text-primary'}`}>
-                  {formatCurrency(group.remainingBalance)}
-                </span>
-              </span>
-              <span>
-                <span className="text-muted-foreground/70">Recebido:</span>{' '}
-                <span className="font-medium text-primary">{formatCurrency(group.totalPaid)}</span>
-              </span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {onUngroup && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUngroup();
-                }}
-                className="h-7 sm:h-8 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3 h-3 sm:mr-1" />
-                <span className="hidden sm:inline">Desagrupar</span>
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {isExpanded ? (
-                <ChevronUp className="w-5 h-5" />
+                <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               ) : (
-                <ChevronDown className="w-5 h-5" />
+                <FolderClosed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               )}
-            </Button>
+              <span className="text-xs sm:text-sm font-semibold truncate">
+                {group.loans.length} empréstimos
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
+              de {group.client.full_name}
+            </p>
+          </div>
+
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {getStatusBadge()}
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
           </div>
         </div>
-      </CardHeader>
+      </div>
       
       <AnimatePresence initial={false}>
         {isExpanded && (
@@ -141,9 +118,10 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, onUngroup, rend
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <CardContent className="border-t bg-muted/20 pt-4 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <CardContent className="border-t bg-muted/20 pt-3 pb-3 px-3">
+              <div className="grid grid-cols-1 gap-3">
                 {group.loans.map((loan, index) => renderLoanCard(loan, index))}
               </div>
             </CardContent>

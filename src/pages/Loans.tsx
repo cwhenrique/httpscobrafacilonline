@@ -53,6 +53,7 @@ import { LoansTableView } from '@/components/LoansTableView';
 import { cn } from '@/lib/utils';
 import { HistoricalInterestRecords } from '@/components/HistoricalInterestRecords';
 import { PaymentsHistoryTab } from '@/components/PaymentsHistoryTab';
+import { ClientLoansFolder, ClientGroup } from '@/components/ClientLoansFolder';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -550,6 +551,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     return saved === 'table' ? 'table' : 'cards';
   });
   const [activeTab, setActiveTab] = useState<'regular' | 'daily' | 'price' | 'payments'>('regular');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isDailyDialogOpen, setIsDailyDialogOpen] = usePersistedState('loan_daily_dialog_open', false);
   const [isDialogOpen, setIsDialogOpen] = usePersistedState('loan_dialog_open', false);
   const [isPriceTableDialogOpen, setIsPriceTableDialogOpen] = usePersistedState('loan_price_dialog_open', false);
@@ -2824,6 +2826,76 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       return nextDueDateA.getTime() - nextDueDateB.getTime();
     });
   }, [filteredLoans]);
+
+
+  const toggleFolder = (clientId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  };
+
+  const buildClientGroup = (loansForClient: Loan[]): ClientGroup => {
+    const client = loansForClient[0].client as Client;
+    const isDaily = loansForClient[0].payment_type === 'daily';
+    
+    let totalPrincipal = 0;
+    let totalToReceive = 0;
+    let totalPaid = 0;
+    let remainingBalance = 0;
+    let hasOverdue = false;
+    let hasPending = false;
+    let hasDueToday = false;
+    let allPaid = true;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    loansForClient.forEach(loan => {
+      const { isPaid, isOverdue } = getLoanStatus(loan);
+      totalPrincipal += loan.principal_amount;
+      totalPaid += loan.total_paid || 0;
+      remainingBalance += loan.remaining_balance;
+      
+      if (isDaily) {
+        const dailyAmount = loan.total_interest || 0;
+        const numInst = loan.installments || 1;
+        totalToReceive += dailyAmount * numInst;
+      } else {
+        totalToReceive += loan.principal_amount + (loan.total_interest || 0);
+      }
+
+      if (!isPaid) allPaid = false;
+      if (isOverdue) hasOverdue = true;
+      if (!isPaid && !isOverdue) hasPending = true;
+
+      // Check due today
+      if (!isPaid) {
+        const paidCount = getPaidInstallmentsCount(loan);
+        const dates = (loan.installment_dates as string[]) || [];
+        if (dates.length > 0 && paidCount < dates.length) {
+          const nextDue = new Date(dates[paidCount] + 'T12:00:00');
+          nextDue.setHours(0, 0, 0, 0);
+          if (today.getTime() === nextDue.getTime()) hasDueToday = true;
+        }
+      }
+    });
+
+    return {
+      client,
+      loans: loansForClient,
+      totalPrincipal,
+      totalToReceive,
+      totalPaid,
+      remainingBalance,
+      hasOverdue,
+      hasPending,
+      hasDueToday,
+      allPaid,
+    };
+  };
 
   const loanClients = clients.filter(c => c.client_type === 'loan' || c.client_type === 'both');
 
@@ -7867,7 +7939,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {sortedLoans.map((loan, loanIndex) => {
+              {(() => {
+                // Renderizar todos os cards e agrupar por client_id
+                const cardsByClient = new Map<string, { loan: Loan; element: React.ReactNode }[]>();
+                const clientOrder: string[] = [];
+                
+                sortedLoans.forEach((loan, loanIndex) => {
                 const isDaily = loan.payment_type === 'daily';
                 const isWeekly = loan.payment_type === 'weekly';
                 const isBiweekly = loan.payment_type === 'biweekly';
@@ -8218,7 +8295,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : isBiweekly ? 'text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
-                return (
+                const cardElement = (
                   <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
                       <div className="flex items-start gap-2 sm:gap-4">
@@ -9753,7 +9830,36 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     </CardContent>
                   </Card>
                 );
-              })}
+                
+                const clientId = loan.client_id;
+                if (!cardsByClient.has(clientId)) {
+                  cardsByClient.set(clientId, []);
+                  clientOrder.push(clientId);
+                }
+                cardsByClient.get(clientId)!.push({ loan, element: cardElement });
+                });
+                
+                // Agora renderizar: pastas para 2+ empréstimos, cards soltos para 1
+                return clientOrder.map(clientId => {
+                  const items = cardsByClient.get(clientId)!;
+                  if (items.length >= 2 && items[0].loan.client) {
+                    const group = buildClientGroup(items.map(i => i.loan));
+                    return (
+                      <ClientLoansFolder
+                        key={`folder-${clientId}`}
+                        group={group}
+                        isExpanded={expandedFolders.has(clientId)}
+                        onToggle={() => toggleFolder(clientId)}
+                        renderLoanCard={(loan) => {
+                          const item = items.find(i => i.loan.id === loan.id);
+                          return item ? item.element : null;
+                        }}
+                      />
+                    );
+                  }
+                  return items[0].element;
+                });
+              })()}
             </div>
           )}
           </TabsContent>
@@ -10193,7 +10299,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {sortedLoans.map((loan, loanIndex) => {
+              {(() => {
+                const cardsByClient = new Map<string, { loan: Loan; element: React.ReactNode }[]>();
+                const clientOrder: string[] = [];
+                
+                sortedLoans.forEach((loan, loanIndex) => {
                   const isDaily = loan.payment_type === 'daily';
                   const numInstallments = loan.installments || 1;
                   const dailyInstallmentAmount = isDaily ? (loan.total_interest || 0) : 0;
@@ -10326,7 +10436,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   
                   const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-300' : isDueToday ? 'text-amber-300' : '';
                   
-                  return (
+                  const cardElement = (
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                       <CardContent className="p-3 sm:p-4">
                         <div className="flex items-start gap-2 sm:gap-4">
@@ -11597,7 +11707,35 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </CardContent>
                     </Card>
                   );
-                })}
+                
+                const clientId = loan.client_id;
+                if (!cardsByClient.has(clientId)) {
+                  cardsByClient.set(clientId, []);
+                  clientOrder.push(clientId);
+                }
+                cardsByClient.get(clientId)!.push({ loan, element: cardElement });
+                });
+                
+                return clientOrder.map(clientId => {
+                  const items = cardsByClient.get(clientId)!;
+                  if (items.length >= 2 && items[0].loan.client) {
+                    const group = buildClientGroup(items.map(i => i.loan));
+                    return (
+                      <ClientLoansFolder
+                        key={`folder-${clientId}`}
+                        group={group}
+                        isExpanded={expandedFolders.has(clientId)}
+                        onToggle={() => toggleFolder(clientId)}
+                        renderLoanCard={(loan) => {
+                          const item = items.find(i => i.loan.id === loan.id);
+                          return item ? item.element : null;
+                        }}
+                      />
+                    );
+                  }
+                  return items[0].element;
+                });
+              })()}
               </div>
             )}
           </TabsContent>
