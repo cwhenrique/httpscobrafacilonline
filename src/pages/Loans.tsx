@@ -8316,7 +8316,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                     <CardContent className="p-3 sm:p-4">
                       {/* Nome em destaque - primeira linha */}
-                      <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3">{loan.client?.full_name}</h3>
+                      <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
                       <div className="flex items-start gap-2 sm:gap-4">
                         <div className="relative group flex-shrink-0">
                           <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
@@ -10480,7 +10480,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
                       <CardContent className="p-3 sm:p-4">
                         {/* Nome em destaque - primeira linha */}
-                        <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3">{loan.client?.full_name}</h3>
+                        <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
                         <div className="flex items-start gap-2 sm:gap-4">
                           <div className="relative group flex-shrink-0">
                             <Avatar className={`h-10 w-10 sm:h-14 sm:w-14 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>

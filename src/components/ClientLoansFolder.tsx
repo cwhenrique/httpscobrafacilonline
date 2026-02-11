@@ -122,7 +122,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
         {/* Header section */}
         <div className="p-4 pb-3 pl-5">
           {/* Nome do cliente - linha 1, centralizado, fonte maior */}
-          <p className="text-base sm:text-lg font-bold text-center w-full break-words leading-tight">
+          <p className="text-base sm:text-lg font-bold text-center w-full break-words leading-tight bg-accent/60 border border-border rounded-lg py-1.5 px-3">
             {group.client.full_name}
           </p>
 
