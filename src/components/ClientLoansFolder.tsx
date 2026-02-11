@@ -73,9 +73,13 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
     return null;
   };
 
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   return (
     <Card className={`overflow-hidden transition-all cursor-pointer ${getBorderColor()}`} onClick={onToggle}>
-      <div className="p-3 sm:p-4">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex items-center gap-2.5">
           <Avatar className="h-9 w-9 border-2 border-border shrink-0">
             <AvatarImage src={avatarUrl} alt={group.client.full_name} />
@@ -85,18 +89,18 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
               {isExpanded ? (
                 <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               ) : (
                 <FolderClosed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               )}
               <span className="text-xs sm:text-sm font-semibold truncate">
-                {group.loans.length} empréstimos
+                {group.client.full_name}
               </span>
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
-              de {group.client.full_name}
+              {group.loans.length} empréstimos
             </p>
           </div>
 
@@ -109,7 +113,27 @@ export function ClientLoansFolder({ group, isExpanded, onToggle, renderLoanCard 
             )}
           </div>
         </div>
-      </div>
+
+        {/* Resumo financeiro */}
+        <div className="grid grid-cols-2 gap-2 mt-3 text-[11px] sm:text-xs">
+          <div>
+            <p className="text-muted-foreground">Emprestado</p>
+            <p className="font-semibold">{formatCurrency(group.totalPrincipal)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">A Receber</p>
+            <p className="font-semibold">{formatCurrency(group.totalToReceive)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Recebido</p>
+            <p className="font-semibold text-primary">{formatCurrency(group.totalPaid)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Restante</p>
+            <p className="font-semibold">{formatCurrency(group.remainingBalance)}</p>
+          </div>
+        </div>
+      </CardContent>
       
       <AnimatePresence initial={false}>
         {isExpanded && (
