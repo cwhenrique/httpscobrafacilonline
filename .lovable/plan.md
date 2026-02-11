@@ -1,17 +1,28 @@
 
-## Atualizar link de compra do Desconto de Cheque
+## Mover o nome do cliente para uma linha propria e centralizada
 
-### O que muda
-- O botao de compra na tela bloqueada do Desconto de Cheque deixara de apontar para WhatsApp e passara a abrir o link de pagamento do Cakto: `https://pay.cakto.com.br/m2z4unj`
-- Sera adicionada uma nota informando que ao comprar com o email da conta, a funcionalidade e liberada automaticamente
-- O texto do botao sera ajustado para refletir que e um pagamento mensal
+### Problema
+Em monitores com zoom alto, o nome do cliente (ex: "devedor 01") fica espremido na mesma linha dos botoes, mostrando apenas a primeira letra.
+
+### Solucao
+Separar o nome do cliente em uma linha dedicada, centralizada, acima dos botoes. Isso garante visibilidade em qualquer tamanho de tela.
+
+### Alteracoes
+
+**1. Card de pasta (ClientLoansFolder.tsx)**
+- Mover o nome `group.client.full_name` para uma linha propria, centralizada, abaixo do avatar
+- Remover o `truncate` e usar `text-center` com quebra de linha natural (`break-words`)
+
+**2. Card individual de emprestimo - aba Mensal (Loans.tsx ~linha 8351)**
+- Separar o nome do cliente dos botoes (Detalhes/Comprovante)
+- Nome fica em linha propria centralizada acima dos botoes
+- Botoes ficam na linha seguinte
+
+**3. Card individual de emprestimo - aba Diario (Loans.tsx ~linha 10516)**
+- Mesma alteracao do card mensal
 
 ### Detalhes tecnicos
-
-**Arquivo:** `src/pages/CheckDiscounts.tsx` (linhas 186-246)
-
-1. Remover as variaveis de WhatsApp (`whatsappNumber`, `whatsappMessage`, `whatsappUrl`)
-2. Substituir o link do botao para `https://pay.cakto.com.br/m2z4unj`
-3. Atualizar o texto de preco de "pagamento unico" para "mensal" (R$ 19,90/mes)
-4. Trocar o icone do botao de `MessageCircle` (WhatsApp) para `CreditCard` ou `ExternalLink`
-5. Adicionar texto informativo abaixo do botao: "Ao efetuar a compra com o email da sua conta, a funcionalidade e liberada automaticamente"
+- Trocar layout de `flex items-center justify-between` (nome + botoes lado a lado) para empilhado
+- Nome: `text-center w-full font-semibold text-sm sm:text-lg break-words`
+- Botoes: mantidos em linha separada com `flex justify-end`
+- Na pasta: nome centralizado abaixo do avatar, badge de status ao lado do avatar
