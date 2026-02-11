@@ -37,6 +37,7 @@ import { generateContractReceipt, generatePaymentReceipt, generateOperationsRepo
 import { useProfile } from '@/hooks/useProfile';
 import ReceiptPreviewDialog from '@/components/ReceiptPreviewDialog';
 import PaymentReceiptPrompt from '@/components/PaymentReceiptPrompt';
+import MessagePreviewDialog from '@/components/MessagePreviewDialog';
 import LoanCreatedReceiptPrompt from '@/components/LoanCreatedReceiptPrompt';
 import LoansPageTutorial from '@/components/tutorials/LoansPageTutorial';
 import { useAuth } from '@/contexts/AuthContext';
@@ -970,6 +971,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const [paymentClientPhone, setPaymentClientPhone] = useState<string | null>(null);
   const [paymentInstallmentDates, setPaymentInstallmentDates] = useState<string[]>([]);
   const [paymentPaidCount, setPaymentPaidCount] = useState<number>(0);
+
+  // Resend receipt from payment history state
+  const [isResendReceiptOpen, setIsResendReceiptOpen] = useState(false);
+  const [resendReceiptMessage, setResendReceiptMessage] = useState('');
+  const [resendReceiptClientPhone, setResendReceiptClientPhone] = useState<string | null>(null);
+  const [resendReceiptClientName, setResendReceiptClientName] = useState('');
 
   // Loan created receipt prompt state
   const [isLoanCreatedOpen, setIsLoanCreatedOpen] = useState(false);
@@ -1976,41 +1983,56 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const loan = loans.find(l => l.id === paymentHistoryLoanId);
     if (!loan) return;
 
+    const clientName = loan.client?.full_name || 'Cliente';
     const numInstallments = loan.installments || 1;
     const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
     const installmentNumber = installmentMatch ? parseInt(installmentMatch[1]) : getPaidInstallmentsCount(loan);
+    const paidCount = getPaidInstallmentsCount(loan);
+    const installmentDates = (loan.installment_dates as string[]) || [];
+    const isFullyPaid = loan.remaining_balance <= 0.01;
+    const companyName = profile?.company_name || profile?.full_name || 'CobraFácil';
+    const signatureName = profile?.billing_signature_name || companyName;
 
-    // Calculate totalContract
-    let totalContract = 0;
-    const isDaily = loan.payment_type === 'daily';
-    if (isDaily) {
-      const dailyAmount = loan.total_interest || 0;
-      totalContract = dailyAmount * numInstallments;
-    } else if (loan.total_interest !== undefined && loan.total_interest !== null && (loan.total_interest > 0 || loan.interest_rate === 0)) {
-      totalContract = loan.principal_amount + loan.total_interest;
-    } else {
-      totalContract = loan.principal_amount + (loan.principal_amount * (loan.interest_rate / 100) * numInstallments);
+    // Build receipt message
+    let message = `Olá *${clientName}*!\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `✅ *COMPROVANTE DE PAGAMENTO*\n`;
+    message += `📋 *2ª Via*\n\n`;
+    message += `💵 *Valor Pago:* ${formatCurrency(payment.amount)}\n`;
+    message += `📊 *Parcela:* ${installmentNumber}/${numInstallments}\n`;
+    message += `📅 *Data:* ${formatDate(payment.payment_date)}\n`;
+
+    if (payment.interest_paid && payment.interest_paid > 0) {
+      message += `📈 *Juros:* ${formatCurrency(payment.interest_paid)}\n`;
+    }
+    if (payment.principal_paid && payment.principal_paid > 0) {
+      message += `💰 *Principal:* ${formatCurrency(payment.principal_paid)}\n`;
     }
 
-    setPaymentClientPhone(loan.client?.phone || null);
-    setPaymentInstallmentDates((loan.installment_dates as string[]) || []);
-    setPaymentPaidCount(getPaidInstallmentsCount(loan));
-    setPaymentReceiptData({
-      type: 'loan',
-      contractId: loan.id,
-      companyName: profile?.company_name || profile?.full_name || 'CobraFácil',
-      billingSignatureName: profile?.billing_signature_name || undefined,
-      clientName: loan.client?.full_name || 'Cliente',
-      installmentNumber: installmentNumber,
-      totalInstallments: numInstallments,
-      amountPaid: payment.amount,
-      paymentDate: payment.payment_date,
-      remainingBalance: Math.max(0, loan.remaining_balance),
-      totalPaid: loan.total_paid || 0,
-      totalContract: totalContract,
-    });
+    if (isFullyPaid) {
+      message += `\n🎉 *CONTRATO QUITADO!*\n`;
+      message += `Obrigado pela confiança!\n`;
+    } else {
+      message += `\n📊 *Saldo Restante:* ${formatCurrency(Math.max(0, loan.remaining_balance))}\n`;
+      // Next due date
+      if (installmentDates.length > 0 && paidCount < installmentDates.length) {
+        message += `📅 *Próximo Vencimento:* ${formatDate(installmentDates[paidCount])}\n`;
+      }
+    }
+
+    // PIX info
+    if (profile?.pix_key) {
+      message += `\n💳 *PIX:* ${profile.pix_key}\n`;
+    }
+
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `_${signatureName}_`;
+
+    setResendReceiptMessage(message);
+    setResendReceiptClientPhone(loan.client?.phone || null);
+    setResendReceiptClientName(clientName);
     setIsPaymentHistoryOpen(false);
-    setIsPaymentReceiptOpen(true);
+    setIsResendReceiptOpen(true);
   };
 
   // Handle delete payment confirmation
@@ -14144,6 +14166,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Resend Receipt from Payment History */}
+        <MessagePreviewDialog
+          open={isResendReceiptOpen}
+          onOpenChange={setIsResendReceiptOpen}
+          simpleMessage={resendReceiptMessage}
+          completeMessage={resendReceiptMessage}
+          recipientName={resendReceiptClientName}
+          recipientType="client"
+          onConfirm={() => setIsResendReceiptOpen(false)}
+          mode={resendReceiptClientPhone ? 'whatsapp_link' : 'copy'}
+          clientPhone={resendReceiptClientPhone || undefined}
+        />
         
         {/* Dialog para adicionar parcelas extras em empréstimos diários */}
         {extraInstallmentsLoan && (
