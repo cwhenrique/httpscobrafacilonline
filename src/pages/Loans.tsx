@@ -12855,13 +12855,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan?.notes || null);
                           
                           // Principal atual (após amortizações anteriores)
-                          const currentPrincipal = Math.max(0, originalPrincipal - previousAmortizations);
+                          const currentPrincipal = originalPrincipal;
                           
                           // Novo principal após esta amortização
                           const newPrincipal = Math.max(0, currentPrincipal - paidAmount);
                           
                           // Juros originais (sobre principal original)
-                          const originalInterest = originalPrincipal * (currentInterestRate / 100);
+                          const originalInterest = currentPrincipal * (currentInterestRate / 100);
                           
                           // Novos juros (sobre novo principal)
                           const newTotalInterest = newPrincipal * (currentInterestRate / 100);
@@ -12899,12 +12899,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     <span>Principal original:</span>
                                     <span>{formatCurrency(originalPrincipal)}</span>
                                   </div>
-                                  {previousAmortizations > 0 && (
-                                    <div className="flex justify-between text-muted-foreground">
-                                      <span>Amortizações anteriores:</span>
-                                      <span>-{formatCurrency(previousAmortizations)}</span>
-                                    </div>
-                                  )}
                                   <div className="flex justify-between">
                                     <span>Amortização agora:</span>
                                     <span className="text-amber-600">-{formatCurrency(paidAmount)}</span>
