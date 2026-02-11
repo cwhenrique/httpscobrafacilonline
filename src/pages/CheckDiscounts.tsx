@@ -656,6 +656,34 @@ export default function CheckDiscounts() {
               )}
             </div>
 
+            {/* Client Details (auto-filled) */}
+            {formData.client_id && (() => {
+              const selectedClient = clients.find(c => c.id === formData.client_id);
+              if (!selectedClient) return null;
+              return (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg border border-border">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Nome</Label>
+                    <p className="text-sm font-medium">{selectedClient.full_name || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Telefone</Label>
+                    <p className="text-sm font-medium">{selectedClient.phone || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">CPF</Label>
+                    <p className="text-sm font-medium">{selectedClient.cpf || '—'}</p>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Endereço</Label>
+                    <p className="text-sm font-medium">
+                      {[selectedClient.street, selectedClient.number, selectedClient.neighborhood, selectedClient.city, selectedClient.state].filter(Boolean).join(', ') || selectedClient.address || '—'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
             <Separator />
 
             {/* Check Data */}
