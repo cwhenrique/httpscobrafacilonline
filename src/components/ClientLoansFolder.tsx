@@ -121,31 +121,25 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
       <CardContent className="p-0">
         {/* Header section */}
         <div className="p-4 pb-3 pl-5">
-          <div className="flex items-start gap-3">
-            <Avatar className="h-11 w-11 border-2 border-border shrink-0 shadow-sm mt-0.5">
+          {/* Nome do cliente - linha 1, centralizado, fonte maior */}
+          <p className="text-base sm:text-lg font-bold text-center w-full break-words leading-tight">
+            {group.client.full_name}
+          </p>
+
+          {/* Avatar + Badges - linha 2 */}
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <Avatar className="h-11 w-11 border-2 border-border shrink-0 shadow-sm">
               <AvatarImage src={avatarUrl} alt={group.client.full_name} />
               <AvatarFallback className="text-sm font-bold bg-muted">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline" className="gap-1 text-[11px] px-2 py-0.5 bg-accent/50 border-border">
-                  <FolderOpen className="w-3 h-3" />
-                  📂 {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
-                </Badge>
-                <div className="shrink-0">
-                  {getStatusBadge()}
-                </div>
-              </div>
-            </div>
+            <Badge variant="outline" className="gap-1 text-[11px] px-2 py-0.5 bg-accent/50 border-border">
+              <FolderOpen className="w-3 h-3" />
+              📂 {group.loans.length} empréstimo{group.loans.length > 1 ? 's' : ''}
+            </Badge>
+            {getStatusBadge()}
           </div>
-
-          {/* Nome do cliente centralizado */}
-          <p className="text-sm sm:text-base font-semibold text-center w-full break-words mt-3 leading-tight">
-            {group.client.full_name}
-          </p>
 
           {/* Main amount */}
           <div className="mt-3 text-center">
