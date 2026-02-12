@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WhatsAppStatusProvider } from "@/contexts/WhatsAppStatusContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import { useVisibilityControl } from "@/hooks/useVisibilityControl";
 import { useDevToolsProtection } from "@/hooks/useDevToolsProtection";
@@ -57,6 +58,7 @@ const AppContent = () => {
   
   return (
     <AuthProvider>
+      <WhatsAppStatusProvider>
       <EmployeeProvider>
         <TooltipProvider>
           <Toaster />
@@ -96,6 +98,7 @@ const AppContent = () => {
           </BrowserRouter>
         </TooltipProvider>
       </EmployeeProvider>
+      </WhatsAppStatusProvider>
     </AuthProvider>
   );
 };

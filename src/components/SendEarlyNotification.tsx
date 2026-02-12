@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
 import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
+import { useWhatsAppStatus } from '@/contexts/WhatsAppStatusContext';
 
 
 export interface EarlyNotificationData {
@@ -60,7 +61,9 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
+  const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
   const canSendViaAPI =
+    isInstanceConnected &&
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
@@ -269,6 +272,12 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
       setShowPreview(false);
     } catch (error: any) {
       console.error('Error sending early notification:', error);
+      const errorStr = error.message || '';
+      if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code') || errorStr.includes('502') || errorStr.includes('503')) {
+        markDisconnected();
+        setShowPreview(false);
+        return;
+      }
       toast.error(error.message || 'Erro ao enviar lembrete');
     } finally {
       setIsSending(false);
