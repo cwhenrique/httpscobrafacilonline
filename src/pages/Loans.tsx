@@ -8377,9 +8377,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="relative group flex-shrink-0">
-                          <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                          <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 ${isPaid ? 'border-white/30' : 'border-primary/20'}`}>
                             <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                            <AvatarFallback className={`text-xs sm:text-base font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                            <AvatarFallback className={`text-xs sm:text-base font-semibold ${isPaid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                               {initials}
                             </AvatarFallback>
                           </Avatar>
@@ -8411,7 +8411,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           {/* Badges de status e tipo */}
                           <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                             <Badge className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 ${
-                              hasSpecialStyle ? 'bg-white/20 text-white border-white/30' 
+                              isPaid ? 'bg-white/20 text-white border-white/30' 
                               : isHistoricalInterestContract && !isPaid && !isOverdue 
                                 ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
                                 : getPaymentStatusColor(displayStatus)
@@ -8425,37 +8425,37 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     : getPaymentStatusLabel(displayStatus)}
                             </Badge>
                             {loan.interest_mode === 'compound' && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-500/20 text-purple-300 border-purple-500/30">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30">
                                 J. Compostos
                               </Badge>
                             )}
                             {isDaily && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-700 dark:text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
                             )}
                             {isWeekly && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-orange-500/30 text-orange-300 border-orange-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-orange-500/30 text-orange-700 dark:text-orange-300 border-orange-500/50 font-bold">
                                 SEMANAL
                               </Badge>
                             )}
                             {isBiweekly && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-cyan-500/30 text-cyan-300 border-cyan-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-cyan-500/30 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 font-bold">
                                 QUINZENAL
                               </Badge>
                             )}
                             {loan.payment_type === 'installment' && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-emerald-500/30 text-emerald-300 border-emerald-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 font-bold">
                                 MENSAL
                               </Badge>
                             )}
                             {loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]') && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-600/30 text-purple-300 border-purple-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-purple-600/30 text-purple-700 dark:text-purple-300 border-purple-500/50 font-bold">
                                 📜 JUROS ANTIGOS
                               </Badge>
                             )}
                             {!isEmployee && loan.creator_employee && (
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-300 border-violet-500/50">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-700 dark:text-violet-300 border-violet-500/50">
                                 <UserCheck className="w-2.5 h-2.5 mr-0.5" />
                                 {loan.creator_employee.name}
                               </Badge>
@@ -8466,7 +8466,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
                           >
                             {expandedLoanId === loan.id ? (
@@ -8479,7 +8479,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           <Button 
                             variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                             size="sm" 
-                            className={`tutorial-loan-receipt h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                            className={`tutorial-loan-receipt h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                             onClick={() => handleGenerateLoanReceipt(loan)}
                           >
                             <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
@@ -8490,7 +8490,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
 
                       {/* Valor restante em destaque */}
                       <div className="mt-2 text-center">
-                        <p className={`text-xl sm:text-3xl font-bold ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
+                        <p className={`text-xl sm:text-3xl font-bold ${isPaid ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
                         <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
                           restante a receber
                           {(totalAppliedPenalties > 0 || dynamicPenaltyAmount > 0) && (
@@ -8502,7 +8502,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </div>
                       
                       {/* Seção de Valores Resumida - Emprestado e Total */}
-                      <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                      <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
                           <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
@@ -8527,19 +8527,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         const interestPart = isDaily ? dailyProfit : effectiveTotalInterest;
                         
                         return (
-                          <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                          <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${isPaid ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
                             <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
                               <div>
                                 <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
-                                <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                <p className={`font-semibold text-xs sm:text-sm ${isPaid ? 'text-white' : 'text-primary'}`}>
                                   {formatCurrency(expectedProfit)}
                                 </p>
                                 {penaltiesForProfit > 0 && (
                                   <div className={`flex flex-wrap gap-1 mt-0.5 text-[8px] sm:text-[9px] ${mutedTextColor}`}>
-                                    <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
+                                    <span className={`px-1 py-0.5 rounded ${isPaid ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
                                       📊 Juros: {formatCurrency(interestPart)}
                                     </span>
-                                    <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
+                                    <span className={`px-1 py-0.5 rounded ${isPaid ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
                                       ⚠️ Multas: {formatCurrency(penaltiesForProfit)}
                                     </span>
                                   </div>
@@ -8548,12 +8548,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <div>
                                 <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
                                 <div className="flex items-center gap-1">
-                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                  <p className={`font-semibold text-xs sm:text-sm ${isPaid ? 'text-white' : 'text-emerald-500'}`}>
                                     {formatCurrency(realizedProfit)}
                                   </p>
                                   {expectedProfit > 0 && (
                                     <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
-                                      hasSpecialStyle 
+                                      isPaid 
                                         ? 'bg-white/20 text-white' 
                                         : profitPercentage >= 100 
                                           ? 'bg-emerald-500/20 text-emerald-500' 
@@ -10542,9 +10542,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
                         <div className="flex items-center gap-2 sm:gap-3">
                           <div className="relative group flex-shrink-0">
-                            <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 ${hasSpecialStyle ? 'border-white/30' : 'border-primary/20'}`}>
+                            <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 ${isPaid ? 'border-white/30' : 'border-primary/20'}`}>
                               <AvatarImage src={loan.client?.avatar_url || ''} alt={loan.client?.full_name} />
-                              <AvatarFallback className={`text-xs sm:text-base font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                              <AvatarFallback className={`text-xs sm:text-base font-semibold ${isPaid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
@@ -10579,18 +10579,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 isPaid 
                                   ? 'bg-white/20 text-white border-white/30' 
                                   : isOverdue 
-                                    ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                                    ? 'bg-red-100 text-red-700 border-red-300 dark:bg-destructive/10 dark:text-destructive dark:border-destructive/20' 
                                     : isDueToday 
-                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
-                                      : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                                      ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30' 
+                                      : 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30'
                               }`}>
                                 {isPaid ? 'Pago' : isOverdue ? 'Atrasado' : isDueToday ? 'Vence Hoje' : 'Pendente'}
                               </Badge>
-                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-300 border-blue-500/50 font-bold">
+                              <Badge className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-blue-500/30 text-blue-700 dark:text-blue-300 border-blue-500/50 font-bold">
                                 DIÁRIO
                               </Badge>
                               {!isEmployee && loan.creator_employee && (
-                                <Badge variant="secondary" className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-300 border-violet-500/50">
+                                <Badge variant="secondary" className="text-[8px] sm:text-[10px] px-1 sm:px-1.5 bg-violet-500/30 text-violet-700 dark:text-violet-300 border-violet-500/50">
                                   <UserCheck className="w-2.5 h-2.5 mr-0.5" />
                                   {loan.creator_employee.name}
                                 </Badge>
@@ -10601,7 +10601,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             <Button 
                               variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                               size="sm" 
-                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                               onClick={() => setExpandedLoanId(expandedLoanId === loan.id ? null : loan.id)}
                             >
                               {expandedLoanId === loan.id ? (
@@ -10614,7 +10614,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             <Button 
                               variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                               size="sm" 
-                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                              className={`h-5 sm:h-6 text-[8px] sm:text-[10px] px-1 sm:px-2 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                               onClick={() => handleGenerateLoanReceipt(loan)}
                             >
                               <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 sm:mr-1" />
@@ -10625,7 +10625,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
 
                         {/* Valor restante em destaque */}
                         <div className="mt-2 text-center">
-                          <p className={`text-xl sm:text-3xl font-bold ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
+                          <p className={`text-xl sm:text-3xl font-bold ${isPaid ? 'text-white' : 'text-primary'}`}>{formatCurrency(remainingToReceive + dynamicPenaltyAmount)}</p>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
                             restante a receber
                             {(totalAppliedPenaltiesDaily > 0 || dynamicPenaltyAmount > 0) && (
@@ -10637,7 +10637,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         </div>
                         
                         {/* Seção de Valores Resumida - Emprestado e Total */}
-                        <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-muted/30'}`}>
+                        <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-muted/30'}`}>
                           <div>
                             <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
                             <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
@@ -10659,19 +10659,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             : 0;
                           
                           return (
-                            <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${hasSpecialStyle ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
+                            <div className={`mt-1.5 sm:mt-2 p-1.5 sm:p-2 rounded-lg ${isPaid ? 'bg-white/10' : 'bg-primary/5 border border-primary/20'}`}>
                               <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
                                 <div>
                                   <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>💰 Lucro Previsto</p>
-                                  <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-primary'}`}>
+                                  <p className={`font-semibold text-xs sm:text-sm ${isPaid ? 'text-white' : 'text-primary'}`}>
                                     {formatCurrency(expectedProfitCard)}
                                   </p>
                                   {totalAppliedPenaltiesDaily > 0 && (
                                     <div className={`flex flex-wrap gap-1 mt-0.5 text-[8px] sm:text-[9px] ${mutedTextColor}`}>
-                                      <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
+                                      <span className={`px-1 py-0.5 rounded ${isPaid ? 'bg-white/10' : 'bg-blue-500/10 text-blue-600'}`}>
                                         📊 Juros: {formatCurrency(dailyProfit)}
                                       </span>
-                                      <span className={`px-1 py-0.5 rounded ${hasSpecialStyle ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
+                                      <span className={`px-1 py-0.5 rounded ${isPaid ? 'bg-white/10' : 'bg-orange-500/10 text-orange-600'}`}>
                                         ⚠️ Multas: {formatCurrency(totalAppliedPenaltiesDaily)}
                                       </span>
                                     </div>
@@ -10680,12 +10680,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <div>
                                   <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>✅ Lucro Realizado</p>
                                   <div className="flex items-center gap-1">
-                                    <p className={`font-semibold text-xs sm:text-sm ${hasSpecialStyle ? 'text-white' : 'text-emerald-500'}`}>
+                                    <p className={`font-semibold text-xs sm:text-sm ${isPaid ? 'text-white' : 'text-emerald-500'}`}>
                                       {formatCurrency(realizedProfitCard)}
                                     </p>
                                     {expectedProfitCard > 0 && (
                                       <span className={`text-[8px] sm:text-[9px] px-1 py-0.5 rounded ${
-                                        hasSpecialStyle 
+                                        isPaid 
                                           ? 'bg-white/20 text-white' 
                                           : profitPercentageCard >= 100 
                                             ? 'bg-emerald-500/20 text-emerald-500' 
