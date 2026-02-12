@@ -22,19 +22,40 @@ export function WhatsAppStatusProvider({ children }: { children: ReactNode }) {
   const isCheckingRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Use refs for values that change frequently to avoid recreating callbacks
+  const userIdRef = useRef<string | undefined>();
+  const instanceIdRef = useRef<string | null | undefined>();
+  const hasInstanceRef = useRef(false);
+
+  // Keep refs in sync
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
+
+  useEffect(() => {
+    instanceIdRef.current = profile?.whatsapp_instance_id;
+  }, [profile?.whatsapp_instance_id]);
+
   const hasInstance = !!(
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled
   );
 
+  useEffect(() => {
+    hasInstanceRef.current = hasInstance;
+  }, [hasInstance]);
+
+  // Stable callback that reads from refs
   const checkStatus = useCallback(async () => {
-    if (!user?.id || !profile?.whatsapp_instance_id || isCheckingRef.current) return;
+    const userId = userIdRef.current;
+    const instanceId = instanceIdRef.current;
+    if (!userId || !instanceId || isCheckingRef.current) return;
     isCheckingRef.current = true;
 
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-check-status', {
-        body: { userId: user.id, attemptReconnect: false },
+        body: { userId, attemptReconnect: false },
       });
 
       if (error) {
@@ -48,13 +69,13 @@ export function WhatsAppStatusProvider({ children }: { children: ReactNode }) {
     } finally {
       isCheckingRef.current = false;
     }
-  }, [user?.id, profile?.whatsapp_instance_id]);
+  }, []); // No dependencies - reads from refs
 
   const markDisconnected = useCallback(() => {
     setIsInstanceConnected(false);
   }, []);
 
-  // Start/stop polling based on whether user has an instance configured
+  // Start/stop polling - stable effect that doesn't depend on checkStatus
   useEffect(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -62,7 +83,7 @@ export function WhatsAppStatusProvider({ children }: { children: ReactNode }) {
     }
 
     if (!hasInstance || !user?.id) {
-      setIsInstanceConnected(false);
+      // Don't reset isInstanceConnected here to avoid flicker during profile refetch
       return;
     }
 
@@ -78,7 +99,7 @@ export function WhatsAppStatusProvider({ children }: { children: ReactNode }) {
         intervalRef.current = null;
       }
     };
-  }, [hasInstance, user?.id, checkStatus]);
+  }, [hasInstance, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <WhatsAppStatusContext.Provider value={{ isInstanceConnected, markDisconnected }}>
