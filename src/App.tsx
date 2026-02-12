@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import { useVisibilityControl } from "@/hooks/useVisibilityControl";
@@ -100,9 +101,11 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AppContent />
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="dark" storageKey="cobrafacil-theme">
+    <QueryClientProvider client={queryClient}>
+      <AppContent />
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
