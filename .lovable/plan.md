@@ -1,90 +1,66 @@
 
-# Correcao do Status das Parcelas na Mensagem WhatsApp (Pagamentos Fora de Ordem)
+# Correcao de Visibilidade dos Cards de Emprestimo em Atraso no Modo Claro
 
 ## Problema
 
-Quando um cliente de emprestimo diario paga parcelas fora de ordem (ex: pula a parcela 4 e paga a 5), a mensagem de cobranca/comprovante mostra incorretamente o status das parcelas. A parcela 5 aparece como "Em Aberto" mesmo estando paga, porque o sistema assume que pagamentos sao sempre sequenciais.
+No modo claro, os cards de emprestimos em atraso (diario e normal) ficam com texto ilegivel:
+- Texto branco (`text-white`) sobre fundo vermelho/gradiente avermelhado
+- Texto `text-red-300` (vermelho claro) sobre fundo vermelho -- impossivel de ler
+- Badges com cores claras (`text-destructive`, `text-amber-300`) sobre fundos coloridos
 
-**Exemplo do bug:**
-- Parcela 3: atrasada (nao paga)
-- Parcela 4, 5, 6: pagas via PARTIAL_PAID tags
-- Na mensagem: parcela 3 aparece "Em Atraso" (correto), mas 4, 5, 6 tambem aparecem como "Em Aberto" (incorreto)
-
-**Causa raiz:**
-1. `getPaidInstallmentsCount()` para de contar no primeiro gap (`break` na linha 391)
-2. `getInstallmentStatus()` usa logica sequencial: `installmentNum <= paidCount`
-3. Ambos assumem que parcelas sao pagas na ordem 1, 2, 3...
+O modo escuro deve permanecer **inalterado**.
 
 ## Solucao
 
-Passar o mapa real de parcelas pagas (extraido das tags `[PARTIAL_PAID:indice:valor]`) para as funcoes de geracao de mensagem, em vez de depender apenas de um contador sequencial.
+Adicionar variantes `dark:` para manter o estilo escuro atual e usar cores de alto contraste no modo claro para os cards em atraso.
 
-### Alteracoes
+### Arquivos a editar
 
-**1. `src/lib/messageUtils.ts`**
+**`src/pages/Loans.tsx`** - 2 secoes de `getCardStyle` e `textColor`:
 
-- Adicionar campo opcional `paidIndices` (Set ou array de indices pagos) na interface `GenerateInstallmentListOptions`
-- Atualizar `getInstallmentStatus` para aceitar opcionalmente um conjunto de indices pagos
-- Quando `paidIndices` estiver presente, verificar se o indice especifico esta no conjunto em vez de usar `installmentNum <= paidCount`
+**1. Cards de emprestimo normal (linha ~8305)**
 
-```typescript
-// Interface atualizada
-interface GenerateInstallmentListOptions {
-  installmentDates: string[];
-  paidCount: number;
-  paidIndices?: number[]; // indices (0-based) das parcelas efetivamente pagas
-  maxOpenToShow?: number;
-}
+Alterar os estilos de overdue para usar fundo mais suave no light mode com texto escuro:
 
-// getInstallmentStatus atualizado
-export const getInstallmentStatus = (
-  installmentNum: number, 
-  paidCount: number, 
-  dueDateStr: string,
-  paidIndices?: number[]
-): InstallmentStatusResult => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(dueDateStr + 'T12:00:00');
-  
-  // Se temos o mapa real, usar ele (indice 0-based = installmentNum - 1)
-  const isPaid = paidIndices 
-    ? paidIndices.includes(installmentNum - 1)
-    : installmentNum <= paidCount;
-  
-  if (isPaid) {
-    return { emoji: '\u2705', status: 'Paga' };
-  }
-  
-  if (dueDate < today) {
-    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-    return { emoji: '\u274C', status: `Em Atraso (${daysOverdue}d)`, daysOverdue };
-  }
-  
-  return { emoji: '\u23F3', status: 'Em Aberto' };
-};
-```
+| Situacao | Light (novo) | Dark (mantido) |
+|----------|-------------|----------------|
+| Daily + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-blue-500/40` |
+| Weekly + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-orange-500/40` |
+| Biweekly + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-cyan-500/40` |
+| Generic overdue | `bg-red-50 border-red-300` | `dark:bg-red-500/30 dark:border-red-400` |
+| textColor overdue | `text-red-700` | `dark:text-red-300` |
 
-- Atualizar `generateInstallmentStatusList` para propagar `paidIndices` ao chamar `getInstallmentStatus`
+**2. Cards de emprestimo diario (linha ~10524)**
 
-**2. `src/pages/Loans.tsx`**
+| Situacao | Light (novo) | Dark (mantido) |
+|----------|-------------|----------------|
+| Overdue | `bg-red-50 border-red-300 border-l-4 border-l-red-500` | `dark:from-red-500/80 dark:to-blue-500/80 dark:text-white` |
+| textColor overdue | `text-red-700` | `dark:text-red-300` |
 
-- Criar helper `getPaidIndices(loan)` que retorna array de indices onde `PARTIAL_PAID` >= 99% do valor da parcela
-- Passar `paidIndices` em todas as chamadas que enviam `installmentDates` e `paidCount` para os componentes de notificacao (SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification, PaymentReceiptPrompt, LoanCreatedReceiptPrompt)
+**3. Badges de status nos cards**
 
-**3. Componentes de notificacao** (SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification, PaymentReceiptPrompt)
+Atualizar os badges "Atrasado" para usar cores legiveis no light mode:
+- Light: `bg-red-100 text-red-700 border-red-300`
+- Dark: manter `dark:bg-destructive/10 dark:text-destructive dark:border-destructive/20`
 
-- Adicionar `paidIndices?: number[]` na interface de dados
-- Propagar para `generateInstallmentStatusList({ ..., paidIndices })`
+### Principio
 
-### Resumo de arquivos
+No modo claro, cards em atraso usarao:
+- Fundo: `bg-red-50` (branco rosado, suave)
+- Borda: `border-red-300` com `border-l-4 border-l-red-500` (barra lateral vermelha forte)
+- Texto principal: `text-red-700` (vermelho escuro, alto contraste)
+- Texto secundario: `text-gray-700` (escuro, legivel)
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/lib/messageUtils.ts` | Adicionar `paidIndices` na interface e logica de status |
-| `src/pages/Loans.tsx` | Criar helper e passar `paidIndices` em todas as chamadas |
-| `src/components/SendOverdueNotification.tsx` | Aceitar e propagar `paidIndices` |
-| `src/components/SendDueTodayNotification.tsx` | Aceitar e propagar `paidIndices` |
-| `src/components/SendEarlyNotification.tsx` | Aceitar e propagar `paidIndices` |
-| `src/components/PaymentReceiptPrompt.tsx` | Aceitar e propagar `paidIndices` |
-| `src/components/LoanCreatedReceiptPrompt.tsx` | Aceitar e propagar `paidIndices` |
+Isso segue o padrao ja documentado na memoria do projeto: "fundo branco solido com borda lateral colorida e texto de alto contraste" para o modo claro.
+
+### Secao tecnica
+
+As mudancas sao concentradas em `src/pages/Loans.tsx` nas duas funcoes `getCardStyle()`:
+- Linha ~8305 (emprestimos normais)
+- Linha ~10524 (emprestimos diarios)
+
+E nas linhas de `textColor`:
+- Linha ~8370 (normais)
+- Linha ~10536 (diarios)
+
+Cada estilo sera modificado para adicionar prefixos `dark:` nos estilos atuais e novos estilos sem prefixo para o modo claro.
