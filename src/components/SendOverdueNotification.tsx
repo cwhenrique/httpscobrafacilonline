@@ -49,6 +49,7 @@ interface OverdueData {
   // NOVO: Campos para status das parcelas com emojis
   installmentDates?: string[];
   paidCount?: number;
+  paidIndices?: number[]; // indices (0-based) das parcelas efetivamente pagas
   // NOVO: Juros por atraso (calculado por dia - separado da multa)
   overdueInterestAmount?: number;
   // NOVO: Pagamento parcial de juros
@@ -269,6 +270,7 @@ export default function SendOverdueNotification({
         message += generateInstallmentStatusList({
           installmentDates: data.installmentDates,
           paidCount: paidCount,
+          paidIndices: data.paidIndices,
         });
       }
       

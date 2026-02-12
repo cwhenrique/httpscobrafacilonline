@@ -19,6 +19,7 @@ interface PaymentReceiptPromptProps {
   clientPhone?: string; // Telefone do cliente para envio direto
   installmentDates?: string[]; // Datas de vencimento de cada parcela
   paidCount?: number; // Número de parcelas pagas
+  paidIndices?: number[]; // indices (0-based) das parcelas efetivamente pagas
 }
 
 import {
@@ -61,7 +62,8 @@ const generateClientMessage = (
   companyName?: string,
   pixKey?: string | null,
   pixKeyType?: string | null,
-  pixPreMessage?: string | null
+  pixPreMessage?: string | null,
+  paidIndices?: number[]
 ): string => {
   const isFullyPaid = data.remainingBalance <= 0;
   const installments = data.installmentNumber;
@@ -104,6 +106,7 @@ const generateClientMessage = (
     message += generateInstallmentStatusList({
       installmentDates,
       paidCount: actualPaidCount,
+      paidIndices,
     });
   }
   
@@ -136,7 +139,8 @@ const generateSelfMessage = (
   paidCount?: number,
   pixKey?: string | null,
   pixKeyType?: string | null,
-  pixPreMessage?: string | null
+  pixPreMessage?: string | null,
+  paidIndices?: number[]
 ): string => {
   const prefix = getContractPrefix(data.type);
   const contractNumber = `${prefix}-${data.contractId.substring(0, 8).toUpperCase()}`;
@@ -183,6 +187,7 @@ const generateSelfMessage = (
     message += generateInstallmentStatusList({
       installmentDates,
       paidCount: actualPaidCount,
+      paidIndices,
     });
   }
   
@@ -205,7 +210,7 @@ const generateSelfMessage = (
   return message;
 };
 
-export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone, installmentDates, paidCount }: PaymentReceiptPromptProps) {
+export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientPhone, installmentDates, paidCount, paidIndices }: PaymentReceiptPromptProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [isSendingToClient, setIsSendingToClient] = useState(false);
@@ -496,8 +501,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForSelf}
         onOpenChange={setShowPreviewForSelf}
-        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
-        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
         recipientName="Você"
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
@@ -508,8 +513,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showPreviewForClient}
         onOpenChange={setShowPreviewForClient}
-        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
-        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
+        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
         recipientName={data.clientName}
         recipientType="client"
         onConfirm={handleConfirmSendToClient}
@@ -528,8 +533,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
       <MessagePreviewDialog
         open={showCopyPreview}
         onOpenChange={setShowCopyPreview}
-        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
-        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message)}
+        simpleMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
+        completeMessage={generateSelfMessage(data, clientPhone, installmentDates, paidCount, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
         recipientName="Você"
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}
