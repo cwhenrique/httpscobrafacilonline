@@ -8294,7 +8294,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 
                 const isCompound = loan.interest_mode === 'compound';
                 const hasDueTodayStyle = isDueToday && !isOverdue;
-                const hasSpecialStyle = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || hasPartialInterestPayments || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
+                const hasSpecialStyle = isPaid;
+                const hasColoredCard = isPaid || isOverdue || isRenegotiated || isInterestOnlyPayment || hasPartialInterestPayments || isWeekly || isBiweekly || isDaily || isCompound || hasDueTodayStyle;
                 
                 // Detectar contrato histórico com juros
                 const isHistoricalInterestContract = loan.notes?.includes('[HISTORICAL_INTEREST_CONTRACT]');
@@ -8367,7 +8368,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : isBiweekly ? 'text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-700 dark:text-purple-300' : isRenegotiated ? 'text-pink-700 dark:text-pink-300' : isOverdue ? 'text-red-700 dark:text-red-300' : hasDueTodayStyle ? 'text-amber-700 dark:text-amber-300' : isCompound ? 'text-cyan-700 dark:text-cyan-300' : isBiweekly ? 'text-cyan-700 dark:text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 const cardElement = (
@@ -10446,8 +10447,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     return dates[paidCount] || loan.due_date;
                   })();
                   
-                  const hasSpecialStyle = isOverdue || isPaid;
-                  const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+                  const hasSpecialStyle = isPaid;
+                  const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                   
                   const expectedProfit = dailyProfit + totalAppliedPenaltiesDaily;
                   const realizedProfit = loan.total_paid ? Math.min(loan.total_paid - (loan.principal_amount * (loan.total_paid / dailyTotalToReceive)), expectedProfit * (loan.total_paid / dailyTotalToReceive)) : 0;
@@ -10528,12 +10529,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     if (isHistoricalInterestContract && !isPaid) {
                       return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                     }
-                    if (isOverdue) return 'bg-gradient-to-r from-red-500/70 to-blue-500/70 text-white border-red-400 dark:from-red-500/80 dark:to-blue-500/80';
+                    if (isOverdue) return 'bg-gradient-to-r from-red-500/20 to-blue-500/20 border-red-400 dark:from-red-500/70 dark:to-blue-500/70 dark:text-white';
                     if (isDueToday) return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
                   };
                   
-                  const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-300' : isDueToday ? 'text-amber-300' : '';
+                  const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-700 dark:text-red-300' : isDueToday ? 'text-amber-700 dark:text-amber-300' : '';
                   
                   const cardElement = (
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
