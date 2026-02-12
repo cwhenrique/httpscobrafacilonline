@@ -8323,18 +8323,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   }
                   // Diário em atraso: gradiente vermelho→azul para manter identidade
                   if (isDaily && isOverdue) {
-                    return 'bg-gradient-to-r from-red-500/30 to-blue-500/30 border-red-400 dark:from-red-500/40 dark:to-blue-500/40';
+                    return 'bg-red-50 border-red-300 border-l-4 border-l-red-500 dark:bg-transparent dark:border-l-0 dark:bg-gradient-to-r dark:from-red-500/40 dark:to-blue-500/40 dark:border-red-400';
                   }
                   // Semanal em atraso: gradiente vermelho→laranja
                   if (isWeekly && isOverdue) {
-                    return 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400 dark:from-red-500/40 dark:to-orange-500/40';
+                    return 'bg-red-50 border-red-300 border-l-4 border-l-red-500 dark:bg-transparent dark:border-l-0 dark:bg-gradient-to-r dark:from-red-500/40 dark:to-orange-500/40 dark:border-red-400';
                   }
                   // Quinzenal em atraso: gradiente vermelho→ciano
                   if (isBiweekly && isOverdue) {
-                    return 'bg-gradient-to-r from-red-500/30 to-cyan-500/30 border-red-400 dark:from-red-500/40 dark:to-cyan-500/40';
+                    return 'bg-red-50 border-red-300 border-l-4 border-l-red-500 dark:bg-transparent dark:border-l-0 dark:bg-gradient-to-r dark:from-red-500/40 dark:to-cyan-500/40 dark:border-red-400';
                   }
                   if (isOverdue) {
-                    return 'bg-red-500/20 border-red-400 dark:bg-red-500/30 dark:border-red-400';
+                    return 'bg-red-50 border-red-300 border-l-4 border-l-red-500 dark:bg-red-500/30 dark:border-red-400 dark:border-l-0';
                   }
                   // Diário + Vence hoje: gradiente azul→amarelo
                   if (isDaily && hasDueTodayStyle) {
@@ -8367,7 +8367,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-300' : isRenegotiated ? 'text-pink-300' : isOverdue ? 'text-red-300' : hasDueTodayStyle ? 'text-amber-300' : isCompound ? 'text-cyan-300' : isBiweekly ? 'text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-700 dark:text-purple-300' : isRenegotiated ? 'text-pink-700 dark:text-pink-300' : isOverdue ? 'text-red-700 dark:text-red-300' : hasDueTodayStyle ? 'text-amber-700 dark:text-amber-300' : isCompound ? 'text-cyan-700 dark:text-cyan-300' : isBiweekly ? 'text-cyan-700 dark:text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 const cardElement = (
@@ -10528,12 +10528,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     if (isHistoricalInterestContract && !isPaid) {
                       return 'bg-purple-500/20 border-purple-400 dark:bg-purple-500/30 dark:border-purple-400';
                     }
-                    if (isOverdue) return 'bg-gradient-to-r from-red-500/70 to-blue-500/70 text-white border-red-400 dark:from-red-500/80 dark:to-blue-500/80';
+                    if (isOverdue) return 'bg-red-50 border-red-300 border-l-4 border-l-red-500 dark:bg-transparent dark:border-l-0 dark:bg-gradient-to-r dark:from-red-500/80 dark:to-blue-500/80 dark:text-white dark:border-red-400';
                     if (isDueToday) return 'bg-gradient-to-r from-blue-500/30 to-amber-500/30 border-amber-400 dark:from-blue-500/40 dark:to-amber-500/40';
                     return 'bg-blue-500/20 border-blue-400 dark:bg-blue-500/30 dark:border-blue-400';
                   };
                   
-                  const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-300' : isDueToday ? 'text-amber-300' : '';
+                  const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-700 dark:text-red-300' : isDueToday ? 'text-amber-700 dark:text-amber-300' : '';
                   
                   const cardElement = (
                     <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
