@@ -994,20 +994,20 @@ Obrigado por continuar com a gente! 💚`;
     if (customerPhone) {
       console.log('Phone is present, preparing welcome message...');
       
-      const welcomeMessage = `Olá ${customerName || ''}!
+      const welcomeMessage = `Acesse a plataforma pelo link:
+https://cobrafacil.online/auth
 
-Seu acesso ao CobraFácil está liberado.
+Seu login é o seu e-mail cadastrado e a senha padrão é 123456.
+Recomendamos que você altere a senha após o primeiro acesso para maior segurança.
 
-Acesse: https://cobrafacil.online/auth
-Email: ${customerEmail}
-Senha: 123456
+Dentro do site, você encontrará um passo a passo completo para instalar o aplicativo, de acordo com o modelo do seu celular. O processo é simples, rápido e totalmente guiado.
 
-Recomendamos alterar sua senha após o primeiro acesso.
+Para facilitar seu atendimento, salve nosso número em seus contatos:
 
-Qualquer dúvida, estamos à disposição.`;
+Suporte via WhatsApp: (11) 93353-8564`;
 
-      console.log('Sending welcome message via acesso instance...');
-      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'acesso');
+      console.log('Sending welcome message via cf_5dfd21d1_mlb30lzs instance...');
+      const messageSent = await sendWhatsAppMessage(customerPhone, welcomeMessage, 'cf_5dfd21d1_mlb30lzs');
       
       if (messageSent) {
         console.log('=== WELCOME MESSAGE SENT SUCCESSFULLY ===');
