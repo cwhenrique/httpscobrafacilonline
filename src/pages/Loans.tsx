@@ -66,6 +66,60 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
+// Helper para extrair os índices (0-based) das parcelas efetivamente pagas
+// Considera parcela paga se PARTIAL_PAID >= 99% do valor esperado
+const getPaidIndicesFromNotes = (loan: { notes: string | null; installments: number | null; principal_amount: number; interest_rate: number; interest_mode?: string | null; total_interest?: number | null; payment_type?: string; total_paid?: number | null }): number[] => {
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  if (Object.keys(partialPayments).length === 0) return [];
+  
+  const numInstallments = loan.installments || 1;
+  const isDaily = loan.payment_type === 'daily';
+  
+  let totalInterest = 0;
+  if (isDaily) {
+    const dailyAmount = loan.total_interest || 0;
+    totalInterest = (dailyAmount * numInstallments) - loan.principal_amount;
+  } else if (loan.total_interest !== undefined && loan.total_interest !== null && (loan.total_interest > 0 || loan.interest_rate === 0)) {
+    totalInterest = loan.total_interest;
+  } else if (loan.interest_mode === 'on_total') {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100);
+  } else if (loan.interest_mode === 'compound') {
+    totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else {
+    totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
+  }
+  
+  const baseInstallmentValue = (loan.principal_amount + totalInterest) / numInstallments;
+  
+  // Verificar taxa de renovação
+  const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
+  const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+  const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+  
+  const getInstallmentValue = (index: number) => {
+    if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+      return renewalFeeValue;
+    }
+    return baseInstallmentValue;
+  };
+  
+  // Sub-parcelas de adiantamento pendentes
+  const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes);
+  const hasSubparcelaForIndex = (index: number) => 
+    advanceSubparcelas.some(s => s.originalIndex === index);
+  
+  const paidIndices: number[] = [];
+  for (let i = 0; i < numInstallments; i++) {
+    const installmentValue = getInstallmentValue(i);
+    const paidAmount = partialPayments[i] || 0;
+    if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+      paidIndices.push(i);
+    }
+  }
+  
+  return paidIndices;
+};
+
 // Helper para extrair total de amortizações das notas do empréstimo
 // Formato: [AMORTIZATION:valor_amortizado:novo_principal:novos_juros:data]
 const getTotalAmortizationsFromNotes = (notes: string | null): number => {
@@ -973,6 +1027,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const [paymentClientPhone, setPaymentClientPhone] = useState<string | null>(null);
   const [paymentInstallmentDates, setPaymentInstallmentDates] = useState<string[]>([]);
   const [paymentPaidCount, setPaymentPaidCount] = useState<number>(0);
+  const [paymentPaidIndices, setPaymentPaidIndices] = useState<number[]>([]);
 
   // Resend receipt from payment history state
   const [isResendReceiptOpen, setIsResendReceiptOpen] = useState(false);
@@ -4343,6 +4398,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       setPaymentClientPhone(selectedLoan.client?.phone || null);
       setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
       setPaymentPaidCount(selectedLoan.installments || 1); // Quitado = todas pagas
+      setPaymentPaidIndices(getPaidIndicesFromNotes(selectedLoan));
       setPaymentReceiptData({
         type: 'loan',
         contractId: selectedLoanId,
@@ -4952,6 +5008,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setPaymentClientPhone(selectedLoan.client?.phone || null);
     setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
     setPaymentPaidCount(newRemainingBalance <= 0 ? numInstallments : getPaidInstallmentsCount(selectedLoan) + (paymentData.selected_installments.length || 1));
+    setPaymentPaidIndices(getPaidIndicesFromNotes(selectedLoan));
     setPaymentReceiptData({
       type: 'loan',
       contractId: selectedLoan.id,
@@ -5431,6 +5488,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       setPaymentClientPhone(loan.client?.phone || null);
       setPaymentInstallmentDates((loan.installment_dates as string[]) || []);
       setPaymentPaidCount(getPaidInstallmentsCount(loan));
+      setPaymentPaidIndices(getPaidIndicesFromNotes(loan));
       setPaymentReceiptData({
         type: 'loan',
         contractId: loan.id,
@@ -9075,6 +9133,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 // Status das parcelas com emojis
                                 installmentDates: (loan.installment_dates as string[]) || [],
                                 paidCount: getPaidInstallmentsCount(loan),
+                                paidIndices: getPaidIndicesFromNotes(loan),
                                 // Pagamento parcial de juros
                                 partialInterestPaid: (() => {
                                   const paidList = getPartialInterestPaidFromNotes(loan.notes);
@@ -9118,6 +9177,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
                                   paidCount: getPaidInstallmentsCount(loan),
+                                  paidIndices: getPaidIndicesFromNotes(loan),
                                   // Pagamento parcial de juros
                                   partialInterestPaid: (() => {
                                     const paidList = getPartialInterestPaidFromNotes(loan.notes);
@@ -9230,6 +9290,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
                                   paidCount: paidCount,
+                                  paidIndices: getPaidIndicesFromNotes(loan),
                                   // Pagamento parcial de juros
                                   partialInterestPaid: (() => {
                                     const paidList = getPartialInterestPaidFromNotes(loan.notes);
@@ -11239,6 +11300,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
                                   paidCount: getPaidInstallmentsCount(loan),
+                                  paidIndices: getPaidIndicesFromNotes(loan),
                                 }}
                                 className="w-full mt-2"
                               />
@@ -11270,6 +11332,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     // Status das parcelas com emojis
                                     installmentDates: (loan.installment_dates as string[]) || [],
                                     paidCount: getPaidInstallmentsCount(loan),
+                                    paidIndices: getPaidIndicesFromNotes(loan),
                                   }}
                                   className="w-full mt-2"
                                 />
@@ -11358,6 +11421,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     // Status das parcelas com emojis
                                     installmentDates: (loan.installment_dates as string[]) || [],
                                     paidCount: paidCount,
+                                    paidIndices: getPaidIndicesFromNotes(loan),
                                   }}
                                   className="w-full"
                                 />
@@ -14132,6 +14196,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           clientPhone={paymentClientPhone || undefined}
           installmentDates={paymentInstallmentDates}
           paidCount={paymentPaidCount}
+          paidIndices={paymentPaidIndices}
         />
 
         {/* Loan Created Receipt Prompt */}

@@ -90,13 +90,19 @@ interface InstallmentStatusResult {
 export const getInstallmentStatus = (
   installmentNum: number, 
   paidCount: number, 
-  dueDateStr: string
+  dueDateStr: string,
+  paidIndices?: number[]
 ): InstallmentStatusResult => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dueDate = new Date(dueDateStr + 'T12:00:00');
   
-  if (installmentNum <= paidCount) {
+  // Se temos o mapa real de parcelas pagas, usar ele (0-based)
+  const isPaid = paidIndices 
+    ? paidIndices.includes(installmentNum - 1)
+    : installmentNum <= paidCount;
+  
+  if (isPaid) {
     return { emoji: '✅', status: 'Paga' };
   }
   
@@ -111,6 +117,7 @@ export const getInstallmentStatus = (
 interface GenerateInstallmentListOptions {
   installmentDates: string[];
   paidCount: number;
+  paidIndices?: number[]; // indices (0-based) das parcelas efetivamente pagas
   maxOpenToShow?: number; // Máximo de parcelas em aberto a mostrar (para empréstimos diários)
 }
 
@@ -120,7 +127,7 @@ interface GenerateInstallmentListOptions {
  * - Para empréstimos com > 10 parcelas: mostra todas pagas + até 5 próximas em aberto
  */
 export const generateInstallmentStatusList = (options: GenerateInstallmentListOptions): string => {
-  const { installmentDates, paidCount } = options;
+  const { installmentDates, paidCount, paidIndices } = options;
   
   if (!installmentDates || installmentDates.length === 0) {
     return '';
@@ -131,7 +138,7 @@ export const generateInstallmentStatusList = (options: GenerateInstallmentListOp
   for (let i = 0; i < installmentDates.length; i++) {
     const installmentNum = i + 1;
     const dateStr = installmentDates[i];
-    const { emoji, status } = getInstallmentStatus(installmentNum, paidCount, dateStr);
+    const { emoji, status } = getInstallmentStatus(installmentNum, paidCount, dateStr, paidIndices);
     
     message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
   }

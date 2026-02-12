@@ -25,6 +25,7 @@ interface DueTodayData {
   // NOVO: Campos para status das parcelas com emojis
   installmentDates?: string[];
   paidCount?: number;
+  paidIndices?: number[]; // indices (0-based) das parcelas efetivamente pagas
   // NOVO: Pagamento parcial de juros
   partialInterestPaid?: number;
   partialInterestPending?: number;
@@ -164,6 +165,7 @@ export default function SendDueTodayNotification({
       message += generateInstallmentStatusList({
         installmentDates: data.installmentDates,
         paidCount: paidCount,
+        paidIndices: data.paidIndices,
       });
     }
     
