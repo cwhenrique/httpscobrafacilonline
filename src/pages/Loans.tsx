@@ -5008,7 +5008,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setPaymentClientPhone(selectedLoan.client?.phone || null);
     setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
     setPaymentPaidCount(newRemainingBalance <= 0 ? numInstallments : getPaidInstallmentsCount(selectedLoan) + (paymentData.selected_installments.length || 1));
-    setPaymentPaidIndices(getPaidIndicesFromNotes(selectedLoan));
+    // Incluir os índices das parcelas recém-pagas que ainda não estão nas notes
+    const existingPaidIndices = getPaidIndicesFromNotes(selectedLoan);
+    const newlyPaidIndices = paymentData.selected_installments.length > 0 
+      ? paymentData.selected_installments 
+      : (targetInstallmentIndex >= 0 ? [targetInstallmentIndex] : []);
+    const allPaidIndices = [...new Set([...existingPaidIndices, ...newlyPaidIndices])];
+    // Se quitou tudo, marcar todas as parcelas como pagas
+    if (newRemainingBalance <= 0) {
+      const allIndices = Array.from({ length: numInstallments }, (_, i) => i);
+      setPaymentPaidIndices(allIndices);
+    } else {
+      setPaymentPaidIndices(allPaidIndices);
+    }
     setPaymentReceiptData({
       type: 'loan',
       contractId: selectedLoan.id,
