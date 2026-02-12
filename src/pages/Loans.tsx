@@ -10447,7 +10447,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   })();
                   
                   const hasSpecialStyle = isOverdue || isPaid;
-                  const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+                  const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                   
                   const expectedProfit = dailyProfit + totalAppliedPenaltiesDaily;
                   const realizedProfit = loan.total_paid ? Math.min(loan.total_paid - (loan.principal_amount * (loan.total_paid / dailyTotalToReceive)), expectedProfit * (loan.total_paid / dailyTotalToReceive)) : 0;
@@ -10536,7 +10536,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-700 dark:text-red-300' : isDueToday ? 'text-amber-700 dark:text-amber-300' : '';
                   
                   const cardElement = (
-                    <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                    <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${isPaid ? textColor : ''}`}>
                       <CardContent className="p-3 sm:p-4">
                         {/* Nome em destaque - primeira linha */}
                         <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
@@ -11213,7 +11213,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     size="sm" 
                                     variant="outline" 
                                     onClick={() => setConfiguringPenaltyLoanId(null)}
-                                    className="border-blue-400/50 text-blue-300"
+                                    className="border-blue-400/50 text-blue-700 dark:text-blue-300"
                                   >
                                     Cancelar
                                   </Button>
@@ -11231,7 +11231,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     setInlinePenaltyType(overdueConfigType || 'percentage');
                                     setInlinePenaltyValue(overdueConfigValue.toString());
                                   }}
-                                  className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                                  className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300"
                                 >
                                   <Pencil className="w-3 h-3 mr-1" />
                                   Editar Juros
@@ -11246,7 +11246,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                                  className="flex-1 text-orange-700 hover:text-orange-800 hover:bg-orange-500/10 dark:text-orange-300/70 dark:hover:text-orange-300"
                                 >
                                   <DollarSign className="w-3 h-3 mr-1" />
                                   Aplicar Multa
@@ -11254,7 +11254,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               </div>
                             )}
                             
-                            <p className="text-[10px] text-red-300/60 mt-2">
+                            <p className="text-[10px] text-red-600 dark:text-red-300/60 mt-2">
                               {overdueInstallmentsDetails.length > 1 
                                 ? `Regularize as ${overdueInstallmentsDetails.length} parcelas em atraso`
                                 : 'Pague a parcela em atraso para regularizar o empréstimo'}
@@ -11430,15 +11430,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           })()
                         )}
                         
-                        <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                        <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${isPaid ? 'border-t border-white/20' : 'border-t'}`}>
                           <TooltipProvider delayDuration={300}>
                             <div className="flex gap-1.5 sm:gap-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="sm" 
-                                    className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                    className={`flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                                     onClick={() => { 
                                       setSelectedLoanId(loan.id);
                                       const dates = (loan.installment_dates as string[]) || [];
@@ -11476,9 +11476,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                     onClick={() => openPaymentHistory(loan.id)}
                                   >
                                     <History className="w-3 h-3" />
@@ -11492,9 +11492,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
                                     onClick={() => openDailyEditDialog(loan.id)}
                                   >
                                     <Pencil className="w-3 h-3" />
@@ -11508,9 +11508,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
                                     onClick={() => openEditDialog(loan.id)}
                                   >
                                     <RefreshCw className="w-3 h-3" />
@@ -11525,9 +11525,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button 
-                                      variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                      variant={isPaid ? 'secondary' : 'outline'} 
                                       size="icon" 
-                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
                                       onClick={() => {
                                         setExtraInstallmentsLoan(loan);
                                         setIsExtraInstallmentsOpen(true);
