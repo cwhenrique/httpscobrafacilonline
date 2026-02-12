@@ -355,7 +355,7 @@ export default function Dashboard() {
         )}
 
         {/* Health Score and Alerts */}
-        {!healthLoading && (
+        {(
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <HealthScoreCard
               score={healthData.score}
