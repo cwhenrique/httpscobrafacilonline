@@ -207,9 +207,9 @@ export function useOperationalStats() {
     queryKey: ['operational-stats', effectiveUserId],
     queryFn: fetchOperationalStats,
     enabled: !!user && !employeeLoading && !!effectiveUserId,
-    staleTime: 1000 * 10, // 10 segundos - dados operacionais precisam ser frescos
+    staleTime: 1000 * 30, // 30 segundos - dados operacionais precisam ser mais frescos
     gcTime: 1000 * 60 * 5, // 5 minutos
-    refetchInterval: 1000 * 30, // Polling a cada 30 segundos
+    refetchInterval: 1000 * 60, // Polling a cada 60 segundos
     refetchOnWindowFocus: true, // Atualiza ao voltar para a aba
     refetchOnMount: 'always', // Sempre atualiza ao montar o componente
   });
