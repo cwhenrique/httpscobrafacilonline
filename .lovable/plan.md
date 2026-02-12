@@ -1,81 +1,29 @@
 
-
-# Fallback automatico dos botoes de WhatsApp quando a instancia cair
+# Corrigir botao "Cobrar via WhatsApp" que nao atualiza apos conexao
 
 ## Problema
-Quando a instancia da Evolution API cai (erro 502, sessao expirada, etc.), os botoes de cobranca tentam enviar via API e mostram erro ao usuario. O sistema so verifica o status da conexao na pagina de Perfil, entao as outras paginas (Emprestimos, Vendas, Veiculos) nao sabem que a instancia desconectou.
+O `WhatsAppStatusContext` tem uma condicao de corrida: o callback `checkStatus` depende de `profile?.whatsapp_instance_id` no array de dependencias do `useCallback`. Cada vez que o perfil e refetchado (o que acontece varias vezes durante a navegacao), o `checkStatus` e recriado, o efeito re-executa, e durante renders intermediarios (quando profile ainda esta null/loading), o `hasInstance` fica `false` e o estado `isInstanceConnected` e resetado para `false`.
+
+Os logs confirmam isso: ciclos repetidos de "Starting monitoring" / "Stopping monitoring" indicando que o efeito esta re-executando constantemente.
 
 ## Solucao
-Criar um contexto global de status do WhatsApp que verifica periodicamente se a instancia esta conectada. Quando detectar desconexao, todos os botoes de cobranca mudam automaticamente para o modo fallback (link wa.me), sem mostrar erro.
+Estabilizar o contexto usando refs para valores que mudam frequentemente, evitando a recriacao constante do callback e do efeito.
 
 ## Alteracoes tecnicas
 
-### 1. Criar contexto global `src/contexts/WhatsAppStatusContext.tsx`
-- Context React que encapsula o `useWhatsAppAutoReconnect` existente
-- Expoe `isInstanceConnected` (boolean) para toda a aplicacao
-- Verifica o status a cada 2 minutos (usando o hook existente)
-- Quando `send-whatsapp-to-client` retorna erro de conexao, marca imediatamente como desconectado
-- Provider colocado no `App.tsx` (dentro do AuthProvider)
+### Arquivo: `src/contexts/WhatsAppStatusContext.tsx`
 
-### 2. Adicionar o Provider no `src/App.tsx`
-- Envolver as rotas com `<WhatsAppStatusProvider>`
+1. Usar `useRef` para `user.id` e `profile.whatsapp_instance_id` ao inves de coloca-los nas dependencias do `useCallback`
+2. Remover `checkStatus` do array de dependencias do `useEffect` principal
+3. Nao resetar `isInstanceConnected` para `false` quando `hasInstance` muda temporariamente (apenas quando recebemos uma resposta definitiva da API)
+4. Fazer o check inicial apenas uma vez e manter o polling estavel
 
-### 3. Atualizar `canSendViaAPI` nos componentes de notificacao
-Adicionar a verificacao `isInstanceConnected` em todos os componentes que usam `canSendViaAPI`:
-- `SendOverdueNotification.tsx`
-- `SendDueTodayNotification.tsx`
-- `SendEarlyNotification.tsx`
-- `CheckDiscountNotifications.tsx`
-- `PaymentReceiptPrompt.tsx`
-- `LoanCreatedReceiptPrompt.tsx`
-- `SaleCreatedReceiptPrompt.tsx`
-- `ReceiptPreviewDialog.tsx`
-- `LoansTableView.tsx`
+Mudancas especificas:
+- Trocar as dependencias do `useCallback` de `checkStatus` para usar refs (`userIdRef` e `instanceIdRef`) que sao atualizados via `useEffect` separados
+- O `useEffect` principal passa a depender apenas de `hasInstance` e `user?.id` (valores estaveis), sem depender de `checkStatus`
+- Remover o `setIsInstanceConnected(false)` do branch `!hasInstance` e trocar por um simples `return` (manter o estado anterior ate receber confirmacao da API)
 
-Em cada um, mudar de:
-```typescript
-const canSendViaAPI = profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && profile?.whatsapp_to_clients_enabled && clientPhone;
-```
-Para:
-```typescript
-const { isInstanceConnected } = useWhatsAppStatus();
-const canSendViaAPI = isInstanceConnected && profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && profile?.whatsapp_to_clients_enabled && clientPhone;
-```
-
-### 4. Fallback automatico ao detectar erro no envio
-Nos handlers `handleSend` dos componentes, quando o envio via API falhar com erro de conexao (desconectado, 502, QR Code), marcar `isInstanceConnected = false` no contexto. Isso faz com que:
-- Todos os botoes mudem instantaneamente para modo "Cobrar via WhatsApp" (link wa.me)
-- Nenhum erro e mostrado ao usuario
-- O proximo ciclo de verificacao (2 min) pode restaurar se a instancia voltar
-
-### 5. Manter `Profile.tsx` funcionando
-O `useWhatsAppAutoReconnect` existente em Profile.tsx continua funcionando, mas agora o contexto global tambem atualiza o status. Profile.tsx pode consumir o contexto ao inves de ter seu proprio hook.
-
-## Fluxo de funcionamento
-
-```text
-Usuario abre a pagina de Emprestimos
-    |
-    v
-WhatsAppStatusContext verifica status (a cada 2 min)
-    |
-    +-- Conectado: botoes mostram "Enviar Cobranca" (via API)
-    |
-    +-- Desconectado: botoes mostram "Cobrar via WhatsApp" (link wa.me)
-    |
-    v
-Se envio via API falha com erro de conexao
-    |
-    v
-Marca isInstanceConnected = false imediatamente
-    |
-    v
-Todos os botoes mudam para fallback (wa.me) sem mostrar erro
-```
-
-## Resultado esperado
-- Quando a instancia cair, os botoes mudam automaticamente para o modo fallback
-- O usuario nunca ve erros de conexao, apenas o botao muda
-- A verificacao periodica (2 min) restaura o modo API quando a instancia voltar
-- Nenhuma mudanca visual no modo escuro/claro
-
+Isso garante que:
+- O polling de 2 minutos funcione de forma estavel sem ser interrompido
+- O estado `isInstanceConnected` so mude quando a API confirmar conexao/desconexao
+- Os botoes atualizem corretamente apos a conexao da instancia
