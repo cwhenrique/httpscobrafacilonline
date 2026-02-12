@@ -270,7 +270,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-sidebar-background/40 backdrop-blur-md border-r border-sidebar-border overflow-hidden">
+        <div className="flex flex-col flex-grow bg-sidebar border-r border-sidebar-border overflow-hidden">
       <ScrollArea className="flex-1">
         <SidebarContent isEmployee={isEmployee} hasPermission={hasPermission} permissions={permissions} />
       </ScrollArea>
@@ -286,7 +286,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-72 bg-sidebar-background/40 backdrop-blur-md border-sidebar-border">
+          <SheetContent side="left" className="p-0 w-72 bg-sidebar border-sidebar-border">
             <SidebarContent onNavigate={() => setMobileOpen(false)} isEmployee={isEmployee} hasPermission={hasPermission} permissions={permissions} />
           </SheetContent>
           </Sheet>
