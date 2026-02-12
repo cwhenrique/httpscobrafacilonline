@@ -8804,7 +8804,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             )}
                           </PopoverContent>
                         </Popover>
-                        <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                        <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${isPaid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                           <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
@@ -8834,18 +8834,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               return (
                                 <div className="mt-1.5 pt-1.5 border-t border-purple-400/30 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-green-300">
+              <span className="text-green-700 dark:text-green-300">
                 💵 Juros já pago:
               </span>
-              <span className="font-bold text-green-400">
+              <span className="font-bold text-green-800 dark:text-green-400">
                 {formatCurrency(paidForCurrent)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-amber-300">
+              <span className="text-amber-700 dark:text-amber-300">
                 Juros pendente:
               </span>
-              <span className="font-bold text-amber-400">
+              <span className="font-bold text-amber-800 dark:text-amber-400">
                 {formatCurrency(remainingInterest)}
               </span>
             </div>
@@ -9050,7 +9050,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   size="sm" 
                                   variant="outline" 
                                   onClick={() => setConfiguringPenaltyLoanId(null)}
-                                  className="border-red-400/50 text-red-300"
+                                  className="border-red-400/50 text-red-700 dark:text-red-300"
                                 >
                                   Cancelar
                                 </Button>
@@ -9068,7 +9068,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   setInlinePenaltyType(overdueConfigType || 'percentage');
                                   setInlinePenaltyValue(overdueConfigValue.toString());
                                 }}
-                                className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                                className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300 dark:hover:bg-blue-500/10"
                               >
                                 <Pencil className="w-3 h-3 mr-1" />
                                 Editar Juros
@@ -9084,7 +9084,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     totalPerInstallment
                                   );
                                 }}
-                                className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                                className="flex-1 text-orange-700 hover:text-orange-800 hover:bg-orange-500/10 dark:text-orange-300/70 dark:hover:text-orange-300 dark:hover:bg-orange-500/10"
                               >
                                 <DollarSign className="w-3 h-3 mr-1" />
                                 Aplicar Multa
@@ -9100,7 +9100,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </div>
                           )}
 
-                          <p className="text-[10px] text-red-300/60 mt-2">
+                          <p className="text-[10px] text-red-600 dark:text-red-300/60 mt-2">
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
                           {/* Manual overdue notification button */}
@@ -9204,20 +9204,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Due Today Section - Vence Hoje */}
                       {isDueToday && !isOverdue && (
-                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-500/20 border border-amber-400/30">
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-500/20 dark:border-amber-400/30">
                           <div className="text-xs sm:text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-amber-300 font-medium flex items-center gap-2">
+                              <span className="text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
                                 <Bell className="w-4 h-4" />
                                 Vence Hoje!
                               </span>
-                              <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
+                              <span className="text-amber-800 dark:text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
                             </div>
-                            <div className="flex items-center justify-between mt-1 text-amber-300/70">
+                            <div className="flex items-center justify-between mt-1 text-amber-700/70 dark:text-amber-300/70">
                               <span>Parcela {getPaidInstallmentsCount(loan) + 1}/{loan.installments || 1}</span>
                               <span>Vencimento: {formatDate(dueTodayDate)}</span>
                             </div>
-                            <p className="text-[10px] text-amber-300/60 mt-2">
+                            <p className="text-[10px] text-amber-700/60 dark:text-amber-300/60 mt-2">
                               Lembre o cliente para evitar atrasos
                             </p>
                             {/* Manual due today notification button */}
@@ -9342,18 +9342,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 >
                                   <div className="text-xs sm:text-sm">
                                     <div className="flex items-center justify-between">
-                                      <span className={`font-medium ${isSubOverdue ? 'text-amber-300' : 'text-blue-300'}`}>
+                                      <span className={`font-medium ${isSubOverdue ? 'text-amber-700 dark:text-amber-300' : 'text-blue-700 dark:text-blue-300'}`}>
                                         Sub-parcela (Adiantamento P{subparcela.originalIndex + 1})
                                       </span>
                                       {isSubOverdue && (
-                                        <span className="text-amber-200 font-bold">{subDaysOverdue} dias</span>
+                                        <span className="text-amber-800 dark:text-amber-200 font-bold">{subDaysOverdue} dias</span>
                                       )}
                                     </div>
-                                    <div className={`flex items-center justify-between mt-1 ${isSubOverdue ? 'text-amber-300/70' : 'text-blue-300/70'}`}>
+                                    <div className={`flex items-center justify-between mt-1 ${isSubOverdue ? 'text-amber-700/70 dark:text-amber-300/70' : 'text-blue-700/70 dark:text-blue-300/70'}`}>
                                       <span>Vencimento: {formatDate(subparcela.dueDate)}</span>
                                       <span className="font-bold">{formatCurrency(subparcela.amount)}</span>
                                     </div>
-                                    <p className={`text-[10px] mt-1 ${isSubOverdue ? 'text-amber-300/60' : 'text-blue-300/60'}`}>
+                                    <p className={`text-[10px] mt-1 ${isSubOverdue ? 'text-amber-700/60 dark:text-amber-300/60' : 'text-blue-700/60 dark:text-blue-300/60'}`}>
                                       {isSubOverdue ? 'Valor restante do adiantamento em atraso' : 'Valor restante do adiantamento pendente'}
                                     </p>
                                   </div>
@@ -9364,7 +9364,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         );
                       })()}
                       
-                      <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                      <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-border dark:border-white/20' : 'border-t'}`}>
                         <TooltipProvider delayDuration={300}>
                           <div className="flex gap-1.5 sm:gap-2">
                             <Tooltip>
@@ -9372,7 +9372,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                                   onClick={() => { 
                                     setSelectedLoanId(loan.id);
                                     
@@ -9424,7 +9424,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => openRenegotiateDialog(loan.id)}
                                 >
                                   <DollarSign className="w-3 h-3 mr-1" />
@@ -9440,7 +9440,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => openPaymentHistory(loan.id)}
                                 >
                                   <History className="w-3 h-3" />
@@ -9456,7 +9456,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
                                   onClick={() => openSimpleEditDialog(loan.id)}
                                 >
                                   <Pencil className="w-3 h-3" />
@@ -9473,7 +9473,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
                                     onClick={() => {
                                       setExtraInstallmentsLoan(loan);
                                       setIsExtraInstallmentsOpen(true);
@@ -9494,7 +9494,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
                                     onClick={() => openAddPenaltyDialog(loan, totalPerInstallment)}
                                   >
                                     <DollarSign className="w-3 h-3" />
@@ -9513,7 +9513,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
                                   onClick={() => openEditDialog(loan.id)}
                                 >
                                   <RefreshCw className="w-3 h-3" />
