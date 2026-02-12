@@ -8371,7 +8371,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 const cardElement = (
-                  <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                  <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${isPaid ? textColor : ''}`}>
                     <CardContent className="p-3 sm:p-4">
                       {/* Nome em destaque - primeira linha */}
                       <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
@@ -8505,11 +8505,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
-                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
+                          <p className={`font-semibold text-xs sm:text-sm truncate ${isPaid ? 'text-white' : 'text-foreground'}`}>{formatCurrency(loan.principal_amount)}</p>
                         </div>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
+                          <p className={`font-semibold text-xs sm:text-sm truncate ${isPaid ? 'text-white' : 'text-foreground'}`}>{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
                         </div>
                       </div>
                       
