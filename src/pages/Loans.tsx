@@ -8324,18 +8324,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   }
                   // Diário em atraso
                   if (isDaily && isOverdue) {
-                    return 'bg-white dark:bg-gradient-to-r border-l-4 border-red-400 dark:border-l-0 dark:from-red-500/40 dark:to-blue-500/40 dark:border-red-400';
+                    return 'bg-white border-l-4 border-red-400 dark:bg-none dark:bg-gradient-to-r dark:from-red-500/40 dark:to-blue-500/40 dark:border-l-0 dark:border dark:border-red-400';
                   }
                   // Semanal em atraso
                   if (isWeekly && isOverdue) {
-                    return 'bg-white dark:bg-gradient-to-r border-l-4 border-red-400 dark:border-l-0 dark:from-red-500/40 dark:to-orange-500/40 dark:border-red-400';
+                    return 'bg-white border-l-4 border-red-400 dark:bg-none dark:bg-gradient-to-r dark:from-red-500/40 dark:to-orange-500/40 dark:border-l-0 dark:border dark:border-red-400';
                   }
                   // Quinzenal em atraso
                   if (isBiweekly && isOverdue) {
-                    return 'bg-white dark:bg-gradient-to-r border-l-4 border-red-400 dark:border-l-0 dark:from-red-500/40 dark:to-cyan-500/40 dark:border-red-400';
+                    return 'bg-white border-l-4 border-red-400 dark:bg-none dark:bg-gradient-to-r dark:from-red-500/40 dark:to-cyan-500/40 dark:border-l-0 dark:border dark:border-red-400';
                   }
                   if (isOverdue) {
-                    return 'bg-white dark:bg-red-500/30 border-l-4 border-red-400 dark:border-l-0 dark:border-red-400';
+                    return 'bg-white border-l-4 border-red-400 dark:bg-none dark:bg-red-500/30 dark:border-l-0 dark:border dark:border-red-400';
                   }
                   // Diário + Vence hoje: gradiente azul→amarelo
                   if (isDaily && hasDueTodayStyle) {
@@ -8368,7 +8368,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   return 'bg-card';
                 };
                 
-                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-700 dark:text-purple-300' : isRenegotiated ? 'text-pink-700 dark:text-pink-300' : isOverdue ? 'text-red-700 dark:text-red-300' : hasDueTodayStyle ? 'text-amber-700 dark:text-amber-300' : isCompound ? 'text-cyan-700 dark:text-cyan-300' : isBiweekly ? 'text-cyan-700 dark:text-cyan-300' : '';
+                const textColor = isPaid ? 'text-white' : isInterestOnlyPayment ? 'text-purple-700 dark:text-purple-300' : isRenegotiated ? 'text-pink-700 dark:text-pink-300' : isOverdue ? 'text-red-700 dark:text-white' : hasDueTodayStyle ? 'text-amber-700 dark:text-amber-300' : isCompound ? 'text-cyan-700 dark:text-cyan-300' : isBiweekly ? 'text-cyan-700 dark:text-cyan-300' : '';
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 const cardElement = (
