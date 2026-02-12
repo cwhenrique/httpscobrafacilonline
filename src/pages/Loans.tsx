@@ -8812,10 +8812,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Interest only payment option */}
                       {!isDaily && !isPaid && (
-                        <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-purple-500/10 border border-purple-400/30'}`}>
+                        <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-purple-50 border border-purple-300 dark:bg-purple-500/10 dark:border-purple-400/30'}`}>
                           <div className="flex items-center justify-between">
-                            <span className={hasSpecialStyle ? 'text-white/80' : 'text-purple-300'}>Só Juros (por parcela):</span>
-                            <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-purple-400'}`}>
+                            <span className={isPaid ? 'text-white/80' : 'text-purple-700 dark:text-purple-300'}>Só Juros (por parcela):</span>
+                            <span className={`font-bold ${isPaid ? 'text-white' : 'text-purple-800 dark:text-purple-400'}`}>
                               {formatCurrency(calculatedInterestPerInstallment)}
                             </span>
                           </div>
@@ -8868,7 +8868,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Overdue installment info */}
                       {isOverdue && (
-                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-500/20 dark:border-red-400/30">
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-50 border-2 border-red-300 dark:bg-red-500/20 dark:border dark:border-red-400/30">
                           <div className="text-xs sm:text-sm">
                             <div className="flex items-center justify-between">
                               <span className="text-red-700 dark:text-red-300 font-medium">
