@@ -1,62 +1,81 @@
 
-# Corrigir textos brancos no card diario atrasado (modo claro)
+
+# Fallback automatico dos botoes de WhatsApp quando a instancia cair
 
 ## Problema
-No modo claro, o card de emprestimo diario atrasado tem fundo branco mas diversas informacoes usam `text-white` ou `text-white/70`, tornando-as invisiveis. Isso afeta:
-- Labels "Emprestado", "Total a Receber", "Lucro Previsto", "Lucro Realizado"
-- Data de vencimento ("Venc: 10/02/2026")
-- Botoes de acao (Pagar, Historico, Editar, Renegociar, Adicionar Parcela Extra)
-- Texto "restante a receber"
-- Botoes dentro da area de atraso (Editar Juros, Aplicar Multa)
-- Texto de regularizacao
-
-## Causa raiz
-Na secao de emprestimos diarios (linha ~10449), a variavel `hasSpecialStyle = isOverdue || isPaid` faz com que cards atrasados recebam os mesmos estilos visuais de cards pagos (que tem fundo escuro). Isso causa `text-white` em elementos sobre fundo branco.
+Quando a instancia da Evolution API cai (erro 502, sessao expirada, etc.), os botoes de cobranca tentam enviar via API e mostram erro ao usuario. O sistema so verifica o status da conexao na pagina de Perfil, entao as outras paginas (Emprestimos, Vendas, Veiculos) nao sabem que a instancia desconectou.
 
 ## Solucao
-Aplicar a mesma estrategia ja usada nos cards mensais: separar `isPaid` de `isOverdue` para que no modo claro, cards atrasados usem cores escuras.
+Criar um contexto global de status do WhatsApp que verifica periodicamente se a instancia esta conectada. Quando detectar desconexao, todos os botoes de cobranca mudam automaticamente para o modo fallback (link wa.me), sem mostrar erro.
 
-## Alteracoes tecnicas em `src/pages/Loans.tsx`
+## Alteracoes tecnicas
 
-### 1. Corrigir `mutedTextColor` (linha 10450)
-Mudar de:
-```
-const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+### 1. Criar contexto global `src/contexts/WhatsAppStatusContext.tsx`
+- Context React que encapsula o `useWhatsAppAutoReconnect` existente
+- Expoe `isInstanceConnected` (boolean) para toda a aplicacao
+- Verifica o status a cada 2 minutos (usando o hook existente)
+- Quando `send-whatsapp-to-client` retorna erro de conexao, marca imediatamente como desconectado
+- Provider colocado no `App.tsx` (dentro do AuthProvider)
+
+### 2. Adicionar o Provider no `src/App.tsx`
+- Envolver as rotas com `<WhatsAppStatusProvider>`
+
+### 3. Atualizar `canSendViaAPI` nos componentes de notificacao
+Adicionar a verificacao `isInstanceConnected` em todos os componentes que usam `canSendViaAPI`:
+- `SendOverdueNotification.tsx`
+- `SendDueTodayNotification.tsx`
+- `SendEarlyNotification.tsx`
+- `CheckDiscountNotifications.tsx`
+- `PaymentReceiptPrompt.tsx`
+- `LoanCreatedReceiptPrompt.tsx`
+- `SaleCreatedReceiptPrompt.tsx`
+- `ReceiptPreviewDialog.tsx`
+- `LoansTableView.tsx`
+
+Em cada um, mudar de:
+```typescript
+const canSendViaAPI = profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && profile?.whatsapp_to_clients_enabled && clientPhone;
 ```
 Para:
-```
-const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
-```
-
-### 2. Remover `textColor` do Card (linha 10539)
-Mudar de:
-```
-<Card ... className={`... ${textColor}`}>
-```
-Para:
-```
-<Card ... className={`... ${isPaid ? textColor : ''}`}>
+```typescript
+const { isInstanceConnected } = useWhatsAppStatus();
+const canSendViaAPI = isInstanceConnected && profile?.whatsapp_instance_id && profile?.whatsapp_connected_phone && profile?.whatsapp_to_clients_enabled && clientPhone;
 ```
 
-### 3. Corrigir valores "Emprestado" e "Total a Receber" (linhas 10643, 10647)
-Adicionar `text-foreground` explicito quando nao e pago.
+### 4. Fallback automatico ao detectar erro no envio
+Nos handlers `handleSend` dos componentes, quando o envio via API falhar com erro de conexao (desconectado, 502, QR Code), marcar `isInstanceConnected = false` no contexto. Isso faz com que:
+- Todos os botoes mudem instantaneamente para modo "Cobrar via WhatsApp" (link wa.me)
+- Nenhum erro e mostrado ao usuario
+- O proximo ciclo de verificacao (2 min) pode restaurar se a instancia voltar
 
-### 4. Corrigir botoes de acao (linhas 11433-11560)
-Em todos os botoes, substituir `hasSpecialStyle` por `isPaid` nas condicoes de estilo:
-- Botao "Pagar" (linha 11441)
-- Botao "Historico" (linha 11481)
-- Botao "Editar" (linha 11497)
-- Botao "Renegociar" (linha 11513)
-- Botao "Parcelas Extras" (linha 11530)
-- Variantes dos botoes (`variant={hasSpecialStyle ? 'secondary' : 'outline'}` → `variant={isPaid ? 'secondary' : 'outline'}`)
+### 5. Manter `Profile.tsx` funcionando
+O `useWhatsAppAutoReconnect` existente em Profile.tsx continua funcionando, mas agora o contexto global tambem atualiza o status. Profile.tsx pode consumir o contexto ao inves de ter seu proprio hook.
 
-### 5. Corrigir borda da area de botoes (linha 11433)
-Mudar `hasSpecialStyle ? 'border-t border-white/20'` para `isPaid ? 'border-t border-white/20'`
+## Fluxo de funcionamento
 
-### 6. Corrigir textos na area de atraso diario
-- "Regularize as parcelas" (linha 11257): `text-red-300/60` → `text-red-600 dark:text-red-300/60`
-- Botoes "Editar Juros" e "Aplicar Multa" (linhas 11234, 11249): adicionar cores escuras para modo claro
-- Cancelar botao (linha 11216): `text-blue-300` → `text-blue-700 dark:text-blue-300`
+```text
+Usuario abre a pagina de Emprestimos
+    |
+    v
+WhatsAppStatusContext verifica status (a cada 2 min)
+    |
+    +-- Conectado: botoes mostram "Enviar Cobranca" (via API)
+    |
+    +-- Desconectado: botoes mostram "Cobrar via WhatsApp" (link wa.me)
+    |
+    v
+Se envio via API falha com erro de conexao
+    |
+    v
+Marca isInstanceConnected = false imediatamente
+    |
+    v
+Todos os botoes mudam para fallback (wa.me) sem mostrar erro
+```
 
-### 7. Modo escuro preservado
-Todas as alteracoes usam prefixo `dark:` para manter os estilos atuais do modo escuro inalterados.
+## Resultado esperado
+- Quando a instancia cair, os botoes mudam automaticamente para o modo fallback
+- O usuario nunca ve erros de conexao, apenas o botao muda
+- A verificacao periodica (2 min) restaura o modo API quando a instancia voltar
+- Nenhuma mudanca visual no modo escuro/claro
+
