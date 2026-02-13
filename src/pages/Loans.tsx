@@ -132,6 +132,36 @@ const getTotalAmortizationsFromNotes = (notes: string | null): number => {
   return total;
 };
 
+// Helper para extrair principal e juros efetivos por parcela considerando amortizações
+// Se houve amortização, usa os valores da última tag [AMORTIZATION:valor:novo_principal:novos_juros:data]
+const getEffectivePerInstallmentValues = (
+  notes: string | null,
+  isDaily: boolean,
+  numInstallments: number,
+  originalPrincipalPerInstallment: number,
+  originalInterestPerInstallment: number
+): { principalPerInstallment: number; interestPerInstallment: number } => {
+  if (!notes || isDaily) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  const totalAmortizations = getTotalAmortizationsFromNotes(notes);
+  if (totalAmortizations <= 0) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  // Extrair último AMORTIZATION tag para pegar novo principal e novos juros
+  const amortTags = [...notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):/g)];
+  if (amortTags.length === 0) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  const lastTag = amortTags[amortTags.length - 1];
+  const lastNewPrincipal = parseFloat(lastTag[1]);
+  const lastNewInterest = parseFloat(lastTag[2]);
+  return {
+    principalPerInstallment: lastNewPrincipal / numInstallments,
+    interestPerInstallment: lastNewInterest / numInstallments,
+  };
+};
+
 // Helper para calcular o valor efetivo da parcela considerando amortizações
 // Se houve amortização, usa remaining_balance / parcelas_restantes
 // Caso contrário, usa o cálculo normal (principal/parcelas + juros/parcelas)
@@ -8005,8 +8035,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                   penaltyType: overdueConfigType,
                   penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                   isDaily,
                   manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                   hasDynamicPenalty: overdueConfigValue > 0,
@@ -8049,8 +8079,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
                   dueDate: todayInfo.dueDate,
                   loanId: loan.id,
-                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                   isDaily,
                   installmentDates: (loan.installment_dates as string[]) || [],
                   paidCount,
@@ -9191,8 +9221,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                 penaltyType: overdueConfigType || undefined,
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                                interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                 isDaily: loan.payment_type === 'daily',
                                 // Multa manual aplicada
                                 manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
@@ -9238,8 +9268,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: todayInfo.dueDate,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
@@ -9299,8 +9329,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: dueTodayDate,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Pagamento parcial de juros
                                   partialInterestPaid: (() => {
@@ -9351,8 +9381,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   dueDate: nextDueDate,
                                   daysUntilDue: daysUntilDue,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
@@ -10399,8 +10429,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                     penaltyType: overdueConfigType,
                     penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                    principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                     isDaily,
                     manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                     hasDynamicPenalty: overdueConfigValue > 0,
@@ -10443,8 +10473,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
                     dueDate: todayInfo.dueDate,
                     loanId: loan.id,
-                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                    principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                     isDaily,
                     installmentDates: (loan.installment_dates as string[]) || [],
                     paidCount,
