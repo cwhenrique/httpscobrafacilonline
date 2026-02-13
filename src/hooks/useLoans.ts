@@ -296,6 +296,7 @@ export function useLoans() {
       .insert({
         ...paymentData,
         user_id: effectiveUserId,
+        created_by: user.id, // ID real do usuário logado (funcionário ou dono)
       })
       .select()
       .single();
