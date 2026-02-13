@@ -1,74 +1,66 @@
 
-# Correção: Mensagem de Cobrança Não Atualiza Após Amortização
+# Correcao de Visibilidade dos Cards de Emprestimo em Atraso no Modo Claro
 
-## Problema Identificado
+## Problema
 
-Quando o usuário faz uma amortização, o **valor total da parcela** na mensagem de cobrança é atualizado corretamente (via `getEffectiveInstallmentValue` que usa `remaining_balance / parcelas_restantes`). Porém, os campos **interestAmount** (juros por parcela) e **principalAmount** (principal por parcela) continuam usando os valores **originais** do empréstimo, sem considerar a amortização.
+No modo claro, os cards de emprestimos em atraso (diario e normal) ficam com texto ilegivel:
+- Texto branco (`text-white`) sobre fundo vermelho/gradiente avermelhado
+- Texto `text-red-300` (vermelho claro) sobre fundo vermelho -- impossivel de ler
+- Badges com cores claras (`text-destructive`, `text-amber-300`) sobre fundos coloridos
 
-Isso afeta:
-- A seção "Opções de Pagamento" na mensagem (ex: "Só juros: R$ X" e "Parcela de R$ Y segue para próximo mês")
-- O cálculo de juros por atraso baseado em percentual (que usa `totalPerInstallment` original)
-- O cálculo de multa dinâmica por percentual
+O modo escuro deve permanecer **inalterado**.
 
-## Causa Raiz
+## Solucao
 
-No arquivo `src/pages/Loans.tsx`, ao montar os dados para os componentes de notificação (`SendOverdueNotification`, `SendDueTodayNotification`, `SendEarlyNotification`):
+Adicionar variantes `dark:` para manter o estilo escuro atual e usar cores de alto contraste no modo claro para os cards em atraso.
 
-```
-// Linha 8106 - Sempre usa principal ORIGINAL
-const principalPerInstallment = loan.principal_amount / numInstallments;
+### Arquivos a editar
 
-// Linha 8126 - Sempre usa juros ORIGINAIS  
-const calculatedInterestPerInstallment = effectiveTotalInterest / numInstallments;
+**`src/pages/Loans.tsx`** - 2 secoes de `getCardStyle` e `textColor`:
 
-// Linha 9186 - CORRETO: usa remaining_balance após amortização
-amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
+**1. Cards de emprestimo normal (linha ~8305)**
 
-// Linhas 9194-9195 - INCORRETO: usa valores originais
-interestAmount: calculatedInterestPerInstallment,  // juros originais
-principalAmount: principalPerInstallment,           // principal original
-```
+Alterar os estilos de overdue para usar fundo mais suave no light mode com texto escuro:
 
-## Plano de Correção
+| Situacao | Light (novo) | Dark (mantido) |
+|----------|-------------|----------------|
+| Daily + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-blue-500/40` |
+| Weekly + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-orange-500/40` |
+| Biweekly + overdue | `bg-red-50 border-red-300` | `dark:from-red-500/40 dark:to-cyan-500/40` |
+| Generic overdue | `bg-red-50 border-red-300` | `dark:bg-red-500/30 dark:border-red-400` |
+| textColor overdue | `text-red-700` | `dark:text-red-300` |
 
-### Modificar `src/pages/Loans.tsx`
+**2. Cards de emprestimo diario (linha ~10524)**
 
-Em todos os locais onde os dados de notificação são montados (cards de empréstimo e tabela), recalcular `principalAmount` e `interestAmount` considerando amortizações:
+| Situacao | Light (novo) | Dark (mantido) |
+|----------|-------------|----------------|
+| Overdue | `bg-red-50 border-red-300 border-l-4 border-l-red-500` | `dark:from-red-500/80 dark:to-blue-500/80 dark:text-white` |
+| textColor overdue | `text-red-700` | `dark:text-red-300` |
 
-1. Após calcular `getEffectiveInstallmentValue`, verificar se houve amortização
-2. Se houve, extrair o novo principal e novos juros da tag `[AMORTIZATION:valor:novo_principal:novos_juros:data]` mais recente
-3. Calcular `principalPerInstallmentEffective` e `interestPerInstallmentEffective` com base nos novos valores
+**3. Badges de status nos cards**
 
-**Lógica:**
-```
-const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
-if (totalAmortizations > 0 && !isDaily) {
-  // Extrair ultimo AMORTIZATION tag para pegar novo principal e novos juros
-  const amortTags = loan.notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):/g);
-  let lastNewPrincipal = loan.principal_amount;
-  let lastNewInterest = effectiveTotalInterest;
-  for (const m of amortTags) {
-    lastNewPrincipal = parseFloat(m[1]);
-    lastNewInterest = parseFloat(m[2]);
-  }
-  const paidCount = getPaidInstallmentsCount(loan);
-  const remaining = Math.max(1, numInstallments - paidCount);
-  principalPerInstallmentEffective = lastNewPrincipal / numInstallments;
-  interestPerInstallmentEffective = lastNewInterest / numInstallments;
-}
-```
+Atualizar os badges "Atrasado" para usar cores legiveis no light mode:
+- Light: `bg-red-100 text-red-700 border-red-300`
+- Dark: manter `dark:bg-destructive/10 dark:text-destructive dark:border-destructive/20`
 
-4. Passar esses valores efetivos para os componentes de notificação em vez dos originais
+### Principio
 
-### Locais a Alterar
+No modo claro, cards em atraso usarao:
+- Fundo: `bg-red-50` (branco rosado, suave)
+- Borda: `border-red-300` com `border-l-4 border-l-red-500` (barra lateral vermelha forte)
+- Texto principal: `text-red-700` (vermelho escuro, alto contraste)
+- Texto secundario: `text-gray-700` (escuro, legivel)
 
-Existem multiplas instancias no arquivo onde `interestAmount` e `principalAmount` sao passados aos componentes de notificacao. Todos precisam ser atualizados:
+Isso segue o padrao ja documentado na memoria do projeto: "fundo branco solido com borda lateral colorida e texto de alto contraste" para o modo claro.
 
-- Cards de emprestimos (seção de cards - ~linhas 9186-9195)
-- Cards de emprestimos duplicados (seção inferior - ~linhas 11339+)
-- Tabela de emprestimos (`getOverdueNotificationData` - ~linhas 7948+)
-- Notificações "Vence Hoje" e "Antecipar" nos mesmos escopos
+### Secao tecnica
 
-### Arquivos a Modificar
+As mudancas sao concentradas em `src/pages/Loans.tsx` nas duas funcoes `getCardStyle()`:
+- Linha ~8305 (emprestimos normais)
+- Linha ~10524 (emprestimos diarios)
 
-- `src/pages/Loans.tsx` (unico arquivo)
+E nas linhas de `textColor`:
+- Linha ~8370 (normais)
+- Linha ~10536 (diarios)
+
+Cada estilo sera modificado para adicionar prefixos `dark:` nos estilos atuais e novos estilos sem prefixo para o modo claro.

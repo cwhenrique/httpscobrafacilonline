@@ -149,11 +149,10 @@ export default function ClientScores() {
       const expectedProfit = loan.total_interest || 0;
       
       // Lucro realizado = SOMA REAL de interest_paid dos pagamentos (fonte de verdade)
-      // Inclui multas e penalidades no lucro realizado
       const actualInterestReceived = interestByLoan.get(loan.id) || 0;
       
-      // Lucro realizado = tudo que foi recebido de juros + multas
-      const realizedProfit = actualInterestReceived;
+      // Lucro realizado limitado ao previsto (máximo 100%)
+      const realizedProfit = Math.min(actualInterestReceived, expectedProfit);
       
       // Lucro EXTRA = o que passou do previsto (multas, penalidades)
       const extraProfit = Math.max(0, actualInterestReceived - expectedProfit);

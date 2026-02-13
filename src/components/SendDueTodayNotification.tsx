@@ -9,7 +9,6 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { useWhatsAppStatus } from '@/contexts/WhatsAppStatusContext';
 
 interface DueTodayData {
   clientName: string;
@@ -88,9 +87,7 @@ export default function SendDueTodayNotification({
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
   const canSendViaAPI =
-    isInstanceConnected &&
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
@@ -318,12 +315,6 @@ export default function SendDueTodayNotification({
       }
     } catch (error: any) {
       console.error('Error sending due today notification:', error);
-      const errorStr = error.message || '';
-      if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code') || errorStr.includes('502') || errorStr.includes('503')) {
-        markDisconnected();
-        setShowPreview(false);
-        return;
-      }
       toast.error('Erro ao enviar lembrete: ' + (error.message || 'Tente novamente'));
     } finally {
       setIsSending(false);

@@ -161,6 +161,3 @@ verify_jwt = false
 
 [functions.verify-and-update-profile]
 verify_jwt = false
-
-[functions.whatsapp-status-webhook]
-verify_jwt = false

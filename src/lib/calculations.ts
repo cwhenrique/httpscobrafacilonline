@@ -306,7 +306,7 @@ interface LoanForCalculation {
 /**
  * Extrai pagamentos parciais registrados no campo notes
  */
-export function getPartialPaymentsFromNotes(notes: string | null): Record<number, number> {
+function getPartialPaymentsFromNotes(notes: string | null): Record<number, number> {
   const payments: Record<number, number> = {};
   const matches = (notes || '').matchAll(/\[PARTIAL_PAID:(\d+):([0-9.]+)\]/g);
   for (const match of matches) {

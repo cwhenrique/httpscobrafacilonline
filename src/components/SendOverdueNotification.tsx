@@ -9,7 +9,6 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { useWhatsAppStatus } from '@/contexts/WhatsAppStatusContext';
 
 interface OverdueData {
   clientName: string;
@@ -119,9 +118,7 @@ export default function SendOverdueNotification({
   const { user } = useAuth();
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
-  const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
   const canSendViaAPI =
-    isInstanceConnected &&
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
@@ -434,11 +431,8 @@ export default function SendOverdueNotification({
       
       if (errorStr.includes('não possui WhatsApp') || errorStr.includes('NUMBER_NOT_ON_WHATSAPP')) {
         errorMessage = `O número "${data.clientPhone}" não possui WhatsApp. Verifique o cadastro do cliente.`;
-      } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code') || errorStr.includes('502') || errorStr.includes('503')) {
-        markDisconnected();
-        // Silently fallback - button will switch to wa.me mode
-        setShowPreview(false);
-        return;
+      } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code')) {
+        errorMessage = 'WhatsApp desconectado. Reconecte nas configurações.';
       } else if (errorStr.includes('telefone') || errorStr.includes('phone') || errorStr.includes('inválido')) {
         errorMessage = `Número inválido: "${data.clientPhone}". Atualize o cadastro.`;
       } else if (errorStr.includes('desativado')) {

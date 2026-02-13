@@ -9,7 +9,6 @@ import SpamWarningDialog from './SpamWarningDialog';
 import MessagePreviewDialog from './MessagePreviewDialog';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsappMessages } from '@/hooks/useWhatsappMessages';
-import { useWhatsAppStatus } from '@/contexts/WhatsAppStatusContext';
 import {
   formatCurrency,
   formatDate,
@@ -72,9 +71,7 @@ export function CheckNotificationButton({
   const clientPhone = check.clients?.phone;
   const clientName = check.clients?.full_name || check.issuer_name || 'Cliente';
 
-  const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
   const canSendViaAPI =
-    isInstanceConnected &&
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
     profile?.whatsapp_to_clients_enabled &&
@@ -254,10 +251,8 @@ export function CheckNotificationButton({
       
       if (errorStr.includes('não possui WhatsApp') || errorStr.includes('NUMBER_NOT_ON_WHATSAPP')) {
         errorMessage = `O número não possui WhatsApp.`;
-      } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('502') || errorStr.includes('503')) {
-        markDisconnected();
-        setShowPreview(false);
-        return;
+      } else if (errorStr.includes('Reconecte') || errorStr.includes('desconectado')) {
+        errorMessage = 'WhatsApp desconectado. Reconecte nas configurações.';
       } else if (errorStr) {
         errorMessage = errorStr;
       }
