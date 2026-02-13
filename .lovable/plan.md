@@ -1,62 +1,74 @@
 
+# Correção: Mensagem de Cobrança Não Atualiza Após Amortização
 
-# Correção: Empréstimos Quitados Reabertos pela Migração
+## Problema Identificado
+
+Quando o usuário faz uma amortização, o **valor total da parcela** na mensagem de cobrança é atualizado corretamente (via `getEffectiveInstallmentValue` que usa `remaining_balance / parcelas_restantes`). Porém, os campos **interestAmount** (juros por parcela) e **principalAmount** (principal por parcela) continuam usando os valores **originais** do empréstimo, sem considerar a amortização.
+
+Isso afeta:
+- A seção "Opções de Pagamento" na mensagem (ex: "Só juros: R$ X" e "Parcela de R$ Y segue para próximo mês")
+- O cálculo de juros por atraso baseado em percentual (que usa `totalPerInstallment` original)
+- O cálculo de multa dinâmica por percentual
 
 ## Causa Raiz
 
-A migração que adicionou a coluna `created_by` na tabela `loan_payments` executou:
-```sql
-UPDATE loan_payments SET created_by = user_id WHERE created_by IS NULL;
-```
-
-Esse UPDATE disparou o gatilho `recalculate_loan_total_paid` em **todas as linhas de pagamentos**, recalculando o saldo de **13.029 empréstimos** no sistema inteiro. Desses, **396 empréstimos** que estavam quitados voltaram a ficar "abertos" (pending/overdue).
-
-## Por que o recálculo deu errado?
-
-O gatilho calcula o saldo restante assim:
+No arquivo `src/pages/Loans.tsx`, ao montar os dados para os componentes de notificação (`SendOverdueNotification`, `SendDueTodayNotification`, `SendEarlyNotification`):
 
 ```
-remaining_balance = total_a_receber - pagamentos_que_reduzem_saldo
+// Linha 8106 - Sempre usa principal ORIGINAL
+const principalPerInstallment = loan.principal_amount / numInstallments;
+
+// Linha 8126 - Sempre usa juros ORIGINAIS  
+const calculatedInterestPerInstallment = effectiveTotalInterest / numInstallments;
+
+// Linha 9186 - CORRETO: usa remaining_balance após amortização
+amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
+
+// Linhas 9194-9195 - INCORRETO: usa valores originais
+interestAmount: calculatedInterestPerInstallment,  // juros originais
+principalAmount: principalPerInstallment,           // principal original
 ```
-
-Pagamentos marcados como `[INTEREST_ONLY_PAYMENT]` ou `[AMORTIZATION]` sao **excluidos** do calculo de "pagamentos que reduzem saldo". Isso faz sentido durante a vida do emprestimo, mas quando o cliente ja pagou **tudo** (principal + juros), o gatilho ainda mostra saldo restante porque ignora os pagamentos de juros.
-
-**Exemplo concreto do usuario tarciziomartinez@gmail.com:**
-- Emprestimo `d5ec15dc`: Principal R$ 5.000 + Juros R$ 1.250 = Total R$ 6.250
-- Pagou R$ 5.000 (normal) + R$ 1.250 (interest-only) = R$ 6.250 total
-- Gatilho calcula: remaining = 6.250 - 5.000 = R$ 1.250 (ignora o pagamento de juros)
-- Status: "overdue" em vez de "paid"
 
 ## Plano de Correção
 
-### 1. Corrigir o gatilho `recalculate_loan_total_paid`
+### Modificar `src/pages/Loans.tsx`
 
-Adicionar uma verificacao **antes** do calculo de remaining_balance: se `total_paid >= total_to_receive`, o emprestimo esta quitado independentemente do tipo de pagamento.
+Em todos os locais onde os dados de notificação são montados (cards de empréstimo e tabela), recalcular `principalAmount` e `interestAmount` considerando amortizações:
 
-```sql
--- Nova verificacao apos calcular total_to_receive:
-IF total_payments >= total_to_receive - 0.01 THEN
-  -- Pago integralmente, nao importa como
-  UPDATE loans SET remaining_balance = 0, status = 'paid', ...
-  RETURN;
-END IF;
+1. Após calcular `getEffectiveInstallmentValue`, verificar se houve amortização
+2. Se houve, extrair o novo principal e novos juros da tag `[AMORTIZATION:valor:novo_principal:novos_juros:data]` mais recente
+3. Calcular `principalPerInstallmentEffective` e `interestPerInstallmentEffective` com base nos novos valores
+
+**Lógica:**
+```
+const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
+if (totalAmortizations > 0 && !isDaily) {
+  // Extrair ultimo AMORTIZATION tag para pegar novo principal e novos juros
+  const amortTags = loan.notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):/g);
+  let lastNewPrincipal = loan.principal_amount;
+  let lastNewInterest = effectiveTotalInterest;
+  for (const m of amortTags) {
+    lastNewPrincipal = parseFloat(m[1]);
+    lastNewInterest = parseFloat(m[2]);
+  }
+  const paidCount = getPaidInstallmentsCount(loan);
+  const remaining = Math.max(1, numInstallments - paidCount);
+  principalPerInstallmentEffective = lastNewPrincipal / numInstallments;
+  interestPerInstallmentEffective = lastNewInterest / numInstallments;
+}
 ```
 
-### 2. Corrigir os 396 empréstimos afetados
+4. Passar esses valores efetivos para os componentes de notificação em vez dos originais
 
-Executar uma query de reparo para restaurar o status correto dos emprestimos que tiveram total_paid >= total_a_receber mas estao com status != 'paid'.
+### Locais a Alterar
 
-### 3. Detalhes tecnicos
+Existem multiplas instancias no arquivo onde `interestAmount` e `principalAmount` sao passados aos componentes de notificacao. Todos precisam ser atualizados:
 
-**Migracao SQL:**
-- Atualizar a funcao `recalculate_loan_total_paid` com a verificacao adicional
-- UPDATE em loans afetados para restaurar status = 'paid' e remaining_balance = 0
+- Cards de emprestimos (seção de cards - ~linhas 9186-9195)
+- Cards de emprestimos duplicados (seção inferior - ~linhas 11339+)
+- Tabela de emprestimos (`getOverdueNotificationData` - ~linhas 7948+)
+- Notificações "Vence Hoje" e "Antecipar" nos mesmos escopos
 
-**Condicoes do reparo:**
-- Emprestimos normais (nao-daily): `total_paid >= principal_amount + total_interest`
-- Emprestimos daily: `total_paid >= total_interest * installments`
-- Excluir emprestimos com tag `[DISCOUNT_SETTLEMENT]` (ja tratados separadamente)
+### Arquivos a Modificar
 
-**Arquivos a modificar:**
-- Nova migracao SQL apenas (sem alteracao de codigo frontend)
-
+- `src/pages/Loans.tsx` (unico arquivo)
