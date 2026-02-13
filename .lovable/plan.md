@@ -1,29 +1,70 @@
 
-# Corrigir botao "Cobrar via WhatsApp" que nao atualiza apos conexao
+# Recebimentos Separados por Funcionario
 
-## Problema
-O `WhatsAppStatusContext` tem uma condicao de corrida: o callback `checkStatus` depende de `profile?.whatsapp_instance_id` no array de dependencias do `useCallback`. Cada vez que o perfil e refetchado (o que acontece varias vezes durante a navegacao), o `checkStatus` e recriado, o efeito re-executa, e durante renders intermediarios (quando profile ainda esta null/loading), o `hasInstance` fica `false` e o estado `isInstanceConnected` e resetado para `false`.
+## Objetivo
+Quando o dono da conta tem funcionarios ativos, a area de **Recebimentos** deve exibir os valores que o funcionario registrou separados dos valores registrados pelo proprio dono, permitindo controle de quem recebeu o que no dia.
 
-Os logs confirmam isso: ciclos repetidos de "Starting monitoring" / "Stopping monitoring" indicando que o efeito esta re-executando constantemente.
+## Problema Atual
+A tabela `loan_payments` nao possui um campo `created_by`, entao nao e possivel saber quem registrou cada pagamento. Todos os pagamentos aparecem juntos sem distincao.
 
-## Solucao
-Estabilizar o contexto usando refs para valores que mudam frequentemente, evitando a recriacao constante do callback e do efeito.
+## Plano de Implementacao
 
-## Alteracoes tecnicas
+### 1. Adicionar coluna `created_by` na tabela `loan_payments`
+- Nova coluna `created_by UUID NOT NULL DEFAULT auth.uid()`
+- Pagamentos existentes terao `created_by = user_id` (preenchimento retroativo)
+- Isso permite rastrear qual usuario (dono ou funcionario) registrou o pagamento
 
-### Arquivo: `src/contexts/WhatsAppStatusContext.tsx`
+### 2. Atualizar o hook `useLoans.ts` - Inserir `created_by`
+- Na funcao `addPayment`, incluir `created_by: user?.id` (o ID real do usuario logado, nao o `effectiveUserId`)
+- `user_id` continua sendo o `effectiveUserId` (dono) para RLS
+- `created_by` sera o `auth.uid()` real (funcionario ou dono)
 
-1. Usar `useRef` para `user.id` e `profile.whatsapp_instance_id` ao inves de coloca-los nas dependencias do `useCallback`
-2. Remover `checkStatus` do array de dependencias do `useEffect` principal
-3. Nao resetar `isInstanceConnected` para `false` quando `hasInstance` muda temporariamente (apenas quando recebemos uma resposta definitiva da API)
-4. Fazer o check inicial apenas uma vez e manter o polling estavel
+### 3. Modificar o componente `PaymentsHistoryTab`
+- Buscar dados dos funcionarios ativos do dono
+- Agrupar pagamentos por `created_by`:
+  - **Secao "Meus Recebimentos"**: pagamentos onde `created_by = user.id` (dono)
+  - **Secao por funcionario**: pagamentos onde `created_by = employee_user_id`, com nome do funcionario
+- Cada secao tera seus proprios cards de resumo (Total Recebido, Juros, Principal, Qtd)
+- Cards de resumo geral no topo continuam mostrando o total consolidado
 
-Mudancas especificas:
-- Trocar as dependencias do `useCallback` de `checkStatus` para usar refs (`userIdRef` e `instanceIdRef`) que sao atualizados via `useEffect` separados
-- O `useEffect` principal passa a depender apenas de `hasInstance` e `user?.id` (valores estaveis), sem depender de `checkStatus`
-- Remover o `setIsInstanceConnected(false)` do branch `!hasInstance` e trocar por um simples `return` (manter o estado anterior ate receber confirmacao da API)
+### 4. Layout Visual
+```text
++-----------------------------------------------+
+| Resumo Total (consolidado)                     |
+| Total Recebido | Juros | Principal | Qtd       |
++-----------------------------------------------+
 
-Isso garante que:
-- O polling de 2 minutos funcione de forma estavel sem ser interrompido
-- O estado `isInstanceConnected` so mude quando a API confirmar conexao/desconexao
-- Os botoes atualizem corretamente apos a conexao da instancia
++-----------------------------------------------+
+| Meus Recebimentos (Dono)           R$ X.XXX   |
+| [tabela de pagamentos do dono]                 |
++-----------------------------------------------+
+
++-----------------------------------------------+
+| Funcionario: "Secretaria"          R$ X.XXX   |
+| [tabela de pagamentos do funcionario]          |
++-----------------------------------------------+
+```
+
+- Se o usuario nao tem funcionarios ativos, o layout permanece como esta hoje (sem separacao)
+- Cada secao e colapsavel para facilitar navegacao
+
+### Detalhes Tecnicos
+
+**Migracao SQL:**
+```sql
+ALTER TABLE loan_payments ADD COLUMN created_by UUID DEFAULT auth.uid();
+UPDATE loan_payments SET created_by = user_id WHERE created_by IS NULL;
+ALTER TABLE loan_payments ALTER COLUMN created_by SET NOT NULL;
+```
+
+**Query de pagamentos (atualizada):**
+- Incluir `created_by` no SELECT
+- JOIN com `employees` para obter nome do funcionario registrador
+
+**Logica de agrupamento:**
+- Buscar funcionarios ativos do dono: `SELECT employee_user_id, name FROM employees WHERE owner_id = user.id AND is_active = true`
+- Agrupar pagamentos: `payments.filter(p => p.created_by === userId)` para o dono, e filtrar por cada `employee_user_id` para funcionarios
+
+**Condicao de exibicao:**
+- Separacao so aparece quando `isOwner === true` e existem funcionarios ativos
+- Funcionarios veem apenas seus proprios recebimentos (sem separacao)
