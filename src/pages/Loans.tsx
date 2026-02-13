@@ -4443,6 +4443,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_paid = Math.min(amount, remainingInterest);
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      // Separar índices regulares (>=0) de sub-parcelas (<0)
+      const regularIndices = paymentData.selected_installments.filter(i => i >= 0);
+      const subparcelaIndices = paymentData.selected_installments.filter(i => i < 0);
+      
       // 🆕 CORREÇÃO: Função helper para extrair pagamentos parciais do notes (definida aqui para uso imediato)
       const getPartialsForCalc = (notes: string | null): Record<number, number> => {
         const payments: Record<number, number> = {};
@@ -4454,13 +4458,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       };
       const partialsForCalc = getPartialsForCalc(selectedLoan.notes);
       
-      // 🆕 CORREÇÃO: Calcular valor restante da parcela descontando pagamentos parciais já feitos
-      amount = paymentData.selected_installments.reduce((sum, i) => {
+      // Calcular valor de parcelas regulares
+      let regularAmount = regularIndices.reduce((sum, i) => {
         const fullValue = getInstallmentValue(i);
         const alreadyPaid = partialsForCalc[i] || 0;
         const remaining = Math.max(0, fullValue - alreadyPaid);
         return sum + remaining;
       }, 0);
+      
+      // Calcular valor de sub-parcelas (índices negativos)
+      const advanceSubparcelasForCalc = getAdvanceSubparcelasFromNotes(freshLoanData?.notes || selectedLoan.notes);
+      let subparcelaAmount = subparcelaIndices.reduce((sum, i) => {
+        const subIdx = Math.abs(i) - 1;
+        return sum + (advanceSubparcelasForCalc[subIdx]?.amount || 0);
+      }, 0);
+      
+      amount = regularAmount + subparcelaAmount;
       
       // 🆕 Validar se há valor a pagar
       if (amount <= 0.01) {
@@ -4471,15 +4484,25 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }
       
       // Calcular juros e principal proporcionalmente ao valor efetivamente pago
-      const fullInstallmentsTotal = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
-      const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
-      const extraAmount = fullInstallmentsTotal - baseTotal; // Valor extra da taxa de renovação
+      const fullInstallmentsTotal = regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) + subparcelaAmount;
+      const regularCount = regularIndices.length;
+      const baseTotal = baseInstallmentValue * regularCount;
+      const extraAmount = (regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0)) - baseTotal;
       
       // Proporção do valor que está sendo efetivamente pago
-      const paymentRatio = fullInstallmentsTotal > 0 ? amount / fullInstallmentsTotal : 0;
+      const totalContract = selectedLoan.principal_amount + (selectedLoan.total_interest ? (selectedLoan.total_interest * numInstallments - selectedLoan.principal_amount) : 0);
+      const interestRatio = totalContract > 0 ? (totalContract - selectedLoan.principal_amount) / totalContract : 0;
       
-      interest_paid = ((interestPerInstallment * paymentData.selected_installments.length) + extraAmount) * paymentRatio;
-      principal_paid = principalPerInstallment * paymentData.selected_installments.length * paymentRatio;
+      if (regularCount > 0) {
+        const paymentRatio = fullInstallmentsTotal > 0 ? regularAmount / (regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) || 1) : 0;
+        interest_paid = ((interestPerInstallment * regularCount) + extraAmount) * paymentRatio;
+        principal_paid = principalPerInstallment * regularCount * paymentRatio;
+      }
+      // Add sub-parcela proportional split
+      if (subparcelaAmount > 0) {
+        interest_paid += subparcelaAmount * interestRatio;
+        principal_paid += subparcelaAmount * (1 - interestRatio);
+      }
     } else {
       // Partial payment - permite pagar menos que uma parcela
       amount = parseFloat(paymentData.amount);
@@ -4558,13 +4581,24 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     let installmentNote = '';
     
     if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-      // Pagamento de parcelas selecionadas - marca como completas
-      installmentNote = paymentData.selected_installments.length === 1
-        ? `Parcela ${paymentData.selected_installments[0] + 1} de ${numInstallments}`
-        : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`;
+      // Separar índices regulares de sub-parcelas (negativos)
+      const regularIndicesForNotes = paymentData.selected_installments.filter(i => i >= 0);
+      const subparcelaIndicesForNotes = paymentData.selected_installments.filter(i => i < 0);
       
-      // Marcar parcelas selecionadas como pagas no tracking
-      for (const idx of paymentData.selected_installments) {
+      // Gerar nota descritiva
+      const regularLabels = regularIndicesForNotes.map(i => i + 1);
+      const subparcelaLabels = subparcelaIndicesForNotes.map(i => {
+        const subIdx = Math.abs(i) - 1;
+        const sub = getAdvanceSubparcelasFromNotes(selectedLoan.notes)[subIdx];
+        return sub ? `Sub-P${sub.originalIndex + 1}` : `Sub${i}`;
+      });
+      const allLabels = [...regularLabels.map(String), ...subparcelaLabels];
+      installmentNote = allLabels.length === 1
+        ? `Parcela ${allLabels[0]} de ${numInstallments}`
+        : `Parcelas ${allLabels.join(', ')} de ${numInstallments}`;
+      
+      // Marcar parcelas regulares como pagas no tracking
+      for (const idx of regularIndicesForNotes) {
         const installmentVal = getInstallmentValue(idx);
         // Remover tracking parcial anterior se existir
         updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
@@ -4575,6 +4609,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         if (renewalFeeInstallmentIndex !== null && idx === renewalFeeInstallmentIndex) {
           updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
         }
+      }
+      
+      // 🆕 CORREÇÃO: Processar sub-parcelas (índices negativos) - converter ADVANCE_SUBPARCELA para PAID
+      const advanceSubparcelasForNotes = getAdvanceSubparcelasFromNotes(freshLoanData?.notes || selectedLoan.notes);
+      for (const negIdx of subparcelaIndicesForNotes) {
+        const subIdx = Math.abs(negIdx) - 1;
+        const targetSub = advanceSubparcelasForNotes[subIdx];
+        if (!targetSub) continue;
+        
+        // Renomear a tag da sub-parcela para PAID
+        const paidTag = `[ADVANCE_SUBPARCELA_PAID:${targetSub.originalIndex}:${targetSub.amount.toFixed(2)}:${targetSub.dueDate}:${targetSub.uniqueId}]`;
+        const subRegexWithId = new RegExp(
+          `\\[ADVANCE_SUBPARCELA:${targetSub.originalIndex}:[0-9.]+:[^:\\]]+:${targetSub.uniqueId}\\]`,
+          'g'
+        );
+        const subRegexWithoutId = new RegExp(
+          `\\[ADVANCE_SUBPARCELA:${targetSub.originalIndex}:${targetSub.amount.toFixed(2)}:${targetSub.dueDate}\\]`,
+          'g'
+        );
+        updatedNotes = updatedNotes.replace(subRegexWithId, paidTag);
+        updatedNotes = updatedNotes.replace(subRegexWithoutId, paidTag);
       }
     } else if (isAdvanceSubparcelaPayment && targetSubparcela) {
       // Pagamento de sub-parcela de adiantamento
