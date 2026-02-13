@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WhatsAppStatusProvider } from "@/contexts/WhatsAppStatusContext";
 import { EmployeeProvider } from "@/hooks/useEmployeeContext";
 import { useVisibilityControl } from "@/hooks/useVisibilityControl";
 import { useDevToolsProtection } from "@/hooks/useDevToolsProtection";
@@ -12,33 +14,45 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
 import { AccessDebugPanel } from "@/components/AccessDebugPanel";
-import Landing from "./pages/Landing";
-import PvWhatsapp from "./pages/PvWhatsapp";
-import Affiliate from "./pages/Affiliate";
-import AffiliateId from "./pages/AffiliateId";
-import Auth from "./pages/Auth";
-import CreateTrialUser from "./pages/CreateTrialUser";
-import Dashboard from "./pages/Dashboard";
-import Clients from "./pages/Clients";
-import ClientScores from "./pages/ClientScores";
-import Loans from "./pages/Loans";
-import Bills from "./pages/Bills";
-import ProductSales from "./pages/ProductSales";
-import CalendarView from "./pages/CalendarView";
-import ReportsLoans from "./pages/ReportsLoans";
-import ReportsSales from "./pages/ReportsSales";
-import Vehicles from "./pages/Vehicles";
-import CheckDiscounts from "./pages/CheckDiscounts";
-import Simulator from "./pages/Simulator";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import Install from "./pages/Install";
-import Tutorials from "./pages/Tutorials";
-import Employees from "./pages/Employees";
 
-import Quiz from "./pages/Quiz";
-import ConnectionTest from "./pages/ConnectionTest";
-import NotFound from "./pages/NotFound";
+// Landing carrega eager (primeira página)
+import Landing from "./pages/Landing";
+
+// Todas as outras páginas com lazy loading
+const PvWhatsapp = lazy(() => import("./pages/PvWhatsapp"));
+const Affiliate = lazy(() => import("./pages/Affiliate"));
+const AffiliateId = lazy(() => import("./pages/AffiliateId"));
+const Auth = lazy(() => import("./pages/Auth"));
+const CreateTrialUser = lazy(() => import("./pages/CreateTrialUser"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Clients = lazy(() => import("./pages/Clients"));
+const ClientScores = lazy(() => import("./pages/ClientScores"));
+const Loans = lazy(() => import("./pages/Loans"));
+const Bills = lazy(() => import("./pages/Bills"));
+const ProductSales = lazy(() => import("./pages/ProductSales"));
+const CalendarView = lazy(() => import("./pages/CalendarView"));
+const ReportsLoans = lazy(() => import("./pages/ReportsLoans"));
+const ReportsSales = lazy(() => import("./pages/ReportsSales"));
+const Vehicles = lazy(() => import("./pages/Vehicles"));
+const CheckDiscounts = lazy(() => import("./pages/CheckDiscounts"));
+const Simulator = lazy(() => import("./pages/Simulator"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Install = lazy(() => import("./pages/Install"));
+const Tutorials = lazy(() => import("./pages/Tutorials"));
+const Employees = lazy(() => import("./pages/Employees"));
+const Quiz = lazy(() => import("./pages/Quiz"));
+const ConnectionTest = lazy(() => import("./pages/ConnectionTest"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const PageLoader = () => (
+  <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--background, #0a0a0a)'}}>
+    <div style={{textAlign:'center'}}>
+      <div style={{width:48,height:48,border:'3px solid #1a1a1a',borderTopColor:'#22c55e',borderRadius:'50%',margin:'0 auto 16px',animation:'spin 1s linear infinite'}} />
+      <p style={{color:'#22c55e',fontSize:14,margin:0}}>Carregando...</p>
+    </div>
+  </div>
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +71,7 @@ const AppContent = () => {
   
   return (
     <AuthProvider>
+      <WhatsAppStatusProvider>
       <EmployeeProvider>
         <TooltipProvider>
           <Toaster />
@@ -64,6 +79,7 @@ const AppContent = () => {
           <BrowserRouter>
             {/* Painel de debug ativado via ?debugAccess=1 */}
             <AccessDebugPanel />
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/pvwhatsapp" element={<PvWhatsapp />} />
@@ -93,9 +109,11 @@ const AppContent = () => {
               
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </EmployeeProvider>
+      </WhatsAppStatusProvider>
     </AuthProvider>
   );
 };

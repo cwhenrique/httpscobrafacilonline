@@ -705,6 +705,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          created_by: string
           id: string
           interest_paid: number | null
           loan_id: string
@@ -716,6 +717,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          created_by?: string
           id?: string
           interest_paid?: number | null
           loan_id: string
@@ -727,6 +729,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          created_by?: string
           id?: string
           interest_paid?: number | null
           loan_id?: string
@@ -1659,6 +1662,39 @@ export type Database = {
           user_agent?: string | null
           user_id?: string
           verified_at?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_message_status: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          phone: string
+          raw_data: Json | null
+          status: string
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          phone: string
+          raw_data?: Json | null
+          status?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          phone?: string
+          raw_data?: Json | null
+          status?: string
+          timestamp?: string
+          user_id?: string | null
         }
         Relationships: []
       }

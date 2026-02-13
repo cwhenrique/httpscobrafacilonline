@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loan } from '@/types/database';
-import { isLoanOverdue, getTotalDailyPenalties, getDaysOverdue, calculateDynamicOverdueInterest } from '@/lib/calculations';
+import { isLoanOverdue, getTotalDailyPenalties, getDaysOverdue, calculateDynamicOverdueInterest, getPartialPaymentsFromNotes } from '@/lib/calculations';
+import { startOfDay } from 'date-fns';
 
 export interface OperationalStats {
   // Empréstimos Ativos (Na Rua)
@@ -166,9 +167,46 @@ async function fetchOperationalStats(): Promise<StatsData> {
 
       if (isLoanOverdue(loan)) {
         overdueCount++;
-        const daysOver = getDaysOverdue(loan);
-        const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
-        overdueAmount += remainingBalance + dynamicInterest;
+        
+        // Calcular valor em atraso baseado nas parcelas vencidas não pagas
+        const installmentDates = (loan.installment_dates as string[]) || [];
+        const today = startOfDay(new Date());
+        
+        if (installmentDates.length > 0) {
+          const partialPayments = getPartialPaymentsFromNotes(loan.notes || null);
+          const numInst = Number(loan.installments) || installmentDates.length;
+          
+          // Calcular valor da parcela
+          let installmentValue: number;
+          if (isDaily) {
+            installmentValue = Number(loan.total_interest) || 0;
+          } else if (interestMode === 'on_total') {
+            const tInterest = principal * (rate / 100);
+            installmentValue = (principal + tInterest) / numInst;
+          } else if (interestMode === 'compound') {
+            const tInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+            installmentValue = (principal + tInterest) / numInst;
+          } else {
+            // per_installment
+            const tInterest = principal * (rate / 100) * numInst;
+            installmentValue = (principal + tInterest) / numInst;
+          }
+          
+          // Somar apenas parcelas vencidas e não pagas
+          installmentDates.forEach((dateStr: string, idx: number) => {
+            const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
+            if (dueDate < today) {
+              const paidAmount = partialPayments[idx] || 0;
+              if (paidAmount < installmentValue * 0.99) {
+                overdueAmount += Math.max(0, installmentValue - paidAmount);
+              }
+            }
+          });
+        } else {
+          // Parcela única - usar remaining_balance
+          overdueAmount += remainingBalance;
+        }
+        
         overdueLoans.push(loanWithClient);
       }
     }

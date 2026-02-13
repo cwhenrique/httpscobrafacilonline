@@ -132,6 +132,36 @@ const getTotalAmortizationsFromNotes = (notes: string | null): number => {
   return total;
 };
 
+// Helper para extrair principal e juros efetivos por parcela considerando amortizações
+// Se houve amortização, usa os valores da última tag [AMORTIZATION:valor:novo_principal:novos_juros:data]
+const getEffectivePerInstallmentValues = (
+  notes: string | null,
+  isDaily: boolean,
+  numInstallments: number,
+  originalPrincipalPerInstallment: number,
+  originalInterestPerInstallment: number
+): { principalPerInstallment: number; interestPerInstallment: number } => {
+  if (!notes || isDaily) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  const totalAmortizations = getTotalAmortizationsFromNotes(notes);
+  if (totalAmortizations <= 0) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  // Extrair último AMORTIZATION tag para pegar novo principal e novos juros
+  const amortTags = [...notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):/g)];
+  if (amortTags.length === 0) {
+    return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
+  }
+  const lastTag = amortTags[amortTags.length - 1];
+  const lastNewPrincipal = parseFloat(lastTag[1]);
+  const lastNewInterest = parseFloat(lastTag[2]);
+  return {
+    principalPerInstallment: lastNewPrincipal / numInstallments,
+    interestPerInstallment: lastNewInterest / numInstallments,
+  };
+};
+
 // Helper para calcular o valor efetivo da parcela considerando amortizações
 // Se houve amortização, usa remaining_balance / parcelas_restantes
 // Caso contrário, usa o cálculo normal (principal/parcelas + juros/parcelas)
@@ -4443,6 +4473,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_paid = Math.min(amount, remainingInterest);
       principal_paid = amount - interest_paid;
     } else if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      // Separar índices regulares (>=0) de sub-parcelas (<0)
+      const regularIndices = paymentData.selected_installments.filter(i => i >= 0);
+      const subparcelaIndices = paymentData.selected_installments.filter(i => i < 0);
+      
       // 🆕 CORREÇÃO: Função helper para extrair pagamentos parciais do notes (definida aqui para uso imediato)
       const getPartialsForCalc = (notes: string | null): Record<number, number> => {
         const payments: Record<number, number> = {};
@@ -4454,13 +4488,22 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       };
       const partialsForCalc = getPartialsForCalc(selectedLoan.notes);
       
-      // 🆕 CORREÇÃO: Calcular valor restante da parcela descontando pagamentos parciais já feitos
-      amount = paymentData.selected_installments.reduce((sum, i) => {
+      // Calcular valor de parcelas regulares
+      let regularAmount = regularIndices.reduce((sum, i) => {
         const fullValue = getInstallmentValue(i);
         const alreadyPaid = partialsForCalc[i] || 0;
         const remaining = Math.max(0, fullValue - alreadyPaid);
         return sum + remaining;
       }, 0);
+      
+      // Calcular valor de sub-parcelas (índices negativos)
+      const advanceSubparcelasForCalc = getAdvanceSubparcelasFromNotes(freshLoanData?.notes || selectedLoan.notes);
+      let subparcelaAmount = subparcelaIndices.reduce((sum, i) => {
+        const subIdx = Math.abs(i) - 1;
+        return sum + (advanceSubparcelasForCalc[subIdx]?.amount || 0);
+      }, 0);
+      
+      amount = regularAmount + subparcelaAmount;
       
       // 🆕 Validar se há valor a pagar
       if (amount <= 0.01) {
@@ -4471,15 +4514,25 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }
       
       // Calcular juros e principal proporcionalmente ao valor efetivamente pago
-      const fullInstallmentsTotal = paymentData.selected_installments.reduce((sum, i) => sum + getInstallmentValue(i), 0);
-      const baseTotal = baseInstallmentValue * paymentData.selected_installments.length;
-      const extraAmount = fullInstallmentsTotal - baseTotal; // Valor extra da taxa de renovação
+      const fullInstallmentsTotal = regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) + subparcelaAmount;
+      const regularCount = regularIndices.length;
+      const baseTotal = baseInstallmentValue * regularCount;
+      const extraAmount = (regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0)) - baseTotal;
       
       // Proporção do valor que está sendo efetivamente pago
-      const paymentRatio = fullInstallmentsTotal > 0 ? amount / fullInstallmentsTotal : 0;
+      const totalContract = selectedLoan.principal_amount + (selectedLoan.total_interest ? (selectedLoan.total_interest * numInstallments - selectedLoan.principal_amount) : 0);
+      const interestRatio = totalContract > 0 ? (totalContract - selectedLoan.principal_amount) / totalContract : 0;
       
-      interest_paid = ((interestPerInstallment * paymentData.selected_installments.length) + extraAmount) * paymentRatio;
-      principal_paid = principalPerInstallment * paymentData.selected_installments.length * paymentRatio;
+      if (regularCount > 0) {
+        const paymentRatio = fullInstallmentsTotal > 0 ? regularAmount / (regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) || 1) : 0;
+        interest_paid = ((interestPerInstallment * regularCount) + extraAmount) * paymentRatio;
+        principal_paid = principalPerInstallment * regularCount * paymentRatio;
+      }
+      // Add sub-parcela proportional split
+      if (subparcelaAmount > 0) {
+        interest_paid += subparcelaAmount * interestRatio;
+        principal_paid += subparcelaAmount * (1 - interestRatio);
+      }
     } else {
       // Partial payment - permite pagar menos que uma parcela
       amount = parseFloat(paymentData.amount);
@@ -4558,13 +4611,24 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     let installmentNote = '';
     
     if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
-      // Pagamento de parcelas selecionadas - marca como completas
-      installmentNote = paymentData.selected_installments.length === 1
-        ? `Parcela ${paymentData.selected_installments[0] + 1} de ${numInstallments}`
-        : `Parcelas ${paymentData.selected_installments.map(i => i + 1).join(', ')} de ${numInstallments}`;
+      // Separar índices regulares de sub-parcelas (negativos)
+      const regularIndicesForNotes = paymentData.selected_installments.filter(i => i >= 0);
+      const subparcelaIndicesForNotes = paymentData.selected_installments.filter(i => i < 0);
       
-      // Marcar parcelas selecionadas como pagas no tracking
-      for (const idx of paymentData.selected_installments) {
+      // Gerar nota descritiva
+      const regularLabels = regularIndicesForNotes.map(i => i + 1);
+      const subparcelaLabels = subparcelaIndicesForNotes.map(i => {
+        const subIdx = Math.abs(i) - 1;
+        const sub = getAdvanceSubparcelasFromNotes(selectedLoan.notes)[subIdx];
+        return sub ? `Sub-P${sub.originalIndex + 1}` : `Sub${i}`;
+      });
+      const allLabels = [...regularLabels.map(String), ...subparcelaLabels];
+      installmentNote = allLabels.length === 1
+        ? `Parcela ${allLabels[0]} de ${numInstallments}`
+        : `Parcelas ${allLabels.join(', ')} de ${numInstallments}`;
+      
+      // Marcar parcelas regulares como pagas no tracking
+      for (const idx of regularIndicesForNotes) {
         const installmentVal = getInstallmentValue(idx);
         // Remover tracking parcial anterior se existir
         updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
@@ -4575,6 +4639,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         if (renewalFeeInstallmentIndex !== null && idx === renewalFeeInstallmentIndex) {
           updatedNotes = updatedNotes.replace(/\[RENEWAL_FEE_INSTALLMENT:[^\]]+\]\n?/g, '');
         }
+      }
+      
+      // 🆕 CORREÇÃO: Processar sub-parcelas (índices negativos) - converter ADVANCE_SUBPARCELA para PAID
+      const advanceSubparcelasForNotes = getAdvanceSubparcelasFromNotes(freshLoanData?.notes || selectedLoan.notes);
+      for (const negIdx of subparcelaIndicesForNotes) {
+        const subIdx = Math.abs(negIdx) - 1;
+        const targetSub = advanceSubparcelasForNotes[subIdx];
+        if (!targetSub) continue;
+        
+        // Renomear a tag da sub-parcela para PAID
+        const paidTag = `[ADVANCE_SUBPARCELA_PAID:${targetSub.originalIndex}:${targetSub.amount.toFixed(2)}:${targetSub.dueDate}:${targetSub.uniqueId}]`;
+        const subRegexWithId = new RegExp(
+          `\\[ADVANCE_SUBPARCELA:${targetSub.originalIndex}:[0-9.]+:[^:\\]]+:${targetSub.uniqueId}\\]`,
+          'g'
+        );
+        const subRegexWithoutId = new RegExp(
+          `\\[ADVANCE_SUBPARCELA:${targetSub.originalIndex}:${targetSub.amount.toFixed(2)}:${targetSub.dueDate}\\]`,
+          'g'
+        );
+        updatedNotes = updatedNotes.replace(subRegexWithId, paidTag);
+        updatedNotes = updatedNotes.replace(subRegexWithoutId, paidTag);
       }
     } else if (isAdvanceSubparcelaPayment && targetSubparcela) {
       // Pagamento de sub-parcela de adiantamento
@@ -5008,7 +5093,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setPaymentClientPhone(selectedLoan.client?.phone || null);
     setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
     setPaymentPaidCount(newRemainingBalance <= 0 ? numInstallments : getPaidInstallmentsCount(selectedLoan) + (paymentData.selected_installments.length || 1));
-    setPaymentPaidIndices(getPaidIndicesFromNotes(selectedLoan));
+    // Incluir os índices das parcelas recém-pagas que ainda não estão nas notes
+    const existingPaidIndices = getPaidIndicesFromNotes(selectedLoan);
+    const newlyPaidIndices = paymentData.selected_installments.length > 0 
+      ? paymentData.selected_installments 
+      : (targetInstallmentIndex >= 0 ? [targetInstallmentIndex] : []);
+    const allPaidIndices = [...new Set([...existingPaidIndices, ...newlyPaidIndices])];
+    // Se quitou tudo, marcar todas as parcelas como pagas
+    if (newRemainingBalance <= 0) {
+      const allIndices = Array.from({ length: numInstallments }, (_, i) => i);
+      setPaymentPaidIndices(allIndices);
+    } else {
+      setPaymentPaidIndices(allPaidIndices);
+    }
     setPaymentReceiptData({
       type: 'loan',
       contractId: selectedLoan.id,
@@ -7938,8 +8035,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                   penaltyType: overdueConfigType,
                   penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                   isDaily,
                   manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                   hasDynamicPenalty: overdueConfigValue > 0,
@@ -7982,8 +8079,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
                   dueDate: todayInfo.dueDate,
                   loanId: loan.id,
-                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                   isDaily,
                   installmentDates: (loan.installment_dates as string[]) || [],
                   paidCount,
@@ -8371,7 +8468,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                 
                 const cardElement = (
-                  <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                  <Card key={loan.id} className={`${loanIndex === 0 ? 'tutorial-loan-card' : ''} shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${isPaid ? textColor : ''}`}>
                     <CardContent className="p-3 sm:p-4">
                       {/* Nome em destaque - primeira linha */}
                       <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
@@ -8505,11 +8602,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <div className={`grid grid-cols-2 gap-1.5 sm:gap-3 mt-2 sm:mt-4 p-1.5 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-muted/30'}`}>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Emprestado</p>
-                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(loan.principal_amount)}</p>
+                          <p className={`font-semibold text-xs sm:text-sm truncate ${isPaid ? 'text-white' : 'text-foreground'}`}>{formatCurrency(loan.principal_amount)}</p>
                         </div>
                         <div>
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>Total a Receber</p>
-                          <p className="font-semibold text-xs sm:text-sm truncate">{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
+                          <p className={`font-semibold text-xs sm:text-sm truncate ${isPaid ? 'text-white' : 'text-foreground'}`}>{formatCurrency(totalToReceive + dynamicPenaltyAmount)}</p>
                         </div>
                       </div>
                       
@@ -8804,7 +8901,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             )}
                           </PopoverContent>
                         </Popover>
-                        <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                        <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${isPaid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                           <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                         </div>
@@ -8812,10 +8909,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Interest only payment option */}
                       {!isDaily && !isPaid && (
-                        <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${hasSpecialStyle ? 'bg-white/10' : 'bg-purple-500/10 border border-purple-400/30'}`}>
+                        <div className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg text-xs sm:text-sm ${isPaid ? 'bg-white/10' : 'bg-purple-50 border border-purple-300 dark:bg-purple-500/10 dark:border-purple-400/30'}`}>
                           <div className="flex items-center justify-between">
-                            <span className={hasSpecialStyle ? 'text-white/80' : 'text-purple-300'}>Só Juros (por parcela):</span>
-                            <span className={`font-bold ${hasSpecialStyle ? 'text-white' : 'text-purple-400'}`}>
+                            <span className={isPaid ? 'text-white/80' : 'text-purple-700 dark:text-purple-300'}>Só Juros (por parcela):</span>
+                            <span className={`font-bold ${isPaid ? 'text-white' : 'text-purple-800 dark:text-purple-400'}`}>
                               {formatCurrency(calculatedInterestPerInstallment)}
                             </span>
                           </div>
@@ -8834,18 +8931,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               return (
                                 <div className="mt-1.5 pt-1.5 border-t border-purple-400/30 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-green-300">
+              <span className="text-green-700 dark:text-green-300">
                 💵 Juros já pago:
               </span>
-              <span className="font-bold text-green-400">
+              <span className="font-bold text-green-800 dark:text-green-400">
                 {formatCurrency(paidForCurrent)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-amber-300">
+              <span className="text-amber-700 dark:text-amber-300">
                 Juros pendente:
               </span>
-              <span className="font-bold text-amber-400">
+              <span className="font-bold text-amber-800 dark:text-amber-400">
                 {formatCurrency(remainingInterest)}
               </span>
             </div>
@@ -8868,7 +8965,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Overdue installment info */}
                       {isOverdue && (
-                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-500/20 dark:border-red-400/30">
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-50 border-2 border-red-300 dark:bg-red-500/20 dark:border dark:border-red-400/30">
                           <div className="text-xs sm:text-sm">
                             <div className="flex items-center justify-between">
                               <span className="text-red-700 dark:text-red-300 font-medium">
@@ -9050,7 +9147,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   size="sm" 
                                   variant="outline" 
                                   onClick={() => setConfiguringPenaltyLoanId(null)}
-                                  className="border-red-400/50 text-red-300"
+                                  className="border-red-400/50 text-red-700 dark:text-red-300"
                                 >
                                   Cancelar
                                 </Button>
@@ -9068,7 +9165,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   setInlinePenaltyType(overdueConfigType || 'percentage');
                                   setInlinePenaltyValue(overdueConfigValue.toString());
                                 }}
-                                className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                                className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300 dark:hover:bg-blue-500/10"
                               >
                                 <Pencil className="w-3 h-3 mr-1" />
                                 Editar Juros
@@ -9084,7 +9181,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     totalPerInstallment
                                   );
                                 }}
-                                className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                                className="flex-1 text-orange-700 hover:text-orange-800 hover:bg-orange-500/10 dark:text-orange-300/70 dark:hover:text-orange-300 dark:hover:bg-orange-500/10"
                               >
                                 <DollarSign className="w-3 h-3 mr-1" />
                                 Aplicar Multa
@@ -9100,7 +9197,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             </div>
                           )}
 
-                          <p className="text-[10px] text-red-300/60 mt-2">
+                          <p className="text-[10px] text-red-600 dark:text-red-300/60 mt-2">
                             Pague a parcela em atraso para regularizar o empréstimo
                           </p>
                           {/* Manual overdue notification button */}
@@ -9124,8 +9221,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                                 penaltyType: overdueConfigType || undefined,
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                                interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                 isDaily: loan.payment_type === 'daily',
                                 // Multa manual aplicada
                                 manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
@@ -9171,8 +9268,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: todayInfo.dueDate,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
@@ -9204,20 +9301,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       
                       {/* Due Today Section - Vence Hoje */}
                       {isDueToday && !isOverdue && (
-                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-500/20 border border-amber-400/30">
+                        <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-500/20 dark:border-amber-400/30">
                           <div className="text-xs sm:text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-amber-300 font-medium flex items-center gap-2">
+                              <span className="text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
                                 <Bell className="w-4 h-4" />
                                 Vence Hoje!
                               </span>
-                              <span className="text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
+                              <span className="text-amber-800 dark:text-amber-200 font-bold">{formatCurrency(totalPerInstallment)}</span>
                             </div>
-                            <div className="flex items-center justify-between mt-1 text-amber-300/70">
+                            <div className="flex items-center justify-between mt-1 text-amber-700/70 dark:text-amber-300/70">
                               <span>Parcela {getPaidInstallmentsCount(loan) + 1}/{loan.installments || 1}</span>
                               <span>Vencimento: {formatDate(dueTodayDate)}</span>
                             </div>
-                            <p className="text-[10px] text-amber-300/60 mt-2">
+                            <p className="text-[10px] text-amber-700/60 dark:text-amber-300/60 mt-2">
                               Lembre o cliente para evitar atrasos
                             </p>
                             {/* Manual due today notification button */}
@@ -9232,8 +9329,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   amount: getEffectiveInstallmentValue(loan, totalPerInstallment, getPaidInstallmentsCount(loan)),
                                   dueDate: dueTodayDate,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Pagamento parcial de juros
                                   partialInterestPaid: (() => {
@@ -9284,8 +9381,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   dueDate: nextDueDate,
                                   daysUntilDue: daysUntilDue,
                                   loanId: loan.id,
-                                  interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                                  principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                                  interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                                  principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
                                   // Status das parcelas com emojis
                                   installmentDates: (loan.installment_dates as string[]) || [],
@@ -9342,18 +9439,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 >
                                   <div className="text-xs sm:text-sm">
                                     <div className="flex items-center justify-between">
-                                      <span className={`font-medium ${isSubOverdue ? 'text-amber-300' : 'text-blue-300'}`}>
+                                      <span className={`font-medium ${isSubOverdue ? 'text-amber-700 dark:text-amber-300' : 'text-blue-700 dark:text-blue-300'}`}>
                                         Sub-parcela (Adiantamento P{subparcela.originalIndex + 1})
                                       </span>
                                       {isSubOverdue && (
-                                        <span className="text-amber-200 font-bold">{subDaysOverdue} dias</span>
+                                        <span className="text-amber-800 dark:text-amber-200 font-bold">{subDaysOverdue} dias</span>
                                       )}
                                     </div>
-                                    <div className={`flex items-center justify-between mt-1 ${isSubOverdue ? 'text-amber-300/70' : 'text-blue-300/70'}`}>
+                                    <div className={`flex items-center justify-between mt-1 ${isSubOverdue ? 'text-amber-700/70 dark:text-amber-300/70' : 'text-blue-700/70 dark:text-blue-300/70'}`}>
                                       <span>Vencimento: {formatDate(subparcela.dueDate)}</span>
                                       <span className="font-bold">{formatCurrency(subparcela.amount)}</span>
                                     </div>
-                                    <p className={`text-[10px] mt-1 ${isSubOverdue ? 'text-amber-300/60' : 'text-blue-300/60'}`}>
+                                    <p className={`text-[10px] mt-1 ${isSubOverdue ? 'text-amber-700/60 dark:text-amber-300/60' : 'text-blue-700/60 dark:text-blue-300/60'}`}>
                                       {isSubOverdue ? 'Valor restante do adiantamento em atraso' : 'Valor restante do adiantamento pendente'}
                                     </p>
                                   </div>
@@ -9364,7 +9461,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         );
                       })()}
                       
-                      <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                      <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-border dark:border-white/20' : 'border-t'}`}>
                         <TooltipProvider delayDuration={300}>
                           <div className="flex gap-1.5 sm:gap-2">
                             <Tooltip>
@@ -9372,7 +9469,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-payment' : ''} flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                                   onClick={() => { 
                                     setSelectedLoanId(loan.id);
                                     
@@ -9424,7 +9521,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="sm" 
-                                  className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`${loanIndex === 0 ? 'tutorial-loan-interest' : ''} flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => openRenegotiateDialog(loan.id)}
                                 >
                                   <DollarSign className="w-3 h-3 mr-1" />
@@ -9440,7 +9537,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                   onClick={() => openPaymentHistory(loan.id)}
                                 >
                                   <History className="w-3 h-3" />
@@ -9456,7 +9553,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
                                   onClick={() => openSimpleEditDialog(loan.id)}
                                 >
                                   <Pencil className="w-3 h-3" />
@@ -9473,7 +9570,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
                                     onClick={() => {
                                       setExtraInstallmentsLoan(loan);
                                       setIsExtraInstallmentsOpen(true);
@@ -9494,7 +9591,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   <Button 
                                     variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-orange-500 text-orange-500 hover:bg-orange-500/10'}`}
                                     onClick={() => openAddPenaltyDialog(loan, totalPerInstallment)}
                                   >
                                     <DollarSign className="w-3 h-3" />
@@ -9513,7 +9610,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Button 
                                   variant={hasSpecialStyle ? 'secondary' : 'outline'} 
                                   size="icon" 
-                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
                                   onClick={() => openEditDialog(loan.id)}
                                 >
                                   <RefreshCw className="w-3 h-3" />
@@ -9957,7 +10054,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               let profitTodayRealized = 0;
               let receivedTodayCount = 0;
               let totalOverdue = 0;
-              let overdueCount = 0;
+              const overdueClientIds = new Set<string>();
               
               // Calcular parcelas a cobrar hoje (empréstimos ativos)
               activeDailyLoans.forEach(loan => {
@@ -9968,6 +10065,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 
                 const paidCount = getPaidInstallmentsCount(loan);
                 const dates = (loan.installment_dates as string[]) || [];
+                const partialPayments = getPartialPaymentsFromNotes(loan.notes);
                 
                 // Verificar próxima parcela não paga
                 if (paidCount < dates.length) {
@@ -9979,18 +10077,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     profitTodayExpected += profitPerInstallment;
                     dueTodayCount++;
                   }
-                  
-                  // Contar parcelas em atraso
-                  for (let i = paidCount; i < dates.length; i++) {
-                    const dueDate = new Date(dates[i] + 'T12:00:00');
-                    dueDate.setHours(0, 0, 0, 0);
-                    if (dueDate < today) {
-                      totalOverdue += dailyInstallmentAmount;
-                      if (i === paidCount) overdueCount++; // Conta o cliente uma vez
+                }
+                
+                // Contar parcelas em atraso - verificar cada parcela individualmente
+                let hasOverdueInThisLoan = false;
+                for (let i = 0; i < dates.length; i++) {
+                  const dueDate = new Date(dates[i] + 'T12:00:00');
+                  dueDate.setHours(0, 0, 0, 0);
+                  if (dueDate < today) {
+                    const paidAmount = partialPayments[i] || 0;
+                    if (paidAmount < dailyInstallmentAmount * 0.99) {
+                      totalOverdue += Math.max(0, dailyInstallmentAmount - paidAmount);
+                      hasOverdueInThisLoan = true;
                     }
                   }
                 }
+                if (hasOverdueInThisLoan) {
+                  overdueClientIds.add(loan.client_id);
+                }
               });
+              
+              const overdueCount = overdueClientIds.size;
               
               // Calcular valores REAIS recebidos hoje (baseado em payment_date)
               dailyLoans.forEach(loan => {
@@ -10322,8 +10429,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
                     penaltyType: overdueConfigType,
                     penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
-                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                    principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                     isDaily,
                     manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                     hasDynamicPenalty: overdueConfigValue > 0,
@@ -10366,8 +10473,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     amount: getEffectiveInstallmentValue(loan, totalPerInstallment, paidCount),
                     dueDate: todayInfo.dueDate,
                     loanId: loan.id,
-                    interestAmount: calculatedInterestPerInstallment > 0 ? calculatedInterestPerInstallment : undefined,
-                    principalAmount: principalPerInstallment > 0 ? principalPerInstallment : undefined,
+                    interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
+                    principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, isDaily, numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                     isDaily,
                     installmentDates: (loan.installment_dates as string[]) || [],
                     paidCount,
@@ -10447,7 +10554,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   })();
                   
                   const hasSpecialStyle = isOverdue || isPaid;
-                  const mutedTextColor = hasSpecialStyle ? 'text-white/70' : 'text-muted-foreground';
+                  const mutedTextColor = isPaid ? 'text-white/70' : 'text-muted-foreground';
                   
                   const expectedProfit = dailyProfit + totalAppliedPenaltiesDaily;
                   const realizedProfit = loan.total_paid ? Math.min(loan.total_paid - (loan.principal_amount * (loan.total_paid / dailyTotalToReceive)), expectedProfit * (loan.total_paid / dailyTotalToReceive)) : 0;
@@ -10536,7 +10643,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const textColor = isPaid ? 'text-white' : isOverdue ? 'text-red-700 dark:text-red-300' : isDueToday ? 'text-amber-700 dark:text-amber-300' : '';
                   
                   const cardElement = (
-                    <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${textColor}`}>
+                    <Card key={loan.id} className={`shadow-soft hover:shadow-md transition-shadow border ${getCardStyle()} ${isPaid ? textColor : ''}`}>
                       <CardContent className="p-3 sm:p-4">
                         {/* Nome em destaque - primeira linha */}
                         <h3 className="font-bold text-base sm:text-xl text-center w-full break-words mb-3 bg-accent/60 border border-border rounded-lg py-1.5 px-3">{loan.client?.full_name}</h3>
@@ -10629,7 +10736,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           <p className={`text-[9px] sm:text-xs ${mutedTextColor}`}>
                             restante a receber
                             {(totalAppliedPenaltiesDaily > 0 || dynamicPenaltyAmount > 0) && (
-                              <span className="ml-1 text-red-400 font-medium">
+                              <span className="ml-1 text-red-600 dark:text-red-400 font-medium">
                                 (+{formatCurrency(totalAppliedPenaltiesDaily + dynamicPenaltyAmount)} juros atraso)
                               </span>
                             )}
@@ -10846,7 +10953,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               </div>
                             </PopoverContent>
                           </Popover>
-                          <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${hasSpecialStyle ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                          <div className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg font-semibold ${isPaid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                             <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                             <span className="truncate">Pago: {formatCurrency(loan.total_paid || 0)}</span>
                           </div>
@@ -10854,7 +10961,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         
                         {/* Overdue installment info */}
                         {isOverdue && (
-                          <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-500/20 border border-red-400/30">
+                          <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg bg-red-50 border-2 border-red-300 dark:bg-red-500/20 dark:border dark:border-red-400/30">
                             <div className="text-xs sm:text-sm">
                               {/* CARD UNIFICADO para múltiplas parcelas com multa dinâmica */}
                               {overdueInstallmentsDetails.length > 1 && overdueConfigValue > 0 ? (
@@ -10865,16 +10972,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     className="flex items-center justify-between mb-2 cursor-pointer hover:bg-red-500/10 rounded px-1 py-0.5 transition-colors"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <span className="text-white font-bold">
+                                      <span className="text-gray-900 dark:text-white font-bold">
                                         {overdueInstallmentsDetails.length} parcelas em atraso
                                       </span>
                                       {expandedOverdueCards.has(loan.id) ? (
-                                        <ChevronUp className="w-4 h-4 text-white" />
+                                        <ChevronUp className="w-4 h-4 text-gray-900 dark:text-white" />
                                       ) : (
-                                        <ChevronDown className="w-4 h-4 text-white" />
+                                        <ChevronDown className="w-4 h-4 text-gray-900 dark:text-white" />
                                       )}
                                     </div>
-                                    <span className="text-red-100 font-medium text-[10px] bg-red-500/30 px-2 py-0.5 rounded">
+                                    <span className="text-red-700 dark:text-red-100 font-medium text-[10px] bg-red-200 dark:bg-red-500/30 px-2 py-0.5 rounded">
                                       ⚡ {overdueConfigType === 'percentage' 
                                         ? `${overdueConfigValue}%/dia`
                                         : `${formatCurrency(overdueConfigValue)}/dia`}
@@ -10885,18 +10992,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   {expandedOverdueCards.has(loan.id) && (
                                     <div className="space-y-2 max-h-40 overflow-y-auto">
                                       {cumulativePenaltyResult.penaltyBreakdown.map((item, idx) => (
-                                        <div key={idx} className="bg-red-900/60 rounded px-2.5 py-1.5">
+                                        <div key={idx} className="bg-red-100 dark:bg-red-900/60 rounded px-2.5 py-1.5">
                                           <div className="flex items-center justify-between text-xs">
-                                            <span className="text-white font-medium">
+                                            <span className="text-gray-900 dark:text-white font-medium">
                                               Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d de atraso
                                             </span>
                                           </div>
                                           <div className="flex items-center justify-between text-xs mt-1">
-                                            <span className="text-gray-200">
+                                            <span className="text-gray-700 dark:text-gray-200">
                                               Valor: {formatCurrency(item.installmentAmount)}
                                             </span>
                                             {item.penaltyAmount > 0 && (
-                                              <span className="font-semibold text-yellow-300">
+                                              <span className="font-semibold text-amber-700 dark:text-yellow-300">
                                                 Multa: +{formatCurrency(item.penaltyAmount)}
                                               </span>
                                             )}
@@ -10907,9 +11014,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   )}
                                   
                                   {/* Total a Pagar - sempre visível */}
-                                  <div className="flex items-center justify-between bg-gradient-to-r from-red-800/80 to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-700/50 animate-[pulse_2s_ease-in-out_infinite]">
-                                    <span className="text-white font-medium">Total a Pagar:</span>
-                                    <span className="font-bold text-yellow-300 text-lg">
+                                  <div className="flex items-center justify-between bg-red-200 dark:bg-gradient-to-r dark:from-red-800/80 dark:to-red-900/80 rounded-lg px-3 py-2 mt-3 border border-red-300 dark:border-red-700/50 animate-[pulse_2s_ease-in-out_infinite]">
+                                    <span className="text-gray-900 dark:text-white font-medium">Total a Pagar:</span>
+                                    <span className="font-bold text-red-700 dark:text-yellow-300 text-lg">
                                       {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
                                     </span>
                                   </div>
@@ -10922,16 +11029,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     className="flex items-center justify-between mb-2 cursor-pointer hover:bg-red-500/10 rounded px-1 py-0.5 transition-colors"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <span className="text-red-300 font-bold">
+                                      <span className="text-red-700 dark:text-red-300 font-bold">
                                         {overdueInstallmentsDetails.length} parcelas em atraso
                                       </span>
                                       {expandedOverdueCards.has(loan.id) ? (
-                                        <ChevronUp className="w-4 h-4 text-red-300" />
+                                        <ChevronUp className="w-4 h-4 text-red-700 dark:text-red-300" />
                                       ) : (
-                                        <ChevronDown className="w-4 h-4 text-red-300" />
+                                        <ChevronDown className="w-4 h-4 text-red-700 dark:text-red-300" />
                                       )}
                                     </div>
-                                    <span className="text-red-200 font-medium text-xs">
+                                    <span className="text-red-800 dark:text-red-200 font-medium text-xs">
                                       Total: {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily)}
                                     </span>
                                   </div>
@@ -10944,14 +11051,14 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                           const displayPenalty = manualPenalty > 0 ? manualPenalty : item.penaltyAmount;
                                           
                                           return (
-                                            <div key={idx} className="flex items-center justify-between text-xs bg-red-500/10 rounded px-2 py-1">
-                                              <span className="text-red-300/90">
+                                            <div key={idx} className="flex items-center justify-between text-xs bg-red-100 dark:bg-red-500/10 rounded px-2 py-1">
+                                              <span className="text-red-700 dark:text-red-300/90">
                                                 Parc. {item.installmentNumber}/{numInstallments} • {item.daysOverdue}d
                                               </span>
                                               <div className="flex items-center gap-2">
-                                                <span className="text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
+                                                <span className="text-red-600 dark:text-red-300/70">{formatCurrency(item.installmentAmount)}</span>
                                                 {displayPenalty > 0 && (
-                                                  <span className={`font-medium ${manualPenalty > 0 ? 'text-orange-200' : 'text-red-200'}`}>
+                                                  <span className={`font-medium ${manualPenalty > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-red-800 dark:text-red-200'}`}>
                                                     +{formatCurrency(displayPenalty)}
                                                     {manualPenalty > 0 && <span className="text-[9px] ml-1">(manual)</span>}
                                                   </span>
@@ -10968,32 +11075,32 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 /* UMA parcela em atraso */
                                 <>
                                   <div className="flex items-center justify-between">
-                                    <span className="text-red-300 font-medium">
+                                    <span className="text-red-700 dark:text-red-300 font-medium">
                                       Parcela {getPaidInstallmentsCount(loan) + 1}/{numInstallments} em atraso
                                     </span>
-                                    <span className="text-red-200 font-bold">{daysOverdue} dias</span>
+                                    <span className="text-red-800 dark:text-red-200 font-bold">{daysOverdue} dias</span>
                                   </div>
-                                  <div className="flex items-center justify-between mt-1 text-red-300/70">
+                                  <div className="flex items-center justify-between mt-1 text-red-600 dark:text-red-300/70">
                                     <span>Vencimento: {formatDate(overdueDate)}</span>
                                     <span>Valor: {formatCurrency(totalPerInstallmentDisplay)}</span>
                                   </div>
                                   
                                   {/* Multa dinâmica para 1 parcela */}
                                   {dynamicPenaltyAmount > 0 && (
-                                    <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-2">
+                                    <div className="mt-3 bg-red-100 dark:bg-black/30 rounded-lg p-3 space-y-2">
                                       <div className="flex items-center justify-between">
-                                        <span className="text-red-200/80 text-xs">
+                                        <span className="text-red-600 dark:text-red-200/80 text-xs">
                                           ⚡ {overdueConfigType === 'percentage' 
                                             ? `${overdueConfigValue}%/dia`
                                             : `${formatCurrency(overdueConfigValue)}/dia`}
                                         </span>
-                                        <span className="font-medium text-red-200">
+                                        <span className="font-medium text-red-800 dark:text-red-200">
                                           Multa: +{formatCurrency(dynamicPenaltyAmount)}
                                         </span>
                                       </div>
-                                      <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-lg px-3 py-2">
-                                        <span className="text-white font-medium">Total a Pagar:</span>
-                                        <span className="font-bold text-red-400 text-lg">
+                                      <div className="flex items-center justify-between bg-red-200 dark:bg-gradient-to-r dark:from-red-500/20 dark:to-orange-500/20 rounded-lg px-3 py-2">
+                                        <span className="text-gray-900 dark:text-white font-medium">Total a Pagar:</span>
+                                        <span className="font-bold text-red-700 dark:text-red-400 text-lg">
                                           {formatCurrency(cumulativePenaltyResult.totalWithPenalties)}
                                         </span>
                                       </div>
@@ -11005,20 +11112,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             
                             {/* Seção de multas MANUAIS aplicadas - exibe mesmo se há juros dinâmicos */}
                             {totalAppliedPenaltiesDaily > 0 && (
-                              <div className="mt-3 bg-black/30 rounded-lg p-3 space-y-3">
+                                <div className="mt-3 bg-red-100 dark:bg-black/30 rounded-lg p-3 space-y-3">
                                 {/* Cabeçalho com botão de excluir */}
                                 <div className="flex items-center justify-between">
-                                  <span className="text-orange-400 font-semibold flex items-center gap-1.5 text-sm">
+                                  <span className="text-orange-700 dark:text-orange-400 font-semibold flex items-center gap-1.5 text-sm">
                                     <DollarSign className="w-4 h-4" /> Multa Aplicada
                                   </span>
                                   <div className="flex items-center gap-2">
-                                    <span className="font-bold text-orange-300">
+                                    <span className="font-bold text-orange-800 dark:text-orange-300">
                                       +{formatCurrency(totalAppliedPenaltiesDaily)}
                                     </span>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/20 border border-green-400/40"
+                                className="h-6 px-2 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 hover:bg-green-500/20 border border-green-500/40 dark:border-green-400/40"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleRemoveAllPenalties(loan.id, loan.notes);
@@ -11035,14 +11142,14 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   {(() => {
                                     const manualPenalties = getDailyPenaltiesFromNotes(loan.notes);
                                     return Object.entries(manualPenalties).map(([idx, penalty]) => (
-                                      <div key={idx} className="flex items-center justify-between text-xs bg-white/10 rounded px-2.5 py-1.5">
-                                        <span className="text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
+                                      <div key={idx} className="flex items-center justify-between text-xs bg-red-50 dark:bg-white/10 rounded px-2.5 py-1.5">
+                                        <span className="text-gray-700 dark:text-white/80">Parcela {parseInt(idx) + 1}/{numInstallments}</span>
                                         <div className="flex items-center gap-2">
-                                          <span className="font-medium text-orange-400">+{formatCurrency(penalty)}</span>
+                                          <span className="font-medium text-orange-700 dark:text-orange-400">+{formatCurrency(penalty)}</span>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-5 w-5 p-0 text-green-400 hover:text-green-300 hover:bg-green-500/20"
+                                      className="h-5 w-5 p-0 text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 hover:bg-green-500/20"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleRemoveDailyPenalty(loan.id, parseInt(idx), loan.notes);
@@ -11057,9 +11164,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 </div>
                                 
                                 {/* Total a Pagar (inclui juros dinâmicos se houver) */}
-                                <div className="flex items-center justify-between bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg px-3 py-2">
-                                  <span className="text-white font-medium">Total a Pagar:</span>
-                                  <span className="font-bold text-orange-400 text-lg">
+                                <div className="flex items-center justify-between bg-red-200 dark:bg-gradient-to-r dark:from-orange-500/20 dark:to-red-500/20 rounded-lg px-3 py-2">
+                                  <span className="text-gray-900 dark:text-white font-medium">Total a Pagar:</span>
+                                  <span className="font-bold text-red-700 dark:text-orange-400 text-lg">
                                     {formatCurrency(cumulativePenaltyResult.totalOverdueAmount + totalAppliedPenaltiesDaily + dynamicPenaltyAmount)}
                                   </span>
                                 </div>
@@ -11079,7 +11186,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
+                                  className="flex-1 border-blue-500/50 text-blue-700 hover:bg-blue-500/10 dark:border-blue-400/50 dark:text-blue-300 dark:hover:bg-blue-500/20"
                                 >
                                   <Percent className="w-4 h-4 mr-2" />
                                   Juros por Atraso
@@ -11094,7 +11201,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                                  className="flex-1 border-orange-500/50 text-orange-700 hover:bg-orange-500/10 dark:border-orange-400/50 dark:text-orange-300 dark:hover:bg-orange-500/20"
                                 >
                                   <DollarSign className="w-4 h-4 mr-2" />
                                   Aplicar Multa
@@ -11115,7 +11222,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 border-blue-400/50 text-blue-300 hover:bg-blue-500/20"
+                                  className="flex-1 border-blue-500/50 text-blue-700 hover:bg-blue-500/10 dark:border-blue-400/50 dark:text-blue-300 dark:hover:bg-blue-500/20"
                                 >
                                   <Percent className="w-4 h-4 mr-2" />
                                   Juros por Atraso
@@ -11130,7 +11237,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 border-orange-400/50 text-orange-300 hover:bg-orange-500/20"
+                                  className="flex-1 border-orange-500/50 text-orange-700 hover:bg-orange-500/10 dark:border-orange-400/50 dark:text-orange-300 dark:hover:bg-orange-500/20"
                                 >
                                   <Pencil className="w-4 h-4 mr-2" />
                                   Editar Multas
@@ -11140,12 +11247,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             
                             {configuringPenaltyLoanId === loan.id && (
                               <div className="mt-3 pt-3 border-t border-red-400/30 space-y-2">
-                                <Label className="text-xs text-blue-300">Configurar Juros por Atraso</Label>
+                                <Label className="text-xs text-blue-700 dark:text-blue-300">Configurar Juros por Atraso</Label>
                                 <Select 
                                   value={inlinePenaltyType} 
                                   onValueChange={(v) => setInlinePenaltyType(v as 'percentage' | 'fixed')}
                                 >
-                                  <SelectTrigger className="h-8 bg-white/10 border-blue-400/50 text-red-100">
+                                  <SelectTrigger className="h-8 bg-red-50 dark:bg-white/10 border-blue-500/50 dark:border-blue-400/50 text-gray-900 dark:text-red-100">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -11160,11 +11267,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   value={inlinePenaltyValue}
                                   onChange={(e) => setInlinePenaltyValue(e.target.value)}
                                   placeholder={inlinePenaltyType === 'percentage' ? 'Ex: 1.00' : 'Ex: 50.00'}
-                                  className="h-8 bg-white/10 border-blue-400/50 text-red-100 placeholder:text-red-300/50"
+                                  className="h-8 bg-red-50 dark:bg-white/10 border-blue-500/50 dark:border-blue-400/50 text-gray-900 dark:text-red-100 placeholder:text-gray-400 dark:placeholder:text-red-300/50"
                                 />
                                 
                                 {parseFloat(inlinePenaltyValue) > 0 && overdueInstallmentsDetails.length > 0 && (
-                                  <div className="text-xs text-blue-300/80 p-2 bg-blue-500/10 rounded space-y-1">
+                                  <div className="text-xs text-blue-700 dark:text-blue-300/80 p-2 bg-blue-50 dark:bg-blue-500/10 rounded border border-blue-200 dark:border-transparent space-y-1">
                                     <p className="font-medium">Prévia dos juros ({overdueInstallmentsDetails.length} parcelas):</p>
                                     {overdueInstallmentsDetails.slice(0, 3).map((detail, idx) => {
                                       const penaltyVal = parseFloat(inlinePenaltyValue);
@@ -11213,7 +11320,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     size="sm" 
                                     variant="outline" 
                                     onClick={() => setConfiguringPenaltyLoanId(null)}
-                                    className="border-blue-400/50 text-blue-300"
+                                    className="border-blue-400/50 text-blue-700 dark:text-blue-300"
                                   >
                                     Cancelar
                                   </Button>
@@ -11231,7 +11338,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     setInlinePenaltyType(overdueConfigType || 'percentage');
                                     setInlinePenaltyValue(overdueConfigValue.toString());
                                   }}
-                                  className="flex-1 text-blue-300/70 hover:text-blue-300 hover:bg-blue-500/10"
+                                  className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300"
                                 >
                                   <Pencil className="w-3 h-3 mr-1" />
                                   Editar Juros
@@ -11246,7 +11353,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                       totalPerInstallmentDisplay
                                     );
                                   }}
-                                  className="flex-1 text-orange-300/70 hover:text-orange-300 hover:bg-orange-500/10"
+                                  className="flex-1 text-orange-700 hover:text-orange-800 hover:bg-orange-500/10 dark:text-orange-300/70 dark:hover:text-orange-300"
                                 >
                                   <DollarSign className="w-3 h-3 mr-1" />
                                   Aplicar Multa
@@ -11254,7 +11361,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               </div>
                             )}
                             
-                            <p className="text-[10px] text-red-300/60 mt-2">
+                            <p className="text-[10px] text-red-600 dark:text-red-300/60 mt-2">
                               {overdueInstallmentsDetails.length > 1 
                                 ? `Regularize as ${overdueInstallmentsDetails.length} parcelas em atraso`
                                 : 'Pague a parcela em atraso para regularizar o empréstimo'}
@@ -11430,15 +11537,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           })()
                         )}
                         
-                        <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${hasSpecialStyle ? 'border-t border-white/20' : 'border-t'}`}>
+                        <div className={`flex flex-col gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 ${isPaid ? 'border-t border-white/20' : 'border-t'}`}>
                           <TooltipProvider delayDuration={300}>
                             <div className="flex gap-1.5 sm:gap-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="sm" 
-                                    className={`flex-1 h-7 sm:h-8 text-xs ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
+                                    className={`flex-1 h-7 sm:h-8 text-xs ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`} 
                                     onClick={() => { 
                                       setSelectedLoanId(loan.id);
                                       const dates = (loan.installment_dates as string[]) || [];
@@ -11476,9 +11583,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : ''}`}
                                     onClick={() => openPaymentHistory(loan.id)}
                                   >
                                     <History className="w-3 h-3" />
@@ -11492,9 +11599,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-blue-500 text-blue-500 hover:bg-blue-500/10'}`}
                                     onClick={() => openDailyEditDialog(loan.id)}
                                   >
                                     <Pencil className="w-3 h-3" />
@@ -11508,9 +11615,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button 
-                                    variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                    variant={isPaid ? 'secondary' : 'outline'} 
                                     size="icon" 
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-amber-500 text-amber-500 hover:bg-amber-500/10'}`}
                                     onClick={() => openEditDialog(loan.id)}
                                   >
                                     <RefreshCw className="w-3 h-3" />
@@ -11525,9 +11632,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button 
-                                      variant={hasSpecialStyle ? 'secondary' : 'outline'} 
+                                      variant={isPaid ? 'secondary' : 'outline'} 
                                       size="icon" 
-                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${hasSpecialStyle ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 ${isPaid ? 'bg-white/20 text-white hover:bg-white/30 border-white/30' : 'border-sky-500 text-sky-500 hover:bg-sky-500/10'}`}
                                       onClick={() => {
                                         setExtraInstallmentsLoan(loan);
                                         setIsExtraInstallmentsOpen(true);

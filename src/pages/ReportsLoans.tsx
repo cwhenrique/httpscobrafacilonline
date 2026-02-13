@@ -470,55 +470,6 @@ export default function ReportsLoans() {
       return sum + (principal - totalPrincipalPaid);
     }, 0);
     
-    // Juros a Receber - Baseado no remaining_balance para capturar juros de rollover
-    // Quando cliente paga só juros, novos juros são adicionados ao remaining_balance
-    const pendingInterest = allActiveLoans.reduce((sum, loan) => {
-      const principal = Number(loan.principal_amount);
-      const remainingBalance = Number(loan.remaining_balance || 0);
-      const installmentDates = (loan as any).installment_dates || [];
-      
-      const payments = (loan as any).payments || [];
-      
-      // Calcular principal já pago para determinar principal restante
-      const principalPaid = payments.reduce((s: number, p: any) => 
-        s + Number(p.principal_paid || 0), 0);
-      
-      // Principal restante = principal original - principal pago
-      const principalRemaining = Math.max(0, principal - principalPaid);
-      
-      // Juros pendentes = saldo devedor - principal restante
-      // Isso captura juros de rollover que não estão no total_interest original
-      // Ex: remaining_balance = 12000, principal_remaining = 10000 → juros = 2000
-      const pendingInterestFromBalance = Math.max(0, remainingBalance - principalRemaining);
-      
-      // Se há período selecionado, filtrar por datas de vencimento
-      if (dateRange?.from && dateRange?.to && installmentDates.length > 0) {
-        const startDate = startOfDay(dateRange.from);
-        const endDate = endOfDay(dateRange.to);
-        
-        // Verificar se alguma parcela vence no período
-        let hasInstallmentInPeriod = false;
-        installmentDates.forEach((dateStr: string) => {
-          const dueDate = parseISO(dateStr);
-          if (isWithinInterval(dueDate, { start: startDate, end: endDate })) {
-            hasInstallmentInPeriod = true;
-          }
-        });
-        
-        // Se há parcelas no período, incluir os juros pendentes
-        // (todos os juros são devidos quando há parcela vencendo)
-        if (hasInstallmentInPeriod) {
-          return sum + pendingInterestFromBalance;
-        }
-        
-        return sum;
-      }
-      
-      // Sem período selecionado - mostrar todos os juros pendentes
-      return sum + pendingInterestFromBalance;
-    }, 0);
-    
-    
     // Helper para extrair pagamentos parciais das notas
     const getPartialPaymentsFromNotes = (notes: string | null | undefined): Record<number, number> => {
       if (!notes) return {};
@@ -532,6 +483,70 @@ export default function ReportsLoans() {
       }
       return partialPayments;
     };
+
+    // Juros a Receber - Proporcional às parcelas no período
+    const pendingInterest = allActiveLoans.reduce((sum, loan) => {
+      const principal = Number(loan.principal_amount);
+      const remainingBalance = Number(loan.remaining_balance || 0);
+      const installmentDates = (loan as any).installment_dates || [];
+      const isDaily = loan.payment_type === 'daily';
+      
+      const payments = (loan as any).payments || [];
+      
+      // Calcular principal já pago para determinar principal restante
+      const principalPaid = payments.reduce((s: number, p: any) => 
+        s + Number(p.principal_paid || 0), 0);
+      
+      // Principal restante = principal original - principal pago
+      const principalRemaining = Math.max(0, principal - principalPaid);
+      
+      // Juros pendentes totais = saldo devedor - principal restante
+      const totalPendingInterest = Math.max(0, remainingBalance - principalRemaining);
+      
+      // Sem período selecionado - mostrar todos os juros pendentes
+      if (!dateRange?.from || !dateRange?.to || installmentDates.length === 0) {
+        return sum + totalPendingInterest;
+      }
+      
+      const startDate = startOfDay(dateRange.from);
+      const endDate = endOfDay(dateRange.to);
+      const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+      
+      // Calcular valor da parcela
+      const numInstallments = Number(loan.installments) || installmentDates.length;
+      let installmentValue: number;
+      if (isDaily) {
+        installmentValue = Number(loan.total_interest) || 0;
+      } else if (loan.interest_mode === 'on_total') {
+        const totalInterest = principal * (Number(loan.interest_rate) / 100);
+        installmentValue = (principal + totalInterest) / numInstallments;
+      } else if (loan.interest_mode === 'compound') {
+        const totalInterest = principal * Math.pow(1 + (Number(loan.interest_rate) / 100), numInstallments) - principal;
+        installmentValue = (principal + totalInterest) / numInstallments;
+      } else {
+        // per_installment
+        const totalInterest = principal * (Number(loan.interest_rate) / 100) * numInstallments;
+        installmentValue = (principal + totalInterest) / numInstallments;
+      }
+      
+      // Calcular juros por parcela
+      const principalPerInstallment = principal / numInstallments;
+      const interestPerInstallment = Math.max(0, installmentValue - principalPerInstallment);
+      
+      // Somar juros apenas das parcelas NÃO pagas que vencem no período
+      let interestInPeriod = 0;
+      installmentDates.forEach((dateStr: string, index: number) => {
+        const dueDate = parseISO(dateStr);
+        const paidAmount = partialPayments[index] || 0;
+        const isInstallmentPaid = paidAmount >= installmentValue * 0.99;
+        
+        if (!isInstallmentPaid && isWithinInterval(dueDate, { start: startDate, end: endDate })) {
+          interestInPeriod += interestPerInstallment;
+        }
+      });
+      
+      return sum + interestInPeriod;
+    }, 0);
     
     // Falta Receber - INSTALLMENTS DUE IN PERIOD (lógica corrigida)
     const pendingAmount = allActiveLoans.reduce((sum, loan) => {
@@ -613,11 +628,47 @@ export default function ReportsLoans() {
     const activeLoansInPeriod = loansInPeriod.filter(loan => loan.status !== 'paid');
     const overdueLoansInPeriod = activeLoansInPeriod.filter(loan => isLoanOverdue(loan));
 
-    // Em Atraso - FILTERED BY PERIOD (inclui juros por atraso dinâmicos)
+    // Em Atraso - Soma apenas parcelas vencidas não pagas (antes de hoje)
+    const today = startOfDay(new Date());
     const overdueAmount = overdueLoansInPeriod.reduce((sum, loan) => {
-      const daysOver = getDaysOverdue(loan);
-      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
-      return sum + Number(loan.remaining_balance || 0) + dynamicInterest;
+      const installmentDates = (loan as any).installment_dates || [];
+      
+      if (installmentDates.length > 0) {
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const isDaily = loan.payment_type === 'daily';
+        const numInst = Number(loan.installments) || installmentDates.length;
+        const principal = Number(loan.principal_amount);
+        const rate = Number(loan.interest_rate);
+        const interestMode = loan.interest_mode || 'per_installment';
+        
+        let installmentValue: number;
+        if (isDaily) {
+          installmentValue = Number(loan.total_interest) || 0;
+        } else if (interestMode === 'on_total') {
+          const tInterest = principal * (rate / 100);
+          installmentValue = (principal + tInterest) / numInst;
+        } else if (interestMode === 'compound') {
+          const tInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+          installmentValue = (principal + tInterest) / numInst;
+        } else {
+          const tInterest = principal * (rate / 100) * numInst;
+          installmentValue = (principal + tInterest) / numInst;
+        }
+        
+        let overdueInLoan = 0;
+        installmentDates.forEach((dateStr: string, idx: number) => {
+          const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
+          if (dueDate < today) {
+            const paidAmount = partialPayments[idx] || 0;
+            if (paidAmount < installmentValue * 0.99) {
+              overdueInLoan += Math.max(0, installmentValue - paidAmount);
+            }
+          }
+        });
+        return sum + overdueInLoan;
+      } else {
+        return sum + Number(loan.remaining_balance || 0);
+      }
     }, 0);
     
     return {
