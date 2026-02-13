@@ -1,70 +1,62 @@
 
-# Recebimentos Separados por Funcionario
 
-## Objetivo
-Quando o dono da conta tem funcionarios ativos, a area de **Recebimentos** deve exibir os valores que o funcionario registrou separados dos valores registrados pelo proprio dono, permitindo controle de quem recebeu o que no dia.
+# Correção: Empréstimos Quitados Reabertos pela Migração
 
-## Problema Atual
-A tabela `loan_payments` nao possui um campo `created_by`, entao nao e possivel saber quem registrou cada pagamento. Todos os pagamentos aparecem juntos sem distincao.
+## Causa Raiz
 
-## Plano de Implementacao
-
-### 1. Adicionar coluna `created_by` na tabela `loan_payments`
-- Nova coluna `created_by UUID NOT NULL DEFAULT auth.uid()`
-- Pagamentos existentes terao `created_by = user_id` (preenchimento retroativo)
-- Isso permite rastrear qual usuario (dono ou funcionario) registrou o pagamento
-
-### 2. Atualizar o hook `useLoans.ts` - Inserir `created_by`
-- Na funcao `addPayment`, incluir `created_by: user?.id` (o ID real do usuario logado, nao o `effectiveUserId`)
-- `user_id` continua sendo o `effectiveUserId` (dono) para RLS
-- `created_by` sera o `auth.uid()` real (funcionario ou dono)
-
-### 3. Modificar o componente `PaymentsHistoryTab`
-- Buscar dados dos funcionarios ativos do dono
-- Agrupar pagamentos por `created_by`:
-  - **Secao "Meus Recebimentos"**: pagamentos onde `created_by = user.id` (dono)
-  - **Secao por funcionario**: pagamentos onde `created_by = employee_user_id`, com nome do funcionario
-- Cada secao tera seus proprios cards de resumo (Total Recebido, Juros, Principal, Qtd)
-- Cards de resumo geral no topo continuam mostrando o total consolidado
-
-### 4. Layout Visual
-```text
-+-----------------------------------------------+
-| Resumo Total (consolidado)                     |
-| Total Recebido | Juros | Principal | Qtd       |
-+-----------------------------------------------+
-
-+-----------------------------------------------+
-| Meus Recebimentos (Dono)           R$ X.XXX   |
-| [tabela de pagamentos do dono]                 |
-+-----------------------------------------------+
-
-+-----------------------------------------------+
-| Funcionario: "Secretaria"          R$ X.XXX   |
-| [tabela de pagamentos do funcionario]          |
-+-----------------------------------------------+
+A migração que adicionou a coluna `created_by` na tabela `loan_payments` executou:
+```sql
+UPDATE loan_payments SET created_by = user_id WHERE created_by IS NULL;
 ```
 
-- Se o usuario nao tem funcionarios ativos, o layout permanece como esta hoje (sem separacao)
-- Cada secao e colapsavel para facilitar navegacao
+Esse UPDATE disparou o gatilho `recalculate_loan_total_paid` em **todas as linhas de pagamentos**, recalculando o saldo de **13.029 empréstimos** no sistema inteiro. Desses, **396 empréstimos** que estavam quitados voltaram a ficar "abertos" (pending/overdue).
 
-### Detalhes Tecnicos
+## Por que o recálculo deu errado?
+
+O gatilho calcula o saldo restante assim:
+
+```
+remaining_balance = total_a_receber - pagamentos_que_reduzem_saldo
+```
+
+Pagamentos marcados como `[INTEREST_ONLY_PAYMENT]` ou `[AMORTIZATION]` sao **excluidos** do calculo de "pagamentos que reduzem saldo". Isso faz sentido durante a vida do emprestimo, mas quando o cliente ja pagou **tudo** (principal + juros), o gatilho ainda mostra saldo restante porque ignora os pagamentos de juros.
+
+**Exemplo concreto do usuario tarciziomartinez@gmail.com:**
+- Emprestimo `d5ec15dc`: Principal R$ 5.000 + Juros R$ 1.250 = Total R$ 6.250
+- Pagou R$ 5.000 (normal) + R$ 1.250 (interest-only) = R$ 6.250 total
+- Gatilho calcula: remaining = 6.250 - 5.000 = R$ 1.250 (ignora o pagamento de juros)
+- Status: "overdue" em vez de "paid"
+
+## Plano de Correção
+
+### 1. Corrigir o gatilho `recalculate_loan_total_paid`
+
+Adicionar uma verificacao **antes** do calculo de remaining_balance: se `total_paid >= total_to_receive`, o emprestimo esta quitado independentemente do tipo de pagamento.
+
+```sql
+-- Nova verificacao apos calcular total_to_receive:
+IF total_payments >= total_to_receive - 0.01 THEN
+  -- Pago integralmente, nao importa como
+  UPDATE loans SET remaining_balance = 0, status = 'paid', ...
+  RETURN;
+END IF;
+```
+
+### 2. Corrigir os 396 empréstimos afetados
+
+Executar uma query de reparo para restaurar o status correto dos emprestimos que tiveram total_paid >= total_a_receber mas estao com status != 'paid'.
+
+### 3. Detalhes tecnicos
 
 **Migracao SQL:**
-```sql
-ALTER TABLE loan_payments ADD COLUMN created_by UUID DEFAULT auth.uid();
-UPDATE loan_payments SET created_by = user_id WHERE created_by IS NULL;
-ALTER TABLE loan_payments ALTER COLUMN created_by SET NOT NULL;
-```
+- Atualizar a funcao `recalculate_loan_total_paid` com a verificacao adicional
+- UPDATE em loans afetados para restaurar status = 'paid' e remaining_balance = 0
 
-**Query de pagamentos (atualizada):**
-- Incluir `created_by` no SELECT
-- JOIN com `employees` para obter nome do funcionario registrador
+**Condicoes do reparo:**
+- Emprestimos normais (nao-daily): `total_paid >= principal_amount + total_interest`
+- Emprestimos daily: `total_paid >= total_interest * installments`
+- Excluir emprestimos com tag `[DISCOUNT_SETTLEMENT]` (ja tratados separadamente)
 
-**Logica de agrupamento:**
-- Buscar funcionarios ativos do dono: `SELECT employee_user_id, name FROM employees WHERE owner_id = user.id AND is_active = true`
-- Agrupar pagamentos: `payments.filter(p => p.created_by === userId)` para o dono, e filtrar por cada `employee_user_id` para funcionarios
+**Arquivos a modificar:**
+- Nova migracao SQL apenas (sem alteracao de codigo frontend)
 
-**Condicao de exibicao:**
-- Separacao so aparece quando `isOwner === true` e existem funcionarios ativos
-- Funcionarios veem apenas seus proprios recebimentos (sem separacao)
