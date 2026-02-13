@@ -10,14 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Mic, MicOff, Info, ExternalLink, BellRing, Clock } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Mic, MicOff, Info, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
-import BillingMessageConfigCard from '@/components/BillingMessageConfigCard';
 
 // Emails com acesso privilegiado ao assistente de voz (independente do plano)
 const VOICE_PRIVILEGED_EMAILS = [
@@ -57,11 +54,6 @@ export default function Settings() {
   const [togglingVoice, setTogglingVoice] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
 
-  // Auto billing states
-  const [autoBillingEnabled, setAutoBillingEnabled] = useState(false);
-  const [autoBillingHour, setAutoBillingHour] = useState(8);
-  const [autoBillingTypes, setAutoBillingTypes] = useState<string[]>(['due_today', 'overdue']);
-  const [savingAutoBilling, setSavingAutoBilling] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -72,9 +64,6 @@ export default function Settings() {
         company_name: profile.company_name || '',
       });
       setVoiceAssistantEnabled(profile.voice_assistant_enabled || false);
-      setAutoBillingEnabled(profile.auto_client_reports_enabled || false);
-      setAutoBillingHour(profile.auto_report_hour || 8);
-      setAutoBillingTypes(profile.auto_report_types || ['due_today', 'overdue']);
     }
   }, [profile, user]);
 
@@ -199,31 +188,6 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveAutoBilling = async () => {
-    setSavingAutoBilling(true);
-    try {
-      const { error } = await updateProfile({
-        auto_client_reports_enabled: autoBillingEnabled,
-        auto_report_hour: autoBillingHour,
-        auto_report_types: autoBillingTypes,
-      } as any);
-      if (error) {
-        toast.error('Erro ao salvar configuração');
-      } else {
-        toast.success('Cobrança automática configurada!');
-      }
-    } catch {
-      toast.error('Erro ao salvar');
-    } finally {
-      setSavingAutoBilling(false);
-    }
-  };
-
-  const toggleBillingType = (type: string) => {
-    setAutoBillingTypes(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,130 +463,7 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
         </Card>
         )}
 
-        {/* Auto Client Billing */}
-        {profile?.whatsapp_instance_id && profile?.whatsapp_to_clients_enabled && (
-        <Card className="shadow-soft border-orange-500/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-500/10">
-                  <BellRing className="w-5 h-5 text-orange-500" />
-                </div>
-                <div>
-                  <CardTitle>Cobrança Automática para Clientes</CardTitle>
-                  <CardDescription>
-                    Envie cobranças automaticamente via WhatsApp para seus clientes
-                  </CardDescription>
-                </div>
-              </div>
-              {autoBillingEnabled ? (
-                <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/30">
-                  <BellRing className="w-3 h-3 mr-1" />
-                  Ativo
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="bg-muted text-muted-foreground">
-                  Inativo
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div>
-                <p className="font-medium text-sm">Ativar Cobrança Automática</p>
-                <p className="text-xs text-muted-foreground">Mensagens enviadas automaticamente nos horários configurados</p>
-              </div>
-              <Switch
-                checked={autoBillingEnabled}
-                onCheckedChange={setAutoBillingEnabled}
-              />
-            </div>
 
-            {autoBillingEnabled && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-orange-500/5 border border-orange-500/20">
-                  <div className="flex items-start gap-2 mb-3">
-                    <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5" />
-                    <p className="text-xs text-muted-foreground">
-                      As mensagens serão enviadas pelo <strong>seu WhatsApp conectado</strong> diretamente para os clientes com número cadastrado. Máximo de 50 mensagens por dia, sem envio aos domingos.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Horário de Envio
-                  </Label>
-                  <Select
-                    value={String(autoBillingHour)}
-                    onValueChange={(val) => setAutoBillingHour(parseInt(val))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">07:00</SelectItem>
-                      <SelectItem value="8">08:00</SelectItem>
-                      <SelectItem value="9">09:00</SelectItem>
-                      <SelectItem value="10">10:00</SelectItem>
-                      <SelectItem value="12">12:00</SelectItem>
-                      <SelectItem value="14">14:00</SelectItem>
-                      <SelectItem value="16">16:00</SelectItem>
-                      <SelectItem value="18">18:00</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipos de Cobrança</Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="type_due_today"
-                        checked={autoBillingTypes.includes('due_today')}
-                        onCheckedChange={() => toggleBillingType('due_today')}
-                      />
-                      <label htmlFor="type_due_today" className="text-sm">
-                        📅 Vence Hoje — lembrete no dia do vencimento
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="type_overdue"
-                        checked={autoBillingTypes.includes('overdue')}
-                        onCheckedChange={() => toggleBillingType('overdue')}
-                      />
-                      <label htmlFor="type_overdue" className="text-sm">
-                        🚨 Em Atraso — cobrança de parcelas vencidas
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleSaveAutoBilling}
-                  disabled={savingAutoBilling || autoBillingTypes.length === 0}
-                  className="w-full"
-                >
-                  {savingAutoBilling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    'Salvar Configuração'
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        )}
-
-        {/* Billing Message Configuration - Advanced */}
-        <BillingMessageConfigCard />
 
         {/* Employee Management Section */}
         {!isEmployee && (
