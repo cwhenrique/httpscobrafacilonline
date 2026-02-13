@@ -3,7 +3,7 @@ import { useOperationalStats } from './useOperationalStats';
 import { useProductSales } from './useProductSales';
 import { useVehicles } from './useVehicles';
 import { isBefore, startOfDay, addDays, subDays } from 'date-fns';
-import { calculatePaidInstallments } from '@/lib/calculations';
+import { getPartialPaymentsFromNotes } from '@/lib/calculations';
 
 interface HealthData {
   score: number;
@@ -76,36 +76,43 @@ export function useDashboardHealth() {
     activeLoans.forEach((loan) => {
       const dates = (loan.installment_dates as string[]) || [];
       const installmentValue = (loan.principal_amount + (loan.total_interest || 0)) / (dates.length || 1);
-      // Usar calculatePaidInstallments para contagem precisa baseada em tags PARTIAL_PAID
-      const paidCount = calculatePaidInstallments(loan as any);
+      const partialPayments = getPartialPaymentsFromNotes(loan.notes || null);
 
       dates.forEach((dateStr, index) => {
-        if (index < paidCount) return;
-        const dueDate = new Date(dateStr);
+        // Check if this specific installment is paid via PARTIAL_PAID tags
+        const paidAmount = partialPayments[index] || 0;
+        if (paidAmount >= installmentValue * 0.99) return; // Already paid
+
+        const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
         
-        // Vence esta semana
+        // Vence esta semana (today <= dueDate <= nextWeek)
         if (dueDate >= today && dueDate <= nextWeek) {
           dueThisWeekCount++;
-          dueThisWeekAmount += installmentValue;
+          dueThisWeekAmount += Math.max(0, installmentValue - paidAmount);
         }
         
         // Atrasado há mais de 30 dias
         if (isBefore(dueDate, thirtyDaysAgo)) {
           overdueMoreThan30DaysCount++;
-          overdueMoreThan30DaysAmount += installmentValue;
+          overdueMoreThan30DaysAmount += Math.max(0, installmentValue - paidAmount);
         }
       });
 
-      // Para empréstimos de parcela única
+      // Para empréstimos de parcela única sem installment_dates
       if (dates.length === 0) {
-        const dueDate = new Date(loan.due_date);
+        const totalPaid = loan.total_paid || 0;
+        const totalExpected = loan.principal_amount + (loan.total_interest || 0);
+        if (totalPaid >= totalExpected * 0.99) return; // Already paid
+        
+        const dueDate = startOfDay(new Date(loan.due_date + 'T00:00:00'));
+        const unpaidAmount = Math.max(0, (loan.remaining_balance || 0));
         if (dueDate >= today && dueDate <= nextWeek) {
           dueThisWeekCount++;
-          dueThisWeekAmount += loan.remaining_balance || 0;
+          dueThisWeekAmount += unpaidAmount;
         }
         if (isBefore(dueDate, thirtyDaysAgo)) {
           overdueMoreThan30DaysCount++;
-          overdueMoreThan30DaysAmount += loan.remaining_balance || 0;
+          overdueMoreThan30DaysAmount += unpaidAmount;
         }
       }
     });
