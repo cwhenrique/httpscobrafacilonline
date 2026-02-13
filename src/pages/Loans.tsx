@@ -10024,7 +10024,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               let profitTodayRealized = 0;
               let receivedTodayCount = 0;
               let totalOverdue = 0;
-              let overdueCount = 0;
+              const overdueClientIds = new Set<string>();
               
               // Calcular parcelas a cobrar hoje (empréstimos ativos)
               activeDailyLoans.forEach(loan => {
@@ -10035,6 +10035,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 
                 const paidCount = getPaidInstallmentsCount(loan);
                 const dates = (loan.installment_dates as string[]) || [];
+                const partialPayments = getPartialPaymentsFromNotes(loan.notes);
                 
                 // Verificar próxima parcela não paga
                 if (paidCount < dates.length) {
@@ -10046,18 +10047,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     profitTodayExpected += profitPerInstallment;
                     dueTodayCount++;
                   }
-                  
-                  // Contar parcelas em atraso
-                  for (let i = paidCount; i < dates.length; i++) {
-                    const dueDate = new Date(dates[i] + 'T12:00:00');
-                    dueDate.setHours(0, 0, 0, 0);
-                    if (dueDate < today) {
-                      totalOverdue += dailyInstallmentAmount;
-                      if (i === paidCount) overdueCount++; // Conta o cliente uma vez
+                }
+                
+                // Contar parcelas em atraso - verificar cada parcela individualmente
+                let hasOverdueInThisLoan = false;
+                for (let i = 0; i < dates.length; i++) {
+                  const dueDate = new Date(dates[i] + 'T12:00:00');
+                  dueDate.setHours(0, 0, 0, 0);
+                  if (dueDate < today) {
+                    const paidAmount = partialPayments[i] || 0;
+                    if (paidAmount < dailyInstallmentAmount * 0.99) {
+                      totalOverdue += Math.max(0, dailyInstallmentAmount - paidAmount);
+                      hasOverdueInThisLoan = true;
                     }
                   }
                 }
+                if (hasOverdueInThisLoan) {
+                  overdueClientIds.add(loan.client_id);
+                }
               });
+              
+              const overdueCount = overdueClientIds.size;
               
               // Calcular valores REAIS recebidos hoje (baseado em payment_date)
               dailyLoans.forEach(loan => {
