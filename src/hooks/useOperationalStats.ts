@@ -194,7 +194,7 @@ async function fetchOperationalStats(): Promise<StatsData> {
           
           // Somar apenas parcelas vencidas e não pagas
           installmentDates.forEach((dateStr: string, idx: number) => {
-            const dueDate = new Date(dateStr);
+            const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
             if (dueDate < today) {
               const paidAmount = partialPayments[idx] || 0;
               if (paidAmount < installmentValue * 0.99) {
