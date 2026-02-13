@@ -1662,6 +1662,39 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_message_status: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          phone: string
+          raw_data: Json | null
+          status: string
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          phone: string
+          raw_data?: Json | null
+          status?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          phone?: string
+          raw_data?: Json | null
+          status?: string
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_messages: {
         Row: {
           client_name: string
