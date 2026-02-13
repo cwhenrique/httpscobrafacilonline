@@ -110,7 +110,7 @@ export function FinancialChart({ loans, payments }: FinancialChartProps) {
               <Legend />
               <Bar 
                 dataKey="Emprestado" 
-                fill="hsl(var(--primary))" 
+                fill="hsl(var(--warning))" 
                 radius={[4, 4, 0, 0]}
               />
               <Bar 
