@@ -628,11 +628,47 @@ export default function ReportsLoans() {
     const activeLoansInPeriod = loansInPeriod.filter(loan => loan.status !== 'paid');
     const overdueLoansInPeriod = activeLoansInPeriod.filter(loan => isLoanOverdue(loan));
 
-    // Em Atraso - FILTERED BY PERIOD (inclui juros por atraso dinâmicos)
+    // Em Atraso - Soma apenas parcelas vencidas não pagas (antes de hoje)
+    const today = startOfDay(new Date());
     const overdueAmount = overdueLoansInPeriod.reduce((sum, loan) => {
-      const daysOver = getDaysOverdue(loan);
-      const dynamicInterest = calculateDynamicOverdueInterest(loan, daysOver);
-      return sum + Number(loan.remaining_balance || 0) + dynamicInterest;
+      const installmentDates = (loan as any).installment_dates || [];
+      
+      if (installmentDates.length > 0) {
+        const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const isDaily = loan.payment_type === 'daily';
+        const numInst = Number(loan.installments) || installmentDates.length;
+        const principal = Number(loan.principal_amount);
+        const rate = Number(loan.interest_rate);
+        const interestMode = loan.interest_mode || 'per_installment';
+        
+        let installmentValue: number;
+        if (isDaily) {
+          installmentValue = Number(loan.total_interest) || 0;
+        } else if (interestMode === 'on_total') {
+          const tInterest = principal * (rate / 100);
+          installmentValue = (principal + tInterest) / numInst;
+        } else if (interestMode === 'compound') {
+          const tInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+          installmentValue = (principal + tInterest) / numInst;
+        } else {
+          const tInterest = principal * (rate / 100) * numInst;
+          installmentValue = (principal + tInterest) / numInst;
+        }
+        
+        let overdueInLoan = 0;
+        installmentDates.forEach((dateStr: string, idx: number) => {
+          const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
+          if (dueDate < today) {
+            const paidAmount = partialPayments[idx] || 0;
+            if (paidAmount < installmentValue * 0.99) {
+              overdueInLoan += Math.max(0, installmentValue - paidAmount);
+            }
+          }
+        });
+        return sum + overdueInLoan;
+      } else {
+        return sum + Number(loan.remaining_balance || 0);
+      }
     }, 0);
     
     return {
