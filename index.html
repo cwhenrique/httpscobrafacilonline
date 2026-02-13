@@ -8,11 +8,44 @@
     <meta http-equiv="X-XSS-Protection" content="1; mode=block">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     
-    <!-- DNS prefetch para melhorar conectividade -->
+    <!-- DNS prefetch e preconnect para melhorar conectividade (especialmente Claro/operadoras) -->
     <link rel="dns-prefetch" href="//yulegybknvtanqkipsbj.supabase.co">
     <link rel="preconnect" href="https://yulegybknvtanqkipsbj.supabase.co" crossorigin>
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <!-- Fallback DNS adicional para operadoras que bloqueiam resolução -->
+    <link rel="dns-prefetch" href="//cdn.supabase.co">
+    <link rel="dns-prefetch" href="//cloudflare-dns.com">
+    
+    <!-- Retry automático para problemas de DNS/rede da Claro -->
+    <script>
+      (function() {
+        var maxRetries = 3;
+        var retryCount = 0;
+        var supabaseUrl = 'https://yulegybknvtanqkipsbj.supabase.co/rest/v1/';
+        var anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1bGVneWJrbnZ0YW5xa2lwc2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NzE4MDEsImV4cCI6MjA4MDM0NzgwMX0.q7IbfI0rF5yuI8NpTHTNbVzcypFVOxavfo0VZLjJdyc';
+        
+        function prefetchBackend() {
+          fetch(supabaseUrl, { 
+            method: 'HEAD', 
+            headers: { 'apikey': anonKey },
+            cache: 'no-store'
+          }).catch(function() {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              setTimeout(prefetchBackend, 2000 * retryCount);
+            }
+          });
+        }
+        
+        // Inicia prefetch assim que possível
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', prefetchBackend);
+        } else {
+          prefetchBackend();
+        }
+      })();
+    </script>
     
     <!-- Meta Pixel Code com tratamento de erro -->
     <script>
