@@ -461,6 +461,8 @@ export default function SaleCreatedReceiptPrompt({
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
         isSending={isSending}
+        showWhatsAppLinkFallback={!!sale.client_phone}
+        clientPhone={sale.client_phone || undefined}
       />
 
       {/* Preview for client - plain text */}
@@ -475,6 +477,7 @@ export default function SaleCreatedReceiptPrompt({
         isSending={isSendingToClient}
         mode={canSendToClient ? 'send' : 'whatsapp_link'}
         clientPhone={sale.client_phone || undefined}
+        showWhatsAppLinkFallback={canSendToClient && !!sale.client_phone}
       />
 
       {/* WhatsApp not connected dialog */}

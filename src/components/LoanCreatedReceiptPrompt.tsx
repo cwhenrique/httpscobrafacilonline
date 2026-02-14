@@ -465,6 +465,8 @@ export default function LoanCreatedReceiptPrompt({
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
         isSending={isSending}
+        showWhatsAppLinkFallback={!!loan.clientPhone}
+        clientPhone={loan.clientPhone}
       />
 
       {/* Preview for client - plain text */}
@@ -479,6 +481,7 @@ export default function LoanCreatedReceiptPrompt({
         isSending={isSendingToClient}
         mode={canSendToClient ? 'send' : 'whatsapp_link'}
         clientPhone={loan.clientPhone}
+        showWhatsAppLinkFallback={canSendToClient && !!loan.clientPhone}
       />
 
       {/* WhatsApp not connected dialog */}
