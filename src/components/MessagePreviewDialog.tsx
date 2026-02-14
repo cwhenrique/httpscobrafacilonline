@@ -139,6 +139,16 @@ export default function MessagePreviewDialog({
           </p>
         </div>
 
+        {/* DDD warning - above footer buttons */}
+        {clientPhone && !phoneHasDDD && (mode === 'whatsapp_link' || (mode === 'send' && showWhatsAppLinkFallback)) && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>
+              O telefone deste cliente não possui DDD. Edite o cadastro e adicione o DDD (ex: 11) para enviar via link.
+            </span>
+          </div>
+        )}
+
         <DialogFooter className="gap-2 flex-col sm:flex-row">
           <Button
             variant="outline"
@@ -149,14 +159,6 @@ export default function MessagePreviewDialog({
           </Button>
           {mode === 'whatsapp_link' ? (
             <>
-              {clientPhone && !phoneHasDDD && (
-                <div className="w-full flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
-                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    O telefone deste cliente não possui DDD. Edite o cadastro do cliente e adicione o DDD (ex: 11) para enviar mensagens pelo WhatsApp.
-                  </span>
-                </div>
-              )}
               <Button
                 onClick={handleCopy}
                 disabled={!editedMessage.trim()}
@@ -205,25 +207,15 @@ export default function MessagePreviewDialog({
           ) : (
             <>
               {showWhatsAppLinkFallback && clientPhone && (
-                <>
-                  {!phoneHasDDD && (
-                    <div className="w-full flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
-                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span>
-                        O telefone deste cliente não possui DDD. Edite o cadastro e adicione o DDD para enviar via link.
-                      </span>
-                    </div>
-                  )}
-                  <Button
-                    onClick={handleOpenWhatsApp}
-                    disabled={!editedMessage.trim() || !phoneHasDDD}
-                    variant="outline"
-                    className="bg-green-600 hover:bg-green-700 text-white border-green-600"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Via WhatsApp
-                  </Button>
-                </>
+                <Button
+                  onClick={handleOpenWhatsApp}
+                  disabled={!editedMessage.trim() || !phoneHasDDD}
+                  variant="outline"
+                  className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Via WhatsApp
+                </Button>
               )}
               <Button
                 onClick={handleConfirm}
