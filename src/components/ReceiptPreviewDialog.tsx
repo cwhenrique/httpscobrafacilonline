@@ -559,6 +559,16 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
           </div>
         </ScrollArea>
 
+        {/* DDD warning */}
+        {clientPhone && (() => { const clean = clientPhone.replace(/\D/g, ''); return clean.length < 10; })() && (
+          <div className="mx-4 flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+            <span className="mt-0.5 flex-shrink-0">⚠️</span>
+            <span>
+              O telefone deste cliente não possui DDD. Edite o cadastro e adicione o DDD (ex: 11) para enviar via link.
+            </span>
+          </div>
+        )}
+
         <DialogFooter className="p-4 border-t gap-2 flex-col sm:flex-row">
           {/* Botão Copiar - SEMPRE aparece */}
           <Button 
