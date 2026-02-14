@@ -1,37 +1,80 @@
 
-# Reorganizar botoes de cobranca WhatsApp
+# Correcao: Dois Botoes de Cobranca Sempre Visiveis
 
-## Problema
-Quando a instancia esta conectada e existem parcelas em atraso + vence hoje, aparecem 4 botoes empilhados verticalmente (2 de atraso + 2 de hoje), ocupando muito espaco e ficando visualmente confuso.
+## Problema Atual
+
+Cada componente de cobranca (SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification) exibe apenas **um botao** que alterna entre:
+- "Cobrar via WhatsApp" (link wa.me) quando a instancia esta desconectada
+- "Enviar Cobranca" (via API) quando conectada
+
+O problema e que o sistema de verificacao de conexao (polling a cada 2 minutos) pode estar desatualizado, fazendo o botao de "Enviar Cobranca" aparecer quando a instancia ja esta offline. Ao clicar, o usuario recebe um erro generico da edge function.
 
 ## Solucao
-Agrupar os botoes em **duas linhas horizontais**, cada uma com o botao de link (wa.me) e o botao de instancia lado a lado, usando cores distintas e labels compactos.
 
-### Layout proposto
+Mostrar **sempre os 2 botoes** em todos os componentes de cobranca:
+
+1. **"Cobrar via WhatsApp"** (link wa.me) - sempre ativo se o cliente tiver telefone com DDD
+2. **"Enviar Cobranca"** (via instancia API) - visualmente desativado quando a instancia nao esta conectada
+
+Se o usuario clicar no botao de instancia estando desconectado, em vez de erro, mostrar um toast informativo orientando a conectar via QR Code ou usar o outro botao.
+
+## Componentes a Modificar
+
+| Arquivo | Descricao |
+|---|---|
+| `SendOverdueNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Enviar Cobranca" |
+| `SendDueTodayNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Parcela de Hoje" |
+| `SendEarlyNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Antes do Prazo" |
+
+## Detalhes Tecnicos
+
+### Logica dos Botoes
+
+Para cada componente, adicionar uma variavel `hasInstance` que verifica se o usuario **configurou** uma instancia (independente de estar conectada):
 
 ```text
-Linha 1 (Atraso - Vermelho):
-[ Cobrar Atraso (link) ] [ Enviar Cobranca (instancia) ]
-
-Linha 2 (Hoje - Laranja):  
-[ Cobrar Hoje (link) ]   [ Cobrar Hoje (instancia) ]
-
-Badge: "Ja cobrou Nx" (se aplicavel)
+const hasInstance = !!(
+  profile?.whatsapp_instance_id &&
+  profile?.whatsapp_connected_phone &&
+  profile?.whatsapp_to_clients_enabled
+);
 ```
 
-## Mudancas tecnicas
+Os dois botoes ficam lado a lado:
 
-### 1. `SendOverdueNotification.tsx` (linhas 482-529)
-- Mudar o container de `flex-col` para `flex flex-row flex-wrap` com `gap-1.5`
-- Ambos os botoes ficam na mesma linha, lado a lado
-- Reduzir labels: botao link = "Atraso (Link)" / botao instancia = "Enviar Cobranca"
-- Manter cores vermelhas para ambos os botoes de atraso
+```text
+Botao 1 - "Cobrar via WhatsApp" (link wa.me)
+  - Sempre visivel se clientPhone existe
+  - onClick: abre MessagePreviewDialog com mode='whatsapp_link'
 
-### 2. `SendDueTodayNotification.tsx` (linhas 360-407)
-- Mesma mudanca: container `flex flex-row flex-wrap` com `gap-1.5`
-- Ambos os botoes ficam na mesma linha
-- Reduzir labels: botao link = "Hoje (Link)" / botao instancia = "Cobrar Hoje"
-- Manter cores laranjas/amarelas para ambos os botoes de hoje
+Botao 2 - "Enviar Cobranca" (instancia API)
+  - Visivel apenas se hasInstance = true (usuario configurou instancia)
+  - Se isInstanceConnected = false: aparece com opacity reduzida e cursor not-allowed
+  - onClick quando desconectado: toast.info("Sua instancia WhatsApp nao esta conectada. Conecte via QR Code em Configuracoes, ou use 'Cobrar via WhatsApp'.")
+  - onClick quando conectado: fluxo normal (SpamWarning -> Preview -> Enviar)
+```
 
-### Resultado visual
-Em vez de 4 botoes empilhados verticalmente, teremos 2 linhas compactas com 2 botoes cada, mantendo a diferenciacao por cor (vermelho = atraso, laranja = hoje) e reduzindo a altura total ocupada pela metade.
+### Mudanca no catch de erros
+
+Nos 3 componentes, ao detectar erro de conexao no envio:
+- Chamar `markDisconnected()` 
+- **Nao fechar** o dialogo (`setShowPreview(false)` sera removido do catch de conexao)
+- Mostrar toast informativo
+- O `previewMode` mudara automaticamente para `whatsapp_link` pois `canSendViaAPI` sera recalculado
+
+### Estrutura visual dos botoes
+
+Os dois botoes ficarao empilhados verticalmente (`flex-col`) em um container compacto:
+
+```text
+[Cobrar via WhatsApp]        <- verde, sempre ativo (link)
+[Enviar Cobranca]            <- primario quando conectado, desativado/opaco quando nao
+```
+
+### Validacao de DDD no botao de link
+
+O botao "Cobrar via WhatsApp" ja abre o MessagePreviewDialog em modo `whatsapp_link`, onde a validacao de DDD ja existe (implementada anteriormente). Nao e necessario mudanca adicional para isso.
+
+### Arquivos backend
+
+Nenhum arquivo backend precisa ser alterado.
