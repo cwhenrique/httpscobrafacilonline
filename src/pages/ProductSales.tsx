@@ -3896,6 +3896,8 @@ export default function ProductSales() {
             }
           }}
           isSending={chargePreviewData ? isSendingCharge[chargePreviewData.feeId] : false}
+          showWhatsAppLinkFallback={!!chargePreviewData?.clientPhone}
+          clientPhone={chargePreviewData?.clientPhone}
         />
 
         {/* Subscription History Dialog */}
