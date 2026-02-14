@@ -136,6 +136,14 @@ export default function Clients() {
     client.cpf?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '').slice(0, 11);
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 11) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
   const formatCpf = (value: string) => {
     const numbers = value.replace(/\D/g, '').slice(0, 11);
     if (numbers.length > 9) {
@@ -240,6 +248,15 @@ export default function Clients() {
     }
     
     const fullAddress = buildFullAddress();
+
+    // Validar telefone com DDD se preenchido
+    if (formData.phone) {
+      const phoneNumbers = formData.phone.replace(/\D/g, '');
+      if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
+        toast.error('Telefone deve conter DDD + número (10 ou 11 dígitos). Ex: (11) 99999-9999');
+        return;
+      }
+    }
     
     if (editingClient) {
       await updateClient(editingClient.id, {
@@ -535,13 +552,16 @@ export default function Clients() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="phone">Telefone</Label>
+                          <Label htmlFor="phone">Telefone (com DDD)</Label>
                           <Input
                             id="phone"
                             value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            onChange={(e) => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
                             placeholder="(00) 00000-0000"
                           />
+                          <p className="text-xs text-muted-foreground">
+                            Inclua o DDD para envio de mensagens via WhatsApp
+                          </p>
                         </div>
                       </div>
 
