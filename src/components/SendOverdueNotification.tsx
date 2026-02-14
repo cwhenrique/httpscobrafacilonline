@@ -481,40 +481,38 @@ export default function SendOverdueNotification({
 
   return (
     <>
-      <div className="flex flex-col items-center gap-1.5">
-        {/* Botão 1: Link wa.me - sempre visível */}
+      <div className="flex flex-row flex-wrap items-center gap-1.5 w-full">
         <Button
           variant="outline"
-          size={size}
+          size="sm"
           onClick={handleWhatsAppLinkClick}
-          className={`${className} border-red-500/50 text-red-400 hover:bg-red-500/20`}
+          className={`${className} border-red-500/50 text-red-400 hover:bg-red-500/20 text-xs flex-1 min-w-0`}
         >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Cobrar Atraso (WhatsApp)
+          <ExternalLink className="w-3.5 h-3.5 mr-1" />
+          Atraso (Link)
         </Button>
 
-        {/* Botão 2: Instância API - só aparece se hasInstance */}
         {hasInstance && (
           <Button
-            variant={cooldown ? 'outline' : variant}
-            size={size}
+            variant="outline"
+            size="sm"
             onClick={handleInstanceClick}
             disabled={isSending}
-            className={`${className} ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : ''} ${cooldown ? 'opacity-60' : ''}`}
+            className={`${className} flex-1 min-w-0 text-xs border-red-500/50 text-red-400 hover:bg-red-500/20 ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : ''} ${cooldown ? 'opacity-60' : ''}`}
           >
             {isSending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
                 Enviando...
               </>
             ) : cooldown ? (
               <>
-                <Clock className="w-4 h-4 mr-2" />
-                Aguarde {remainingMinutes}min
+                <Clock className="w-3.5 h-3.5 mr-1" />
+                {remainingMinutes}min
               </>
             ) : (
               <>
-                <MessageCircle className="w-4 h-4 mr-2" />
+                <MessageCircle className="w-3.5 h-3.5 mr-1" />
                 Enviar Cobrança
               </>
             )}
@@ -522,8 +520,8 @@ export default function SendOverdueNotification({
         )}
 
         {messageCount > 0 && (
-          <Badge variant="secondary" className="bg-red-500/20 text-red-300 border-red-500/30">
-            Já cobrou {messageCount}x
+          <Badge variant="secondary" className="bg-red-500/20 text-red-300 border-red-500/30 text-xs">
+            {messageCount}x
           </Badge>
         )}
       </div>
