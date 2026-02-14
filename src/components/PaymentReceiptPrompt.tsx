@@ -501,6 +501,8 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         recipientType="self"
         onConfirm={handleConfirmSendToSelf}
         isSending={isSendingWhatsApp}
+        showWhatsAppLinkFallback={!!clientPhone}
+        clientPhone={clientPhone}
       />
 
       {/* Preview for client - plain text */}
