@@ -487,10 +487,10 @@ export default function SendOverdueNotification({
           variant="outline"
           size={size}
           onClick={handleWhatsAppLinkClick}
-          className={`${className} border-green-500/50 text-green-400 hover:bg-green-500/20`}
+          className={`${className} border-red-500/50 text-red-400 hover:bg-red-500/20`}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          Cobrar via WhatsApp
+          Cobrar Atraso (WhatsApp)
         </Button>
 
         {/* Botão 2: Instância API - só aparece se hasInstance */}

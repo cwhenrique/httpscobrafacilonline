@@ -365,10 +365,10 @@ export default function SendDueTodayNotification({
           variant="outline"
           size="sm"
           onClick={handleWhatsAppLinkClick}
-          className={`${className} border-green-500/50 text-green-400 hover:bg-green-500/20`}
+          className={`${className} border-orange-500/50 text-orange-400 hover:bg-orange-500/20`}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          Cobrar via WhatsApp
+          Cobrar Hoje (WhatsApp)
         </Button>
 
         {/* Botão 2: Instância API - só aparece se hasInstance */}
