@@ -1,98 +1,72 @@
 
 
-# Plano: Reverter 267 Emprestimos e Corrigir Gatilho
+# Correcao: Emprestimos com Principal Pago mas Marcados como Abertos
 
-## Resumo do Problema
+## Problema
 
-O gatilho `recalculate_loan_total_paid` possui uma verificacao prematura (early exit) que marca emprestimos como quitados quando `total_paid >= principal + juros`, sem excluir pagamentos de somente-juros. Em contratos recorrentes onde os juros sao pagos repetidamente, o acumulo desses pagamentos eventualmente ultrapassa o limiar e o gatilho quita o emprestimo indevidamente.
+A correcao anterior do gatilho `recalculate_loan_total_paid` resolveu o problema de contratos recorrentes de juros sendo quitados indevidamente, mas criou um efeito colateral: emprestimos onde o **principal foi pago via pagamento regular** e os **juros foram pagos via pagamento de somente-juros** ficaram com saldo em aberto, porque o gatilho exclui pagamentos de somente-juros do calculo de quitacao.
 
-**Numeros reais apos investigacao completa:**
+**Exemplo (Edno Perreira Palheta):**
+- Principal: R$ 5.000 | Juros: R$ 1.250 | Total: R$ 6.250
+- Pagamento 1: R$ 1.250 (juros, tag INTEREST_ONLY) 
+- Pagamento 2: R$ 5.000 (regular, principal_paid=3.750)
+- Total pago: R$ 6.250 = valor total do contrato
+- Gatilho ve: balance_reducing = R$ 5.000 (exclui o 1o pagamento), remaining = R$ 1.250
 
-| Categoria | Quantidade | Acao |
-|---|---|---|
-| Total de emprestimos afetados | 267 | - |
-| Com DISCOUNT_SETTLEMENT (legitimos) | 37 | Manter quitados |
-| Emprestimos a reverter | 230 | Recalcular saldo |
-| Usuarios afetados | ~90 | - |
+**Emprestimos afetados: 38 no total, sendo 22 onde total_paid ja cobre o valor integral.**
 
-## Causa Raiz no Gatilho
+## Causa Raiz
 
-Na funcao `recalculate_loan_total_paid`, linhas 20-30 aproximadamente:
+O gatilho corrigido usa apenas `balance_reducing_payments` (excluindo INTEREST_ONLY) para verificar quitacao. Isso e correto para contratos recorrentes (onde principal_paid = 0), mas incorreto para contratos onde o principal JA FOI PAGO e os juros foram pagos separadamente.
 
-```text
--- BUG: Esta verificacao inclui pagamentos de somente-juros
-IF total_payments >= total_to_receive - 0.01 THEN
-    UPDATE loans SET remaining_balance = 0, status = 'paid' ...
-    RETURN;   <-- Sai antes de calcular balance_reducing_payments
-END IF;
-```
+## Solucao
 
-A logica correta ja existe mais abaixo no gatilho (calcula `balance_reducing_payments` excluindo interest-only), mas nunca e alcancada porque o early exit dispara primeiro.
+Adicionar uma verificacao complementar no gatilho: se `total_payments >= total_to_receive` E `principal_paid_total >= principal_amount`, o emprestimo esta quitado. Isso diferencia:
+
+1. **Contrato recorrente de juros** (NAO quitado): total_paid >= total mas principal_paid = 0
+2. **Contrato com juros pre-pagos + principal pago** (QUITADO): total_paid >= total E principal_paid >= principal
 
 ## Plano de Execucao
 
-### Passo 1: Corrigir o Gatilho (Migracao SQL)
+### Passo 1: Atualizar o Gatilho
 
-Modificar `recalculate_loan_total_paid` para que a verificacao de quitacao total tambem exclua pagamentos `[INTEREST_ONLY_PAYMENT]` e `[PARTIAL_INTEREST_PAYMENT]`:
-
-```text
--- ANTES (bugado):
-IF total_payments >= total_to_receive - 0.01 THEN ...
-
--- DEPOIS (corrigido):
--- Usar balance_reducing_payments no lugar de total_payments
--- para a verificacao de quitacao rapida
-```
-
-A funcao completa sera reescrita com a correcao, mantendo toda a logica existente para DISCOUNT_SETTLEMENT, amortizacoes e emprestimos diarios.
-
-### Passo 2: Reverter os 230 Emprestimos (SQL de Dados)
-
-Executar um UPDATE que recalcula `remaining_balance` e `status` para todos os emprestimos incorretamente quitados, excluindo os 37 com DISCOUNT_SETTLEMENT:
+Adicionar apos a verificacao de `balance_reducing_payments`, uma segunda condicao:
 
 ```text
-Para cada emprestimo:
-1. Calcular total_to_receive = principal + interest (ou interest * installments para diarios)
-2. Calcular balance_reducing = soma dos pagamentos SEM tags interest-only/partial/amortization
-3. remaining_balance = MAX(0, total_to_receive - balance_reducing)
-4. status = CASE:
-   - Se remaining_balance <= 0.01: 'paid'
-   - Se due_date >= hoje: 'pending'
-   - Senao: 'overdue'
-5. total_paid = soma de TODOS os pagamentos (incluindo interest-only)
+-- Verificacao adicional: se total pago cobre o contrato E principal foi quitado
+SELECT COALESCE(SUM(principal_paid), 0) INTO total_principal_payments
+FROM loan_payments
+WHERE loan_id = ... AND notes NOT LIKE '%[PRE_RENEGOTIATION]%';
+
+IF total_payments >= total_to_receive - 0.01 
+   AND total_principal_payments >= loan_principal - 0.01 THEN
+    new_status := 'paid';
+    -- remaining_balance = 0
+END IF;
 ```
+
+### Passo 2: Corrigir os 38 Emprestimos
+
+Executar UPDATE nos emprestimos onde:
+- `status != 'paid'` e `remaining_balance > 0`
+- `total_paid >= principal + interest`
+- `SUM(principal_paid) >= principal_amount`
+- Nao possuem tag `[DISCOUNT_SETTLEMENT]`
+
+Para estes, definir `remaining_balance = 0` e `status = 'paid'`.
 
 ### Passo 3: Verificacao
 
-Consultar os emprestimos atualizados para confirmar que:
-- Nenhum emprestimo com DISCOUNT_SETTLEMENT foi alterado
-- Os saldos recalculados correspondem aos valores esperados
-- Os status refletem corretamente a situacao de cada contrato
+Confirmar que:
+- Os 38 emprestimos foram marcados como quitados
+- Contratos recorrentes de juros (principal_paid = 0) permanecem abertos
+- O gatilho funciona corretamente para novos pagamentos
 
-## Detalhes Tecnicos
+### Detalhes Tecnicos
 
-### Gatilho Corrigido
+**Migracao SQL:** Uma unica migracao que:
+1. Substitui a funcao `recalculate_loan_total_paid` com a nova variavel `total_principal_payments` e a condicao adicional
+2. Atualiza os 38 emprestimos afetados
 
-A funcao `recalculate_loan_total_paid` sera substituida com a seguinte mudanca principal:
-
-O bloco de verificacao rapida (early exit) passara a calcular `balance_reducing_payments` **antes** de decidir se o emprestimo esta quitado, em vez de usar `total_payments` que inclui pagamentos de somente-juros. A verificacao de DISCOUNT_SETTLEMENT permanece inalterada como primeiro early exit.
-
-### SQL de Reversao
-
-O UPDATE usara subqueries para recalcular cada campo individualmente:
-- `remaining_balance`: baseado apenas em pagamentos que reduzem saldo
-- `total_paid`: soma de todos os pagamentos (para manter o historico de lucro)
-- `status`: baseado no `remaining_balance` recalculado e na `due_date`
-
-Filtros de seguranca:
-- Apenas emprestimos com `status = 'paid'` e `remaining_balance = 0`
-- Que possuam pagamentos `[INTEREST_ONLY_PAYMENT]`
-- Que NAO possuam tag `[DISCOUNT_SETTLEMENT]` nas notas
-- Onde pagamentos normais nao cobrem `principal + juros`
-
-### Arquivos a Modificar
-
-Nenhum arquivo de codigo frontend. Apenas:
-1. Uma migracao SQL para o gatilho `recalculate_loan_total_paid`
-2. Um comando SQL de dados para reverter os 230 emprestimos
+**Arquivos de codigo:** Nenhum arquivo frontend precisa ser alterado.
 
