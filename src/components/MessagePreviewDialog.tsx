@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageCircle, Loader2, Eye, User, Copy, Check, FileText, FileCheck, ExternalLink } from 'lucide-react';
+import { MessageCircle, Loader2, Eye, User, Copy, Check, FileText, FileCheck, ExternalLink, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MessagePreviewDialogProps {
@@ -84,9 +84,11 @@ export default function MessagePreviewDialog({
     }
   };
 
+  const cleanPhone = clientPhone?.replace(/\D/g, '') || '';
+  const phoneHasDDD = cleanPhone.length >= 10;
+
   const handleOpenWhatsApp = () => {
-    if (!clientPhone) return;
-    const cleanPhone = clientPhone.replace(/\D/g, '');
+    if (!clientPhone || !phoneHasDDD) return;
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(editedMessage)}`;
     window.open(url, '_blank');
     toast.success('WhatsApp aberto! Envie a mensagem.');
@@ -145,6 +147,14 @@ export default function MessagePreviewDialog({
           </Button>
           {mode === 'whatsapp_link' ? (
             <>
+              {clientPhone && !phoneHasDDD && (
+                <div className="w-full flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    O telefone deste cliente não possui DDD. Edite o cadastro do cliente e adicione o DDD (ex: 11) para enviar mensagens pelo WhatsApp.
+                  </span>
+                </div>
+              )}
               <Button
                 onClick={handleCopy}
                 disabled={!editedMessage.trim()}
@@ -165,7 +175,7 @@ export default function MessagePreviewDialog({
               </Button>
               <Button
                 onClick={handleOpenWhatsApp}
-                disabled={!editedMessage.trim() || !clientPhone}
+                disabled={!editedMessage.trim() || !clientPhone || !phoneHasDDD}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
