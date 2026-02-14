@@ -670,6 +670,7 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
       isSending={isSendingToClient}
       mode={canSendToClient ? 'send' : 'whatsapp_link'}
       clientPhone={clientPhone}
+      showWhatsAppLinkFallback={!!clientPhone}
     />
     </>
   );
