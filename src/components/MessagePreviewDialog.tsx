@@ -24,6 +24,7 @@ interface MessagePreviewDialogProps {
   isSending?: boolean;
   mode?: 'send' | 'copy' | 'whatsapp_link';
   clientPhone?: string;
+  showWhatsAppLinkFallback?: boolean;
 }
 
 export default function MessagePreviewDialog({
@@ -37,6 +38,7 @@ export default function MessagePreviewDialog({
   isSending = false,
   mode = 'send',
   clientPhone,
+  showWhatsAppLinkFallback = false,
 }: MessagePreviewDialogProps) {
   const [messageType, setMessageType] = useState<'complete' | 'simple'>('complete');
   const [editedMessage, setEditedMessage] = useState(completeMessage);
@@ -201,23 +203,46 @@ export default function MessagePreviewDialog({
               )}
             </Button>
           ) : (
-            <Button
-              onClick={handleConfirm}
-              disabled={isSending || !editedMessage.trim()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isSending ? (
+            <>
+              {showWhatsAppLinkFallback && clientPhone && (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Enviar Mensagem
+                  {!phoneHasDDD && (
+                    <div className="w-full flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>
+                        O telefone deste cliente não possui DDD. Edite o cadastro e adicione o DDD para enviar via link.
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleOpenWhatsApp}
+                    disabled={!editedMessage.trim() || !phoneHasDDD}
+                    variant="outline"
+                    className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Via WhatsApp
+                  </Button>
                 </>
               )}
-            </Button>
+              <Button
+                onClick={handleConfirm}
+                disabled={isSending || !editedMessage.trim()}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Enviar Mensagem
+                  </>
+                )}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
