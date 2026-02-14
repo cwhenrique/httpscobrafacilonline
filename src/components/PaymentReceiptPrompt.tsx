@@ -219,6 +219,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
   const [showPreviewForClient, setShowPreviewForClient] = useState(false);
   const [showWhatsAppNotConnected, setShowWhatsAppNotConnected] = useState(false);
   const [showCopyPreview, setShowCopyPreview] = useState(false);
+  const [showLinkPreview, setShowLinkPreview] = useState(false);
   const { profile } = useProfile();
   const { user } = useAuth();
 
@@ -432,7 +433,19 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
               Copiar
             </Button>
             
-            {/* Botões de WhatsApp - condicionais */}
+            {/* Botão via link wa.me - SEMPRE aparece se cliente tem telefone */}
+            {clientPhone && (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowLinkPreview(true)}
+                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
+                Via WhatsApp
+              </Button>
+            )}
+
+            {/* Botões de instância - condicionais */}
             {hasWhatsAppConnected ? (
               <>
                 <Button 
@@ -464,16 +477,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                   </Button>
                 )}
               </>
-            ) : canSendToClientViaLink ? (
-              <Button 
-                variant="outline" 
-                onClick={() => setShowPreviewForClient(true)}
-                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
-              >
-                <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
-                Enviar via WhatsApp
-              </Button>
-            ) : (
+            ) : !clientPhone ? (
               <Button 
                 variant="outline" 
                 onClick={() => setShowWhatsAppNotConnected(true)}
@@ -482,7 +486,7 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                 <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
                 Conecte o WhatsApp
               </Button>
-            )}
+            ) : null}
             <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
               <Download className="w-4 h-4 mr-1 sm:mr-2" />
               {isGenerating ? 'Gerando...' : 'PDF'}
@@ -539,6 +543,19 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
         recipientType="self"
         onConfirm={() => setShowCopyPreview(false)}
         mode="copy"
+      />
+
+      {/* Link preview (wa.me) - always available */}
+      <MessagePreviewDialog
+        open={showLinkPreview}
+        onOpenChange={setShowLinkPreview}
+        simpleMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
+        completeMessage={generateClientMessage(data, installmentDates, paidCount, profile?.company_name || undefined, profile?.pix_key, profile?.pix_key_type, profile?.pix_pre_message, paidIndices)}
+        recipientName={data.clientName}
+        recipientType="client"
+        onConfirm={() => setShowLinkPreview(false)}
+        mode="whatsapp_link"
+        clientPhone={clientPhone}
       />
     </>
   );
