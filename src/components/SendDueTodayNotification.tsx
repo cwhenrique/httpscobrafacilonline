@@ -82,6 +82,7 @@ export default function SendDueTodayNotification({
   const [isSending, setIsSending] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'send' | 'whatsapp_link'>('whatsapp_link');
   const [cooldown, setCooldownState] = useState(isOnCooldown(data.loanId));
   const [remainingMinutes, setRemainingMinutes] = useState(getRemainingCooldownMinutes(data.loanId));
   const { profile } = useProfile();
@@ -89,12 +90,12 @@ export default function SendDueTodayNotification({
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
   const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
-  const canSendViaAPI =
-    isInstanceConnected &&
+  const hasInstance = !!(
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
-    profile?.whatsapp_to_clients_enabled &&
-    data.clientPhone;
+    profile?.whatsapp_to_clients_enabled
+  );
+  const canSendViaAPI = isInstanceConnected && hasInstance && !!data.clientPhone;
 
   const canShowButton = !!data.clientPhone;
 
@@ -321,7 +322,7 @@ export default function SendDueTodayNotification({
       const errorStr = error.message || '';
       if (errorStr.includes('Reconecte') || errorStr.includes('desconectado') || errorStr.includes('QR Code') || errorStr.includes('502') || errorStr.includes('503')) {
         markDisconnected();
-        setShowPreview(false);
+        toast.info('Instância desconectada. Use "Cobrar via WhatsApp" ou reconecte o QR Code em Configurações.');
         return;
       }
       toast.error('Erro ao enviar lembrete: ' + (error.message || 'Tente novamente'));
@@ -330,16 +331,23 @@ export default function SendDueTodayNotification({
     }
   };
 
-  const handleButtonClick = () => {
-    if (canSendViaAPI && cooldown) {
+
+  const handleWhatsAppLinkClick = () => {
+    setPreviewMode('whatsapp_link');
+    setShowPreview(true);
+  };
+
+  const handleInstanceClick = () => {
+    if (!isInstanceConnected) {
+      toast.info('Sua instância WhatsApp não está conectada. Conecte via QR Code em Configurações, ou use "Cobrar via WhatsApp".');
+      return;
+    }
+    if (cooldown) {
       toast.error(`Aguarde ${remainingMinutes} minutos para enviar novamente`);
       return;
     }
-    if (canSendViaAPI) {
-      setShowSpamWarning(true);
-    } else {
-      setShowPreview(true);
-    }
+    setPreviewMode('send');
+    setShowSpamWarning(true);
   };
 
   const handleConfirmSpamWarning = () => {
@@ -349,44 +357,54 @@ export default function SendDueTodayNotification({
 
   if (!canShowButton) return null;
 
-  const previewMode = canSendViaAPI ? 'send' : 'whatsapp_link';
-
   return (
     <>
-      <Button 
-        variant="outline"
-        size="sm"
-        onClick={handleButtonClick}
-        disabled={isSending || (cooldown && !!canSendViaAPI)}
-        className={`${className} ${cooldown && canSendViaAPI ? 'opacity-60' : !canSendViaAPI ? '' : 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300 hover:bg-yellow-500/30'}`}
-      >
-        {isSending ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Enviando...
-          </>
-        ) : cooldown && canSendViaAPI ? (
-          <>
-            <Clock className="w-4 h-4 mr-2" />
-            Aguarde {remainingMinutes}min
-          </>
-        ) : !canSendViaAPI ? (
-          <>
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Cobrar via WhatsApp
-          </>
-        ) : (
-          <>
-            <Bell className="w-4 h-4 mr-2" />
-            Cobrar Parcela de Hoje
-          </>
+      <div className="flex flex-col items-center gap-1.5">
+        {/* Botão 1: Link wa.me - sempre visível */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleWhatsAppLinkClick}
+          className={`${className} border-green-500/50 text-green-400 hover:bg-green-500/20`}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Cobrar via WhatsApp
+        </Button>
+
+        {/* Botão 2: Instância API - só aparece se hasInstance */}
+        {hasInstance && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleInstanceClick}
+            disabled={isSending}
+            className={`${className} ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300 hover:bg-yellow-500/30'} ${cooldown ? 'opacity-60' : ''}`}
+          >
+            {isSending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Enviando...
+              </>
+            ) : cooldown ? (
+              <>
+                <Clock className="w-4 h-4 mr-2" />
+                Aguarde {remainingMinutes}min
+              </>
+            ) : (
+              <>
+                <Bell className="w-4 h-4 mr-2" />
+                Cobrar Parcela de Hoje
+              </>
+            )}
+          </Button>
         )}
+
         {messageCount > 0 && (
-          <Badge variant="secondary" className="ml-2 bg-amber-500/20 text-amber-300 border-amber-500/30">
-            {messageCount}x
+          <Badge variant="secondary" className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+            Já cobrou {messageCount}x
           </Badge>
         )}
-      </Button>
+      </div>
 
       <SpamWarningDialog
         open={showSpamWarning}
