@@ -89,9 +89,16 @@ export default function MessagePreviewDialog({
   const cleanPhone = clientPhone?.replace(/\D/g, '') || '';
   const phoneHasDDD = cleanPhone.length >= 10;
 
+  // Garante que o número tenha o código do país (55) para o link wa.me
+  const getWhatsAppPhone = () => {
+    if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) return cleanPhone;
+    return `55${cleanPhone}`;
+  };
+
   const handleOpenWhatsApp = () => {
     if (!clientPhone || !phoneHasDDD) return;
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(editedMessage)}`;
+    const waPhone = getWhatsAppPhone();
+    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(editedMessage)}`;
     window.open(url, '_blank');
     toast.success('WhatsApp aberto! Envie a mensagem.');
   };
