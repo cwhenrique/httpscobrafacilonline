@@ -113,6 +113,7 @@ export default function SendOverdueNotification({
   const [isSending, setIsSending] = useState(false);
   const [showSpamWarning, setShowSpamWarning] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'send' | 'whatsapp_link'>('whatsapp_link');
   const [cooldown, setCooldownState] = useState(isOnCooldown(data.loanId));
   const [remainingMinutes, setRemainingMinutes] = useState(getRemainingCooldownMinutes(data.loanId));
   const { profile } = useProfile();
@@ -120,12 +121,12 @@ export default function SendOverdueNotification({
   const { messageCount, registerMessage } = useWhatsappMessages(data.loanId);
 
   const { isInstanceConnected, markDisconnected } = useWhatsAppStatus();
-  const canSendViaAPI =
-    isInstanceConnected &&
+  const hasInstance = !!(
     profile?.whatsapp_instance_id &&
     profile?.whatsapp_connected_phone &&
-    profile?.whatsapp_to_clients_enabled &&
-    data.clientPhone;
+    profile?.whatsapp_to_clients_enabled
+  );
+  const canSendViaAPI = isInstanceConnected && hasInstance && !!data.clientPhone;
 
   const canShowButton = !!data.clientPhone;
 
@@ -453,16 +454,22 @@ export default function SendOverdueNotification({
     }
   };
 
-  const handleButtonClick = () => {
-    if (canSendViaAPI && cooldown) {
+  const handleWhatsAppLinkClick = () => {
+    setPreviewMode('whatsapp_link');
+    setShowPreview(true);
+  };
+
+  const handleInstanceClick = () => {
+    if (!isInstanceConnected) {
+      toast.info('Sua instância WhatsApp não está conectada. Conecte via QR Code em Configurações, ou use "Cobrar via WhatsApp".');
+      return;
+    }
+    if (cooldown) {
       toast.error(`Aguarde ${remainingMinutes} minutos para enviar novamente`);
       return;
     }
-    if (canSendViaAPI) {
-      setShowSpamWarning(true);
-    } else {
-      setShowPreview(true);
-    }
+    setPreviewMode('send');
+    setShowSpamWarning(true);
   };
 
   const handleConfirmSpamWarning = () => {
@@ -472,44 +479,54 @@ export default function SendOverdueNotification({
 
   if (!canShowButton) return null;
 
-  const previewMode = canSendViaAPI ? 'send' : 'whatsapp_link';
-
   return (
     <>
-      <Button 
-        variant={cooldown && canSendViaAPI ? 'outline' : variant}
-        size={size}
-        onClick={handleButtonClick}
-        disabled={isSending || (cooldown && !!canSendViaAPI)}
-        className={`${className} ${cooldown && canSendViaAPI ? 'opacity-60' : ''}`}
-      >
-        {isSending ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Enviando...
-          </>
-        ) : cooldown && canSendViaAPI ? (
-          <>
-            <Clock className="w-4 h-4 mr-2" />
-            Aguarde {remainingMinutes}min
-          </>
-        ) : !canSendViaAPI ? (
-          <>
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Cobrar via WhatsApp
-          </>
-        ) : (
-          <>
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Enviar Cobrança
-          </>
+      <div className="flex flex-col items-center gap-1.5">
+        {/* Botão 1: Link wa.me - sempre visível */}
+        <Button
+          variant="outline"
+          size={size}
+          onClick={handleWhatsAppLinkClick}
+          className={`${className} border-green-500/50 text-green-400 hover:bg-green-500/20`}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Cobrar via WhatsApp
+        </Button>
+
+        {/* Botão 2: Instância API - só aparece se hasInstance */}
+        {hasInstance && (
+          <Button
+            variant={cooldown ? 'outline' : variant}
+            size={size}
+            onClick={handleInstanceClick}
+            disabled={isSending}
+            className={`${className} ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : ''} ${cooldown ? 'opacity-60' : ''}`}
+          >
+            {isSending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Enviando...
+              </>
+            ) : cooldown ? (
+              <>
+                <Clock className="w-4 h-4 mr-2" />
+                Aguarde {remainingMinutes}min
+              </>
+            ) : (
+              <>
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Enviar Cobrança
+              </>
+            )}
+          </Button>
         )}
+
         {messageCount > 0 && (
-          <Badge variant="secondary" className="ml-2 bg-red-500/20 text-red-300 border-red-500/30">
-            {messageCount}x
+          <Badge variant="secondary" className="bg-red-500/20 text-red-300 border-red-500/30">
+            Já cobrou {messageCount}x
           </Badge>
         )}
-      </Button>
+      </div>
 
       <SpamWarningDialog
         open={showSpamWarning}
