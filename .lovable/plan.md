@@ -1,72 +1,80 @@
 
+# Correcao: Dois Botoes de Cobranca Sempre Visiveis
 
-# Correcao: Emprestimos com Principal Pago mas Marcados como Abertos
+## Problema Atual
 
-## Problema
+Cada componente de cobranca (SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification) exibe apenas **um botao** que alterna entre:
+- "Cobrar via WhatsApp" (link wa.me) quando a instancia esta desconectada
+- "Enviar Cobranca" (via API) quando conectada
 
-A correcao anterior do gatilho `recalculate_loan_total_paid` resolveu o problema de contratos recorrentes de juros sendo quitados indevidamente, mas criou um efeito colateral: emprestimos onde o **principal foi pago via pagamento regular** e os **juros foram pagos via pagamento de somente-juros** ficaram com saldo em aberto, porque o gatilho exclui pagamentos de somente-juros do calculo de quitacao.
-
-**Exemplo (Edno Perreira Palheta):**
-- Principal: R$ 5.000 | Juros: R$ 1.250 | Total: R$ 6.250
-- Pagamento 1: R$ 1.250 (juros, tag INTEREST_ONLY) 
-- Pagamento 2: R$ 5.000 (regular, principal_paid=3.750)
-- Total pago: R$ 6.250 = valor total do contrato
-- Gatilho ve: balance_reducing = R$ 5.000 (exclui o 1o pagamento), remaining = R$ 1.250
-
-**Emprestimos afetados: 38 no total, sendo 22 onde total_paid ja cobre o valor integral.**
-
-## Causa Raiz
-
-O gatilho corrigido usa apenas `balance_reducing_payments` (excluindo INTEREST_ONLY) para verificar quitacao. Isso e correto para contratos recorrentes (onde principal_paid = 0), mas incorreto para contratos onde o principal JA FOI PAGO e os juros foram pagos separadamente.
+O problema e que o sistema de verificacao de conexao (polling a cada 2 minutos) pode estar desatualizado, fazendo o botao de "Enviar Cobranca" aparecer quando a instancia ja esta offline. Ao clicar, o usuario recebe um erro generico da edge function.
 
 ## Solucao
 
-Adicionar uma verificacao complementar no gatilho: se `total_payments >= total_to_receive` E `principal_paid_total >= principal_amount`, o emprestimo esta quitado. Isso diferencia:
+Mostrar **sempre os 2 botoes** em todos os componentes de cobranca:
 
-1. **Contrato recorrente de juros** (NAO quitado): total_paid >= total mas principal_paid = 0
-2. **Contrato com juros pre-pagos + principal pago** (QUITADO): total_paid >= total E principal_paid >= principal
+1. **"Cobrar via WhatsApp"** (link wa.me) - sempre ativo se o cliente tiver telefone com DDD
+2. **"Enviar Cobranca"** (via instancia API) - visualmente desativado quando a instancia nao esta conectada
 
-## Plano de Execucao
+Se o usuario clicar no botao de instancia estando desconectado, em vez de erro, mostrar um toast informativo orientando a conectar via QR Code ou usar o outro botao.
 
-### Passo 1: Atualizar o Gatilho
+## Componentes a Modificar
 
-Adicionar apos a verificacao de `balance_reducing_payments`, uma segunda condicao:
+| Arquivo | Descricao |
+|---|---|
+| `SendOverdueNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Enviar Cobranca" |
+| `SendDueTodayNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Parcela de Hoje" |
+| `SendEarlyNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Antes do Prazo" |
+
+## Detalhes Tecnicos
+
+### Logica dos Botoes
+
+Para cada componente, adicionar uma variavel `hasInstance` que verifica se o usuario **configurou** uma instancia (independente de estar conectada):
 
 ```text
--- Verificacao adicional: se total pago cobre o contrato E principal foi quitado
-SELECT COALESCE(SUM(principal_paid), 0) INTO total_principal_payments
-FROM loan_payments
-WHERE loan_id = ... AND notes NOT LIKE '%[PRE_RENEGOTIATION]%';
-
-IF total_payments >= total_to_receive - 0.01 
-   AND total_principal_payments >= loan_principal - 0.01 THEN
-    new_status := 'paid';
-    -- remaining_balance = 0
-END IF;
+const hasInstance = !!(
+  profile?.whatsapp_instance_id &&
+  profile?.whatsapp_connected_phone &&
+  profile?.whatsapp_to_clients_enabled
+);
 ```
 
-### Passo 2: Corrigir os 38 Emprestimos
+Os dois botoes ficam lado a lado:
 
-Executar UPDATE nos emprestimos onde:
-- `status != 'paid'` e `remaining_balance > 0`
-- `total_paid >= principal + interest`
-- `SUM(principal_paid) >= principal_amount`
-- Nao possuem tag `[DISCOUNT_SETTLEMENT]`
+```text
+Botao 1 - "Cobrar via WhatsApp" (link wa.me)
+  - Sempre visivel se clientPhone existe
+  - onClick: abre MessagePreviewDialog com mode='whatsapp_link'
 
-Para estes, definir `remaining_balance = 0` e `status = 'paid'`.
+Botao 2 - "Enviar Cobranca" (instancia API)
+  - Visivel apenas se hasInstance = true (usuario configurou instancia)
+  - Se isInstanceConnected = false: aparece com opacity reduzida e cursor not-allowed
+  - onClick quando desconectado: toast.info("Sua instancia WhatsApp nao esta conectada. Conecte via QR Code em Configuracoes, ou use 'Cobrar via WhatsApp'.")
+  - onClick quando conectado: fluxo normal (SpamWarning -> Preview -> Enviar)
+```
 
-### Passo 3: Verificacao
+### Mudanca no catch de erros
 
-Confirmar que:
-- Os 38 emprestimos foram marcados como quitados
-- Contratos recorrentes de juros (principal_paid = 0) permanecem abertos
-- O gatilho funciona corretamente para novos pagamentos
+Nos 3 componentes, ao detectar erro de conexao no envio:
+- Chamar `markDisconnected()` 
+- **Nao fechar** o dialogo (`setShowPreview(false)` sera removido do catch de conexao)
+- Mostrar toast informativo
+- O `previewMode` mudara automaticamente para `whatsapp_link` pois `canSendViaAPI` sera recalculado
 
-### Detalhes Tecnicos
+### Estrutura visual dos botoes
 
-**Migracao SQL:** Uma unica migracao que:
-1. Substitui a funcao `recalculate_loan_total_paid` com a nova variavel `total_principal_payments` e a condicao adicional
-2. Atualiza os 38 emprestimos afetados
+Os dois botoes ficarao empilhados verticalmente (`flex-col`) em um container compacto:
 
-**Arquivos de codigo:** Nenhum arquivo frontend precisa ser alterado.
+```text
+[Cobrar via WhatsApp]        <- verde, sempre ativo (link)
+[Enviar Cobranca]            <- primario quando conectado, desativado/opaco quando nao
+```
 
+### Validacao de DDD no botao de link
+
+O botao "Cobrar via WhatsApp" ja abre o MessagePreviewDialog em modo `whatsapp_link`, onde a validacao de DDD ja existe (implementada anteriormente). Nao e necessario mudanca adicional para isso.
+
+### Arquivos backend
+
+Nenhum arquivo backend precisa ser alterado.
