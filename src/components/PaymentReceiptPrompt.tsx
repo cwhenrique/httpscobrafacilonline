@@ -434,6 +434,16 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
             </Button>
             
             {/* Botão via link wa.me - SEMPRE aparece se cliente tem telefone */}
+            {clientPhone && (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowLinkPreview(true)}
+                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
+                Via WhatsApp
+              </Button>
+            )}
 
             {/* Botões de instância - condicionais */}
             {hasWhatsAppConnected ? (
@@ -467,15 +477,6 @@ export default function PaymentReceiptPrompt({ open, onOpenChange, data, clientP
                   </Button>
                 )}
               </>
-            ) : !clientPhone ? (
-              <Button 
-                variant="outline" 
-                onClick={() => setShowWhatsAppNotConnected(true)}
-                className="text-xs sm:text-sm border-green-600 text-green-600 hover:bg-green-50"
-              >
-                <MessageCircle className="w-4 h-4 mr-1 sm:mr-2" />
-                Conecte o WhatsApp
-              </Button>
             ) : null}
             <Button onClick={handleDownload} disabled={isGenerating} className="text-xs sm:text-sm">
               <Download className="w-4 h-4 mr-1 sm:mr-2" />
