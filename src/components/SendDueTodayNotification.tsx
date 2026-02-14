@@ -359,49 +359,47 @@ export default function SendDueTodayNotification({
 
   return (
     <>
-      <div className="flex flex-col items-center gap-1.5">
-        {/* Botão 1: Link wa.me - sempre visível */}
+      <div className="flex flex-row flex-wrap items-center gap-1.5 w-full">
         <Button
           variant="outline"
           size="sm"
           onClick={handleWhatsAppLinkClick}
-          className={`${className} border-orange-500/50 text-orange-400 hover:bg-orange-500/20`}
+          className={`${className} border-orange-500/50 text-orange-400 hover:bg-orange-500/20 text-xs flex-1 min-w-0`}
         >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Cobrar Hoje (WhatsApp)
+          <ExternalLink className="w-3.5 h-3.5 mr-1" />
+          Hoje (Link)
         </Button>
 
-        {/* Botão 2: Instância API - só aparece se hasInstance */}
         {hasInstance && (
           <Button
             variant="outline"
             size="sm"
             onClick={handleInstanceClick}
             disabled={isSending}
-            className={`${className} ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300 hover:bg-yellow-500/30'} ${cooldown ? 'opacity-60' : ''}`}
+            className={`${className} flex-1 min-w-0 text-xs border-orange-500/50 text-orange-400 hover:bg-orange-500/20 ${!isInstanceConnected ? 'opacity-50 cursor-not-allowed' : ''} ${cooldown ? 'opacity-60' : ''}`}
           >
             {isSending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
                 Enviando...
               </>
             ) : cooldown ? (
               <>
-                <Clock className="w-4 h-4 mr-2" />
-                Aguarde {remainingMinutes}min
+                <Clock className="w-3.5 h-3.5 mr-1" />
+                {remainingMinutes}min
               </>
             ) : (
               <>
-                <Bell className="w-4 h-4 mr-2" />
-                Cobrar Parcela de Hoje
+                <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                Cobrar Hoje
               </>
             )}
           </Button>
         )}
 
         {messageCount > 0 && (
-          <Badge variant="secondary" className="bg-amber-500/20 text-amber-300 border-amber-500/30">
-            Já cobrou {messageCount}x
+          <Badge variant="secondary" className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">
+            {messageCount}x
           </Badge>
         )}
       </div>
