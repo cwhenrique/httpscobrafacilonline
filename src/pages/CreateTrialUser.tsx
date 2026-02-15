@@ -365,14 +365,6 @@ export default function CreateTrialUser() {
   };
 
   const handleSendTestWhatsApp = async () => {
-    if (!formData.phone) {
-      toast({
-        title: 'Informe o telefone',
-        description: 'Preencha o campo de telefone para enviar o teste',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     try {
       setLoading(true);
