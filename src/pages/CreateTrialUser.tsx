@@ -377,9 +377,9 @@ export default function CreateTrialUser() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+      const { data, error } = await supabase.functions.invoke('send-test-message', {
         body: {
-          phone: formData.phone,
+          phone: '17992415708',
           message:
             '🔔 *Teste de WhatsApp CobraFácil*\n\nEsta é uma mensagem de teste para confirmar que sua integração com o WhatsApp está funcionando corretamente. Se você recebeu esta mensagem, está tudo certo! ✅',
         },
