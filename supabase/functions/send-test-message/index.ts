@@ -5,13 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function cleanApiUrl(url: string): string {
-  return url
-    .replace(/\/+$/, '')
-    .replace(/\/message\/sendText$/, '')
-    .replace(/\/message$/, '');
-}
-
 function formatPhoneNumber(phone: string): string {
   let cleaned = phone.replace(/\D/g, '');
   
@@ -41,50 +34,49 @@ serve(async (req) => {
       );
     }
 
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    // Usar instância fixa "notficacao" para notificações do sistema
-    const evolutionInstanceName = "notficacao";
+    const cloudApiToken = Deno.env.get('WHATSAPP_CLOUD_API_TOKEN');
+    const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
 
-    if (!evolutionApiUrl || !evolutionApiKey) {
+    if (!cloudApiToken || !phoneNumberId) {
       return new Response(
-        JSON.stringify({ error: 'Evolution API not configured' }),
+        JSON.stringify({ error: 'WhatsApp Cloud API not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    console.log("Using fixed system instance: notficacao");
 
     const formattedPhone = formatPhoneNumber(phone);
-    const cleanedUrl = cleanApiUrl(evolutionApiUrl);
-    const endpoint = `${cleanedUrl}/message/sendText/${evolutionInstanceName}`;
+    const endpoint = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
-    console.log(`Sending test message to ${formattedPhone}`);
+    console.log(`Sending test message via WhatsApp Cloud API to ${formattedPhone}`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
+        'Authorization': `Bearer ${cloudApiToken}`,
       },
       body: JSON.stringify({
-        number: formattedPhone,
-        text: message,
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'text',
+        text: {
+          body: message,
+        },
       }),
     });
 
-    const responseText = await response.text();
-    console.log(`Response: ${response.status} - ${responseText}`);
+    const responseData = await response.json();
+    console.log(`Response: ${response.status} -`, JSON.stringify(responseData));
 
     if (!response.ok) {
       return new Response(
-        JSON.stringify({ error: `API error: ${response.status}`, details: responseText }),
+        JSON.stringify({ error: `API error: ${response.status}`, details: responseData }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Message sent successfully' }),
+      JSON.stringify({ success: true, message: 'Message sent successfully', data: responseData }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
