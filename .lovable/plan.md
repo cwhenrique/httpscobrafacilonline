@@ -78,3 +78,9 @@ O botao "Cobrar via WhatsApp" ja abre o MessagePreviewDialog em modo `whatsapp_l
 ### Arquivos backend
 
 Nenhum arquivo backend precisa ser alterado.
+
+---
+
+# Templates Prontos de Mensagem de Cobranca ✅ IMPLEMENTADO
+
+Templates prontos foram adicionados para Atraso, Vence Hoje e Antecipada, incluindo opcao "Apenas Juros" em todos os tipos. O usuario pode selecionar via dropdown e continuar editando.

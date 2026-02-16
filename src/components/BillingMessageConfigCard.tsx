@@ -12,7 +12,18 @@ import {
   DEFAULT_TEMPLATE_DUE_TODAY,
   DEFAULT_TEMPLATE_EARLY,
   TEMPLATE_VARIABLES,
+  PRESET_TEMPLATES_OVERDUE,
+  PRESET_TEMPLATES_DUE_TODAY,
+  PRESET_TEMPLATES_EARLY,
+  PresetTemplate,
 } from '@/types/billingMessageConfig';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useProfile } from '@/hooks/useProfile';
 import {
   Tooltip,
@@ -22,6 +33,12 @@ import {
 } from "@/components/ui/tooltip";
 
 type MessageType = 'overdue' | 'dueToday' | 'early';
+
+const PRESETS_MAP: Record<MessageType, PresetTemplate[]> = {
+  overdue: PRESET_TEMPLATES_OVERDUE,
+  dueToday: PRESET_TEMPLATES_DUE_TODAY,
+  early: PRESET_TEMPLATES_EARLY,
+};
 
 const TAB_CONFIG: Record<MessageType, { label: string; emoji: string; color: string; defaultTemplate: string; configKey: keyof BillingMessageConfig }> = {
   overdue: {
@@ -149,6 +166,32 @@ export default function BillingMessageConfigCard() {
 
           {(Object.entries(TAB_CONFIG) as [MessageType, typeof TAB_CONFIG[MessageType]][]).map(([type]) => (
             <TabsContent key={type} value={type} className="space-y-4 mt-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Escolher template pronto</label>
+                <Select
+                  onValueChange={(presetId) => {
+                    const preset = PRESETS_MAP[type].find(p => p.id === presetId);
+                    if (preset) {
+                      handleTemplateChange(type, preset.template);
+                      toast.success(`Template "${preset.name}" aplicado!`);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione um template pronto..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESETS_MAP[type].map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        <div className="flex flex-col items-start">
+                          <span>{preset.name}</span>
+                          <span className="text-xs text-muted-foreground">{preset.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="relative">
                 <Textarea
                   value={templates[type]}

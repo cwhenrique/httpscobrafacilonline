@@ -157,3 +157,208 @@ export const TEMPLATE_VARIABLES = [
   { variable: '{ASSINATURA}', description: 'Assinatura da empresa' },
   { variable: '{FECHAMENTO}', description: 'Mensagem de fechamento' },
 ];
+
+// Templates prontos (presets) por tipo de mensagem
+export interface PresetTemplate {
+  id: string;
+  name: string;
+  description: string;
+  template: string;
+}
+
+export const PRESET_TEMPLATES_OVERDUE: PresetTemplate[] = [
+  {
+    id: 'overdue_default',
+    name: '📋 Padrão do Sistema',
+    description: 'Template completo com multa, juros, progresso e PIX',
+    template: DEFAULT_TEMPLATE_OVERDUE,
+  },
+  {
+    id: 'overdue_interest_only',
+    name: '💰 Apenas Juros',
+    description: 'Foco em pagar só os juros para manter o contrato em dia',
+    template: `Olá *{CLIENTE}*!
+━━━━━━━━━━━━━━━━
+
+📊 *{PARCELA}* - Em atraso
+
+💵 *Valor da parcela:* {VALOR}
+⏰ *Dias em atraso:* {DIAS_ATRASO}
+{JUROS}{JUROS_MULTA}
+
+💡 *Você pode pagar apenas os juros* para evitar o acúmulo e manter seu contrato em dia!
+
+{PIX}
+
+Qualquer dúvida, estou à disposição.
+
+{FECHAMENTO}
+{ASSINATURA}`,
+  },
+  {
+    id: 'overdue_short',
+    name: '⚡ Cobrança Direta',
+    description: 'Mensagem curta e objetiva',
+    template: `*{CLIENTE}*, sua parcela está em atraso.
+
+📊 *{PARCELA}*
+💵 *Valor:* {VALOR}
+⏰ *Atraso:* {DIAS_ATRASO} dias
+{TOTAL}
+
+{PIX}
+
+{ASSINATURA}`,
+  },
+  {
+    id: 'overdue_friendly',
+    name: '🤝 Tom Amigável',
+    description: 'Linguagem mais suave e empática',
+    template: `Olá *{CLIENTE}*, tudo bem?
+
+Notamos que a *{PARCELA}* no valor de *{VALOR}* ainda está em aberto desde {DATA}.
+
+{JUROS}{JUROS_MULTA}{TOTAL}
+
+Se preferir, você pode pagar apenas os juros para manter tudo em dia! 😊
+
+{PIX}
+
+Caso já tenha pago, desconsidere esta mensagem.
+
+{FECHAMENTO}
+{ASSINATURA}`,
+  },
+  {
+    id: 'overdue_final',
+    name: '🚨 Última Cobrança',
+    description: 'Tom sério, indicando urgência',
+    template: `⚠️ *AVISO IMPORTANTE - {CLIENTE}*
+━━━━━━━━━━━━━━━━
+
+Esta é uma *última tentativa de contato* sobre a parcela em atraso.
+
+📊 *{PARCELA}*
+💵 *Valor:* {VALOR}
+⏰ *Dias em atraso:* {DIAS_ATRASO}
+{JUROS}{MULTA}{TOTAL}
+
+Por favor, regularize sua situação o mais breve possível para evitar maiores complicações.
+
+{PIX}
+
+{ASSINATURA}`,
+  },
+];
+
+export const PRESET_TEMPLATES_DUE_TODAY: PresetTemplate[] = [
+  {
+    id: 'due_today_default',
+    name: '📋 Padrão do Sistema',
+    description: 'Template completo de vencimento hoje',
+    template: DEFAULT_TEMPLATE_DUE_TODAY,
+  },
+  {
+    id: 'due_today_interest_only',
+    name: '💰 Apenas Juros',
+    description: 'Oferece opção de pagar só os juros no dia do vencimento',
+    template: `Olá *{CLIENTE}*!
+━━━━━━━━━━━━━━━━
+
+📅 *Parcela vence hoje!*
+
+📊 *{PARCELA}*
+💵 *Valor:* {VALOR}
+
+💡 Caso não consiga pagar o valor total, *você pode pagar apenas os juros* para evitar multa e manter o contrato em dia!
+
+{PIX}
+
+{FECHAMENTO}
+{ASSINATURA}`,
+  },
+  {
+    id: 'due_today_quick',
+    name: '⚡ Lembrete Rápido',
+    description: 'Mensagem curta e direta',
+    template: `*{CLIENTE}*, lembrete: sua *{PARCELA}* de *{VALOR}* vence hoje!
+
+{PIX}
+
+Evite juros pagando em dia! 🙂
+
+{ASSINATURA}`,
+  },
+  {
+    id: 'due_today_formal',
+    name: '📝 Tom Formal',
+    description: 'Linguagem corporativa e profissional',
+    template: `Prezado(a) *{CLIENTE}*,
+
+Informamos que a *{PARCELA}*, no valor de *{VALOR}*, tem vencimento na data de hoje ({DATA}).
+
+Solicitamos a gentileza do pagamento para evitar a incidência de encargos.
+
+{PIX}
+
+{FECHAMENTO}
+{ASSINATURA}`,
+  },
+];
+
+export const PRESET_TEMPLATES_EARLY: PresetTemplate[] = [
+  {
+    id: 'early_default',
+    name: '📋 Padrão do Sistema',
+    description: 'Template completo de lembrete antecipado',
+    template: DEFAULT_TEMPLATE_EARLY,
+  },
+  {
+    id: 'early_interest_only',
+    name: '💰 Apenas Juros',
+    description: 'Lembrete antecipado com opção de pagar só os juros',
+    template: `Olá *{CLIENTE}*! 👋
+━━━━━━━━━━━━━━━━
+
+📋 *Lembrete de pagamento*
+
+📊 *{PARCELA}*
+💵 *Valor:* {VALOR}
+📅 *Vencimento:* {DATA} (em {DIAS_PARA_VENCER} dias)
+
+💡 Se preferir, *você pode pagar apenas os juros* antes do vencimento para manter tudo em dia!
+
+{PIX}
+
+{FECHAMENTO}
+{ASSINATURA}`,
+  },
+  {
+    id: 'early_gentle',
+    name: '🤝 Lembrete Gentil',
+    description: 'Tom leve e amigável',
+    template: `Oi *{CLIENTE}*, tudo bem? 😊
+
+Só passando pra lembrar que a *{PARCELA}* de *{VALOR}* vence em *{DIAS_PARA_VENCER} dias* ({DATA}).
+
+{PIX}
+
+Qualquer coisa, é só chamar!
+
+{ASSINATURA}`,
+  },
+  {
+    id: 'early_minimal',
+    name: '📌 Minimalista',
+    description: 'Apenas dados essenciais',
+    template: `*{CLIENTE}* - Lembrete:
+
+📊 {PARCELA}
+💵 {VALOR}
+📅 Vence: {DATA}
+
+{PIX}
+
+{ASSINATURA}`,
+  },
+];
