@@ -130,6 +130,7 @@ export default function SendDueTodayNotification({
         pixPreMessage: profile?.pix_pre_message,
         signatureName: profile?.billing_signature_name || profile?.company_name,
         closingMessage: config.customClosingMessage || 'Evite juros e multas pagando em dia!',
+        contractInterestAmount: data.interestAmount,
       });
     }
     

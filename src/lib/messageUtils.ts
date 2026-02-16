@@ -256,6 +256,8 @@ export interface TemplateData {
   pixPreMessage?: string | null;
   signatureName?: string | null;
   closingMessage?: string;
+  // Juros do contrato (diferença entre total e principal)
+  contractInterestAmount?: number;
 }
 
 /**
@@ -295,6 +297,12 @@ export const replaceTemplateVariables = (
     totalLine = `💵 *TOTAL A PAGAR:* ${formatCurrency(data.totalAmount)}\n`;
   }
 
+  // Juros do contrato (diferença entre total e principal)
+  let contractInterestLine = '';
+  if (data.contractInterestAmount && data.contractInterestAmount > 0) {
+    contractInterestLine = `💰 *Juros do Contrato:* ${formatCurrency(data.contractInterestAmount)}\n`;
+  }
+
   // Barra de progresso
   const progressBar = data.progressPercent !== undefined
     ? `📈 *Progresso:* ${generateProgressBar(data.progressPercent)}`
@@ -320,6 +328,7 @@ export const replaceTemplateVariables = (
     .replace(/\{DATA\}/g, formatDate(data.dueDate))
     .replace(/\{DIAS_ATRASO\}/g, String(data.daysOverdue || 0))
     .replace(/\{DIAS_PARA_VENCER\}/g, String(data.daysUntilDue || 0))
+    .replace(/\{JUROS_CONTRATO\}/g, contractInterestLine)
     .replace(/\{MULTA\}/g, multaLine)
     .replace(/\{JUROS\}/g, jurosLine)
     .replace(/\{JUROS_MULTA\}/g, jurosMultaLine)
