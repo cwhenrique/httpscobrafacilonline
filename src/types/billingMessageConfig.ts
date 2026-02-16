@@ -182,11 +182,10 @@ export const PRESET_TEMPLATES_OVERDUE: PresetTemplate[] = [
 
 📊 *{PARCELA}* - Em atraso
 
-💵 *Valor da parcela:* {VALOR}
 ⏰ *Dias em atraso:* {DIAS_ATRASO}
 {JUROS}{JUROS_MULTA}
 
-💡 *Você pode pagar apenas os juros* para evitar o acúmulo e manter seu contrato em dia!
+💡 *Pague apenas os juros* para evitar o acúmulo e manter seu contrato em dia!
 
 {PIX}
 
@@ -268,9 +267,9 @@ export const PRESET_TEMPLATES_DUE_TODAY: PresetTemplate[] = [
 📅 *Parcela vence hoje!*
 
 📊 *{PARCELA}*
-💵 *Valor:* {VALOR}
+{JUROS}
 
-💡 Caso não consiga pagar o valor total, *você pode pagar apenas os juros* para evitar multa e manter o contrato em dia!
+💡 *Pague apenas os juros* para evitar multa e manter o contrato em dia!
 
 {PIX}
 
@@ -323,10 +322,10 @@ export const PRESET_TEMPLATES_EARLY: PresetTemplate[] = [
 📋 *Lembrete de pagamento*
 
 📊 *{PARCELA}*
-💵 *Valor:* {VALOR}
 📅 *Vencimento:* {DATA} (em {DIAS_PARA_VENCER} dias)
+{JUROS}
 
-💡 Se preferir, *você pode pagar apenas os juros* antes do vencimento para manter tudo em dia!
+💡 *Pague apenas os juros* antes do vencimento para manter tudo em dia!
 
 {PIX}
 
