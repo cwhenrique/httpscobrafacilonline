@@ -257,7 +257,7 @@ export function PaymentsHistoryTab() {
             <CardTitle className="text-base font-semibold">Pagamentos - {periodLabel}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <PaymentsTable payments={payments} />
+            <PaymentsTable payments={payments} maxHeight="calc(100vh - 350px)" />
           </CardContent>
         </Card>
       )}
