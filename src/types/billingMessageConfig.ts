@@ -180,6 +180,7 @@ export const PRESET_TEMPLATES_OVERDUE: PresetTemplate[] = [
     template: `Olá *{CLIENTE}*!
 ━━━━━━━━━━━━━━━━
 
+📅 *Vencimento:* {DATA}
 ⏰ *Dias em atraso:* {DIAS_ATRASO}
 {JUROS}{JUROS_MULTA}
 
@@ -264,6 +265,7 @@ export const PRESET_TEMPLATES_DUE_TODAY: PresetTemplate[] = [
 
 📅 *Parcela vence hoje!*
 
+📅 *Vencimento:* Hoje ({DATA})
 {JUROS}
 
 💡 *Pague apenas os juros* para evitar multa e manter o contrato em dia!
