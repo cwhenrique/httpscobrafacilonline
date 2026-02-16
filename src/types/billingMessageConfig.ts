@@ -148,8 +148,9 @@ export const TEMPLATE_VARIABLES = [
   { variable: '{DATA}', description: 'Data de vencimento' },
   { variable: '{DIAS_ATRASO}', description: 'Dias em atraso' },
   { variable: '{DIAS_PARA_VENCER}', description: 'Dias até o vencimento' },
+  { variable: '{JUROS_CONTRATO}', description: 'Juros do contrato (ex: empréstimo 1000, pagar 1200 = juros 200)' },
   { variable: '{MULTA}', description: 'Linha da multa (se houver só multa)' },
-  { variable: '{JUROS}', description: 'Linha dos juros (se houver só juros)' },
+  { variable: '{JUROS}', description: 'Linha dos juros por atraso (se houver só juros)' },
   { variable: '{JUROS_MULTA}', description: 'Juros + Multa consolidados (quando ambos existem)' },
   { variable: '{TOTAL}', description: 'Linha do total a pagar' },
   { variable: '{PROGRESSO}', description: 'Barra de progresso visual' },
@@ -182,7 +183,9 @@ export const PRESET_TEMPLATES_OVERDUE: PresetTemplate[] = [
 
 📅 *Vencimento:* {DATA}
 ⏰ *Dias em atraso:* {DIAS_ATRASO}
-{JUROS}{JUROS_MULTA}
+
+{JUROS_CONTRATO}
+{JUROS}{MULTA}{JUROS_MULTA}
 
 💡 *Pague apenas os juros* para evitar o acúmulo e manter seu contrato em dia!
 
@@ -266,7 +269,8 @@ export const PRESET_TEMPLATES_DUE_TODAY: PresetTemplate[] = [
 📅 *Parcela vence hoje!*
 
 📅 *Vencimento:* Hoje ({DATA})
-{JUROS}
+
+{JUROS_CONTRATO}
 
 💡 *Pague apenas os juros* para evitar multa e manter o contrato em dia!
 
@@ -321,7 +325,8 @@ export const PRESET_TEMPLATES_EARLY: PresetTemplate[] = [
 📋 *Lembrete de pagamento*
 
 📅 *Vencimento:* {DATA} (em {DIAS_PARA_VENCER} dias)
-{JUROS}
+
+{JUROS_CONTRATO}
 
 💡 *Pague apenas os juros* antes do vencimento para manter tudo em dia!
 
