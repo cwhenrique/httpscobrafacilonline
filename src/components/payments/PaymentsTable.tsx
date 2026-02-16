@@ -76,7 +76,7 @@ export function PaymentsTable({ payments, maxHeight = '500px', emptyMessage }: P
   }
 
   return (
-    <ScrollArea className={`max-h-[${maxHeight}]`} style={{ maxHeight }}>
+    <ScrollArea style={{ maxHeight }} className="overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
