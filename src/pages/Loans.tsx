@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils';
 import { HistoricalInterestRecords } from '@/components/HistoricalInterestRecords';
 import { PaymentsHistoryTab } from '@/components/PaymentsHistoryTab';
 import { ClientLoansFolder, ClientGroup } from '@/components/ClientLoansFolder';
+import { safeDates } from '@/lib/dateUtils';
 
 
 // Helper para extrair pagamentos parciais do notes do loan
@@ -496,7 +497,7 @@ type LoanForTodayCheck = {
 
 const getTodayInstallmentInfo = (loan: LoanForTodayCheck): { installmentNumber: number; totalInstallments: number; dueDate: string } | null => {
   const today = new Date().toISOString().split('T')[0];
-  const dates = (loan.installment_dates as string[]) || [];
+  const dates = safeDates(loan.installment_dates);
   
   // Se não tem array de datas, verificar due_date única
   if (dates.length === 0) {
@@ -1239,7 +1240,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             // Para contratos diários, aplicar multa em TODAS as parcelas atrasadas
             // Calcular os dias de atraso de CADA parcela individualmente
             const loan = loans.find(l => l.id === loanId);
-            const dates = (loan?.installment_dates as string[]) || [];
+            const dates = safeDates(loan?.installment_dates);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
@@ -1422,7 +1423,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   
   // Função para abrir o diálogo de adicionar multa em qualquer parcela
   const openAddPenaltyDialog = (loan: any, installmentValue: number) => {
-    const dates = (loan.installment_dates as string[]) || [];
+    const dates = safeDates(loan.installment_dates);
     const paidCount = getPaidInstallmentsCount(loan);
     const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
     
@@ -1846,7 +1847,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
 
-    const currentDates = (loan.installment_dates as string[]) || [];
+    const currentDates = safeDates(loan.installment_dates);
     const paidCount = getPaidInstallmentsCount(loan);
     
     // Update the next unpaid installment date
@@ -1888,7 +1889,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
 
-    const currentDates = (loan.installment_dates as string[]) || [];
+    const currentDates = safeDates(loan.installment_dates);
     const updatedDates = [...currentDates];
     
     // Verificar se é empréstimo diário (só diário tem cascata)
@@ -2075,7 +2076,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
     const installmentNumber = installmentMatch ? parseInt(installmentMatch[1]) : getPaidInstallmentsCount(loan);
     const paidCount = getPaidInstallmentsCount(loan);
-    const installmentDates = (loan.installment_dates as string[]) || [];
+    const installmentDates = safeDates(loan.installment_dates);
     const isFullyPaid = loan.remaining_balance <= 0.01;
     const companyName = profile?.company_name || profile?.full_name || 'CobraFácil';
     const signatureName = profile?.billing_signature_name || companyName;
@@ -2627,7 +2628,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         const interestPaidCount = getInterestPaidInstallmentsCount(loan.notes);
         paidInstallments = Math.max(paidInstallments, interestPaidCount);
       }
-      const dates = (loan.installment_dates as string[]) || [];
+      const dates = safeDates(loan.installment_dates);
       
       // Para empréstimos diários, verificar TODAS as parcelas não pagas que já venceram
       if (isDaily && dates.length > 0) {
@@ -2853,7 +2854,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         // Verificar installment_dates para empréstimos parcelados
         if (loan.installment_dates && Array.isArray(loan.installment_dates)) {
           const paidCount = getPaidInstallmentsCount(loan);
-          const unpaidDates = (loan.installment_dates as string[]).slice(paidCount);
+          const unpaidDates = safeDates(loan.installment_dates).slice(paidCount);
           return unpaidDates.some(date => date === today);
         }
         
@@ -2866,7 +2867,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   // Helper para obter a próxima data de vencimento de um empréstimo
   const getNextDueDate = (loan: typeof loans[0]): Date | null => {
     const paidCount = getPaidInstallmentsCount(loan);
-    const dates = (loan.installment_dates as string[]) || [];
+    const dates = safeDates(loan.installment_dates);
     
     // Para empréstimos com múltiplas parcelas
     if (dates.length > 0) {
@@ -2954,7 +2955,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Check due today
       if (!isPaid) {
         const paidCount = getPaidInstallmentsCount(loan);
-        const dates = (loan.installment_dates as string[]) || [];
+        const dates = safeDates(loan.installment_dates);
         if (dates.length > 0 && paidCount < dates.length) {
           const nextDue = new Date(dates[paidCount] + 'T12:00:00');
           nextDue.setHours(0, 0, 0, 0);
@@ -3026,7 +3027,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       daily_amount: dailyAmount.toString(),
       daily_interest_rate: interestRate.toFixed(2),
       contract_date: loan.contract_date || format(new Date(), 'yyyy-MM-dd'),
-      start_date: (loan.installment_dates as string[])?.[0] || loan.start_date,
+      start_date: safeDates(loan.installment_dates)?.[0] || loan.start_date,
       daily_period: numInstallments.toString(),
       installments: numInstallments.toString(),
       due_date: loan.due_date,
@@ -3037,7 +3038,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     });
     
     // Carregar datas das parcelas existentes
-    setInstallmentDates((loan.installment_dates as string[]) || []);
+    setInstallmentDates(safeDates(loan.installment_dates));
     
     // Marcar que estamos editando
     setEditingDailyLoanId(loanId);
@@ -4164,7 +4165,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // Calcular dias de atraso
     const todayForConsolidation = new Date();
     todayForConsolidation.setHours(0, 0, 0, 0);
-    const dates = (selectedLoan.installment_dates as string[]) || [];
+    const dates = safeDates(selectedLoan.installment_dates);
     const paidCountForConsolidation = getPaidInstallmentsCount(selectedLoan);
     let daysOverdueForConsolidation = 0;
     
@@ -4426,7 +4427,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       
       // Preparar dados do comprovante
       setPaymentClientPhone(selectedLoan.client?.phone || null);
-      setPaymentInstallmentDates((selectedLoan.installment_dates as string[]) || []);
+      setPaymentInstallmentDates(safeDates(selectedLoan.installment_dates));
       setPaymentPaidCount(selectedLoan.installments || 1); // Quitado = todas pagas
       setPaymentPaidIndices(getPaidIndicesFromNotes(selectedLoan));
       setPaymentReceiptData({
@@ -4720,7 +4721,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       
       // Pagamento parcial - atualizar tracking da parcela selecionada
       const targetInstallmentValue = getInstallmentValue(targetInstallmentIndex);
-      const dates = (selectedLoan.installment_dates as string[]) || [];
+      const dates = safeDates(selectedLoan.installment_dates);
       
       // Se é um adiantamento (pagamento antes do vencimento + valor parcial)
       if (paymentData.is_advance_payment) {
