@@ -14,6 +14,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { OwnerOnlyRoute } from "@/components/OwnerOnlyRoute";
 import { AccessDebugPanel } from "@/components/AccessDebugPanel";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Landing carrega eager (primeira página)
 import Landing from "./pages/Landing";
@@ -121,7 +122,9 @@ const AppContent = () => {
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="dark" storageKey="cobrafacil-theme">
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <ErrorBoundary fallbackType="global">
+        <AppContent />
+      </ErrorBoundary>
     </QueryClientProvider>
   </ThemeProvider>
 );
