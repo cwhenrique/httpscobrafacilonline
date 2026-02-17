@@ -1,34 +1,61 @@
 
-## Corrigir crash na pagina de Emprestimos (usuario badboyinternacional@gmail.com)
+
+## Corrigir: Reembolsos nao desativam o acesso do usuario
 
 ### Diagnostico
 
-O ErrorBoundary que implementamos esta funcionando corretamente - ele capturou o erro e mostrou a tela "Algo deu errado" em vez de uma tela preta. Agora precisamos corrigir a **causa raiz** do erro.
+O webhook da Cakto (`supabase/functions/cakto-webhook/index.ts`) possui dois problemas criticos:
 
-**Erro exato:** `RangeError: Invalid time value` na funcao `format()` do date-fns.
+**Problema 1 - Reembolsos sao ignorados:**
+Na linha 529-537, o webhook so processa eventos com status `approved`, `paid`, `completed`, `active`, `subscription_created`. Qualquer outro status (como `refunded`, `chargedback`, `cancelled`, `subscription_canceled`) e simplesmente ignorado com a mensagem "Transaction not approved, skipping". Ou seja, quando a Cakto envia um webhook de reembolso, o sistema nao faz nada e o usuario continua com acesso.
 
-**Causa raiz:** O emprestimo `3238df41` possui um **elemento vazio** (`""`) no array `installment_dates`. Quando o codigo tenta converter essa string vazia em data (`new Date("T12:00:00")`), gera uma data invalida, e a funcao `format()` do date-fns lanca o erro.
+**Problema 2 - Compra + Reembolso + Compra = 60 dias:**
+Quando o usuario compra, reembolsa e compra novamente, o sistema nao processou o reembolso (problema 1), entao na segunda compra ele ve uma assinatura ativa e **acumula** os dias (linha 755-768: `hasActiveSubscription` e true, entao chama `calculateExpirationDate(plan, currentExpiresAt)` que adiciona 30 dias em cima da data existente). Resultado: 30 + 30 = 60 dias.
 
 ### Plano de correcao
 
-#### 1. Corrigir os dados no banco de dados
+#### 1. Adicionar tratamento de eventos de reembolso/cancelamento
 
-Remover o elemento vazio do array `installment_dates` do emprestimo afetado. Tambem fazer uma varredura geral para corrigir quaisquer outros registros com o mesmo problema.
+Antes do filtro de status validos (linha 528), adicionar um bloco que detecta eventos de reembolso e desativa o usuario:
 
-#### 2. Adicionar filtro defensivo na leitura de datas
+- Eventos de reembolso a tratar: `refunded`, `chargedback`, `chargeback`, `cancelled`, `canceled`, `subscription_canceled`, `dispute`, `reversed`, `subscription_cancelled`
+- Ao receber um destes eventos:
+  - Buscar o usuario pelo email
+  - Atualizar o perfil: `is_active = false`, `subscription_expires_at = now()`
+  - Enviar mensagem WhatsApp informando que o acesso foi revogado
+  - Retornar sucesso
 
-Em `src/pages/Loans.tsx`, criar uma funcao utilitaria para sanitizar o array de datas, filtrando valores vazios ou invalidos:
+#### 2. Registrar reembolsos no log
 
-```text
-const safeDates = (dates: string[]) => dates.filter(d => d && d.trim().length >= 10);
-```
-
-Aplicar esse filtro nos pontos criticos onde `installment_dates` e lido do banco, especialmente na funcao `getLoanStatus` (linha ~2630) e nas funcoes de renderizacao que fazem `.map()` sobre as datas. Existem ~180 pontos onde `(loan.installment_dates as string[]) || []` e usado, mas o ponto mais seguro e criar um wrapper que ja limpa os dados.
+Adicionar logs claros para rastreabilidade de eventos de reembolso, incluindo email do usuario, evento recebido e acao tomada.
 
 ### Detalhes tecnicos
 
-- O erro acontece em multiplos `.map()` dentro de Loans.tsx onde `format(new Date(date + 'T12:00:00'), ...)` e chamado
-- O arquivo tem 15.078 linhas e 180+ pontos que leem `installment_dates`
-- A solucao mais robusta e criar uma funcao `getSafeDates(loan)` e usar nos pontos criticos de renderizacao
-- A correcao no banco e imediata e resolve o problema do usuario agora
-- A correcao no codigo previne que isso aconteca novamente com novos dados
+A alteracao sera feita exclusivamente em `supabase/functions/cakto-webhook/index.ts`:
+
+```text
+Linha ~528, ANTES do bloco validStatuses:
+
+1. Definir array de status de reembolso:
+   refundStatuses = ['refunded', 'chargedback', 'chargeback', 'cancelled', 
+                     'canceled', 'subscription_canceled', 'subscription_cancelled',
+                     'dispute', 'reversed']
+
+2. Verificar se o status atual e um reembolso:
+   if (refundStatuses.includes(statusToCheck)):
+     - Buscar usuario por email (findUserByEmail)
+     - Se encontrado:
+       - UPDATE profiles SET is_active = false, subscription_expires_at = NOW()
+       - Enviar WhatsApp ao admin/suporte informando do reembolso
+       - Log: "REFUND PROCESSED - User deactivated"
+     - Retornar { success: true, message: 'Refund processed, user deactivated' }
+```
+
+Nenhum outro arquivo precisa ser alterado. A edge function sera reimplantada automaticamente.
+
+### Resultado esperado
+
+- Reembolsos da Cakto irao desativar o usuario imediatamente
+- O usuario nao conseguira mais fazer login (o Auth.tsx ja bloqueia `is_active = false`)
+- Se o usuario comprar novamente apos reembolso, a conta sera reativada normalmente (como novo subscriber, sem acumular dias da compra anterior)
+
