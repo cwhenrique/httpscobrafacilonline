@@ -13296,13 +13296,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
                   </div>
                   
-                  {!paymentData.is_advance_payment && paymentData.payment_type !== 'discount' && !(() => {
-                    // Esconder campo "Nova Data de Vencimento" quando pagando sub-parcela
-                    if (paymentData.payment_type !== 'partial') return false;
-                    const advSubs = getAdvanceSubparcelasFromNotes(selectedLoan?.notes || null);
-                    const selIdx = paymentData.partial_installment_index;
-                    return selIdx !== null && selIdx < 0 && advSubs.length > 0;
-                  })() && (
+                  {!paymentData.is_advance_payment && paymentData.payment_type !== 'discount' && (
                     <div className="space-y-2">
                       <Label>Nova Data de Vencimento</Label>
                       <Input 
