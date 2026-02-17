@@ -13104,28 +13104,43 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           const originalPrincipal = selectedLoan?.principal_amount || 0;
                           const currentInterestRate = selectedLoan?.interest_rate || 0;
                           const numInstallments = selectedLoan?.installments || 1;
+                          const interestMode = selectedLoan?.interest_mode || 'on_total';
                           
-                          // Calcular amortizações anteriores
-                          const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan?.notes || null);
+                          // Calcular parcelas pagas e restantes
+                          const paidInstallmentsCount = selectedLoan ? getPaidInstallmentsCount(selectedLoan) : 0;
+                          const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
                           
-                          // Principal atual (após amortizações anteriores)
-                          const currentPrincipal = originalPrincipal;
+                          // 🆕 CORREÇÃO: Calcular principal REMANESCENTE real
+                          // Principal por parcela × parcelas pagas = principal já quitado
+                          const principalPerInst = originalPrincipal / numInstallments;
+                          const principalAlreadyPaid = principalPerInst * paidInstallmentsCount;
+                          const currentRemainingPrincipal = Math.max(0, originalPrincipal - principalAlreadyPaid - getTotalAmortizationsFromNotes(selectedLoan?.notes || null));
                           
                           // Novo principal após esta amortização
-                          const newPrincipal = Math.max(0, currentPrincipal - paidAmount);
+                          const newPrincipal = Math.max(0, currentRemainingPrincipal - paidAmount);
                           
-                          // Juros originais (sobre principal original)
-                          const originalInterest = currentPrincipal * (currentInterestRate / 100);
+                          // Juros originais (sobre principal remanescente atual)
+                          let originalInterest: number;
+                          if (interestMode === 'per_installment') {
+                            originalInterest = currentRemainingPrincipal * (currentInterestRate / 100) * remainingInstallmentsCount;
+                          } else if (interestMode === 'compound') {
+                            originalInterest = currentRemainingPrincipal * Math.pow(1 + (currentInterestRate / 100), remainingInstallmentsCount) - currentRemainingPrincipal;
+                          } else {
+                            originalInterest = currentRemainingPrincipal * (currentInterestRate / 100);
+                          }
                           
                           // Novos juros (sobre novo principal)
-                          const newTotalInterest = newPrincipal * (currentInterestRate / 100);
+                          let newTotalInterest: number;
+                          if (interestMode === 'per_installment') {
+                            newTotalInterest = newPrincipal * (currentInterestRate / 100) * remainingInstallmentsCount;
+                          } else if (interestMode === 'compound') {
+                            newTotalInterest = newPrincipal * Math.pow(1 + (currentInterestRate / 100), remainingInstallmentsCount) - newPrincipal;
+                          } else {
+                            newTotalInterest = newPrincipal * (currentInterestRate / 100);
+                          }
                           
                           // Economia total de juros
                           const interestSavings = Math.max(0, originalInterest - newTotalInterest);
-                          
-                          // Calcular novas parcelas
-                          const paidInstallmentsCount = selectedLoan ? getPaidInstallmentsCount(selectedLoan) : 0;
-                          const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
                           
                           // Valor atual por parcela
                           const currentInstallmentValue = (selectedLoan?.remaining_balance || 0) / remainingInstallmentsCount;
@@ -13150,8 +13165,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 </label>
                                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
                                   <div className="flex justify-between">
-                                    <span>Principal original:</span>
-                                    <span>{formatCurrency(originalPrincipal)}</span>
+                                    <span>Principal remanescente:</span>
+                                    <span>{formatCurrency(currentRemainingPrincipal)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Amortização agora:</span>
@@ -13162,7 +13177,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     <span>{formatCurrency(newPrincipal)}</span>
                                   </div>
                                   <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
-                                    <span>Juros originais ({currentInterestRate}%):</span>
+                                    <span>Juros atuais ({currentInterestRate}% de {formatCurrency(currentRemainingPrincipal)}):</span>
                                     <span>{formatCurrency(originalInterest)}</span>
                                   </div>
                                   <div className="flex justify-between">
