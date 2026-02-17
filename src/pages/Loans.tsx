@@ -4612,7 +4612,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     }
     
     // Quando é pagamento parcial, atualizar o tracking de parcelas
-    let updatedNotes = selectedLoan.notes || '';
+    // 🆕 FIX: Usar notes FRESCAS do banco para evitar problemas de state stale
+    let updatedNotes = freshLoanData.notes || selectedLoan.notes || '';
     let installmentNote = '';
     
     if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
@@ -13049,7 +13050,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             type="number" 
                             step="0.01" 
                             value={paymentData.amount} 
-                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value, is_advance_payment: false, recalculate_interest: false })} 
+                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value, recalculate_interest: false }))} 
                             placeholder={`Máx: ${formatCurrency(selectedStatus.remaining)}`}
                             required 
                           />
