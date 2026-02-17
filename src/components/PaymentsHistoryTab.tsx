@@ -11,12 +11,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { CalendarIcon, Check, RefreshCw, ChevronDown, User, Users } from 'lucide-react';
+import { CalendarIcon, Check, RefreshCw, ChevronDown, User, Users, Download } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { PaymentsSummaryCards } from '@/components/payments/PaymentsSummaryCards';
 import { PaymentsTable, PaymentRecord, getPaymentType } from '@/components/payments/PaymentsTable';
+import { generatePaymentsReport } from '@/lib/paymentsReportPdf';
+import { useProfile } from '@/hooks/useProfile';
+import { toast } from 'sonner';
 
 type PeriodType = 'today' | 'week' | 'month' | 'custom';
 
@@ -28,6 +31,8 @@ interface EmployeeInfo {
 export function PaymentsHistoryTab() {
   const { user } = useAuth();
   const { effectiveUserId, isOwner, loading: employeeLoading } = useEmployeeContext();
+  const { profile } = useProfile();
+  const [isDownloading, setIsDownloading] = useState(false);
   
   const today = new Date();
   const [period, setPeriod] = useState<PeriodType>('today');
@@ -167,6 +172,29 @@ export function PaymentsHistoryTab() {
     }
   }, [period, customRange]);
 
+  const handleDownloadReport = async () => {
+    if (payments.length === 0) {
+      toast.info('Nenhum pagamento para exportar neste período.');
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      await generatePaymentsReport({
+        payments,
+        periodLabel,
+        summary,
+        companyName: profile?.company_name || profile?.full_name || undefined,
+        customLogoUrl: profile?.company_logo_url,
+      });
+      toast.success('Relatório baixado com sucesso!');
+    } catch (e) {
+      console.error('Erro ao gerar relatório:', e);
+      toast.error('Erro ao gerar relatório.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Period Filters */}
@@ -209,9 +237,14 @@ export function PaymentsHistoryTab() {
                 </PopoverContent>
               </Popover>
             </div>
-            <Button variant="ghost" size="sm" className="h-8 ml-auto" onClick={() => refetch()}>
-              <RefreshCw className="w-3.5 h-3.5" />
-            </Button>
+            <div className="flex items-center gap-1 ml-auto">
+              <Button variant="ghost" size="sm" className="h-8" onClick={handleDownloadReport} disabled={isDownloading || isLoading}>
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => refetch()}>
+                <RefreshCw className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
