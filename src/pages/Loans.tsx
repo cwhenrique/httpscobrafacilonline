@@ -4863,8 +4863,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         .filter(p => !(p.notes || '').includes('[AMORTIZATION]'))
         .reduce((sum, p) => sum + (p.principal_paid || 0), 0);
       
-      // Principal remanescente = principal_amount (já reflete amortizações anteriores) - principal pago em parcelas
-      const currentRemainingPrincipal = Math.max(0, originalPrincipal - regularPrincipalPaid);
+      // Principal remanescente = principal original - principal pago em parcelas - amortizações anteriores
+      const currentRemainingPrincipal = Math.max(0, originalPrincipal - regularPrincipalPaid - previousAmortizations);
       
       // Validar que o valor de amortização não excede o principal remanescente
       if (amount > currentRemainingPrincipal) {
@@ -4876,10 +4876,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         return;
       }
       
-      // Novo principal no DB = principal_amount - amortização (mantém rastreamento correto)
-      const newPrincipal = Math.max(0, originalPrincipal - amount);
-      
       // Principal remanescente efetivo após amortização (para cálculo de juros)
+      // NÃO alteramos principal_amount no DB - o trigger usa para calcular total_to_receive
       const newRemainingPrincipal = currentRemainingPrincipal - amount;
       
       // Calcular parcelas restantes
@@ -4916,9 +4914,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newRemainingPrincipal.toFixed(2)}:${newInterestForRemaining.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}:${remainingInstallmentsCount}]`;
       const notesWithAmort = ((selectedLoan.notes || '') + '\n' + amortTag).trim();
       
-      // Atualizar banco - ATUALIZA principal_amount para refletir o novo capital após amortização
+      // Atualizar banco - NÃO altera principal_amount para manter consistência com o trigger
+      // O trigger usa principal_amount + total_interest para calcular total_to_receive
       await supabase.from('loans').update({ 
-        principal_amount: newPrincipal,
         total_interest: newTotalInterest,
         remaining_balance: newRemainingBalance,
         notes: notesWithAmort
@@ -4947,7 +4945,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         console.error('[AMORTIZATION_ERROR] Falha ao registrar amortização:', amortPaymentResult.error);
         // Reverter as alterações feitas no empréstimo
         await supabase.from('loans').update({ 
-          principal_amount: selectedLoan.principal_amount,
           total_interest: previousTotalInterest,
           remaining_balance: previousRemainingBalance,
           notes: selectedLoan.notes || ''
