@@ -43,6 +43,7 @@ import {
 import { toast } from 'sonner';
 import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -392,7 +393,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <div className="p-4 lg:p-8">
             <SubscriptionExpiringBanner />
-            {children}
+            <ErrorBoundary fallbackType="page">
+              {children}
+            </ErrorBoundary>
           </div>
         </div>
       </main>
