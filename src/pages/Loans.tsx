@@ -13153,72 +13153,80 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           if (interestSavings < 0.01) return null;
                           
                           return (
-                            <div className="flex items-start gap-2 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10">
-                              <Checkbox
-                                id="recalculate_interest"
-                                checked={paymentData.recalculate_interest}
-                                onCheckedChange={(checked) => setPaymentData({ ...paymentData, recalculate_interest: !!checked })}
-                              />
-                              <div className="flex-1">
-                                <label htmlFor="recalculate_interest" className="text-sm font-medium cursor-pointer text-blue-700 dark:text-blue-300">
-                                  Amortizar e recalcular juros?
-                                </label>
-                                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
-                                  {/* Contexto: valor original vs saldo atual */}
-                                  <div className="flex justify-between text-muted-foreground">
-                                    <span>Valor original emprestado:</span>
-                                    <span>{formatCurrency(originalPrincipal)}</span>
-                                  </div>
-                                  {paidInstallmentsCount > 0 && (
-                                    <div className="flex justify-between text-muted-foreground">
-                                      <span>Principal já pago ({paidInstallmentsCount}x parcela{paidInstallmentsCount > 1 ? 's' : ''}):</span>
-                                      <span>-{formatCurrency(principalAlreadyPaid)}</span>
-                                    </div>
+                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 overflow-hidden">
+                              <div className="flex items-center gap-2 p-3">
+                                <Checkbox
+                                  id="recalculate_interest"
+                                  checked={paymentData.recalculate_interest}
+                                  onCheckedChange={(checked) => setPaymentData({ ...paymentData, recalculate_interest: !!checked })}
+                                />
+                                <div className="flex-1">
+                                  <label htmlFor="recalculate_interest" className="text-sm font-medium cursor-pointer text-blue-700 dark:text-blue-300">
+                                    Amortizar e recalcular juros?
+                                  </label>
+                                  {!paymentData.recalculate_interest && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Reduz o principal e recalcula juros. Economia de {formatCurrency(interestSavings)}
+                                    </p>
                                   )}
-                                  <div className="flex justify-between font-medium border-t border-blue-500/20 pt-1">
-                                    <span>Saldo devedor do principal:</span>
-                                    <span>{formatCurrency(currentRemainingPrincipal)}</span>
-                                  </div>
-
-                                  {/* Amortização */}
-                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
-                                    <span>Amortização agora:</span>
-                                    <span className="text-amber-600">-{formatCurrency(paidAmount)}</span>
-                                  </div>
-                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
-                                    <span>Novo saldo do principal:</span>
-                                    <span>{formatCurrency(newPrincipal)}</span>
-                                  </div>
-
-                                  {/* Juros */}
-                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
-                                    <span>Juros atuais ({currentInterestRate}% de {formatCurrency(currentRemainingPrincipal)}):</span>
-                                    <span>{formatCurrency(originalInterest)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Novos juros ({currentInterestRate}% de {formatCurrency(newPrincipal)}):</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(newTotalInterest)}</span>
-                                  </div>
-                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400 border-t border-blue-500/20 pt-1">
-                                    <span>💰 Economia de juros:</span>
-                                    <span>{formatCurrency(interestSavings)}</span>
-                                  </div>
-
-                                  {/* Resumo parcelas */}
-                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
-                                    <span>Parcelas restantes:</span>
-                                    <span>{remainingInstallmentsCount}x</span>
-                                  </div>
-                                  <div className="flex justify-between text-muted-foreground">
-                                    <span>Valor atual da parcela:</span>
-                                    <span>{formatCurrency(currentInstallmentValue)}</span>
-                                  </div>
-                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
-                                    <span>NOVO valor da parcela:</span>
-                                    <span>{formatCurrency(newInstallmentValue)}</span>
-                                  </div>
                                 </div>
                               </div>
+
+                              {paymentData.recalculate_interest && (
+                                <div className="px-3 pb-3 space-y-2">
+                                  {/* Card 1 — Situação Atual */}
+                                  <div className="rounded-md bg-muted/50 p-2.5 space-y-1 text-xs">
+                                    <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Situação Atual</span>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Empréstimo original:</span>
+                                      <span>{formatCurrency(originalPrincipal)}</span>
+                                    </div>
+                                    {paidInstallmentsCount > 0 && (
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Já pago ({paidInstallmentsCount} parcela{paidInstallmentsCount > 1 ? 's' : ''}):</span>
+                                        <span>-{formatCurrency(principalAlreadyPaid)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between font-semibold border-t border-border pt-1">
+                                      <span>Saldo devedor:</span>
+                                      <span>{formatCurrency(currentRemainingPrincipal)}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Card 2 — Após Amortização */}
+                                  <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-2.5 space-y-1 text-xs">
+                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide text-[10px]">Após Amortização</span>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Amortização:</span>
+                                      <span className="text-amber-600 dark:text-amber-400">-{formatCurrency(paidAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between font-semibold">
+                                      <span>Novo principal:</span>
+                                      <span className="text-emerald-700 dark:text-emerald-400">{formatCurrency(newPrincipal)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Novos juros ({currentInterestRate}%):</span>
+                                      <span>{formatCurrency(newTotalInterest)}</span>
+                                    </div>
+                                    <div className="flex justify-between font-semibold text-emerald-700 dark:text-emerald-400 border-t border-emerald-500/20 pt-1">
+                                      <span>💰 Economia de juros:</span>
+                                      <span>{formatCurrency(interestSavings)}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Card 3 — Nova Parcela */}
+                                  <div className="rounded-md bg-primary/5 border border-primary/20 p-2.5 text-xs">
+                                    <span className="font-semibold text-primary uppercase tracking-wide text-[10px]">Nova Parcela</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                      <span>{remainingInstallmentsCount}x restante{remainingInstallmentsCount > 1 ? 's' : ''}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="line-through text-muted-foreground">{formatCurrency(currentInstallmentValue)}</span>
+                                        <span className="font-bold text-sm text-primary">{formatCurrency(newInstallmentValue)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
