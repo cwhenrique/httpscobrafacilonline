@@ -13116,6 +13116,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           const principalAlreadyPaid = principalPerInst * paidInstallmentsCount;
                           const currentRemainingPrincipal = Math.max(0, originalPrincipal - principalAlreadyPaid - getTotalAmortizationsFromNotes(selectedLoan?.notes || null));
                           
+                          // Calcular juros totais originais do contrato
+                          let totalOriginalInterest: number;
+                          if (interestMode === 'per_installment') {
+                            totalOriginalInterest = originalPrincipal * (currentInterestRate / 100) * numInstallments;
+                          } else if (interestMode === 'compound') {
+                            totalOriginalInterest = originalPrincipal * Math.pow(1 + (currentInterestRate / 100), numInstallments) - originalPrincipal;
+                          } else {
+                            totalOriginalInterest = originalPrincipal * (currentInterestRate / 100);
+                          }
+                          const interestPerInst = totalOriginalInterest / numInstallments;
+                          const interestAlreadyPaid = interestPerInst * paidInstallmentsCount;
+                          const interestRemaining = totalOriginalInterest - interestAlreadyPaid;
+                          
                           // Novo principal após esta amortização
                           const newPrincipal = Math.max(0, currentRemainingPrincipal - paidAmount);
                           
@@ -13179,17 +13192,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Situação Atual</span>
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Empréstimo original:</span>
-                                      <span>{formatCurrency(originalPrincipal)}</span>
+                                      <span>{formatCurrency(originalPrincipal)} + {formatCurrency(totalOriginalInterest)} juros</span>
                                     </div>
                                     {paidInstallmentsCount > 0 && (
                                       <div className="flex justify-between">
                                         <span className="text-muted-foreground">Já pago ({paidInstallmentsCount} parcela{paidInstallmentsCount > 1 ? 's' : ''}):</span>
-                                        <span>-{formatCurrency(principalAlreadyPaid)}</span>
+                                        <span>-{formatCurrency(principalAlreadyPaid)} principal, -{formatCurrency(interestAlreadyPaid)} juros</span>
                                       </div>
                                     )}
                                     <div className="flex justify-between font-semibold border-t border-border pt-1">
                                       <span>Saldo devedor:</span>
-                                      <span>{formatCurrency(currentRemainingPrincipal)}</span>
+                                      <span>{formatCurrency(currentRemainingPrincipal)} principal + {formatCurrency(interestRemaining)} juros</span>
                                     </div>
                                   </div>
 
