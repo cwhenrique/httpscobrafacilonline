@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { safeDates } from '@/lib/dateUtils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +88,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
   // Get mini summaries for each loan
   const loanSummaries = group.loans.map(loan => {
     const isPaid = loan.remaining_balance <= 0.01;
-    const dates = (loan.installment_dates as string[]) || [];
+    const dates = safeDates(loan.installment_dates);
     let nextDue: string | null = null;
     
     if (!isPaid && dates.length > 0) {

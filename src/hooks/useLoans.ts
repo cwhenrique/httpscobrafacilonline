@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Loan, LoanPayment, InterestType, LoanPaymentType } from '@/types/database';
+import { safeDates } from '@/lib/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { toast } from 'sonner';
@@ -119,6 +120,8 @@ const fetchLoansFromDB = async (userId: string): Promise<Loan[]> => {
   // Mapear creator_employee para cada loan
   return (data || []).map(loan => ({
     ...loan,
+    // Sanitize installment_dates to prevent Invalid Date errors
+    installment_dates: safeDates(loan.installment_dates),
     // Só adiciona creator_employee se foi criado por alguém diferente do dono
     creator_employee: loan.created_by !== loan.user_id 
       ? employeeMap.get(loan.created_by) || null 
