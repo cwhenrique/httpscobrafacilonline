@@ -4307,7 +4307,31 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       baseInstallmentValue = totalToReceive / numInstallments;
     }
     
-    const interestPerInstallment = totalInterest / numInstallments;
+    let interestPerInstallment = totalInterest / numInstallments;
+    
+    // 🆕 CORREÇÃO: Se houve amortização, recalcular valores usando dados efetivos da tag
+    const totalAmortizationsForPayment = getTotalAmortizationsFromNotes(selectedLoan.notes);
+    let principalPerInstallment = selectedLoan.principal_amount / numInstallments;
+    
+    if (totalAmortizationsForPayment > 0 && !isDaily) {
+      const effectiveValues = getEffectivePerInstallmentValues(
+        selectedLoan.notes,
+        isDaily,
+        numInstallments,
+        selectedLoan.principal_amount / numInstallments,
+        totalInterest / numInstallments
+      );
+      const paidCount = getPaidInstallmentsCount(selectedLoan);
+      const remainingCount = Math.max(1, numInstallments - paidCount);
+      
+      // Recalcular baseado nos valores efetivos da amortização
+      totalInterest = effectiveValues.interestPerInstallment * remainingCount;
+      const effectivePrincipal = effectiveValues.principalPerInstallment * remainingCount;
+      baseInstallmentValue = effectiveValues.principalPerInstallment + effectiveValues.interestPerInstallment;
+      totalToReceive = effectivePrincipal + totalInterest + (selectedLoan.total_paid || 0);
+      interestPerInstallment = effectiveValues.interestPerInstallment;
+      principalPerInstallment = effectiveValues.principalPerInstallment;
+    }
     
     // 🆕 CORREÇÃO: Para contratos de Juros Antigos, usar remaining_balance diretamente
     // Os juros históricos são registros de juros JÁ RECEBIDOS, não abatimento do saldo
@@ -4315,8 +4339,6 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const remainingToReceive = isHistoricalInterestContract
       ? selectedLoan.remaining_balance  // Juros antigos: usar remaining_balance (que é o total do contrato)
       : totalToReceive - (selectedLoan.total_paid || 0);  // Outros: calcular normalmente
-    
-    const principalPerInstallment = selectedLoan.principal_amount / numInstallments;
     
     // Verificar se há taxa de renovação aplicada em uma parcela específica
     // Suporta formato novo e antigo
@@ -4879,8 +4901,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         .filter(p => !(p.notes || '').includes('[AMORTIZATION]'))
         .reduce((sum, p) => sum + (p.interest_paid || 0), 0);
       
-      // total_interest no DB = juros já pagos + juros futuros
-      const newTotalInterest = interestAlreadyPaid + newInterestForRemaining;
+      // total_interest no DB = apenas juros FUTUROS (juros já pagos não devem ser contados novamente)
+      const newTotalInterest = newInterestForRemaining;
       
       // Novo saldo = principal remanescente + juros futuros
       const newRemainingBalance = newRemainingPrincipal + newInterestForRemaining;
