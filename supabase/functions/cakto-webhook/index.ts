@@ -525,9 +525,77 @@ serve(async (req) => {
     console.log('Extracted customer data:', { email: customerEmail, name: customerName, phone: customerPhone, status: transactionStatus });
     console.log('Extracted affiliate data:', { affiliateEmail });
 
+    const statusToCheck = transactionStatus?.toLowerCase?.() || '';
+
+    // === REFUND/CANCELLATION HANDLING ===
+    const refundStatuses = [
+      'refunded', 'chargedback', 'chargeback', 'cancelled', 'canceled',
+      'subscription_canceled', 'subscription_cancelled', 'dispute', 'reversed'
+    ];
+
+    if (refundStatuses.includes(statusToCheck)) {
+      console.log('=== REFUND/CANCELLATION EVENT DETECTED ===');
+      console.log('Status:', statusToCheck);
+      console.log('Email:', customerEmail);
+
+      // Initialize Supabase admin client early for refund processing
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+
+      const refundUser = await findUserByEmail(supabase, customerEmail);
+
+      if (refundUser) {
+        console.log('User found for refund:', refundUser.id);
+
+        // Deactivate user immediately
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            is_active: false,
+            subscription_expires_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', refundUser.id);
+
+        if (updateError) {
+          console.error('Error deactivating user on refund:', updateError);
+        } else {
+          console.log('=== REFUND PROCESSED - User deactivated ===');
+          console.log('User ID:', refundUser.id);
+          console.log('Email:', customerEmail);
+        }
+
+        // Notify admin via WhatsApp
+        const adminPhone = Deno.env.get('ADMIN_PHONE_NUMBER');
+        if (adminPhone) {
+          const refundMsg = `⚠️ *REEMBOLSO/CANCELAMENTO*\n\n` +
+            `Cliente: ${customerName || 'N/A'}\n` +
+            `Email: ${customerEmail}\n` +
+            `Evento: ${statusToCheck}\n` +
+            `Data: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n` +
+            `✅ Acesso revogado automaticamente.`;
+          await sendWhatsAppMessage(adminPhone, refundMsg);
+        }
+      } else {
+        console.log('User not found for refund email:', customerEmail);
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Refund processed, user deactivated',
+          email: customerEmail,
+          event: statusToCheck
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Only process approved/paid transactions
     const validStatuses = ['approved', 'paid', 'completed', 'active', 'subscription_created'];
-    const statusToCheck = transactionStatus?.toLowerCase?.() || '';
     if (transactionStatus && !validStatuses.includes(statusToCheck)) {
       console.log(`Transaction status "${transactionStatus}" is not approved, skipping`);
       return new Response(
