@@ -1061,123 +1061,115 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
 
   for (const loan of data.loans) {
     // Calculate needed space for this loan card
-    const installmentTableHeight = loan.installmentDetails.length > 0 
-      ? Math.min(loan.installmentDetails.length, 20) * 6 + 20 
-      : 0;
-    const neededSpace = 70 + installmentTableHeight;
+    const installmentRows = Math.min(loan.installmentDetails.length, 20);
+    const installmentTableHeight = installmentRows > 0 ? installmentRows * 6 + 12 : 0;
+    const neededSpace = 75 + installmentTableHeight;
     checkNewPage(neededSpace);
 
-    // Loan card with status color header
+    // Status color
     const statusColor = loan.status === 'paid' ? { r: 34, g: 197, b: 94 } : 
                        loan.status === 'overdue' ? { r: 239, g: 68, b: 68 } : 
                        loan.status === 'interest_only' ? { r: 168, g: 85, b: 247 } :
                        { r: 234, g: 179, b: 8 };
+    const statusText = loan.status === 'paid' ? 'QUITADO' : 
+                      loan.status === 'overdue' ? 'EM ATRASO' : 
+                      loan.status === 'interest_only' ? 'SÓ JUROS' : 'PENDENTE';
 
     // Card header with status
     doc.setFillColor(statusColor.r, statusColor.g, statusColor.b);
     doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 9, 2, 2, 'F');
-
     doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    const statusText = loan.status === 'paid' ? 'QUITADO' : 
-                      loan.status === 'overdue' ? 'EM ATRASO' : 
-                      loan.status === 'interest_only' ? 'SÓ JUROS' : 'PENDENTE';
     doc.text(`EMP-${loan.id.substring(0, 8).toUpperCase()} | ${loan.clientName}`, margin + 5, currentY + 6);
     doc.text(statusText, pageWidth - margin - 5, currentY + 6, { align: 'right' });
-
     currentY += 11;
 
-    // Values card
+    // Card body - LIST FORMAT
+    const listCardHeight = 52;
     doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
     doc.setLineWidth(0.5);
     doc.setFillColor(CARD_BG.r, CARD_BG.g, CARD_BG.b);
-    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 38, 2, 2, 'FD');
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, listCardHeight, 2, 2, 'FD');
 
-    doc.setFontSize(8);
-    let detailY = currentY + 8;
-    const dcol1 = margin + 8;
-    const dcol2 = margin + 55;
-    const dcol3 = margin + 105;
-    const dcol4 = margin + 150;
+    const lx = margin + 8;
+    const vx = margin + 50; // value column
+    const rx = margin + 105; // right section
+    const rvx = margin + 140; // right value column
+    let ly = currentY + 9;
 
-    // Row 1: Emprestado | Juros | Total | Recebido
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Emprestado:', dcol1, detailY);
-    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(loan.principalAmount), dcol1, detailY + 5);
+    // Left column - list items
+    const listItems = [
+      { label: 'Valor Emprestado:', value: formatCurrency(loan.principalAmount), color: WHITE },
+      { label: 'Juros Aplicados:', value: formatCurrency(loan.totalInterest), color: { r: 234, g: 179, b: 8 } },
+      { label: 'Total a Receber:', value: formatCurrency(loan.totalToReceive), color: WHITE },
+      { label: 'Total Recebido:', value: formatCurrency(loan.totalPaid), color: { r: 34, g: 197, b: 94 } },
+    ];
 
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Juros:', dcol2, detailY);
-    doc.setTextColor(234, 179, 8);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(loan.totalInterest), dcol2, detailY + 5);
+    const rightItems = [
+      { label: 'Taxa:', value: `${loan.interestRate.toFixed(1)}%` },
+      { label: 'Início:', value: formatDate(loan.startDate) },
+      { label: 'Saldo:', value: formatCurrency(loan.remainingBalance), color: loan.remainingBalance > 0 ? { r: 239, g: 68, b: 68 } : { r: 34, g: 197, b: 94 } },
+    ];
 
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Total:', dcol3, detailY);
-    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(loan.totalToReceive), dcol3, detailY + 5);
-
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Recebido:', dcol4, detailY);
-    doc.setTextColor(34, 197, 94);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(loan.totalPaid), dcol4, detailY + 5);
-
-    detailY += 16;
-
-    // Row 2: Taxa | Tipo | Início | Saldo Restante
     const paymentTypeLabel = loan.paymentType === 'single' ? 'Único' : 
                             loan.paymentType === 'installment' ? 'Parcelado' :
                             loan.paymentType === 'daily' ? 'Diário' :
                             loan.paymentType === 'weekly' ? 'Semanal' :
                             loan.paymentType === 'biweekly' ? 'Quinzenal' : loan.paymentType;
-    
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Taxa: ${loan.interestRate.toFixed(1)}%`, dcol1, detailY);
 
-    doc.text(`Tipo: ${paymentTypeLabel}`, dcol2, detailY);
-    doc.text(`Início: ${formatDate(loan.startDate)}`, dcol3, detailY);
-
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Saldo:', dcol4, detailY);
-    doc.setTextColor(loan.remainingBalance > 0 ? 239 : 34, loan.remainingBalance > 0 ? 68 : 197, loan.remainingBalance > 0 ? 68 : 94);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(loan.remainingBalance), dcol4 + 15, detailY);
-
-    detailY += 10;
-
-    // Row 3: Installments progress
-    const progressPercent = loan.installments > 0 ? Math.round((loan.paidInstallments / loan.installments) * 100) : 0;
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Parcelas: `, dcol1, detailY);
-    doc.setTextColor(34, 197, 94);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${loan.paidInstallments}`, dcol1 + 20, detailY);
-    doc.setTextColor(150, 150, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text(` de ${loan.installments} pagas (${progressPercent}%)`, dcol1 + 24, detailY);
-
-    if (loan.overdueInstallments > 0) {
-      doc.setTextColor(239, 68, 68);
+    // Draw left list
+    doc.setFontSize(8);
+    for (const item of listItems) {
+      doc.setTextColor(150, 150, 150);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`• ${item.label}`, lx, ly);
+      doc.setTextColor(item.color.r, item.color.g, item.color.b);
       doc.setFont('helvetica', 'bold');
-      doc.text(`| ${loan.overdueInstallments} atrasada(s)`, dcol2 + 25, detailY);
+      doc.text(item.value, vx, ly);
+      ly += 8;
     }
 
-    currentY += 42;
+    // Draw right list
+    let ry = currentY + 9;
+    for (const item of rightItems) {
+      doc.setTextColor(150, 150, 150);
+      doc.setFont('helvetica', 'normal');
+      doc.text(item.label, rx, ry);
+      const valColor = item.color || WHITE;
+      doc.setTextColor(valColor.r, valColor.g, valColor.b);
+      doc.setFont('helvetica', 'bold');
+      doc.text(item.value, rvx, ry);
+      ry += 8;
+    }
+    // Tipo on right side
+    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Tipo:', rx, ry);
+    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    doc.setFont('helvetica', 'bold');
+    doc.text(paymentTypeLabel, rvx, ry);
+
+    // Parcelas progress below
+    const progressPercent = loan.installments > 0 ? Math.round((loan.paidInstallments / loan.installments) * 100) : 0;
+    const progressY = currentY + listCardHeight - 6;
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Parcelas Pagas: `, lx, progressY);
+    doc.setTextColor(34, 197, 94);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${loan.paidInstallments} de ${loan.installments} (${progressPercent}%)`, lx + 28, progressY);
+    if (loan.overdueInstallments > 0) {
+      doc.setTextColor(239, 68, 68);
+      doc.text(`  |  ${loan.overdueInstallments} atrasada(s)`, lx + 60, progressY);
+    }
+
+    currentY += listCardHeight + 4;
 
     // === INSTALLMENTS TABLE ===
     if (loan.installmentDetails.length > 0) {
-      checkNewPage(loan.installmentDetails.length * 6 + 18);
+      checkNewPage(installmentRows * 6 + 14);
       
       // Table header
       doc.setFillColor(30, 41, 59);
@@ -1194,12 +1186,10 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
       
       currentY += 8;
       
-      // Table rows
       const maxInstallmentsToShow = 20;
       const installmentsToShow = loan.installmentDetails.slice(0, maxInstallmentsToShow);
       
       for (const inst of installmentsToShow) {
-        // Alternate row background
         if (inst.number % 2 === 0) {
           doc.setFillColor(25, 35, 50);
           doc.rect(margin, currentY - 3, pageWidth - 2 * margin, 6, 'F');
@@ -1212,7 +1202,6 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
         doc.text(formatDate(inst.dueDate), margin + 18, currentY);
         doc.text(formatCurrency(inst.amount), margin + 55, currentY);
         
-        // Status with color and symbol
         if (inst.status === 'paid') {
           doc.setTextColor(34, 197, 94);
           doc.setFont('helvetica', 'bold');
@@ -1227,19 +1216,13 @@ export const generateOperationsReport = async (data: OperationsReportData): Prom
           doc.text('PENDENTE', margin + 95, currentY);
         }
         
-        // Payment date
         doc.setTextColor(150, 150, 150);
         doc.setFont('helvetica', 'normal');
-        if (inst.paidDate) {
-          doc.text(formatDate(inst.paidDate), margin + 135, currentY);
-        } else {
-          doc.text('-', margin + 135, currentY);
-        }
+        doc.text(inst.paidDate ? formatDate(inst.paidDate) : '-', margin + 135, currentY);
         
         currentY += 6;
       }
       
-      // Show "more" indicator if truncated
       if (loan.installmentDetails.length > maxInstallmentsToShow) {
         doc.setTextColor(150, 150, 150);
         doc.setFontSize(6);
