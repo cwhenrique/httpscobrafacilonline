@@ -4690,7 +4690,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       if (amount < targetSubparcela.amount - 0.01) {
         const newRemainder = targetSubparcela.amount - amount;
         const newUniqueId = Date.now().toString();
-        updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${targetSubparcela.dueDate}:${newUniqueId}]`;
+        // 🆕 FIX: Usar new_due_date do usuário se disponível (adiantamento de sub-parcela)
+        const newDueDate = paymentData.new_due_date || targetSubparcela.dueDate;
+        updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${newDueDate}:${newUniqueId}]`;
         installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) - Pagamento parcial. Restante: ${formatCurrency(newRemainder)}`;
       } else {
         installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) quitada`;
@@ -12928,7 +12930,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     const advanceSubparcelas = getAdvanceSubparcelasFromNotes(selectedLoan.notes);
                     
                     // Definir parcela selecionada (primeira não paga ou primeira sub-parcela por padrão)
-                    const selectedPartialIndex = paymentData.partial_installment_index ?? (unpaidInstallments[0]?.index ?? (advanceSubparcelas.length > 0 ? -1 : 0));
+                    const defaultPartialIndex = unpaidInstallments[0]?.index ?? (advanceSubparcelas.length > 0 ? -1 : 0);
+                    const selectedPartialIndex = paymentData.partial_installment_index ?? defaultPartialIndex;
+                    
+                    // 🆕 FIX: Sincronizar estado quando o padrão visual é diferente do estado atual
+                    if (paymentData.partial_installment_index === null && defaultPartialIndex !== null) {
+                      setTimeout(() => {
+                        setPaymentData(prev => ({ ...prev, partial_installment_index: defaultPartialIndex }));
+                      }, 0);
+                    }
                     
                     // Se selecionou uma sub-parcela (índice negativo = -1 - subIndex)
                     const isAdvanceSubparcelaSelected = selectedPartialIndex !== null && String(selectedPartialIndex).startsWith('-');
@@ -13159,11 +13169,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           );
                         })()}
                         
-                        {/* Checkbox de Adiantamento - NÃO aparece para sub-parcelas (já são sub-parcelas) */}
-                        {!selectedSubparcela && (() => {
-                          const paymentDateObj = new Date(paymentData.payment_date + 'T12:00:00');
-                          const installmentDueDate = dates[selectedPartialIndex ?? 0] || '';
-                          const dueDateObj = installmentDueDate ? new Date(installmentDueDate + 'T12:00:00') : null;
+                        {/* Checkbox de Adiantamento - aparece para parcelas e sub-parcelas */}
+                        {(() => {
+                          const installmentDueDate = selectedSubparcela 
+                            ? selectedSubparcela.dueDate 
+                            : (dates[selectedPartialIndex ?? 0] || '');
                           const paidAmount = parseFloat(paymentData.amount) || 0;
                           const isPartialAmount = paidAmount > 0 && paidAmount < selectedStatus.remaining;
                           const remainderAmount = selectedStatus.remaining - paidAmount;
@@ -13191,7 +13201,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               {paymentData.is_advance_payment && (
                                 <div className="bg-muted/50 rounded-lg p-3 text-sm">
                                   <p className="text-muted-foreground">
-                                    📅 A sub-parcela manterá a data de vencimento original da parcela: 
+                                    📅 A sub-parcela manterá a data de vencimento: 
                                     <span className="font-medium text-foreground ml-1">
                                       {installmentDueDate ? formatDate(installmentDueDate) : 'Data não definida'}
                                     </span>
@@ -13286,7 +13296,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <p className="text-xs text-muted-foreground">Quando o cliente efetivamente pagou</p>
                   </div>
                   
-                  {!paymentData.is_advance_payment && paymentData.payment_type !== 'discount' && (
+                  {!paymentData.is_advance_payment && paymentData.payment_type !== 'discount' && !(() => {
+                    // Esconder campo "Nova Data de Vencimento" quando pagando sub-parcela
+                    if (paymentData.payment_type !== 'partial') return false;
+                    const advSubs = getAdvanceSubparcelasFromNotes(selectedLoan?.notes || null);
+                    const selIdx = paymentData.partial_installment_index;
+                    return selIdx !== null && selIdx < 0 && advSubs.length > 0;
+                  })() && (
                     <div className="space-y-2">
                       <Label>Nova Data de Vencimento</Label>
                       <Input 
