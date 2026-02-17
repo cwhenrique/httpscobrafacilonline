@@ -86,19 +86,18 @@ serve(async (req) => {
     );
 
     const now = new Date();
-    const threeHoursFromNow = new Date(now.getTime() + 3 * 60 * 60 * 1000);
-    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const eightHoursFromNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
-    console.log(`Checking for trial users expiring between ${twoHoursFromNow.toISOString()} and ${threeHoursFromNow.toISOString()}`);
+    console.log(`Checking for trial users expiring between now and ${eightHoursFromNow.toISOString()}`);
 
-    // Find trial users whose trial expires in approximately 3 hours (between 2-3 hours from now)
+    // Find trial users whose trial expires in the next 8 hours (wider window for reduced frequency)
     const { data: expiringUsers, error } = await supabaseAdmin
       .from('profiles')
       .select('id, email, phone, full_name, trial_expires_at')
       .eq('subscription_plan', 'trial')
       .eq('is_active', true)
-      .gte('trial_expires_at', twoHoursFromNow.toISOString())
-      .lte('trial_expires_at', threeHoursFromNow.toISOString());
+      .gte('trial_expires_at', now.toISOString())
+      .lte('trial_expires_at', eightHoursFromNow.toISOString());
 
     if (error) {
       console.error('Error fetching expiring trial users:', error);

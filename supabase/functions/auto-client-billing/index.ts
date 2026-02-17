@@ -213,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     let targetHour: number | null = null;
     let batch = 0;
-    let batchSize = 3;
+    let batchSize = 30; // Otimizado: batch maior para reduzir número de cron jobs
     let testUserId: string | null = null;
 
     try {
