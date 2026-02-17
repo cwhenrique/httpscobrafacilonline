@@ -1,86 +1,47 @@
 
-# Correcao: Dois Botoes de Cobranca Sempre Visiveis
 
-## Problema Atual
+## Corrigir tela preta ao clicar no app (usuario badboyinternacional@gmail.com)
 
-Cada componente de cobranca (SendOverdueNotification, SendDueTodayNotification, SendEarlyNotification) exibe apenas **um botao** que alterna entre:
-- "Cobrar via WhatsApp" (link wa.me) quando a instancia esta desconectada
-- "Enviar Cobranca" (via API) quando conectada
+### Diagnostico
 
-O problema e que o sistema de verificacao de conexao (polling a cada 2 minutos) pode estar desatualizado, fazendo o botao de "Enviar Cobranca" aparecer quando a instancia ja esta offline. Ao clicar, o usuario recebe um erro generico da edge function.
+Investiguei a fundo a conta do usuario:
+- Perfil completo (nome, telefone preenchidos)
+- Conta ativa, assinatura mensal valida ate 26/02/2026
+- Dados dos emprestimos normais (sem valores nulos ou inconsistentes)
+- Autenticacao funcionando normalmente
+- Nao e funcionario, e dono da conta
 
-## Solucao
+**Causa raiz identificada:** O app NAO possui um **ErrorBoundary** (componente React que captura erros de renderizacao). Quando qualquer componente do app sofre um erro JavaScript durante a renderizacao (ex: ao clicar em um botao que abre um dialog, ao navegar entre paginas), o React desmonta TODA a arvore de componentes, resultando em tela preta.
 
-Mostrar **sempre os 2 botoes** em todos os componentes de cobranca:
+O session replay mostra animacoes SVG (graficos do dashboard carregando) e entao um evento truncado com tamanho grande (37.858 bytes), indicando um crash na renderizacao.
 
-1. **"Cobrar via WhatsApp"** (link wa.me) - sempre ativo se o cliente tiver telefone com DDD
-2. **"Enviar Cobranca"** (via instancia API) - visualmente desativado quando a instancia nao esta conectada
+### Plano de correcao
 
-Se o usuario clicar no botao de instancia estando desconectado, em vez de erro, mostrar um toast informativo orientando a conectar via QR Code ou usar o outro botao.
+#### 1. Criar um ErrorBoundary global
 
-## Componentes a Modificar
+Criar `src/components/ErrorBoundary.tsx` - um componente class-based que:
+- Captura erros de renderizacao em qualquer componente filho
+- Exibe uma tela amigavel com mensagem de erro e botao "Recarregar"
+- Loga o erro no console para debug
+- Permite que o usuario continue usando o app sem ficar preso na tela preta
 
-| Arquivo | Descricao |
-|---|---|
-| `SendOverdueNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Enviar Cobranca" |
-| `SendDueTodayNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Parcela de Hoje" |
-| `SendEarlyNotification.tsx` | Dois botoes: "Cobrar via WhatsApp" + "Cobrar Antes do Prazo" |
+#### 2. Envolver o app com o ErrorBoundary
 
-## Detalhes Tecnicos
+Em `src/App.tsx`, envolver o `AppContent` com o novo `ErrorBoundary`:
+- Qualquer erro de renderizacao sera capturado e mostrara a tela de fallback
+- O usuario podera clicar em "Recarregar" para voltar ao funcionamento normal
 
-### Logica dos Botoes
+#### 3. Adicionar ErrorBoundary no DashboardLayout
 
-Para cada componente, adicionar uma variavel `hasInstance` que verifica se o usuario **configurou** uma instancia (independente de estar conectada):
+Em `src/components/layout/DashboardLayout.tsx`, envolver o `{children}` com outro ErrorBoundary:
+- Erros em paginas individuais nao derrubam o layout inteiro (sidebar continua funcionando)
+- O usuario pode navegar para outra pagina sem precisar recarregar
 
-```text
-const hasInstance = !!(
-  profile?.whatsapp_instance_id &&
-  profile?.whatsapp_connected_phone &&
-  profile?.whatsapp_to_clients_enabled
-);
-```
+### Detalhes tecnicos
 
-Os dois botoes ficam lado a lado:
+- ErrorBoundary precisa ser um Class Component (hooks nao suportam `componentDidCatch`)
+- Dois niveis de protecao: global (App) e por pagina (DashboardLayout)
+- Tela de fallback com estilo consistente com o tema do app
+- Botao de recarregar usa `window.location.reload()`
+- Botao de "Voltar ao Dashboard" usa navegacao direta
 
-```text
-Botao 1 - "Cobrar via WhatsApp" (link wa.me)
-  - Sempre visivel se clientPhone existe
-  - onClick: abre MessagePreviewDialog com mode='whatsapp_link'
-
-Botao 2 - "Enviar Cobranca" (instancia API)
-  - Visivel apenas se hasInstance = true (usuario configurou instancia)
-  - Se isInstanceConnected = false: aparece com opacity reduzida e cursor not-allowed
-  - onClick quando desconectado: toast.info("Sua instancia WhatsApp nao esta conectada. Conecte via QR Code em Configuracoes, ou use 'Cobrar via WhatsApp'.")
-  - onClick quando conectado: fluxo normal (SpamWarning -> Preview -> Enviar)
-```
-
-### Mudanca no catch de erros
-
-Nos 3 componentes, ao detectar erro de conexao no envio:
-- Chamar `markDisconnected()` 
-- **Nao fechar** o dialogo (`setShowPreview(false)` sera removido do catch de conexao)
-- Mostrar toast informativo
-- O `previewMode` mudara automaticamente para `whatsapp_link` pois `canSendViaAPI` sera recalculado
-
-### Estrutura visual dos botoes
-
-Os dois botoes ficarao empilhados verticalmente (`flex-col`) em um container compacto:
-
-```text
-[Cobrar via WhatsApp]        <- verde, sempre ativo (link)
-[Enviar Cobranca]            <- primario quando conectado, desativado/opaco quando nao
-```
-
-### Validacao de DDD no botao de link
-
-O botao "Cobrar via WhatsApp" ja abre o MessagePreviewDialog em modo `whatsapp_link`, onde a validacao de DDD ja existe (implementada anteriormente). Nao e necessario mudanca adicional para isso.
-
-### Arquivos backend
-
-Nenhum arquivo backend precisa ser alterado.
-
----
-
-# Templates Prontos de Mensagem de Cobranca ✅ IMPLEMENTADO
-
-Templates prontos foram adicionados para Atraso, Vence Hoje e Antecipada, incluindo opcao "Apenas Juros" em todos os tipos. O usuario pode selecionar via dropdown e continuar editando.
