@@ -122,7 +122,7 @@ const handler = async (req: Request): Promise<Response> => {
     let testPhone: string | null = null;
     let targetHour: number | null = null;
     let batch = 0;
-    let batchSize = 3; // Reduzido para evitar timeout do pg_net (5s)
+    let batchSize = 30; // Otimizado: batch maior para reduzir número de cron jobs
     try {
       const body = await req.json();
       isReminder = body.isReminder === true;
