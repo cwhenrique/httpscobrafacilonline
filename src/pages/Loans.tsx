@@ -13164,18 +13164,33 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   Amortizar e recalcular juros?
                                 </label>
                                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
-                                  <div className="flex justify-between">
-                                    <span>Principal remanescente:</span>
+                                  {/* Contexto: valor original vs saldo atual */}
+                                  <div className="flex justify-between text-muted-foreground">
+                                    <span>Valor original emprestado:</span>
+                                    <span>{formatCurrency(originalPrincipal)}</span>
+                                  </div>
+                                  {paidInstallmentsCount > 0 && (
+                                    <div className="flex justify-between text-muted-foreground">
+                                      <span>Principal já pago ({paidInstallmentsCount}x parcela{paidInstallmentsCount > 1 ? 's' : ''}):</span>
+                                      <span>-{formatCurrency(principalAlreadyPaid)}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between font-medium border-t border-blue-500/20 pt-1">
+                                    <span>Saldo devedor do principal:</span>
                                     <span>{formatCurrency(currentRemainingPrincipal)}</span>
                                   </div>
-                                  <div className="flex justify-between">
+
+                                  {/* Amortização */}
+                                  <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
                                     <span>Amortização agora:</span>
                                     <span className="text-amber-600">-{formatCurrency(paidAmount)}</span>
                                   </div>
-                                  <div className="flex justify-between font-medium border-t border-blue-500/20 pt-1">
-                                    <span>Novo principal:</span>
+                                  <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span>Novo saldo do principal:</span>
                                     <span>{formatCurrency(newPrincipal)}</span>
                                   </div>
+
+                                  {/* Juros */}
                                   <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
                                     <span>Juros atuais ({currentInterestRate}% de {formatCurrency(currentRemainingPrincipal)}):</span>
                                     <span>{formatCurrency(originalInterest)}</span>
@@ -13188,16 +13203,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     <span>💰 Economia de juros:</span>
                                     <span>{formatCurrency(interestSavings)}</span>
                                   </div>
+
+                                  {/* Resumo parcelas */}
                                   <div className="flex justify-between border-t border-blue-500/20 pt-1 mt-1">
                                     <span>Parcelas restantes:</span>
                                     <span>{remainingInstallmentsCount}x</span>
                                   </div>
                                   <div className="flex justify-between text-muted-foreground">
-                                    <span>Valor atual:</span>
+                                    <span>Valor atual da parcela:</span>
                                     <span>{formatCurrency(currentInstallmentValue)}</span>
                                   </div>
                                   <div className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
-                                    <span>NOVO valor:</span>
+                                    <span>NOVO valor da parcela:</span>
                                     <span>{formatCurrency(newInstallmentValue)}</span>
                                   </div>
                                 </div>
