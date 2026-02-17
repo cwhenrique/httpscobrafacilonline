@@ -1,47 +1,34 @@
 
-
-## Corrigir tela preta ao clicar no app (usuario badboyinternacional@gmail.com)
+## Corrigir crash na pagina de Emprestimos (usuario badboyinternacional@gmail.com)
 
 ### Diagnostico
 
-Investiguei a fundo a conta do usuario:
-- Perfil completo (nome, telefone preenchidos)
-- Conta ativa, assinatura mensal valida ate 26/02/2026
-- Dados dos emprestimos normais (sem valores nulos ou inconsistentes)
-- Autenticacao funcionando normalmente
-- Nao e funcionario, e dono da conta
+O ErrorBoundary que implementamos esta funcionando corretamente - ele capturou o erro e mostrou a tela "Algo deu errado" em vez de uma tela preta. Agora precisamos corrigir a **causa raiz** do erro.
 
-**Causa raiz identificada:** O app NAO possui um **ErrorBoundary** (componente React que captura erros de renderizacao). Quando qualquer componente do app sofre um erro JavaScript durante a renderizacao (ex: ao clicar em um botao que abre um dialog, ao navegar entre paginas), o React desmonta TODA a arvore de componentes, resultando em tela preta.
+**Erro exato:** `RangeError: Invalid time value` na funcao `format()` do date-fns.
 
-O session replay mostra animacoes SVG (graficos do dashboard carregando) e entao um evento truncado com tamanho grande (37.858 bytes), indicando um crash na renderizacao.
+**Causa raiz:** O emprestimo `3238df41` possui um **elemento vazio** (`""`) no array `installment_dates`. Quando o codigo tenta converter essa string vazia em data (`new Date("T12:00:00")`), gera uma data invalida, e a funcao `format()` do date-fns lanca o erro.
 
 ### Plano de correcao
 
-#### 1. Criar um ErrorBoundary global
+#### 1. Corrigir os dados no banco de dados
 
-Criar `src/components/ErrorBoundary.tsx` - um componente class-based que:
-- Captura erros de renderizacao em qualquer componente filho
-- Exibe uma tela amigavel com mensagem de erro e botao "Recarregar"
-- Loga o erro no console para debug
-- Permite que o usuario continue usando o app sem ficar preso na tela preta
+Remover o elemento vazio do array `installment_dates` do emprestimo afetado. Tambem fazer uma varredura geral para corrigir quaisquer outros registros com o mesmo problema.
 
-#### 2. Envolver o app com o ErrorBoundary
+#### 2. Adicionar filtro defensivo na leitura de datas
 
-Em `src/App.tsx`, envolver o `AppContent` com o novo `ErrorBoundary`:
-- Qualquer erro de renderizacao sera capturado e mostrara a tela de fallback
-- O usuario podera clicar em "Recarregar" para voltar ao funcionamento normal
+Em `src/pages/Loans.tsx`, criar uma funcao utilitaria para sanitizar o array de datas, filtrando valores vazios ou invalidos:
 
-#### 3. Adicionar ErrorBoundary no DashboardLayout
+```text
+const safeDates = (dates: string[]) => dates.filter(d => d && d.trim().length >= 10);
+```
 
-Em `src/components/layout/DashboardLayout.tsx`, envolver o `{children}` com outro ErrorBoundary:
-- Erros em paginas individuais nao derrubam o layout inteiro (sidebar continua funcionando)
-- O usuario pode navegar para outra pagina sem precisar recarregar
+Aplicar esse filtro nos pontos criticos onde `installment_dates` e lido do banco, especialmente na funcao `getLoanStatus` (linha ~2630) e nas funcoes de renderizacao que fazem `.map()` sobre as datas. Existem ~180 pontos onde `(loan.installment_dates as string[]) || []` e usado, mas o ponto mais seguro e criar um wrapper que ja limpa os dados.
 
 ### Detalhes tecnicos
 
-- ErrorBoundary precisa ser um Class Component (hooks nao suportam `componentDidCatch`)
-- Dois niveis de protecao: global (App) e por pagina (DashboardLayout)
-- Tela de fallback com estilo consistente com o tema do app
-- Botao de recarregar usa `window.location.reload()`
-- Botao de "Voltar ao Dashboard" usa navegacao direta
-
+- O erro acontece em multiplos `.map()` dentro de Loans.tsx onde `format(new Date(date + 'T12:00:00'), ...)` e chamado
+- O arquivo tem 15.078 linhas e 180+ pontos que leem `installment_dates`
+- A solucao mais robusta e criar uma funcao `getSafeDates(loan)` e usar nos pontos criticos de renderizacao
+- A correcao no banco e imediata e resolve o problema do usuario agora
+- A correcao no codigo previne que isso aconteca novamente com novos dados
