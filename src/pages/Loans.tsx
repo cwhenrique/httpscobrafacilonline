@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
@@ -13166,22 +13167,23 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           if (interestSavings < 0.01) return null;
                           
                           return (
-                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 overflow-hidden">
-                              <div className="flex items-center gap-2 p-3">
-                                <Checkbox
+                            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 overflow-hidden cursor-pointer" onClick={() => setPaymentData({ ...paymentData, recalculate_interest: !paymentData.recalculate_interest })}>
+                              <div className="flex items-center gap-3 p-3">
+                                <Switch
                                   id="recalculate_interest"
                                   checked={paymentData.recalculate_interest}
                                   onCheckedChange={(checked) => setPaymentData({ ...paymentData, recalculate_interest: !!checked })}
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                                 <div className="flex-1">
                                   <label htmlFor="recalculate_interest" className="text-sm font-medium cursor-pointer text-blue-700 dark:text-blue-300">
-                                    Amortizar e recalcular juros?
+                                    Amortizar e recalcular juros
                                   </label>
-                                  {!paymentData.recalculate_interest && (
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                      Reduz o principal e recalcula juros. Economia de {formatCurrency(interestSavings)}
-                                    </p>
-                                  )}
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {paymentData.recalculate_interest 
+                                      ? '✅ Ativado — o principal será reduzido e os juros recalculados'
+                                      : `Ative para reduzir o principal e economizar ${formatCurrency(interestSavings)} em juros`}
+                                  </p>
                                 </div>
                               </div>
 
@@ -13257,32 +13259,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           
                           return (
                             <>
-                              <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
-                                <Checkbox
-                                  id="is_advance_payment"
-                                  checked={paymentData.is_advance_payment}
-                                  onCheckedChange={(checked) => setPaymentData({ ...paymentData, is_advance_payment: !!checked })}
-                                />
-                                <div className="flex-1">
-                                  <label htmlFor="is_advance_payment" className="text-sm font-medium cursor-pointer text-amber-700 dark:text-amber-300">
-                                    É um adiantamento de pagamento?
-                                  </label>
-                                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                    Se marcado, o valor restante ({formatCurrency(remainderAmount)}) 
-                                    continuará vencendo em {installmentDueDate ? formatDate(installmentDueDate) : 'data não definida'}
-                                  </p>
+                              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden cursor-pointer" onClick={() => setPaymentData({ ...paymentData, is_advance_payment: !paymentData.is_advance_payment })}>
+                                <div className="flex items-center gap-3 p-3">
+                                  <Switch
+                                    id="is_advance_payment"
+                                    checked={paymentData.is_advance_payment}
+                                    onCheckedChange={(checked) => setPaymentData({ ...paymentData, is_advance_payment: !!checked })}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <div className="flex-1">
+                                    <label htmlFor="is_advance_payment" className="text-sm font-medium cursor-pointer text-amber-700 dark:text-amber-300">
+                                      Adiantamento de pagamento
+                                    </label>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {paymentData.is_advance_payment 
+                                        ? `✅ Ativado — o restante (${formatCurrency(remainderAmount)}) continuará vencendo em ${installmentDueDate ? formatDate(installmentDueDate) : 'data não definida'}`
+                                        : `Ative se este valor é um adiantamento. O restante (${formatCurrency(remainderAmount)}) manterá o vencimento`}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                              {paymentData.is_advance_payment && (
-                                <div className="bg-muted/50 rounded-lg p-3 text-sm">
-                                  <p className="text-muted-foreground">
-                                    📅 A sub-parcela manterá a data de vencimento: 
-                                    <span className="font-medium text-foreground ml-1">
-                                      {installmentDueDate ? formatDate(installmentDueDate) : 'Data não definida'}
-                                    </span>
-                                  </p>
-                                </div>
-                              )}
                             </>
                           );
                         })()}
