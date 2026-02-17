@@ -150,16 +150,20 @@ const getEffectivePerInstallmentValues = (
     return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
   }
   // Extrair último AMORTIZATION tag para pegar novo principal e novos juros
-  const amortTags = [...notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):/g)];
+  // Formato novo: [AMORTIZATION:valor:principal_remanescente:juros_remanescentes:data:parcelas_restantes]
+  // Formato antigo: [AMORTIZATION:valor:principal:juros:data]
+  const amortTags = [...notes.matchAll(/\[AMORTIZATION:[0-9.]+:([0-9.]+):([0-9.]+):[^:\]]+(?::(\d+))?\]/g)];
   if (amortTags.length === 0) {
     return { principalPerInstallment: originalPrincipalPerInstallment, interestPerInstallment: originalInterestPerInstallment };
   }
   const lastTag = amortTags[amortTags.length - 1];
   const lastNewPrincipal = parseFloat(lastTag[1]);
   const lastNewInterest = parseFloat(lastTag[2]);
+  // Se o tag tem parcelas restantes, usar; senão fallback para numInstallments
+  const remainingInstallments = lastTag[3] ? parseInt(lastTag[3]) : numInstallments;
   return {
-    principalPerInstallment: lastNewPrincipal / numInstallments,
-    interestPerInstallment: lastNewInterest / numInstallments,
+    principalPerInstallment: lastNewPrincipal / remainingInstallments,
+    interestPerInstallment: lastNewInterest / remainingInstallments,
   };
 };
 
@@ -4814,6 +4818,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const originalPrincipal = selectedLoan.principal_amount;
       const interestRate = selectedLoan.interest_rate;
       const numInstallments = selectedLoan.installments || 1;
+      const interestMode = selectedLoan.interest_mode || 'on_total';
       
       // Calcular quanto do principal já foi amortizado anteriormente
       const previousAmortizations = getTotalAmortizationsFromNotes(selectedLoan.notes);
@@ -4822,22 +4827,67 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const previousTotalInterest = selectedLoan.total_interest || 0;
       const previousRemainingBalance = selectedLoan.remaining_balance;
       
-      // Novo principal = principal atual (já reflete amortizações anteriores) - esta amortização
+      // 🆕 CORREÇÃO: Buscar principal já pago via parcelas regulares (excluindo amortizações)
+      const { data: amortPaymentRecords } = await supabase
+        .from('loan_payments')
+        .select('principal_paid, interest_paid, notes')
+        .eq('loan_id', selectedLoanId);
+      
+      const regularPrincipalPaid = (amortPaymentRecords || [])
+        .filter(p => !(p.notes || '').includes('[AMORTIZATION]'))
+        .reduce((sum, p) => sum + (p.principal_paid || 0), 0);
+      
+      // Principal remanescente = principal_amount (já reflete amortizações anteriores) - principal pago em parcelas
+      const currentRemainingPrincipal = Math.max(0, originalPrincipal - regularPrincipalPaid);
+      
+      // Validar que o valor de amortização não excede o principal remanescente
+      if (amount > currentRemainingPrincipal) {
+        toast.error(`Valor máximo para amortização: ${formatCurrency(currentRemainingPrincipal)}`, {
+          description: `O principal remanescente após parcelas pagas é ${formatCurrency(currentRemainingPrincipal)}.`
+        });
+        paymentLockRef.current = false;
+        setIsPaymentSubmitting(false);
+        return;
+      }
+      
+      // Novo principal no DB = principal_amount - amortização (mantém rastreamento correto)
       const newPrincipal = Math.max(0, originalPrincipal - amount);
       
-      // Recalcular juros sobre o novo principal
-      const newTotalInterest = newPrincipal * (interestRate / 100);
+      // Principal remanescente efetivo após amortização (para cálculo de juros)
+      const newRemainingPrincipal = currentRemainingPrincipal - amount;
       
-      // Novo saldo total a pagar
-      const newRemainingBalance = newPrincipal + newTotalInterest;
-      
-      // Calcular novo valor por parcela
+      // Calcular parcelas restantes
       const paidInstallmentsCount = getPaidInstallmentsCount(selectedLoan);
       const remainingInstallmentsCount = Math.max(1, numInstallments - paidInstallmentsCount);
+      
+      // 🆕 CORREÇÃO: Recalcular juros com base no principal REMANESCENTE e no modo de juros
+      let newInterestForRemaining: number;
+      if (interestMode === 'per_installment') {
+        newInterestForRemaining = newRemainingPrincipal * (interestRate / 100) * remainingInstallmentsCount;
+      } else if (interestMode === 'compound') {
+        newInterestForRemaining = newRemainingPrincipal * Math.pow(1 + (interestRate / 100), remainingInstallmentsCount) - newRemainingPrincipal;
+      } else {
+        // on_total
+        newInterestForRemaining = newRemainingPrincipal * (interestRate / 100);
+      }
+      
+      // Juros já pagos via parcelas regulares
+      const interestAlreadyPaid = (amortPaymentRecords || [])
+        .filter(p => !(p.notes || '').includes('[AMORTIZATION]'))
+        .reduce((sum, p) => sum + (p.interest_paid || 0), 0);
+      
+      // total_interest no DB = juros já pagos + juros futuros
+      const newTotalInterest = interestAlreadyPaid + newInterestForRemaining;
+      
+      // Novo saldo = principal remanescente + juros futuros
+      const newRemainingBalance = newRemainingPrincipal + newInterestForRemaining;
+      
+      // Valor por parcela das parcelas restantes
       const newInstallmentValue = newRemainingBalance / remainingInstallmentsCount;
       
-      // Tag de amortização para histórico - usar notas ORIGINAIS, não updatedNotes
-      const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newPrincipal.toFixed(2)}:${newTotalInterest.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}]`;
+      // Tag de amortização para histórico - armazenar principal e juros REMANESCENTES (não totais)
+      // para que getEffectivePerInstallmentValues calcule corretamente
+      const amortTag = `[AMORTIZATION:${amount.toFixed(2)}:${newRemainingPrincipal.toFixed(2)}:${newInterestForRemaining.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}:${remainingInstallmentsCount}]`;
       const notesWithAmort = ((selectedLoan.notes || '') + '\n' + amortTag).trim();
       
       // Atualizar banco - ATUALIZA principal_amount para refletir o novo capital após amortização
@@ -4848,14 +4898,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         notes: notesWithAmort
       }).eq('id', selectedLoanId);
       
-      // Economia de juros
-      const originalInterest = originalPrincipal * (interestRate / 100);
-      const interestSavings = originalInterest - newTotalInterest;
+      // Economia de juros: diferença entre juros que pagaria sem amortização vs com
+      const interestSavings = previousRemainingBalance - newRemainingBalance - amount;
       
       // Criar nota com dados para reversão (valores ANTERIORES à amortização)
       const amortizationPaymentNote = `[AMORTIZATION] Amortização de ${formatCurrency(amount)} | ` +
-        `Novo principal: ${formatCurrency(newPrincipal)}, Novos juros: ${formatCurrency(newTotalInterest)}, ` +
-        `Economia: ${formatCurrency(interestSavings)} | ` +
+        `Principal remanescente: ${formatCurrency(newRemainingPrincipal)}, Novos juros: ${formatCurrency(newInterestForRemaining)}, ` +
+        `Economia: ${formatCurrency(Math.max(0, interestSavings))} | ` +
         `[AMORT_REVERSAL:${previousAmortizations.toFixed(2)}:${previousTotalInterest.toFixed(2)}:${previousRemainingBalance.toFixed(2)}]`;
       
       // 🆕 CORREÇÃO: Verificar resultado do registerPayment para amortização
@@ -4884,7 +4933,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }
       
       toast.success(
-        `Amortização registrada! Economia de ${formatCurrency(interestSavings)} em juros. ` +
+        `Amortização registrada! Economia de ${formatCurrency(Math.max(0, interestSavings))} em juros. ` +
         `Novas ${remainingInstallmentsCount} parcelas de ${formatCurrency(newInstallmentValue)}`
       );
       
