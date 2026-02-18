@@ -1,107 +1,126 @@
 
-# Redesign UX/UI do Card "Fluxo de Caixa"
+# Correção: Lógica do Capital Inicial no Fluxo de Caixa
 
-## Problemas identificados
+## Diagnóstico do problema
 
-Com base na imagem e no feedback do usuário, os problemas são:
+O usuário vê R$ 36.500 sugerido como Capital Inicial, mas seus empréstimos **ativos** não somam esse valor. Isso acontece porque o cálculo atual usa:
 
-1. **Capital Inicial**: O bloco com borda tracejada azul não comunica claramente que é editável. O ícone de lápis é pequeno e o valor está "perdido" no canto direito. Não há um CTA (call-to-action) claro.
+```typescript
+// ReportsLoans.tsx linha 752-758
+const calculatedInitialBalance = useMemo(() => {
+  const totalPrincipalEverLoaned = stats.allLoans.reduce((sum, loan) => {
+    return sum + Number(loan.principal_amount);  // ← inclui TODOS, ativos + quitados
+  }, 0);
+  return totalPrincipalEverLoaned;
+}, [stats.allLoans]);
+```
 
-2. **Seção Saídas**: O layout em duas colunas comprimidas (grid-cols-2) deixa o conteúdo da coluna esquerda muito apertado — o toggle de "Contas a pagar", o valor e o formulário de custos extras ficam espremidos. Textos ficam cortados e a hierarquia visual é confusa.
+Ou seja: R$ 36.500 = soma do **principal histórico de todos os empréstimos**, incluindo os já quitados.
 
-3. **Toggle de Contas a Pagar**: O switch sozinho sem contexto visual claro do que ele ativa/desativa confunde o usuário.
+### Problemas identificados
 
-4. **Custos Extras**: O formulário inline dentro de uma coluna estreita é difícil de usar.
+1. **Sugestão confusa**: A "sugestão do sistema" é o somatório histórico de TUDO que foi emprestado algum dia — incluindo empréstimos quitados que já retornaram ao caixa. Isso não representa o capital disponível do usuário.
+
+2. **Saldo atual incompleto**: O cálculo do `currentBalance` não inclui os juros recebidos:
+   ```typescript
+   const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
+   // Faltam: + interestReceived, - billsPaid, - extraCosts
+   ```
+
+3. **Falta contexto no modal**: O modal "Configurar Saldo Inicial" não explica claramente que o valor sugerido inclui empréstimos quitados.
 
 ---
 
-## Redesign proposto
+## Solução proposta
 
-### Capital Inicial — Novo design
+### 1. Melhorar a sugestão do Capital Inicial
 
-Trocar o bloco genérico por um layout em **duas partes horizontais claramente distintas**:
-- À esquerda: label "Capital Inicial" com ícone, e subtexto explicativo
-- À direita: o **valor em destaque** + um **botão "Editar" visível** com fundo colorido (não apenas um ícone)
+Mudar o cálculo para oferecer **duas opções** de referência, com explicação clara:
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  🐷 Capital Inicial                     R$ 38.200,00      │
-│  Calculado com base nos empréstimos     [✏ Editar]        │
-└────────────────────────────────────────────────────────────┘
-```
+- **Opção A** (mais precisa): Soma apenas o `principal_amount` dos **empréstimos ativos** (não quitados) → representa o capital que está "na rua" agora
+- **Opção B** (histórica, atual): Soma o `principal_amount` de todos os empréstimos já realizados → representa o capital total investido historicamente
 
-O botão "Editar" terá fundo `blue-500/20` com borda sólida, tornando o clique muito mais óbvio.
+O cálculo sugerido passará a usar a **Opção A** por padrão (empréstimos ativos), que é o que o usuário espera ver.
 
-### Saídas — Nova estrutura vertical (sem duas colunas espremidas)
-
-Mudar o layout de **grid-cols-2** para **layout vertical full-width com separação visual clara** entre Saídas e Entradas, usando um divisor horizontal com seta "▼" no meio.
-
-**Layout novo:**
-
-```
-┌──────────────────────────────────────────────────────────┐
-│ ↑ SAÍDAS                                                 │
-│  ──────────────────────────────────────────────────────  │
-│  Empréstimos concedidos                   - R$ 31.000    │
-│  ──────────────────────────────────────────────────────  │
-│  🧾 Contas a pagar                                        │
-│     Incluir no cálculo  [toggle]       - R$ 500,00       │
-│     3 contas pagas                                        │
-│  ──────────────────────────────────────────────────────  │
-│  🛍 Custos extras                          - R$ 200      │
-│     • Gasolina  15/02  - R$ 120   [🗑]                   │
-│     [+ Adicionar custo extra]                             │
-│  ──────────────────────────────────────────────────────  │
-│  Total saídas                             R$ 31.700      │
-└──────────────────────────────────────────────────────────┘
-
-        ▼
-
-┌──────────────────────────────────────────────────────────┐
-│ ↓ ENTRADAS                                               │
-│  ──────────────────────────────────────────────────────  │
-│  Pagamentos recebidos                    + R$ 37.920     │
-│  Juros recebidos                         + R$ 11.375     │
-│  ──────────────────────────────────────────────────────  │
-│  Total entradas                           R$ 49.295      │
-└──────────────────────────────────────────────────────────┘
+**Mudança em `ReportsLoans.tsx`:**
+```typescript
+const calculatedInitialBalance = useMemo(() => {
+  // Capital na rua agora: apenas empréstimos ativos
+  // Representa o capital que o usuário tem investido no momento
+  const activeLoansTotal = stats.allLoans
+    .filter(loan => loan.status !== 'paid')
+    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+  return activeLoansTotal;
+}, [stats.allLoans]);
 ```
 
-### Toggle "Contas a pagar" — Contexto melhorado
+### 2. Corrigir o cálculo do Saldo Atual
 
-O switch agora ficará em uma **linha com label e valor na mesma linha**, mas com um fundo levemente destacado quando ativo (bg-orange-500/10) para comunicar visualmente que está "ligado":
+O `currentBalance` deve refletir corretamente todos os fluxos:
 
+```typescript
+const currentBalance = effectiveBalance 
+  - loanedInPeriod          // saídas: empréstimos concedidos
+  + receivedInPeriod        // entradas: pagamentos de principal
+  + interestReceived;       // entradas: juros recebidos
+  // (bills e extraCosts são descontados no CashFlowCard dinamicamente via toggle)
 ```
-┌──────────────────────────────────────────────────────────┐
-│  🧾 Contas a pagar   [toggle ON]          - R$ 500,00   │
-│     3 contas pagas no período                            │
-└────────────── fundo levemente colorido quando ativo ─────┘
+
+**Mudança em `ReportsLoans.tsx`:**
+```typescript
+const cashFlowStats = useMemo(() => {
+  const loanedInPeriod = filteredStats.totalLent;
+  const receivedInPeriod = filteredStats.totalReceived;
+  const interestReceived = filteredStats.realizedProfit;
+
+  const effectiveBalance = initialCashBalance > 0
+    ? initialCashBalance
+    : calculatedInitialBalance;
+
+  // Saldo atual = capital inicial - saídas (empréstimos) + entradas (recebimentos + juros)
+  const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod + interestReceived;
+
+  return {
+    initialBalance: initialCashBalance,
+    loanedInPeriod,
+    receivedInPeriod,
+    interestReceived,
+    currentBalance,
+  };
+}, [initialCashBalance, calculatedInitialBalance, filteredStats]);
 ```
 
-### Formulário de Custo Extra — Mais espaçoso
+### 3. Melhorar o texto descritivo no modal
 
-Com a mudança para layout vertical full-width, o formulário de custo extra terá espaço suficiente para exibir os campos em uma linha confortável:
+Atualizar o texto em `CashFlowConfigModal.tsx` e no `CashFlowCard.tsx` para deixar claro o que cada valor representa:
 
-```
-[ Nome do custo... ]   [ 📅 18/02 ]   [ R$ Valor ]   [✓] [✗]
+- **No modal**: Trocar "Baseado no total de capital emprestado historicamente" por "Baseado no capital atualmente em contratos ativos"
+- **No card**: Adicionar subtexto ao lado do valor sugerido explicando a origem
+
+**Mudança em `CashFlowCard.tsx`** (prop `calculatedInitialBalance` já existe, apenas mudar onde é exibida):
+```tsx
+// Texto atual no modal:
+"Baseado no total de capital emprestado historicamente"
+
+// Texto corrigido:
+"Baseado no principal dos contratos ativos atuais"
 ```
 
 ---
 
-## Arquivo modificado
+## Resumo das mudanças
 
-### `src/components/reports/CashFlowCard.tsx`
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/ReportsLoans.tsx` | Filtrar `stats.allLoans` por `status !== 'paid'` no `calculatedInitialBalance`; adicionar `interestReceived` ao `currentBalance` |
+| `src/components/reports/CashFlowConfigModal.tsx` | Atualizar texto descritivo da sugestão |
+| `src/components/reports/CashFlowCard.tsx` | Atualizar subtexto da sugestão de capital inicial |
 
-Apenas este arquivo será modificado. Nenhuma lógica muda — apenas o JSX/CSS.
+---
 
-**Mudanças específicas:**
+## Impacto esperado
 
-1. **Capital Inicial**: Adicionar um botão "Editar" visível com texto, substituindo o bloco todo clicável com borda tracejada ambígua. O valor ficará em destaque (`text-2xl font-bold`) e o botão será um `<Button variant="outline" size="sm">` com ícone de lápis + texto "Editar".
+Antes: Sugestão = R$ 36.500 (histórico total, confuso)  
+Depois: Sugestão = valor real dos empréstimos **ativos** (ex: R$ 20.000)
 
-2. **Seção Saídas/Entradas**: Mudar de `grid grid-cols-2` para dois blocos empilhados verticalmente — cada um ocupando 100% da largura, separados por um `<ChevronDown>` centralizado. Isso resolve o problema de compressão.
-
-3. **"Contas a pagar" row**: Envolver em um `div` com `rounded-lg p-3` com fundo condicional (`bg-orange-500/10` quando `includeBills = true`, `bg-muted/30` quando false). O switch fica alinhado no lado direito da mesma linha do label.
-
-4. **"Custos extras" form**: Com a largura total, reorganizar o formulário inline para `grid grid-cols-[1fr_auto_auto_auto]` (nome, data, valor, botões) na mesma linha, mais confortável para preencher.
-
-5. **Saldo Atual e Rodapé**: Permanecem iguais — já estão bem posicionados.
+O saldo atual também passará a incluir os juros já recebidos no período, tornando o número mais fiel à realidade do caixa.
