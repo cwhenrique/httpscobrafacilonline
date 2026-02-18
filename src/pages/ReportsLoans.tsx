@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useOperationalStats } from '@/hooks/useOperationalStats';
 import { useProfile } from '@/hooks/useProfile';
+import { useBills } from '@/hooks/useBills';
 import { CashFlowCard } from '@/components/reports/CashFlowCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { formatCurrency, formatDate, isLoanOverdue, getDaysOverdue, calculateDynamicOverdueInterest } from '@/lib/calculations';
 import { generateOperationsReport, OperationsReportData, LoanOperationData, InstallmentDetail } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
@@ -33,10 +35,13 @@ import {
   Filter,
   ChevronDown,
   Download,
-  Check
+  Check,
+  Receipt,
+  Scale,
+  Building2,
+  User,
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -120,6 +125,7 @@ const StatCardSkeleton = () => (
 export default function ReportsLoans() {
   const { stats, refetch } = useOperationalStats();
   const { profile, updateProfile, refetch: refetchProfile } = useProfile();
+  const { bills } = useBills();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -772,6 +778,49 @@ export default function ReportsLoans() {
     };
   }, [initialCashBalance, calculatedInitialBalance, filteredStats]);
 
+  // ── Bills integration ──────────────────────────────────────────────────────
+
+  const billsInPeriod = useMemo(() => {
+    return bills.filter(bill => {
+      if (!dateRange?.from || !dateRange?.to) return true;
+      const start = startOfDay(dateRange.from);
+      const end = endOfDay(dateRange.to);
+      if (bill.status === 'paid' && bill.paid_date) {
+        return isWithinInterval(parseISO(bill.paid_date), { start, end });
+      }
+      return isWithinInterval(parseISO(bill.due_date), { start, end });
+    });
+  }, [bills, dateRange]);
+
+  const billsStats = useMemo(() => {
+    const paid = billsInPeriod.filter(b => b.status === 'paid');
+    const pending = billsInPeriod.filter(b => b.status !== 'paid');
+    const paidTotal = paid.reduce((s, b) => s + Number(b.amount), 0);
+    const pendingTotal = pending.reduce((s, b) => s + Number(b.amount), 0);
+    const total = paidTotal + pendingTotal;
+    const personalTotal = billsInPeriod.filter(b => b.owner_type === 'personal').reduce((s, b) => s + Number(b.amount), 0);
+    const businessTotal = billsInPeriod.filter(b => b.owner_type === 'business').reduce((s, b) => s + Number(b.amount), 0);
+    const byCategory = billsInPeriod.reduce<Record<string, { label: string; total: number; count: number }>>((acc, bill) => {
+      const cat = bill.category || 'outros';
+      if (!acc[cat]) acc[cat] = { label: cat, total: 0, count: 0 };
+      acc[cat].total += Number(bill.amount);
+      acc[cat].count += 1;
+      return acc;
+    }, {});
+    return { total, paidTotal, pendingTotal, personalTotal, businessTotal, paidCount: paid.length, pendingCount: pending.length, byCategory };
+  }, [billsInPeriod]);
+
+  const balanceStats = useMemo(() => {
+    const totalInflows = filteredStats.totalReceived + filteredStats.realizedProfit;
+    const totalOutflows = filteredStats.totalLent + billsStats.paidTotal;
+    const netResult = totalInflows - totalOutflows;
+    return { totalInflows, totalOutflows, netResult };
+  }, [filteredStats, billsStats]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  const [billsListOpen, setBillsListOpen] = useState(false);
+
   const handleUpdateCashFlowBalance = async (value: number) => {
     const { error } = await updateProfile({ cash_flow_initial_balance: value });
     if (error) {
@@ -783,7 +832,6 @@ export default function ReportsLoans() {
   };
 
   const getStatusBadge = (loan: any) => {
-    // Usar cálculo em tempo real ao invés do status estático do banco
     if (loan.status === 'paid' || (loan.remaining_balance !== undefined && loan.remaining_balance <= 0.01)) {
       return <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30">Quitado</Badge>;
     }
@@ -1147,6 +1195,150 @@ export default function ReportsLoans() {
           interestReceived={cashFlowStats.interestReceived}
           onUpdateInitialBalance={handleUpdateCashFlowBalance}
         />
+
+        {/* ── Custos do Período ─────────────────────────────────────────── */}
+        {billsInPeriod.length > 0 && (
+          <Card className="border-primary/30">
+            <CardHeader className="p-3 sm:p-4 pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm sm:text-lg flex items-center gap-2">
+                  <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  Custos do Período
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={() => setBillsListOpen(o => !o)}
+                >
+                  <span>{billsListOpen ? 'Ocultar' : 'Ver detalhes'}</span>
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', billsListOpen && 'rotate-180')} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-4 pt-0 space-y-4">
+              {/* Three stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Pagas no período</p>
+                  <p className="text-sm sm:text-base font-bold text-emerald-600 mt-0.5">{formatCurrency(billsStats.paidTotal)}</p>
+                  <p className="text-[10px] text-muted-foreground">{billsStats.paidCount} conta{billsStats.paidCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Pendentes / Vencidas</p>
+                  <p className="text-sm sm:text-base font-bold text-yellow-600 mt-0.5">{formatCurrency(billsStats.pendingTotal)}</p>
+                  <p className="text-[10px] text-muted-foreground">{billsStats.pendingCount} conta{billsStats.pendingCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 col-span-2 sm:col-span-1">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Total do período</p>
+                  <p className="text-sm sm:text-base font-bold mt-0.5">{formatCurrency(billsStats.total)}</p>
+                  <p className="text-[10px] text-muted-foreground">{billsInPeriod.length} conta{billsInPeriod.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+
+              {/* Personal vs Business split */}
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-muted-foreground">Pessoal:</span>
+                  <span className="font-semibold">{formatCurrency(billsStats.personalTotal)}</span>
+                </div>
+                <span className="text-border">|</span>
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-500" />
+                  <span className="text-muted-foreground">Empresa:</span>
+                  <span className="font-semibold">{formatCurrency(billsStats.businessTotal)}</span>
+                </div>
+              </div>
+
+              {/* Collapsible category breakdown */}
+              {billsListOpen && (
+                <div className="border-t pt-3 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Por categoria:</p>
+                  {Object.entries(billsStats.byCategory)
+                    .sort(([, a], [, b]) => b.total - a.total)
+                    .map(([cat, info]) => (
+                      <div key={cat} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
+                        <span className="capitalize text-muted-foreground">{cat}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-muted-foreground">{info.count}x</span>
+                          <span className="font-semibold">{formatCurrency(info.total)}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Balanço Financeiro ────────────────────────────────────────── */}
+        <Card className="border-primary/30">
+          <CardHeader className="p-3 sm:p-4 pb-2">
+            <CardTitle className="text-sm sm:text-lg flex items-center gap-2">
+              <Scale className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              Balanço Financeiro do Período
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 pt-0 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Entradas */}
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Entradas</p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Recebido em empréstimos</span>
+                  <span className="font-medium">{formatCurrency(filteredStats.totalReceived)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Lucro realizado (juros)</span>
+                  <span className="font-medium">{formatCurrency(filteredStats.realizedProfit)}</span>
+                </div>
+                <div className="flex justify-between text-xs border-t border-emerald-500/30 pt-2 font-semibold">
+                  <span>Total entradas</span>
+                  <span className="text-emerald-600">{formatCurrency(balanceStats.totalInflows)}</span>
+                </div>
+              </div>
+
+              {/* Saídas */}
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Saídas</p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Capital emprestado</span>
+                  <span className="font-medium">{formatCurrency(filteredStats.totalLent)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Contas pagas no período</span>
+                  <span className="font-medium">{formatCurrency(billsStats.paidTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs border-t border-destructive/30 pt-2 font-semibold">
+                  <span>Total saídas</span>
+                  <span className="text-destructive">{formatCurrency(balanceStats.totalOutflows)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Net result */}
+            <div className={cn(
+              'rounded-xl p-4 border-2 flex flex-col sm:flex-row items-center justify-between gap-2',
+              balanceStats.netResult >= 0
+                ? 'bg-emerald-500/10 border-emerald-500/40'
+                : 'bg-destructive/10 border-destructive/40'
+            )}>
+              <div className="flex items-center gap-2">
+                {balanceStats.netResult >= 0
+                  ? <ArrowUpRight className="w-5 h-5 text-emerald-600" />
+                  : <ArrowDownRight className="w-5 h-5 text-destructive" />}
+                <span className="text-sm font-semibold">Resultado Líquido do Período</span>
+              </div>
+              <span className={cn(
+                'text-xl sm:text-2xl font-bold',
+                balanceStats.netResult >= 0 ? 'text-emerald-600' : 'text-destructive'
+              )}>
+                {balanceStats.netResult >= 0 ? '+' : ''}{formatCurrency(balanceStats.netResult)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Main Stats Grid - Filtered */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
