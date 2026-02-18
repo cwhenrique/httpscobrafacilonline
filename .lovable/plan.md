@@ -1,118 +1,119 @@
 
-# Integração de Contas a Pagar com Relatório de Empréstimos
+# Redesign: Fluxo de Caixa + Balanço Financeiro Integrado
 
-## Objetivo
-Criar um card de "Custos Mensais" no Relatório de Empréstimos (`ReportsLoans.tsx`) que busca os dados já existentes da tela "Minhas Contas a Pagar" (`bills`) e exibe um balanço financeiro completo de entradas vs. saídas, incluindo as contas pagas no período.
+## Problema identificado
+
+O usuário apontou que a área de **Fluxo de Caixa** está confusa e deseja uma visão única e clara que integre:
+- **Capital Inicial** (editável, baseado nos empréstimos)
+- **Saídas** = empréstimos concedidos **+** contas a pagar (se o usuário quiser incluir)
+- **Entradas** = apenas pagamentos recebidos de empréstimos
+- **Saldo Atual** = resultado do fluxo
+
+Além disso, o card de **Balanço Financeiro** atual repete informações e fica confuso.
+
+## Proposta de redesign
+
+### Novo Card Único: "Fluxo de Caixa & Balanço"
+
+Unificar o `CashFlowCard` (componente em `src/components/reports/CashFlowCard.tsx`) e o bloco do Balanço Financeiro (inline em `ReportsLoans.tsx`) em um **único card mais claro**, com seções bem definidas.
+
+### Layout proposto
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  💼 Fluxo de Caixa                                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─── CAPITAL INICIAL ─────────────────────────────────────┐    │
+│  │ R$ 38.200  [lápis - clique para editar]                  │    │
+│  │ Baseado nos seus empréstimos · Editável                  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  SAÍDAS DO PERÍODO                    ENTRADAS DO PERÍODO        │
+│  ┌──────────────────────────┐   ┌──────────────────────────┐    │
+│  │ 🔴 Empréstimos           │   │ 🟢 Recebido              │    │
+│  │    R$ 31.000             │   │    R$ 37.920             │    │
+│  │ 🔴 Contas a pagar ────── │   │                          │    │
+│  │    R$ 1.240  [toggle ON] │   │                          │    │
+│  │ ─────────────────────── │   │                          │    │
+│  │ Total saídas: R$ 32.240  │   │ Total: R$ 37.920         │    │
+│  └──────────────────────────┘   └──────────────────────────┘    │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │        SALDO ATUAL  R$ 45.120    (em caixa)              │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  Capital na Rua: R$ 5.883   |   Lucro: R$ 11.375               │
+│  Resultado Líquido: + R$ 18.295                                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Toggle "Incluir contas a pagar nas saídas"
+
+O usuário poderá ligar/desligar a inclusão das contas a pagar nas saídas com um **Switch** dentro do card, evitando a duplicação de dois cards separados.
 
 ---
 
-## O que será construído
+## Mudanças técnicas
 
-### 1. Novo Card: "Custos do Período" no Relatório de Empréstimos
+### 1. `src/components/reports/CashFlowCard.tsx` — Reescrita do componente
 
-Um card novo, visualmente integrado ao fluxo de caixa já existente, que exibirá:
-
-- **Total de contas no período**: soma de todas as contas cujo `due_date` cai dentro do filtro de data selecionado
-- **Contas pagas**: soma e quantidade de contas com `status = 'paid'` no período
-- **Contas pendentes/em atraso**: soma e quantidade das não pagas
-- Divisão por tipo: **Pessoal** vs. **Empresa** (`owner_type`)
-- Lista resumida das contas do período (colapsável), agrupadas por categoria
-
-### 2. Card de Balanço Financeiro Completo (Entradas vs. Saídas)
-
-Abaixo do Fluxo de Caixa existente, um novo card "Balanço do Período" que mostra:
-
-```text
-ENTRADAS                         SAÍDAS
-+ Recebido em empréstimos        - Emprestado (capital saído)
-+ Lucro realizado (juros)        - Contas pagas no período
-                                 - Contas pendentes do período
-= RESULTADO LÍQUIDO (positivo/negativo)
+Adicionar novas props:
+```typescript
+interface CashFlowCardProps {
+  // existentes:
+  initialBalance: number;
+  calculatedInitialBalance: number;
+  loanedInPeriod: number;
+  totalOnStreet: number;
+  receivedInPeriod: number;
+  interestReceived: number;
+  onUpdateInitialBalance: (value: number) => void;
+  // novas:
+  billsPaidTotal: number;          // total de contas pagas no período
+  billsPendingTotal: number;       // total de contas pendentes
+  billsCount: number;              // quantidade de contas no período
+  netResult: number;               // resultado líquido (calculado em ReportsLoans)
+}
 ```
 
-Este balanço permite ao usuário enxergar se, considerando todos os gastos, o negócio está gerando lucro real.
+Novo layout interno:
+1. **Seção Capital Inicial** — botão clicável com ícone de lápis, valor em destaque, legenda "Baseado nos seus empréstimos · Clique para editar"
+2. **Duas colunas: Saídas | Entradas**
+   - Saídas: linha "Empréstimos concedidos" + linha "Contas a pagar" com **Switch** para incluir/excluir + subtotal
+   - Entradas: "Pagamentos recebidos" + subtotal
+3. **Saldo Atual** — card destacado verde/vermelho (igual ao atual, mantido)
+4. **Rodapé** — Capital na Rua | Lucro | Resultado Líquido (três métricas em linha)
 
-### 3. Hook `useBills` já existe — apenas reutilização
+### 2. `src/pages/ReportsLoans.tsx` — Pequenos ajustes
 
-Não há criação de novas tabelas ou migrações. O hook `useBills.ts` já lê a tabela `bills` corretamente com RLS. A integração é puramente de **apresentação** no frontend.
+- Passar as novas props `billsPaidTotal`, `billsPendingTotal`, `billsCount`, `netResult` para o `<CashFlowCard>`
+- **Remover** o bloco do "Custos do Período" (linhas 1200–1273) — as contas passam a viver dentro do CashFlowCard
+- **Remover** o bloco do "Balanço Financeiro do Período" (linhas 1275–1341) — substituído pelo rodapé do novo CashFlowCard
+- Manter toda a lógica de `billsStats` e `balanceStats` existente, apenas mudar onde é renderizado
+
+### 3. `src/components/reports/CashFlowConfigModal.tsx` — Sem alterações
+
+O modal de configuração do saldo inicial permanece exatamente como está.
 
 ---
 
-## Arquitetura técnica
+## Estado local: `includeBillsInOutflows`
 
-### Fluxo de dados
-
-```text
-bills (tabela existente)
-    └── useBills() hook (já existe)
-            └── ReportsLoans.tsx
-                    ├── filtra por dateRange (due_date ou paid_date)
-                    ├── Card "Custos do Período" (novo)
-                    └── Card "Balanço Financeiro" (novo)
-```
-
-### Lógica de filtro de contas por período
-
-- Para contas **pagas**: filtra por `paid_date` dentro do `dateRange` selecionado (o dinheiro saiu nessa data)
-- Para contas **pendentes/vencidas**: filtra por `due_date` dentro do `dateRange` (comprometimento no período)
-- Contas virtuais (recorrentes projetadas) não são consideradas — apenas contas reais do banco
-
----
-
-## Arquivos modificados
-
-### `src/pages/ReportsLoans.tsx`
-- Adicionar `import { useBills } from '@/hooks/useBills'`
-- Adicionar `import` dos ícones necessários: `Receipt`, `CreditCard`, `MinusCircle`, `Scale`
-- Instanciar `const { bills } = useBills()`
-- Criar `billsInPeriod` (useMemo) — filtra contas pagas pelo `paid_date` e pendentes pelo `due_date` dentro do `dateRange`
-- Criar `billsStats` (useMemo) — calcula totais: `totalBills`, `paidBills`, `pendingBills`, `personalBills`, `businessBills`
-- Criar `balanceStats` (useMemo) — combina `filteredStats` (empréstimos) + `billsStats` para calcular resultado líquido
-- Inserir o novo **Card "Custos do Período"** após o `CashFlowCard`
-- Inserir o novo **Card "Balanço Financeiro"** após o card de custos
-
-### Nenhuma migration de banco de dados necessária
-
----
-
-## Layout visual dos novos cards
-
-### Card: Custos do Período
-```
-[ Receipt ] Custos do Período              [Expandir ▼]
-─────────────────────────────────────────────────────
-  Pagas no período    Pendentes      A Vencer
-  R$ 1.240            R$ 890         R$ 350
-  (8 contas)          (5 contas)     (3 contas)
-
-  Pessoal: R$ 980   |   Empresa: R$ 260
-
-  [Lista colapsável por categoria]
-```
-
-### Card: Balanço Financeiro
-```
-[ Scale ] Balanço Financeiro do Período
-─────────────────────────────────────────────────────
-  ENTRADAS                      SAÍDAS
-  Recebido:    R$ 4.500         Capital emprestado: R$ 2.000
-  Juros reais: R$ 800           Contas pagas:       R$ 1.240
-                                                    ─────────
-  Total:       R$ 5.300         Total:              R$ 3.240
-
-  ┌─────────────────────────────────────┐
-  │  RESULTADO LÍQUIDO: + R$ 2.060     │  ← verde/vermelho
-  └─────────────────────────────────────┘
-```
+Um `useState(true)` dentro do `CashFlowCard` controlará se as contas a pagar entram no cálculo de saídas ou não. O saldo atual e o resultado líquido recalculam em tempo real conforme o toggle muda, sem necessidade de persistência.
 
 ---
 
 ## Ordem de implementação
 
-1. Adicionar `useBills()` no componente `ReportsLoans.tsx`
-2. Criar `billsInPeriod` memo com filtro de data correto
-3. Criar `billsStats` memo com totais
-4. Criar `balanceStats` memo combinando empréstimos + contas
-5. Inserir o Card de Custos do Período no JSX
-6. Inserir o Card de Balanço Financeiro no JSX
-7. Testar com diferentes períodos e verificar consistência dos valores com a tela de Bills
+1. Atualizar interface de props do `CashFlowCard` com os novos campos de bills e netResult
+2. Reescrever o layout interno do `CashFlowCard` com as seções descritas
+3. Remover os cards de "Custos do Período" e "Balanço Financeiro" do `ReportsLoans.tsx`
+4. Passar as novas props para `<CashFlowCard>` em `ReportsLoans.tsx`
+
+---
+
+## Arquivos modificados
+
+- `src/components/reports/CashFlowCard.tsx` — Reescrita do layout
+- `src/pages/ReportsLoans.tsx` — Remoção de cards redundantes + passagem de novas props
