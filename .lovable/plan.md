@@ -1,162 +1,107 @@
 
-# Custos Extras Manuais no Fluxo de Caixa
+# Redesign UX/UI do Card "Fluxo de Caixa"
 
-## Objetivo
-Adicionar um campo editável na seção "Saídas" do card de Fluxo de Caixa que permita ao usuário cadastrar **custos extras avulsos** (nome, data, valor) diretamente ali, sem precisar ir para outra tela. Esses custos devem:
-- Ser filtrados pelo período selecionado no relatório (via a `dateRange`)
-- Atualizar automaticamente os totais de saídas, saldo atual e resultado líquido
-- Ser persistidos no banco de dados (tabela `bills`, categoria `custom`)
+## Problemas identificados
 
----
+Com base na imagem e no feedback do usuário, os problemas são:
 
-## Estratégia de Implementação
+1. **Capital Inicial**: O bloco com borda tracejada azul não comunica claramente que é editável. O ícone de lápis é pequeno e o valor está "perdido" no canto direito. Não há um CTA (call-to-action) claro.
 
-Em vez de criar uma nova tabela, os custos extras serão salvos na **tabela `bills` já existente**, com `category = 'custom'` e `owner_type = 'business'`. Isso evita migrações e reutiliza toda a infraestrutura (hook `useBills`, RLS, etc.).
+2. **Seção Saídas**: O layout em duas colunas comprimidas (grid-cols-2) deixa o conteúdo da coluna esquerda muito apertado — o toggle de "Contas a pagar", o valor e o formulário de custos extras ficam espremidos. Textos ficam cortados e a hierarquia visual é confusa.
 
-Os itens `custom` adicionados via o card de fluxo de caixa aparecerão também na tela "Contas a Pagar" naturalmente, pois usam a mesma tabela.
+3. **Toggle de Contas a Pagar**: O switch sozinho sem contexto visual claro do que ele ativa/desativa confunde o usuário.
+
+4. **Custos Extras**: O formulário inline dentro de uma coluna estreita é difícil de usar.
 
 ---
 
-## O que será modificado
+## Redesign proposto
 
-### 1. `src/components/reports/CashFlowCard.tsx`
+### Capital Inicial — Novo design
 
-**Novas props:**
-```typescript
-interface CashFlowCardProps {
-  // ... props existentes ...
-  extraCosts: ExtraCost[];             // lista de custos extras do período
-  onAddExtraCost: (cost: NewExtraCost) => void;
-  onDeleteExtraCost: (id: string) => void;
-}
-
-interface ExtraCost {
-  id: string;
-  name: string;
-  date: string;
-  amount: number;
-}
-
-interface NewExtraCost {
-  name: string;
-  date: string;
-  amount: number;
-}
-```
-
-**Novo bloco dentro da seção "SAÍDAS"**, abaixo de "Contas a pagar":
+Trocar o bloco genérico por um layout em **duas partes horizontais claramente distintas**:
+- À esquerda: label "Capital Inicial" com ícone, e subtexto explicativo
+- À direita: o **valor em destaque** + um **botão "Editar" visível** com fundo colorido (não apenas um ícone)
 
 ```
-┌──────────────────────────────────────────────────┐
-│ 🔴 Empréstimos                    -R$ 31.000     │
-│ 🧾 Contas a pagar  [toggle]        -R$ 500       │
-│ ─────────────────────────────────────────────── │
-│ ➕ Custos extras                   -R$ 200       │
-│   • Gasolina  15/02      -R$ 120   [🗑]          │
-│   • Almoço    18/02      -R$ 80    [🗑]          │
-│  [+ Adicionar custo extra]                       │
-│ ─────────────────────────────────────────────── │
-│ Total saídas:                    R$ 31.700       │
-└──────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  🐷 Capital Inicial                     R$ 38.200,00      │
+│  Calculado com base nos empréstimos     [✏ Editar]        │
+└────────────────────────────────────────────────────────────┘
 ```
 
-**Formulário inline para adicionar custo:**
-- Campo `nome` (texto livre)
-- Campo `data` (date picker simples, pré-preenchido com hoje)
-- Campo `valor` (número)
-- Botão "Salvar" e "Cancelar"
+O botão "Editar" terá fundo `blue-500/20` com borda sólida, tornando o clique muito mais óbvio.
 
-**Cálculo atualizado:**
-```typescript
-const extraCostsTotal = extraCosts.reduce((s, c) => s + c.amount, 0);
-const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
-const dynamicNetResult = (receivedInPeriod + interestReceived) - totalOutflows;
+### Saídas — Nova estrutura vertical (sem duas colunas espremidas)
+
+Mudar o layout de **grid-cols-2** para **layout vertical full-width com separação visual clara** entre Saídas e Entradas, usando um divisor horizontal com seta "▼" no meio.
+
+**Layout novo:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ↑ SAÍDAS                                                 │
+│  ──────────────────────────────────────────────────────  │
+│  Empréstimos concedidos                   - R$ 31.000    │
+│  ──────────────────────────────────────────────────────  │
+│  🧾 Contas a pagar                                        │
+│     Incluir no cálculo  [toggle]       - R$ 500,00       │
+│     3 contas pagas                                        │
+│  ──────────────────────────────────────────────────────  │
+│  🛍 Custos extras                          - R$ 200      │
+│     • Gasolina  15/02  - R$ 120   [🗑]                   │
+│     [+ Adicionar custo extra]                             │
+│  ──────────────────────────────────────────────────────  │
+│  Total saídas                             R$ 31.700      │
+└──────────────────────────────────────────────────────────┘
+
+        ▼
+
+┌──────────────────────────────────────────────────────────┐
+│ ↓ ENTRADAS                                               │
+│  ──────────────────────────────────────────────────────  │
+│  Pagamentos recebidos                    + R$ 37.920     │
+│  Juros recebidos                         + R$ 11.375     │
+│  ──────────────────────────────────────────────────────  │
+│  Total entradas                           R$ 49.295      │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 2. `src/pages/ReportsLoans.tsx`
+### Toggle "Contas a pagar" — Contexto melhorado
 
-**Filtro de custos extras por período:**
-```typescript
-const extraCostsInPeriod = useMemo(() => {
-  return bills
-    .filter(b => b.category === 'custom')
-    .filter(b => {
-      if (!dateRange?.from || !dateRange?.to) return true;
-      const date = parseISO(b.due_date);
-      return isWithinInterval(date, {
-        start: startOfDay(dateRange.from),
-        end: endOfDay(dateRange.to),
-      });
-    })
-    .map(b => ({ id: b.id, name: b.description, date: b.due_date, amount: Number(b.amount) }));
-}, [bills, dateRange]);
+O switch agora ficará em uma **linha com label e valor na mesma linha**, mas com um fundo levemente destacado quando ativo (bg-orange-500/10) para comunicar visualmente que está "ligado":
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  🧾 Contas a pagar   [toggle ON]          - R$ 500,00   │
+│     3 contas pagas no período                            │
+└────────────── fundo levemente colorido quando ativo ─────┘
 ```
 
-**Handlers passados para `CashFlowCard`:**
-```typescript
-const handleAddExtraCost = async ({ name, date, amount }) => {
-  await createBill.mutateAsync({
-    description: name,
-    payee_name: name,
-    amount,
-    due_date: date,
-    category: 'custom',
-    owner_type: 'business',
-    status: 'paid',   // já marca como pago, pois está saindo do caixa
-  });
-};
+### Formulário de Custo Extra — Mais espaçoso
 
-const handleDeleteExtraCost = async (id: string) => {
-  await deleteBill.mutateAsync(id);
-};
+Com a mudança para layout vertical full-width, o formulário de custo extra terá espaço suficiente para exibir os campos em uma linha confortável:
+
 ```
-
-**Props adicionadas ao `<CashFlowCard>`:**
-```tsx
-<CashFlowCard
-  ...props existentes...
-  extraCosts={extraCostsInPeriod}
-  onAddExtraCost={handleAddExtraCost}
-  onDeleteExtraCost={handleDeleteExtraCost}
-/>
+[ Nome do custo... ]   [ 📅 18/02 ]   [ R$ Valor ]   [✓] [✗]
 ```
 
 ---
 
-## Fluxo de dados
+## Arquivo modificado
 
-```
-Usuário clica "+ Adicionar custo extra"
-        ↓
-Formulário inline abre (nome, data, valor)
-        ↓
-Salva via createBill (category='custom', status='paid')
-        ↓
-useBills() recarrega automaticamente (React Query)
-        ↓
-extraCostsInPeriod (useMemo) filtra pelo dateRange
-        ↓
-CashFlowCard recalcula totalOutflows + Saldo Atual + Resultado Líquido
-```
+### `src/components/reports/CashFlowCard.tsx`
 
----
+Apenas este arquivo será modificado. Nenhuma lógica muda — apenas o JSX/CSS.
 
-## Arquivos modificados
+**Mudanças específicas:**
 
-| Arquivo | Tipo de mudança |
-|---|---|
-| `src/components/reports/CashFlowCard.tsx` | Adicionar bloco "Custos extras" na seção Saídas, formulário inline, cálculos atualizados |
-| `src/pages/ReportsLoans.tsx` | Adicionar `extraCostsInPeriod` memo, handlers `handleAddExtraCost` / `handleDeleteExtraCost`, passar novas props ao `CashFlowCard` |
+1. **Capital Inicial**: Adicionar um botão "Editar" visível com texto, substituindo o bloco todo clicável com borda tracejada ambígua. O valor ficará em destaque (`text-2xl font-bold`) e o botão será um `<Button variant="outline" size="sm">` com ícone de lápis + texto "Editar".
 
-**Sem migrações de banco de dados** — reutiliza a tabela `bills` com `category = 'custom'`.
+2. **Seção Saídas/Entradas**: Mudar de `grid grid-cols-2` para dois blocos empilhados verticalmente — cada um ocupando 100% da largura, separados por um `<ChevronDown>` centralizado. Isso resolve o problema de compressão.
 
----
+3. **"Contas a pagar" row**: Envolver em um `div` com `rounded-lg p-3` com fundo condicional (`bg-orange-500/10` quando `includeBills = true`, `bg-muted/30` quando false). O switch fica alinhado no lado direito da mesma linha do label.
 
-## Detalhes de UX
+4. **"Custos extras" form**: Com a largura total, reorganizar o formulário inline para `grid grid-cols-[1fr_auto_auto_auto]` (nome, data, valor, botões) na mesma linha, mais confortável para preencher.
 
-- O formulário abre **inline** (sem modal), com uma animação suave
-- A data é pré-preenchida com a data de hoje
-- Ao salvar, o formulário fecha automaticamente e o total atualiza em tempo real
-- Cada custo extra exibe nome abreviado, data formatada e botão de exclusão (ícone lixeira)
-- Se não houver custos extras, exibe apenas o botão "+ Adicionar custo extra" em estilo discreto
-- O total de custos extras aparece colapsado se a lista estiver vazia
+5. **Saldo Atual e Rodapé**: Permanecem iguais — já estão bem posicionados.
