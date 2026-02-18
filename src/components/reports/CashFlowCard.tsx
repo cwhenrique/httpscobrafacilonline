@@ -89,14 +89,14 @@ export function CashFlowCard({
   // Totals
   const billsOutflow = includeBills ? billsPaidTotal : 0;
   const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
-  const totalInflows = receivedInPeriod;
+  const totalInflows = receivedInPeriod + interestReceived;
 
   // Saldo Atual = Capital Inicial - Saídas + Entradas
   const currentBalance = effectiveInitialBalance - totalOutflows + totalInflows;
   const isPositive = currentBalance >= 0;
 
-  // Resultado líquido dinâmico (ajusta conforme toggle)
-  const dynamicNetResult = (receivedInPeriod + interestReceived) - totalOutflows;
+  // Resultado líquido dinâmico
+  const dynamicNetResult = totalInflows - totalOutflows;
   const hasProfit = interestReceived > 0;
   const isNetPositive = dynamicNetResult >= 0;
 
@@ -155,88 +155,99 @@ export function CashFlowCard({
             </CardTitle>
           </CardHeader>
 
-          <CardContent className="pt-0 space-y-5">
+          <CardContent className="pt-0 space-y-4">
 
             {/* ── Capital Inicial ─────────────────────────────────── */}
-            <button
-              onClick={() => setConfigOpen(true)}
-              className="w-full bg-blue-500/10 hover:bg-blue-500/20 rounded-xl p-4
-                         border-2 border-dashed border-blue-500/30
-                         hover:border-blue-500/50 transition-all duration-200
-                         cursor-pointer group hover:scale-[1.01] active:scale-[0.99] text-left"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <PiggyBank className="w-5 h-5 text-blue-500" />
-                  <span className="text-sm font-semibold text-blue-500">Capital Inicial</span>
-                  <Pencil className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex items-center justify-between bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">
+              <div className="flex items-start gap-3">
+                <PiggyBank className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-500">Capital Inicial</p>
+                  <p className="text-xs text-blue-400/70 mt-0.5">
+                    {isUsingCalculatedBalance
+                      ? 'Calculado automaticamente'
+                      : 'Configurado manualmente'}
+                  </p>
                 </div>
+              </div>
+              <div className="flex items-center gap-3">
                 <p className="text-xl sm:text-2xl font-bold text-blue-500 tracking-tight">
                   {formatCurrency(effectiveInitialBalance)}
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfigOpen(true)}
+                  className="h-8 px-3 border-blue-500/40 text-blue-500 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/60 gap-1.5 shrink-0"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Editar
+                </Button>
               </div>
-              <p className="text-xs text-blue-400/70 mt-1.5">
-                {isUsingCalculatedBalance
-                  ? 'Calculado automaticamente com base nos seus empréstimos · Clique para personalizar'
-                  : 'Baseado nos seus empréstimos · Clique para editar'}
-              </p>
-            </button>
+            </div>
 
-            {/* ── Saídas | Entradas ────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* ── SAÍDAS ─────────────────────────────────────────── */}
+            <div className="bg-muted/40 rounded-xl border border-border/50 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+                <ArrowUpRight className="w-4 h-4 text-destructive" />
+                <span className="text-xs font-bold text-destructive uppercase tracking-wider">Saídas</span>
+              </div>
 
-              {/* SAÍDAS */}
-              <div className="bg-muted/40 rounded-xl p-4 space-y-3 border border-border/50">
-                <div className="flex items-center gap-1.5">
-                  <ArrowUpRight className="w-4 h-4 text-destructive" />
-                  <span className="text-xs font-bold text-destructive uppercase tracking-wide">Saídas</span>
-                </div>
+              <div className="px-4 py-3 space-y-3">
 
                 {/* Empréstimos concedidos */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Empréstimos</span>
-                    <span className="text-sm font-semibold text-destructive">
-                      -{formatCurrency(loanedInPeriod)}
-                    </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+                    <span className="text-sm text-muted-foreground">Empréstimos concedidos</span>
                   </div>
+                  <span className="text-sm font-semibold text-destructive">
+                    -{formatCurrency(loanedInPeriod)}
+                  </span>
                 </div>
 
-                {/* Contas a pagar com toggle */}
-                <div className="space-y-1.5 border-t border-border/40 pt-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Receipt className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                      <span className="text-xs text-muted-foreground truncate">Contas a pagar</span>
+                {/* Contas a pagar */}
+                <div className={cn(
+                  "rounded-lg p-3 transition-colors border",
+                  includeBills
+                    ? "bg-orange-500/10 border-orange-500/20"
+                    : "bg-muted/30 border-border/30"
+                )}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Receipt className={cn("w-4 h-4 shrink-0", includeBills ? "text-orange-500" : "text-muted-foreground")} />
+                      <div className="min-w-0">
+                        <p className={cn("text-sm font-medium", includeBills ? "text-orange-500" : "text-muted-foreground")}>
+                          Contas a pagar
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {billsCount} conta{billsCount !== 1 ? 's' : ''} paga{billsCount !== 1 ? 's' : ''} no período
+                        </p>
+                      </div>
                     </div>
-                    <Switch
-                      checked={includeBills}
-                      onCheckedChange={setIncludeBills}
-                      className="scale-75 shrink-0"
-                    />
-                  </div>
-                  <div className={cn(
-                    "flex items-center justify-between transition-opacity",
-                    !includeBills && "opacity-40"
-                  )}>
-                    <span className="text-xs text-orange-500">
-                      {billsCount} conta{billsCount !== 1 ? 's' : ''} pagas
-                    </span>
-                    <span className={cn(
-                      "text-sm font-semibold",
-                      includeBills ? "text-orange-500" : "text-muted-foreground"
-                    )}>
-                      -{formatCurrency(billsPaidTotal)}
-                    </span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={cn(
+                        "text-sm font-semibold",
+                        includeBills ? "text-orange-500" : "text-muted-foreground/50"
+                      )}>
+                        -{formatCurrency(billsPaidTotal)}
+                      </span>
+                      <Switch
+                        checked={includeBills}
+                        onCheckedChange={setIncludeBills}
+                        className="scale-90"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* ── Custos extras ────────────────────────────────── */}
-                <div className="border-t border-border/40 pt-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <ShoppingBag className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                      <span className="text-xs text-muted-foreground">Custos extras</span>
+                {/* Custos extras */}
+                <div className="rounded-lg border border-border/30 bg-background/40 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/30">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-purple-500 shrink-0" />
+                      <span className="text-sm font-medium text-muted-foreground">Custos extras</span>
                     </div>
                     {extraCostsTotal > 0 && (
                       <span className="text-sm font-semibold text-purple-500">
@@ -245,158 +256,168 @@ export function CashFlowCard({
                     )}
                   </div>
 
-                  {/* List of extra costs */}
-                  <AnimatePresence>
-                    {extraCosts.map((cost) => (
-                      <motion.div
-                        key={cost.id}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex items-center justify-between gap-1 pl-5"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-medium truncate">{cost.name}</p>
-                          <p className="text-[9px] text-muted-foreground">
-                            {format(parseISO(cost.date), 'dd/MM', { locale: ptBR })}
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-semibold text-purple-500 shrink-0">
-                          -{formatCurrency(cost.amount)}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteExtraCost(cost.id)}
-                          disabled={deletingId === cost.id}
-                          className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0 disabled:opacity-50"
+                  <div className="px-3 py-2 space-y-1.5">
+                    {/* Lista de custos extras */}
+                    <AnimatePresence>
+                      {extraCosts.map((cost) => (
+                        <motion.div
+                          key={cost.id}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex items-center gap-2 py-1"
                         >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                          <span className="text-xs font-medium flex-1 truncate">{cost.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {format(parseISO(cost.date), 'dd/MM', { locale: ptBR })}
+                          </span>
+                          <span className="text-xs font-semibold text-purple-500 shrink-0">
+                            -{formatCurrency(cost.amount)}
+                          </span>
+                          <button
+                            onClick={() => handleDeleteExtraCost(cost.id)}
+                            disabled={deletingId === cost.id}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
 
-                  {/* Inline add form */}
-                  <AnimatePresence>
-                    {showAddForm && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="space-y-1.5 bg-muted/60 rounded-lg p-2"
+                    {/* Formulário inline */}
+                    <AnimatePresence>
+                      {showAddForm && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="pt-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Nome do custo"
+                              value={formName}
+                              onChange={(e) => setFormName(e.target.value)}
+                              className="h-8 text-xs flex-1 min-w-0"
+                              autoFocus
+                            />
+                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs px-2 shrink-0 gap-1"
+                                >
+                                  <CalendarIcon className="w-3 h-3" />
+                                  {format(formDate, 'dd/MM')}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={formDate}
+                                  onSelect={(d) => { if (d) { setFormDate(d); setDatePickerOpen(false); } }}
+                                  initialFocus
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <Input
+                              placeholder="Valor"
+                              value={formAmount}
+                              onChange={(e) => setFormAmount(e.target.value)}
+                              className="h-8 text-xs w-20 shrink-0"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 w-8 p-0 shrink-0"
+                              onClick={handleSaveExtraCost}
+                              disabled={isSaving || !formName.trim() || !formAmount}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 shrink-0"
+                              onClick={handleCancelForm}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Botão adicionar */}
+                    {!showAddForm && (
+                      <button
+                        onClick={() => setShowAddForm(true)}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-purple-500 transition-colors py-1"
                       >
-                        <Input
-                          placeholder="Nome do custo"
-                          value={formName}
-                          onChange={(e) => setFormName(e.target.value)}
-                          className="h-7 text-xs"
-                          autoFocus
-                        />
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs justify-start font-normal px-2"
-                              >
-                                <CalendarIcon className="w-3 h-3 mr-1 shrink-0" />
-                                {format(formDate, 'dd/MM/yy')}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={formDate}
-                                onSelect={(d) => { if (d) { setFormDate(d); setDatePickerOpen(false); } }}
-                                initialFocus
-                                className="pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <Input
-                            placeholder="Valor"
-                            value={formAmount}
-                            onChange={(e) => setFormAmount(e.target.value)}
-                            className="h-7 text-xs"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                          />
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            className="h-6 text-[10px] flex-1 gap-1"
-                            onClick={handleSaveExtraCost}
-                            disabled={isSaving || !formName.trim() || !formAmount}
-                          >
-                            <Check className="w-3 h-3" />
-                            Salvar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-[10px] px-2"
-                            onClick={handleCancelForm}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </motion.div>
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar custo extra
+                      </button>
                     )}
-                  </AnimatePresence>
-
-                  {/* Add button */}
-                  {!showAddForm && (
-                    <button
-                      onClick={() => setShowAddForm(true)}
-                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-purple-500 transition-colors pl-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Adicionar custo extra
-                    </button>
-                  )}
+                  </div>
                 </div>
 
-                {/* Subtotal saídas */}
-                <div className="border-t border-destructive/20 pt-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">Total saídas</span>
+                {/* Total saídas */}
+                <div className="flex items-center justify-between pt-1 border-t border-destructive/20">
+                  <span className="text-sm font-semibold text-muted-foreground">Total saídas</span>
                   <span className="text-base font-bold text-destructive">
-                    {formatCurrency(totalOutflows)}
+                    -{formatCurrency(totalOutflows)}
                   </span>
                 </div>
               </div>
+            </div>
 
-              {/* ENTRADAS */}
-              <div className="bg-muted/40 rounded-xl p-4 space-y-3 border border-border/50">
-                <div className="flex items-center gap-1.5">
-                  <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
-                  <span className="text-xs font-bold text-emerald-500 uppercase tracking-wide">Entradas</span>
+            {/* ── Divisor ─────────────────────────────────────────── */}
+            <div className="flex justify-center -my-1">
+              <ChevronDown className="w-5 h-5 text-muted-foreground/40" />
+            </div>
+
+            {/* ── ENTRADAS ────────────────────────────────────────── */}
+            <div className="bg-muted/40 rounded-xl border border-border/50 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+                <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Entradas</span>
+              </div>
+
+              <div className="px-4 py-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-sm text-muted-foreground">Pagamentos recebidos</span>
+                  </div>
+                  <span className="text-sm font-semibold text-emerald-500">
+                    +{formatCurrency(receivedInPeriod)}
+                  </span>
                 </div>
 
-                {/* Pagamentos recebidos */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Recebido</span>
-                    <span className="text-sm font-semibold text-emerald-500">
-                      +{formatCurrency(receivedInPeriod)}
-                    </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="text-sm text-muted-foreground">Juros recebidos</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Juros recebidos</span>
-                    <span className="text-xs font-medium text-emerald-400">
-                      +{formatCurrency(interestReceived)}
-                    </span>
-                  </div>
+                  <span className="text-sm font-semibold text-emerald-400">
+                    +{formatCurrency(interestReceived)}
+                  </span>
                 </div>
 
-                {/* Subtotal entradas */}
-                <div className="border-t border-emerald-500/20 pt-2 flex items-center justify-between mt-auto">
-                  <span className="text-xs font-semibold text-muted-foreground">Total entradas</span>
+                {/* Total entradas */}
+                <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20">
+                  <span className="text-sm font-semibold text-muted-foreground">Total entradas</span>
                   <span className="text-base font-bold text-emerald-500">
-                    {formatCurrency(receivedInPeriod + interestReceived)}
+                    +{formatCurrency(totalInflows)}
                   </span>
                 </div>
               </div>
