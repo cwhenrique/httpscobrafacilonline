@@ -165,7 +165,7 @@ export function CashFlowCard({
                   <p className="text-sm font-semibold text-blue-500">Capital Inicial</p>
                   <p className="text-xs text-blue-400/70 mt-0.5">
                     {isUsingCalculatedBalance
-                      ? 'Calculado automaticamente'
+                      ? 'Baseado nos contratos ativos'
                       : 'Configurado manualmente'}
                   </p>
                 </div>
