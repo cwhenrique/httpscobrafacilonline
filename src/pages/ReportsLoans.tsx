@@ -125,7 +125,7 @@ const StatCardSkeleton = () => (
 export default function ReportsLoans() {
   const { stats, refetch } = useOperationalStats();
   const { profile, updateProfile, refetch: refetchProfile } = useProfile();
-  const { bills } = useBills();
+  const { bills, createBill, deleteBill } = useBills();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -782,6 +782,8 @@ export default function ReportsLoans() {
 
   const billsInPeriod = useMemo(() => {
     return bills.filter(bill => {
+      // Exclude custom category bills (they are shown as "extra costs" separately)
+      if (bill.category === 'custom') return false;
       if (!dateRange?.from || !dateRange?.to) return true;
       const start = startOfDay(dateRange.from);
       const end = endOfDay(dateRange.to);
@@ -816,6 +818,39 @@ export default function ReportsLoans() {
     const netResult = totalInflows - totalOutflows;
     return { totalInflows, totalOutflows, netResult };
   }, [filteredStats, billsStats]);
+
+  // ── Extra costs filtered by period ────────────────────────────────────────
+
+
+
+  const extraCostsInPeriod = useMemo(() => {
+    return bills
+      .filter(b => b.category === 'custom')
+      .filter(b => {
+        if (!dateRange?.from || !dateRange?.to) return true;
+        const date = parseISO(b.due_date);
+        return isWithinInterval(date, {
+          start: startOfDay(dateRange.from),
+          end: endOfDay(dateRange.to),
+        });
+      })
+      .map(b => ({ id: b.id, name: b.description, date: b.due_date, amount: Number(b.amount) }));
+  }, [bills, dateRange]);
+
+  const handleAddExtraCost = async ({ name, date, amount }: { name: string; date: string; amount: number }) => {
+    await createBill.mutateAsync({
+      description: name,
+      payee_name: name,
+      amount,
+      due_date: date,
+      category: 'custom',
+      owner_type: 'business',
+    });
+  };
+
+  const handleDeleteExtraCost = async (id: string) => {
+    await deleteBill.mutateAsync(id);
+  };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -1198,6 +1233,9 @@ export default function ReportsLoans() {
           billsPendingTotal={billsStats.pendingTotal}
           billsCount={billsStats.paidCount}
           netResult={balanceStats.netResult}
+          extraCosts={extraCostsInPeriod}
+          onAddExtraCost={handleAddExtraCost}
+          onDeleteExtraCost={handleDeleteExtraCost}
         />
 
         {/* Main Stats Grid - Filtered */}
