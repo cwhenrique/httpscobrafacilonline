@@ -2,14 +2,34 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/calculations';
 import {
   Wallet, ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp, Briefcase,
-  ChevronDown, Pencil, Receipt, Scale,
+  ChevronDown, Pencil, Receipt, Scale, Plus, Trash2, X, Check, ShoppingBag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { CashFlowConfigModal } from './CashFlowConfigModal';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from 'lucide-react';
+
+export interface ExtraCost {
+  id: string;
+  name: string;
+  date: string;
+  amount: number;
+}
+
+export interface NewExtraCost {
+  name: string;
+  date: string;
+  amount: number;
+}
 
 interface CashFlowCardProps {
   initialBalance: number;
@@ -23,6 +43,9 @@ interface CashFlowCardProps {
   billsPendingTotal: number;
   billsCount: number;
   netResult: number;
+  extraCosts: ExtraCost[];
+  onAddExtraCost: (cost: NewExtraCost) => Promise<void>;
+  onDeleteExtraCost: (id: string) => Promise<void>;
 }
 
 export function CashFlowCard({
@@ -37,9 +60,21 @@ export function CashFlowCard({
   billsPendingTotal,
   billsCount,
   netResult,
+  extraCosts,
+  onAddExtraCost,
+  onDeleteExtraCost,
 }: CashFlowCardProps) {
   const [configOpen, setConfigOpen] = useState(false);
   const [includeBills, setIncludeBills] = useState(true);
+
+  // Inline form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formDate, setFormDate] = useState<Date>(new Date());
+  const [formAmount, setFormAmount] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Effective initial balance
   const effectiveInitialBalance = initialBalance > 0
@@ -48,9 +83,12 @@ export function CashFlowCard({
 
   const isUsingCalculatedBalance = initialBalance <= 0 && calculatedInitialBalance > 0;
 
+  // Extra costs total
+  const extraCostsTotal = extraCosts.reduce((s, c) => s + c.amount, 0);
+
   // Totals
   const billsOutflow = includeBills ? billsPaidTotal : 0;
-  const totalOutflows = loanedInPeriod + billsOutflow;
+  const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
   const totalInflows = receivedInPeriod;
 
   // Saldo Atual = Capital Inicial - Saídas + Entradas
@@ -58,9 +96,46 @@ export function CashFlowCard({
   const isPositive = currentBalance >= 0;
 
   // Resultado líquido dinâmico (ajusta conforme toggle)
-  const dynamicNetResult = (receivedInPeriod + interestReceived) - (loanedInPeriod + billsOutflow);
+  const dynamicNetResult = (receivedInPeriod + interestReceived) - totalOutflows;
   const hasProfit = interestReceived > 0;
   const isNetPositive = dynamicNetResult >= 0;
+
+  const handleSaveExtraCost = async () => {
+    if (!formName.trim() || !formAmount) return;
+    const amount = parseFloat(formAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) return;
+
+    setIsSaving(true);
+    try {
+      await onAddExtraCost({
+        name: formName.trim(),
+        date: format(formDate, 'yyyy-MM-dd'),
+        amount,
+      });
+      setFormName('');
+      setFormAmount('');
+      setFormDate(new Date());
+      setShowAddForm(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteExtraCost = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await onDeleteExtraCost(id);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleCancelForm = () => {
+    setFormName('');
+    setFormAmount('');
+    setFormDate(new Date());
+    setShowAddForm(false);
+  };
 
   return (
     <>
@@ -154,6 +229,135 @@ export function CashFlowCard({
                       -{formatCurrency(billsPaidTotal)}
                     </span>
                   </div>
+                </div>
+
+                {/* ── Custos extras ────────────────────────────────── */}
+                <div className="border-t border-border/40 pt-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                      <span className="text-xs text-muted-foreground">Custos extras</span>
+                    </div>
+                    {extraCostsTotal > 0 && (
+                      <span className="text-sm font-semibold text-purple-500">
+                        -{formatCurrency(extraCostsTotal)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* List of extra costs */}
+                  <AnimatePresence>
+                    {extraCosts.map((cost) => (
+                      <motion.div
+                        key={cost.id}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center justify-between gap-1 pl-5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-medium truncate">{cost.name}</p>
+                          <p className="text-[9px] text-muted-foreground">
+                            {format(parseISO(cost.date), 'dd/MM', { locale: ptBR })}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-purple-500 shrink-0">
+                          -{formatCurrency(cost.amount)}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteExtraCost(cost.id)}
+                          disabled={deletingId === cost.id}
+                          className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+
+                  {/* Inline add form */}
+                  <AnimatePresence>
+                    {showAddForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-1.5 bg-muted/60 rounded-lg p-2"
+                      >
+                        <Input
+                          placeholder="Nome do custo"
+                          value={formName}
+                          onChange={(e) => setFormName(e.target.value)}
+                          className="h-7 text-xs"
+                          autoFocus
+                        />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs justify-start font-normal px-2"
+                              >
+                                <CalendarIcon className="w-3 h-3 mr-1 shrink-0" />
+                                {format(formDate, 'dd/MM/yy')}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={formDate}
+                                onSelect={(d) => { if (d) { setFormDate(d); setDatePickerOpen(false); } }}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <Input
+                            placeholder="Valor"
+                            value={formAmount}
+                            onChange={(e) => setFormAmount(e.target.value)}
+                            className="h-7 text-xs"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            className="h-6 text-[10px] flex-1 gap-1"
+                            onClick={handleSaveExtraCost}
+                            disabled={isSaving || !formName.trim() || !formAmount}
+                          >
+                            <Check className="w-3 h-3" />
+                            Salvar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[10px] px-2"
+                            onClick={handleCancelForm}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Add button */}
+                  {!showAddForm && (
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-purple-500 transition-colors pl-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Adicionar custo extra
+                    </button>
+                  )}
                 </div>
 
                 {/* Subtotal saídas */}
