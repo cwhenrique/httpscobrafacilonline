@@ -1,119 +1,162 @@
 
-# Redesign: Fluxo de Caixa + Balanço Financeiro Integrado
+# Custos Extras Manuais no Fluxo de Caixa
 
-## Problema identificado
-
-O usuário apontou que a área de **Fluxo de Caixa** está confusa e deseja uma visão única e clara que integre:
-- **Capital Inicial** (editável, baseado nos empréstimos)
-- **Saídas** = empréstimos concedidos **+** contas a pagar (se o usuário quiser incluir)
-- **Entradas** = apenas pagamentos recebidos de empréstimos
-- **Saldo Atual** = resultado do fluxo
-
-Além disso, o card de **Balanço Financeiro** atual repete informações e fica confuso.
-
-## Proposta de redesign
-
-### Novo Card Único: "Fluxo de Caixa & Balanço"
-
-Unificar o `CashFlowCard` (componente em `src/components/reports/CashFlowCard.tsx`) e o bloco do Balanço Financeiro (inline em `ReportsLoans.tsx`) em um **único card mais claro**, com seções bem definidas.
-
-### Layout proposto
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  💼 Fluxo de Caixa                                               │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─── CAPITAL INICIAL ─────────────────────────────────────┐    │
-│  │ R$ 38.200  [lápis - clique para editar]                  │    │
-│  │ Baseado nos seus empréstimos · Editável                  │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  SAÍDAS DO PERÍODO                    ENTRADAS DO PERÍODO        │
-│  ┌──────────────────────────┐   ┌──────────────────────────┐    │
-│  │ 🔴 Empréstimos           │   │ 🟢 Recebido              │    │
-│  │    R$ 31.000             │   │    R$ 37.920             │    │
-│  │ 🔴 Contas a pagar ────── │   │                          │    │
-│  │    R$ 1.240  [toggle ON] │   │                          │    │
-│  │ ─────────────────────── │   │                          │    │
-│  │ Total saídas: R$ 32.240  │   │ Total: R$ 37.920         │    │
-│  └──────────────────────────┘   └──────────────────────────┘    │
-│                          ▼                                       │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │        SALDO ATUAL  R$ 45.120    (em caixa)              │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  Capital na Rua: R$ 5.883   |   Lucro: R$ 11.375               │
-│  Resultado Líquido: + R$ 18.295                                 │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### Toggle "Incluir contas a pagar nas saídas"
-
-O usuário poderá ligar/desligar a inclusão das contas a pagar nas saídas com um **Switch** dentro do card, evitando a duplicação de dois cards separados.
+## Objetivo
+Adicionar um campo editável na seção "Saídas" do card de Fluxo de Caixa que permita ao usuário cadastrar **custos extras avulsos** (nome, data, valor) diretamente ali, sem precisar ir para outra tela. Esses custos devem:
+- Ser filtrados pelo período selecionado no relatório (via a `dateRange`)
+- Atualizar automaticamente os totais de saídas, saldo atual e resultado líquido
+- Ser persistidos no banco de dados (tabela `bills`, categoria `custom`)
 
 ---
 
-## Mudanças técnicas
+## Estratégia de Implementação
 
-### 1. `src/components/reports/CashFlowCard.tsx` — Reescrita do componente
+Em vez de criar uma nova tabela, os custos extras serão salvos na **tabela `bills` já existente**, com `category = 'custom'` e `owner_type = 'business'`. Isso evita migrações e reutiliza toda a infraestrutura (hook `useBills`, RLS, etc.).
 
-Adicionar novas props:
+Os itens `custom` adicionados via o card de fluxo de caixa aparecerão também na tela "Contas a Pagar" naturalmente, pois usam a mesma tabela.
+
+---
+
+## O que será modificado
+
+### 1. `src/components/reports/CashFlowCard.tsx`
+
+**Novas props:**
 ```typescript
 interface CashFlowCardProps {
-  // existentes:
-  initialBalance: number;
-  calculatedInitialBalance: number;
-  loanedInPeriod: number;
-  totalOnStreet: number;
-  receivedInPeriod: number;
-  interestReceived: number;
-  onUpdateInitialBalance: (value: number) => void;
-  // novas:
-  billsPaidTotal: number;          // total de contas pagas no período
-  billsPendingTotal: number;       // total de contas pendentes
-  billsCount: number;              // quantidade de contas no período
-  netResult: number;               // resultado líquido (calculado em ReportsLoans)
+  // ... props existentes ...
+  extraCosts: ExtraCost[];             // lista de custos extras do período
+  onAddExtraCost: (cost: NewExtraCost) => void;
+  onDeleteExtraCost: (id: string) => void;
+}
+
+interface ExtraCost {
+  id: string;
+  name: string;
+  date: string;
+  amount: number;
+}
+
+interface NewExtraCost {
+  name: string;
+  date: string;
+  amount: number;
 }
 ```
 
-Novo layout interno:
-1. **Seção Capital Inicial** — botão clicável com ícone de lápis, valor em destaque, legenda "Baseado nos seus empréstimos · Clique para editar"
-2. **Duas colunas: Saídas | Entradas**
-   - Saídas: linha "Empréstimos concedidos" + linha "Contas a pagar" com **Switch** para incluir/excluir + subtotal
-   - Entradas: "Pagamentos recebidos" + subtotal
-3. **Saldo Atual** — card destacado verde/vermelho (igual ao atual, mantido)
-4. **Rodapé** — Capital na Rua | Lucro | Resultado Líquido (três métricas em linha)
+**Novo bloco dentro da seção "SAÍDAS"**, abaixo de "Contas a pagar":
 
-### 2. `src/pages/ReportsLoans.tsx` — Pequenos ajustes
+```
+┌──────────────────────────────────────────────────┐
+│ 🔴 Empréstimos                    -R$ 31.000     │
+│ 🧾 Contas a pagar  [toggle]        -R$ 500       │
+│ ─────────────────────────────────────────────── │
+│ ➕ Custos extras                   -R$ 200       │
+│   • Gasolina  15/02      -R$ 120   [🗑]          │
+│   • Almoço    18/02      -R$ 80    [🗑]          │
+│  [+ Adicionar custo extra]                       │
+│ ─────────────────────────────────────────────── │
+│ Total saídas:                    R$ 31.700       │
+└──────────────────────────────────────────────────┘
+```
 
-- Passar as novas props `billsPaidTotal`, `billsPendingTotal`, `billsCount`, `netResult` para o `<CashFlowCard>`
-- **Remover** o bloco do "Custos do Período" (linhas 1200–1273) — as contas passam a viver dentro do CashFlowCard
-- **Remover** o bloco do "Balanço Financeiro do Período" (linhas 1275–1341) — substituído pelo rodapé do novo CashFlowCard
-- Manter toda a lógica de `billsStats` e `balanceStats` existente, apenas mudar onde é renderizado
+**Formulário inline para adicionar custo:**
+- Campo `nome` (texto livre)
+- Campo `data` (date picker simples, pré-preenchido com hoje)
+- Campo `valor` (número)
+- Botão "Salvar" e "Cancelar"
 
-### 3. `src/components/reports/CashFlowConfigModal.tsx` — Sem alterações
+**Cálculo atualizado:**
+```typescript
+const extraCostsTotal = extraCosts.reduce((s, c) => s + c.amount, 0);
+const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
+const dynamicNetResult = (receivedInPeriod + interestReceived) - totalOutflows;
+```
 
-O modal de configuração do saldo inicial permanece exatamente como está.
+### 2. `src/pages/ReportsLoans.tsx`
+
+**Filtro de custos extras por período:**
+```typescript
+const extraCostsInPeriod = useMemo(() => {
+  return bills
+    .filter(b => b.category === 'custom')
+    .filter(b => {
+      if (!dateRange?.from || !dateRange?.to) return true;
+      const date = parseISO(b.due_date);
+      return isWithinInterval(date, {
+        start: startOfDay(dateRange.from),
+        end: endOfDay(dateRange.to),
+      });
+    })
+    .map(b => ({ id: b.id, name: b.description, date: b.due_date, amount: Number(b.amount) }));
+}, [bills, dateRange]);
+```
+
+**Handlers passados para `CashFlowCard`:**
+```typescript
+const handleAddExtraCost = async ({ name, date, amount }) => {
+  await createBill.mutateAsync({
+    description: name,
+    payee_name: name,
+    amount,
+    due_date: date,
+    category: 'custom',
+    owner_type: 'business',
+    status: 'paid',   // já marca como pago, pois está saindo do caixa
+  });
+};
+
+const handleDeleteExtraCost = async (id: string) => {
+  await deleteBill.mutateAsync(id);
+};
+```
+
+**Props adicionadas ao `<CashFlowCard>`:**
+```tsx
+<CashFlowCard
+  ...props existentes...
+  extraCosts={extraCostsInPeriod}
+  onAddExtraCost={handleAddExtraCost}
+  onDeleteExtraCost={handleDeleteExtraCost}
+/>
+```
 
 ---
 
-## Estado local: `includeBillsInOutflows`
+## Fluxo de dados
 
-Um `useState(true)` dentro do `CashFlowCard` controlará se as contas a pagar entram no cálculo de saídas ou não. O saldo atual e o resultado líquido recalculam em tempo real conforme o toggle muda, sem necessidade de persistência.
-
----
-
-## Ordem de implementação
-
-1. Atualizar interface de props do `CashFlowCard` com os novos campos de bills e netResult
-2. Reescrever o layout interno do `CashFlowCard` com as seções descritas
-3. Remover os cards de "Custos do Período" e "Balanço Financeiro" do `ReportsLoans.tsx`
-4. Passar as novas props para `<CashFlowCard>` em `ReportsLoans.tsx`
+```
+Usuário clica "+ Adicionar custo extra"
+        ↓
+Formulário inline abre (nome, data, valor)
+        ↓
+Salva via createBill (category='custom', status='paid')
+        ↓
+useBills() recarrega automaticamente (React Query)
+        ↓
+extraCostsInPeriod (useMemo) filtra pelo dateRange
+        ↓
+CashFlowCard recalcula totalOutflows + Saldo Atual + Resultado Líquido
+```
 
 ---
 
 ## Arquivos modificados
 
-- `src/components/reports/CashFlowCard.tsx` — Reescrita do layout
-- `src/pages/ReportsLoans.tsx` — Remoção de cards redundantes + passagem de novas props
+| Arquivo | Tipo de mudança |
+|---|---|
+| `src/components/reports/CashFlowCard.tsx` | Adicionar bloco "Custos extras" na seção Saídas, formulário inline, cálculos atualizados |
+| `src/pages/ReportsLoans.tsx` | Adicionar `extraCostsInPeriod` memo, handlers `handleAddExtraCost` / `handleDeleteExtraCost`, passar novas props ao `CashFlowCard` |
+
+**Sem migrações de banco de dados** — reutiliza a tabela `bills` com `category = 'custom'`.
+
+---
+
+## Detalhes de UX
+
+- O formulário abre **inline** (sem modal), com uma animação suave
+- A data é pré-preenchida com a data de hoje
+- Ao salvar, o formulário fecha automaticamente e o total atualiza em tempo real
+- Cada custo extra exibe nome abreviado, data formatada e botão de exclusão (ícone lixeira)
+- Se não houver custos extras, exibe apenas o botão "+ Adicionar custo extra" em estilo discreto
+- O total de custos extras aparece colapsado se a lista estiver vazia
