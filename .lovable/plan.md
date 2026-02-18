@@ -1,126 +1,112 @@
 
-# Correção: Lógica do Capital Inicial no Fluxo de Caixa
+# Redesign Visual: Fluxo de Caixa com Hierarquia de Cores Clara
 
-## Diagnóstico do problema
+## Problemas identificados na UI atual
 
-O usuário vê R$ 36.500 sugerido como Capital Inicial, mas seus empréstimos **ativos** não somam esse valor. Isso acontece porque o cálculo atual usa:
+1. **Inconsistência de cores nas Saídas**: "Empréstimos concedidos" usa vermelho (`destructive`), "Contas a pagar" usa laranja, e "Custos extras" usa roxo. Três paletas diferentes para o mesmo conceito (saída de dinheiro) cria confusão.
 
-```typescript
-// ReportsLoans.tsx linha 752-758
-const calculatedInitialBalance = useMemo(() => {
-  const totalPrincipalEverLoaned = stats.allLoans.reduce((sum, loan) => {
-    return sum + Number(loan.principal_amount);  // ← inclui TODOS, ativos + quitados
-  }, 0);
-  return totalPrincipalEverLoaned;
-}, [stats.allLoans]);
-```
+2. **"Contas a pagar" e "Custos extras" têm apresentações visuais totalmente diferentes**: Contas a pagar tem um card com fundo colorido e toggle; Custos extras tem um card com borda, header separado e lista aninhada. Parecem componentes de sistemas distintos.
 
-Ou seja: R$ 36.500 = soma do **principal histórico de todos os empréstimos**, incluindo os já quitados.
-
-### Problemas identificados
-
-1. **Sugestão confusa**: A "sugestão do sistema" é o somatório histórico de TUDO que foi emprestado algum dia — incluindo empréstimos quitados que já retornaram ao caixa. Isso não representa o capital disponível do usuário.
-
-2. **Saldo atual incompleto**: O cálculo do `currentBalance` não inclui os juros recebidos:
-   ```typescript
-   const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
-   // Faltam: + interestReceived, - billsPaid, - extraCosts
-   ```
-
-3. **Falta contexto no modal**: O modal "Configurar Saldo Inicial" não explica claramente que o valor sugerido inclui empréstimos quitados.
+3. **Falta de coesão visual**: O usuário não identifica rapidamente qual item é uma saída e qual é uma entrada, pois as cores não são consistentes.
 
 ---
 
-## Solução proposta
+## Sistema de cores proposto
 
-### 1. Melhorar a sugestão do Capital Inicial
+| Categoria | Cor | Uso |
+|---|---|---|
+| Saídas (todas) | Vermelho (`red-500` / `destructive`) | Empréstimos + Contas a pagar + Custos extras |
+| Entradas (todas) | Verde (`emerald-500`) | Pagamentos + Juros |
+| Saldo Atual | Verde se positivo / Vermelho se negativo | Dinâmico |
+| Capital Inicial | Azul (`blue-500`) | Referência neutra |
 
-Mudar o cálculo para oferecer **duas opções** de referência, com explicação clara:
+---
 
-- **Opção A** (mais precisa): Soma apenas o `principal_amount` dos **empréstimos ativos** (não quitados) → representa o capital que está "na rua" agora
-- **Opção B** (histórica, atual): Soma o `principal_amount` de todos os empréstimos já realizados → representa o capital total investido historicamente
+## Redesign da seção SAÍDAS
 
-O cálculo sugerido passará a usar a **Opção A** por padrão (empréstimos ativos), que é o que o usuário espera ver.
+### Estrutura unificada — todos os itens de saída seguem o mesmo padrão visual:
 
-**Mudança em `ReportsLoans.tsx`:**
-```typescript
-const calculatedInitialBalance = useMemo(() => {
-  // Capital na rua agora: apenas empréstimos ativos
-  // Representa o capital que o usuário tem investido no momento
-  const activeLoansTotal = stats.allLoans
-    .filter(loan => loan.status !== 'paid')
-    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-  return activeLoansTotal;
-}, [stats.allLoans]);
+```
+┌─────────────────────────────────────────────────────────┐
+│  ↑ SAÍDAS                                               │  ← header vermelho
+├─────────────────────────────────────────────────────────┤
+│  • Empréstimos concedidos              -R$ 31.000       │  ← linha padrão vermelha
+├─────────────────────────────────────────────────────────┤
+│  🧾 Contas a pagar      [toggle]       -R$ 500          │  ← mesma linha vermelha + toggle
+│     3 contas pagas no período                           │
+├─────────────────────────────────────────────────────────┤
+│  Custos extras (avulsos)               -R$ 200          │  ← mesmo padrão vermelho
+│    • Gasolina  15/02           -R$ 120  [🗑]            │
+│    • Almoço    18/02           -R$ 80   [🗑]            │
+│    [+ Adicionar custo extra]                            │
+├─────────────────────────────────────────────────────────┤
+│  Total saídas                          -R$ 31.700       │  ← vermelho bold
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 2. Corrigir o cálculo do Saldo Atual
+**Princípio**: Todos os sub-itens de saída são linhas simples no mesmo container vermelho, sem cards dentro de cards, sem diferentes fundos coloridos por tipo.
 
-O `currentBalance` deve refletir corretamente todos os fluxos:
+### Contas a pagar — novo layout
 
-```typescript
-const currentBalance = effectiveBalance 
-  - loanedInPeriod          // saídas: empréstimos concedidos
-  + receivedInPeriod        // entradas: pagamentos de principal
-  + interestReceived;       // entradas: juros recebidos
-  // (bills e extraCosts são descontados no CashFlowCard dinamicamente via toggle)
+Em vez de um card separado com fundo laranja, vira uma **linha simples** dentro da seção Saídas, igual às demais, com o toggle discretamente à direita:
+
+```
+• Contas a pagar (3 pagas)    [◉ toggle]    -R$ 500
 ```
 
-**Mudança em `ReportsLoans.tsx`:**
-```typescript
-const cashFlowStats = useMemo(() => {
-  const loanedInPeriod = filteredStats.totalLent;
-  const receivedInPeriod = filteredStats.totalReceived;
-  const interestReceived = filteredStats.realizedProfit;
+Quando desativado, o valor fica acinzentado e riscado (`line-through`), indicando claramente que foi excluído do cálculo.
 
-  const effectiveBalance = initialCashBalance > 0
-    ? initialCashBalance
-    : calculatedInitialBalance;
+### Custos extras — novo layout
 
-  // Saldo atual = capital inicial - saídas (empréstimos) + entradas (recebimentos + juros)
-  const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod + interestReceived;
+Remove o card aninhado com header e borda separada. Vira uma seção integrada na lista de saídas:
 
-  return {
-    initialBalance: initialCashBalance,
-    loanedInPeriod,
-    receivedInPeriod,
-    interestReceived,
-    currentBalance,
-  };
-}, [initialCashBalance, calculatedInitialBalance, filteredStats]);
+```
+• Custo extra: Gasolina    15/02    -R$ 120    [🗑]
+• Custo extra: Almoço      18/02    -R$ 80     [🗑]
+  [+ Adicionar custo extra]
 ```
 
-### 3. Melhorar o texto descritivo no modal
+O botão "+ Adicionar custo extra" fica vermelho/discreto, e o formulário inline abre abaixo, empurrando o conteúdo para baixo.
 
-Atualizar o texto em `CashFlowConfigModal.tsx` e no `CashFlowCard.tsx` para deixar claro o que cada valor representa:
+---
 
-- **No modal**: Trocar "Baseado no total de capital emprestado historicamente" por "Baseado no capital atualmente em contratos ativos"
-- **No card**: Adicionar subtexto ao lado do valor sugerido explicando a origem
+## Redesign da seção ENTRADAS
 
-**Mudança em `CashFlowCard.tsx`** (prop `calculatedInitialBalance` já existe, apenas mudar onde é exibida):
-```tsx
-// Texto atual no modal:
-"Baseado no total de capital emprestado historicamente"
+Mantém a mesma lógica limpa, mas consistentemente verde:
 
-// Texto corrigido:
-"Baseado no principal dos contratos ativos atuais"
+```
+┌─────────────────────────────────────────────────────────┐
+│  ↓ ENTRADAS                                             │  ← header verde
+├─────────────────────────────────────────────────────────┤
+│  • Pagamentos recebidos               +R$ 37.920        │  ← verde
+│  • Juros recebidos                    +R$ 11.375        │  ← verde
+├─────────────────────────────────────────────────────────┤
+│  Total entradas                       +R$ 49.295        │  ← verde bold
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Resumo das mudanças
+## Saldo Atual
 
-| Arquivo | Mudança |
-|---|---|
-| `src/pages/ReportsLoans.tsx` | Filtrar `stats.allLoans` por `status !== 'paid'` no `calculatedInitialBalance`; adicionar `interestReceived` ao `currentBalance` |
-| `src/components/reports/CashFlowConfigModal.tsx` | Atualizar texto descritivo da sugestão |
-| `src/components/reports/CashFlowCard.tsx` | Atualizar subtexto da sugestão de capital inicial |
+Sem mudanças de estrutura — já funciona bem. Apenas garantir que as cores (verde/vermelho) dependam do resultado calculado (com bills + extras).
 
 ---
 
-## Impacto esperado
+## Arquivo modificado
 
-Antes: Sugestão = R$ 36.500 (histórico total, confuso)  
-Depois: Sugestão = valor real dos empréstimos **ativos** (ex: R$ 20.000)
+### `src/components/reports/CashFlowCard.tsx`
 
-O saldo atual também passará a incluir os juros já recebidos no período, tornando o número mais fiel à realidade do caixa.
+**Mudanças de estrutura:**
+
+1. **Seção Saídas**: Fundo `red-500/5` com borda `red-500/20`. Header com `text-red-500`. Todos os itens usam `text-red-500` para valores negativos.
+
+2. **"Contas a pagar"**: Remove o card com fundo laranja. Vira uma linha na lista, igual às demais. Toggle fica alinhado à direita. Quando desabilitado: valor com `opacity-40 line-through`.
+
+3. **"Custos extras"**: Remove o card aninhado com borda separada. Os itens de custo ficam listados diretamente dentro da seção Saídas, com um pequeno label "custo extra" ou ícone diferenciador. Botão "+ Adicionar" em vermelho claro. Formulário inline mantido, mas com cores vermelhas.
+
+4. **Seção Entradas**: Fundo `emerald-500/5` com borda `emerald-500/20`. Header com `text-emerald-500`. Todos os valores com `text-emerald-500`.
+
+5. **Pontos/bullets**: Todos os itens de saída têm `bg-red-500` no bullet; todos os de entrada têm `bg-emerald-500`.
+
+**Sem mudanças de lógica** — apenas CSS e estrutura JSX.
