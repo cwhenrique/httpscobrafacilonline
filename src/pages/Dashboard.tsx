@@ -6,6 +6,7 @@ import { useOperationalStats } from '@/hooks/useOperationalStats';
 import { useLoans } from '@/hooks/useLoans';
 import { useAllPayments } from '@/hooks/useAllPayments';
 import { useDashboardHealth } from '@/hooks/useDashboardHealth';
+import { useProfile } from '@/hooks/useProfile';
 import { HealthScoreCard } from '@/components/reports/HealthScoreCard';
 import { AlertsCard } from '@/components/reports/AlertsCard';
 
@@ -27,6 +28,7 @@ import {
   Receipt,
   Lock,
   UserPlus,
+  FileCheck,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -40,20 +42,40 @@ export default function Dashboard() {
   const { payments, loading: paymentsLoading } = useAllPayments();
   const { isEmployee, isOwner, hasPermission, loading: employeeLoading } = useEmployeeContext();
   const { healthData, alertsData, loading: healthLoading } = useDashboardHealth();
+  const { profile } = useProfile();
+  
   const [showEmployeeBanner, setShowEmployeeBanner] = useState(() => {
     return sessionStorage.getItem('hideEmployeeBanner') !== 'true';
   });
+  const [showReportsBanner, setShowReportsBanner] = useState(() => {
+    return sessionStorage.getItem('hideReportsBanner') !== 'true';
+  });
+  const [activeBanner, setActiveBanner] = useState<'employee' | 'reports'>('employee');
   
   // Forçar refresh ao montar o Dashboard para garantir dados atualizados
   useEffect(() => {
     refetchOpStats();
     refetchDashboard();
   }, []);
-  
+
+  // Alternar banners a cada 6 segundos
+  useEffect(() => {
+    const hasBoth = showEmployeeBanner && showReportsBanner;
+    if (!hasBoth) return;
+    const timer = setInterval(() => {
+      setActiveBanner(prev => prev === 'employee' ? 'reports' : 'employee');
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [showEmployeeBanner, showReportsBanner]);
   
   const handleCloseEmployeeBanner = () => {
     sessionStorage.setItem('hideEmployeeBanner', 'true');
     setShowEmployeeBanner(false);
+  };
+
+  const handleCloseReportsBanner = () => {
+    sessionStorage.setItem('hideReportsBanner', 'true');
+    setShowReportsBanner(false);
   };
   
 
@@ -202,44 +224,121 @@ export default function Dashboard() {
         <PWAInstallBanner variant="card" />
 
 
-        {/* Employee Feature Promo - Only for owners */}
-        {!isEmployee && isOwner && showEmployeeBanner && (
-          <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800 relative">
-            <button 
-              onClick={handleCloseEmployeeBanner}
-              className="absolute top-2 right-2 p-1 rounded-full hover:bg-blue-500/20 transition-colors z-10"
-              aria-label="Fechar banner"
-            >
-              <X className="w-4 h-4 text-blue-200" />
-            </button>
-            <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-blue-500/30">
-                    <UserPlus className="w-6 h-6 text-blue-300" />
-                  </div>
-                  <div>
-                    <h3 className="font-display font-bold text-xl text-white drop-shadow-md">Expanda seu Negócio!</h3>
-                    <p className="text-sm text-blue-100 mt-1 font-medium">
-                      Adicione funcionários para ajudar no dia a dia. A partir de R$ 35,90/mês.
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-blue-100 font-medium">
-                      <span className="flex items-center gap-1">✓ Controle total de permissões</span>
-                      <span className="flex items-center gap-1">✓ Acompanhamento de produtividade</span>
-                      <span className="flex items-center gap-1">✓ Notificações via WhatsApp</span>
-                      <span className="flex items-center gap-1">✓ Relatórios por funcionário</span>
+        {/* Alternating Banners - Employee & Reports Promo */}
+        {!isEmployee && isOwner && (
+          <>
+            {/* Employee Banner */}
+            {showEmployeeBanner && (activeBanner === 'employee' || !showReportsBanner) && (
+              <Card className="shadow-soft border-blue-500/50 bg-gradient-to-r from-blue-900 to-blue-800 relative">
+                <button 
+                  onClick={handleCloseEmployeeBanner}
+                  className="absolute top-2 right-2 p-1 rounded-full hover:bg-blue-500/20 transition-colors z-10"
+                  aria-label="Fechar banner"
+                >
+                  <X className="w-4 h-4 text-blue-200" />
+                </button>
+                <CardContent className="p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-blue-500/30">
+                        <UserPlus className="w-6 h-6 text-blue-300" />
+                      </div>
+                      <div>
+                        <h3 className="font-display font-bold text-xl text-white drop-shadow-md">Expanda seu Negócio!</h3>
+                        <p className="text-sm text-blue-100 mt-1 font-medium">
+                          Adicione funcionários para ajudar no dia a dia. A partir de R$ 35,90/mês.
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-blue-100 font-medium">
+                          <span className="flex items-center gap-1">✓ Controle total de permissões</span>
+                          <span className="flex items-center gap-1">✓ Acompanhamento de produtividade</span>
+                          <span className="flex items-center gap-1">✓ Notificações via WhatsApp</span>
+                          <span className="flex items-center gap-1">✓ Relatórios por funcionário</span>
+                        </div>
+                      </div>
                     </div>
+                    <Link to="/employees">
+                      <Button className="gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold">
+                        Ver Funcionários
+                        <ArrowUpRight className="w-4 h-4" />
+                      </Button>
+                    </Link>
                   </div>
-                </div>
-                <Link to="/employees">
-                  <Button className="gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold">
-                    Ver Funcionários
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Button>
-                </Link>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Reports Banner */}
+            {showReportsBanner && (activeBanner === 'reports' || !showEmployeeBanner) && (
+              <Card className="shadow-soft border-emerald-500/50 bg-gradient-to-r from-emerald-900 to-green-800 relative">
+                <button 
+                  onClick={handleCloseReportsBanner}
+                  className="absolute top-2 right-2 p-1 rounded-full hover:bg-emerald-500/20 transition-colors z-10"
+                  aria-label="Fechar banner"
+                >
+                  <X className="w-4 h-4 text-emerald-200" />
+                </button>
+                <CardContent className="p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-emerald-500/30">
+                        <FileCheck className="w-6 h-6 text-emerald-300" />
+                      </div>
+                      <div>
+                        <h3 className="font-display font-bold text-xl text-white drop-shadow-md">
+                          {profile?.relatorio_ativo ? 'Relatórios Ativos ✓' : 'Relatórios Automáticos via WhatsApp'}
+                        </h3>
+                        <p className="text-sm text-emerald-100 mt-1 font-medium">
+                          {profile?.relatorio_ativo
+                            ? 'Seus relatórios estão sendo enviados automaticamente. Gerencie suas preferências.'
+                            : 'Receba relatórios de empréstimos, produtos, contratos e IPTV. Por apenas R$ 19,90/mês.'}
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-emerald-100 font-medium">
+                          <span className="flex items-center gap-1">✓ Diário, semanal, quinzenal</span>
+                          <span className="flex items-center gap-1">✓ Empréstimos e produtos</span>
+                          <span className="flex items-center gap-1">✓ Contratos e IPTV</span>
+                          <span className="flex items-center gap-1">✓ Direto no WhatsApp</span>
+                        </div>
+                      </div>
+                    </div>
+                    {profile?.relatorio_ativo ? (
+                      <Link to="/auto-reports">
+                        <Button className="gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold">
+                          Gerenciar
+                          <ArrowUpRight className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        onClick={() => window.open('https://pay.cakto.com.br/DKbJ3gL', '_blank')}
+                        className="gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold"
+                      >
+                        Assinar Agora
+                        <ArrowUpRight className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Banner dots indicator */}
+            {showEmployeeBanner && showReportsBanner && (
+              <div className="flex justify-center gap-2 -mt-4">
+                <button
+                  onClick={() => setActiveBanner('employee')}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    activeBanner === 'employee' ? 'bg-blue-500 w-4' : 'bg-muted-foreground/30'
+                  }`}
+                />
+                <button
+                  onClick={() => setActiveBanner('reports')}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    activeBanner === 'reports' ? 'bg-emerald-500 w-4' : 'bg-muted-foreground/30'
+                  }`}
+                />
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </>
         )}
 
         {/* Weekly Summary - Hero Card */}

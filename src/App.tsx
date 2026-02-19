@@ -45,6 +45,7 @@ const Employees = lazy(() => import("./pages/Employees"));
 const Quiz = lazy(() => import("./pages/Quiz"));
 const Plans = lazy(() => import("./pages/Plans"));
 const ConnectionTest = lazy(() => import("./pages/ConnectionTest"));
+const AutoReports = lazy(() => import("./pages/AutoReports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const PageLoader = () => (
@@ -109,6 +110,7 @@ const AppContent = () => {
               <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
               <Route path="/tutorials" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
               <Route path="/employees" element={<ProtectedRoute><OwnerOnlyRoute><Employees /></OwnerOnlyRoute></ProtectedRoute>} />
+              <Route path="/auto-reports" element={<ProtectedRoute><OwnerOnlyRoute><AutoReports /></OwnerOnlyRoute></ProtectedRoute>} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1254,6 +1254,8 @@ export type Database = {
         Row: {
           affiliate_email: string | null
           auto_client_reports_enabled: boolean
+          auto_report_categories: string[] | null
+          auto_report_frequency: string | null
           auto_report_hour: number
           auto_report_types: string[]
           billing_message_config: Json | null
@@ -1298,6 +1300,8 @@ export type Database = {
         Insert: {
           affiliate_email?: string | null
           auto_client_reports_enabled?: boolean
+          auto_report_categories?: string[] | null
+          auto_report_frequency?: string | null
           auto_report_hour?: number
           auto_report_types?: string[]
           billing_message_config?: Json | null
@@ -1342,6 +1346,8 @@ export type Database = {
         Update: {
           affiliate_email?: string | null
           auto_client_reports_enabled?: boolean
+          auto_report_categories?: string[] | null
+          auto_report_frequency?: string | null
           auto_report_hour?: number
           auto_report_types?: string[]
           billing_message_config?: Json | null

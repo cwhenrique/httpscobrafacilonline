@@ -58,6 +58,9 @@ export interface Profile {
   auto_report_types: string[];
   // Relatório via Um Clique Digital
   relatorio_ativo: boolean;
+  // Auto report preferences
+  auto_report_frequency: string | null;
+  auto_report_categories: string[] | null;
 }
 
 export function useProfile() {
