@@ -19,7 +19,9 @@ import {
   Clock,
   Loader2,
   Shield,
+  Send,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/DKbJ3gL';
 
@@ -38,6 +40,7 @@ const CATEGORY_OPTIONS = [
 export default function AutoReports() {
   const { profile, loading, updateProfile } = useProfile();
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [selectedHour, setSelectedHour] = useState<string>(
     String(profile?.auto_report_hour ?? 8)
   );
@@ -60,6 +63,27 @@ export default function AutoReports() {
     } else {
       toast.success('Configurações salvas com sucesso!');
     }
+  };
+
+  const handleSendTest = async () => {
+    if (!profile?.phone) {
+      toast.error('Cadastre seu telefone no perfil antes de enviar o teste');
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('daily-summary', {
+        body: { testPhone: profile.phone },
+      });
+      if (error) {
+        toast.error('Erro ao enviar relatório de teste');
+      } else {
+        toast.success('Relatório de teste enviado para seu WhatsApp!');
+      }
+    } catch {
+      toast.error('Erro ao enviar relatório de teste');
+    }
+    setSendingTest(false);
   };
 
   const toggleCategory = (value: string) => {
@@ -224,14 +248,25 @@ export default function AutoReports() {
               </CardContent>
             </Card>
 
-            <Button
-              onClick={handleSave}
-              disabled={saving || selectedCategories.length === 0}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Salvar Configurações
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSave}
+                disabled={saving || selectedCategories.length === 0}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Salvar Configurações
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSendTest}
+                disabled={sendingTest}
+                className="gap-2"
+              >
+                {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Enviar Relatório de Teste
+              </Button>
+            </div>
           </>
         )}
       </div>
