@@ -139,7 +139,7 @@ export function CashFlowCard({
                 <div>
                   <p className="text-sm font-semibold text-blue-500">Capital Inicial</p>
                   <p className="text-xs text-blue-400/70 mt-0.5">
-                    {isUsingCalculatedBalance ? 'Baseado nos contratos ativos' : 'Configurado manualmente'}
+                    {isUsingCalculatedBalance ? 'Baseado nos empréstimos do período' : 'Configurado manualmente'}
                   </p>
                 </div>
               </div>

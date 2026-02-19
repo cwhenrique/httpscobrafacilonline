@@ -750,17 +750,18 @@ export default function ReportsLoans() {
   // Cálculo do saldo inicial padrão = Principal dos contratos ativos (não quitados)
   // Representa o capital que o usuário tem atualmente investido em empréstimos
   const calculatedInitialBalance = useMemo(() => {
-    const periodStart = dateRange?.from ? startOfDay(dateRange.from) : null;
-    const activeLoansTotal = stats.allLoans
+    if (!dateRange?.from || !dateRange?.to) {
+      return stats.allLoans
+        .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+    }
+    const start = startOfDay(dateRange.from);
+    const end = endOfDay(dateRange.to);
+    return stats.allLoans
       .filter(loan => {
-        if (loan.status === 'paid') return false;
-        if (!periodStart) return true;
         const loanDate = parseISO(loan.contract_date || loan.start_date);
-        return loanDate < periodStart;
+        return isWithinInterval(loanDate, { start, end });
       })
       .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-    
-    return activeLoansTotal;
   }, [stats.allLoans, dateRange]);
   
   const cashFlowStats = useMemo(() => {
@@ -819,7 +820,7 @@ export default function ReportsLoans() {
   }, [billsInPeriod]);
 
   const balanceStats = useMemo(() => {
-    const totalInflows = filteredStats.totalReceived + filteredStats.realizedProfit;
+    const totalInflows = filteredStats.totalReceived;
     const totalOutflows = filteredStats.totalLent + billsStats.paidTotal;
     const netResult = totalInflows - totalOutflows;
     return { totalInflows, totalOutflows, netResult };
