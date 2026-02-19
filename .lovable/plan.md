@@ -1,30 +1,73 @@
 
-# Corrigir Dupla Contagem de Juros no Fluxo de Caixa
+
+# Corrigir Lógica do Fluxo de Caixa - Dupla Contagem no Capital Inicial
 
 ## Problema
 
-O Fluxo de Caixa esta somando "Pagamentos recebidos" (R$12.574) + "Juros recebidos" (R$2.462) = R$15.036, porem os R$2.462 de juros ja estao incluidos nos R$12.574 de pagamentos. O valor correto de entradas e R$12.574.
+O Capital Inicial esta sendo calculado como a soma do principal de **todos os emprestimos ativos**, incluindo os criados **durante** o periodo selecionado. Isso causa dupla contagem porque esses mesmos emprestimos tambem aparecem como "Saidas" (Emprestimos concedidos no periodo).
 
-A causa esta na linha 84 do `CashFlowCard.tsx`:
-```
-totalInflows = receivedInPeriod + interestReceived
-```
+Exemplo do usuario:
+- Capital Inicial: R$7.700 (soma de todos emprestimos ativos)
+- Saidas: R$16.900 (emprestimos concedidos no periodo 01/02 a 19/02)
+- Os R$7.700 do capital inicial ja incluem emprestimos criados nesse periodo, inflando ambos os lados
 
-`receivedInPeriod` ja contem os juros (e a soma de `payment.amount`, que inclui principal + juros). Somar `interestReceived` novamente causa dupla contagem.
+Alem disso, na linha 770 do `ReportsLoans.tsx`, o calculo de `currentBalance` ainda soma `interestReceived`, duplicando o bug que acabamos de corrigir no componente `CashFlowCard.tsx`.
 
 ## Solucao
 
-Alterar o calculo de `totalInflows` para usar apenas `receivedInPeriod`, e exibir "Juros recebidos" como um **detalhamento informativo** (quanto dos pagamentos recebidos veio de juros), nao como uma entrada adicional.
+1. **Capital Inicial calculado** deve representar o capital investido em emprestimos que ja existiam **antes** do inicio do periodo selecionado. Filtrar apenas emprestimos ativos cuja `contract_date` (ou `start_date`) seja anterior ao inicio do periodo.
+
+2. **Remover a soma de `interestReceived`** no calculo de `currentBalance` em `ReportsLoans.tsx` (linha 770), alinhando com a correcao ja feita no `CashFlowCard.tsx`.
 
 ## Arquivo modificado
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/reports/CashFlowCard.tsx` | Corrigir `totalInflows` para nao somar juros duas vezes. Exibir juros como subtotal informativo dentro de "Pagamentos recebidos". |
+| `src/pages/ReportsLoans.tsx` | Filtrar `calculatedInitialBalance` para incluir apenas emprestimos ativos criados antes do inicio do periodo. Remover `+ interestReceived` da linha 770. |
 
 ## Detalhes tecnicos
 
-1. Mudar `totalInflows = receivedInPeriod` (remover `+ interestReceived`)
-2. Atualizar `currentBalance` que tambem usa `totalInflows` (corrigido automaticamente)
-3. Na secao visual de Entradas, manter "Pagamentos recebidos" como valor principal e mostrar "dos quais juros" como detalhe subordinado (indentado, texto menor), para o usuario entender a composicao sem dupla contagem
-4. O header de Entradas mostrara o valor correto (R$12.574 no caso do usuario)
+### 1. Corrigir `calculatedInitialBalance` (linhas 752-758)
+
+Antes:
+```tsx
+const calculatedInitialBalance = useMemo(() => {
+  const activeLoansTotal = stats.allLoans
+    .filter(loan => loan.status !== 'paid')
+    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+  return activeLoansTotal;
+}, [stats.allLoans]);
+```
+
+Depois:
+```tsx
+const calculatedInitialBalance = useMemo(() => {
+  const periodStart = dateRange?.from ? startOfDay(dateRange.from) : null;
+  const activeLoansTotal = stats.allLoans
+    .filter(loan => {
+      if (loan.status === 'paid') return false;
+      if (!periodStart) return true;
+      const loanDate = parseISO(loan.contract_date || loan.start_date);
+      return loanDate < periodStart;
+    })
+    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+  return activeLoansTotal;
+}, [stats.allLoans, dateRange]);
+```
+
+Isso garante que apenas emprestimos criados **antes** do periodo sejam contados como capital inicial. Emprestimos criados **durante** o periodo aparecerao apenas como saidas.
+
+### 2. Remover dupla contagem de juros (linha 770)
+
+Antes:
+```tsx
+const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod + interestReceived;
+```
+
+Depois:
+```tsx
+const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
+```
+
+Alinha com a correcao ja aplicada no `CashFlowCard.tsx`.
+
