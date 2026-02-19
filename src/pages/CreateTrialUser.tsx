@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
@@ -58,6 +59,7 @@ export default function CreateTrialUser() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const [affiliateLinkUser, setAffiliateLinkUser] = useState<User | null>(null);
   const [affiliates, setAffiliates] = useState<{ id: string; email: string; name: string }[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -66,6 +68,24 @@ export default function CreateTrialUser() {
     subscription_plan: 'trial' as 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime',
     affiliate_email: '' as string
   });
+
+  const toggleUserSelection = useCallback((userId: string) => {
+    setSelectedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }, []);
+
+  const toggleAllSelection = useCallback((allIds: string[]) => {
+    setSelectedUsers(prev => {
+      if (allIds.length > 0 && allIds.every(id => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(allIds);
+    });
+  }, []);
 
   useEffect(() => {
     const authStatus = sessionStorage.getItem('trial_admin_auth');
@@ -980,9 +1000,21 @@ export default function CreateTrialUser() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
+                  {selectedUsers.size > 0 && (
+                    <p className="text-sm text-primary font-medium mb-2">
+                      {selectedUsers.size} usuário{selectedUsers.size > 1 ? 's' : ''} selecionado{selectedUsers.size > 1 ? 's' : ''}
+                    </p>
+                  )}
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUsers.has(u.id))}
+                            onCheckedChange={() => toggleAllSelection(paginatedUsers.map(u => u.id))}
+                            aria-label="Selecionar todos"
+                          />
+                        </TableHead>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Telefone</TableHead>
@@ -998,7 +1030,14 @@ export default function CreateTrialUser() {
                       {paginatedUsers.map((user) => {
                         const statusInfo = getStatusInfo(user);
                         return (
-                          <TableRow key={user.id}>
+                          <TableRow key={user.id} data-state={selectedUsers.has(user.id) ? 'selected' : undefined}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedUsers.has(user.id)}
+                                onCheckedChange={() => toggleUserSelection(user.id)}
+                                aria-label={`Selecionar ${user.full_name}`}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">
                               {user.full_name || '-'}
                             </TableCell>
