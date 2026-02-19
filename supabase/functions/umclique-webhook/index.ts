@@ -193,6 +193,24 @@ serve(async (req) => {
     const pending = pendingMessages[0];
     console.log(`Found pending message: ${pending.id} for client: ${pending.client_name}`);
 
+    // Check if the owner has relatorio_ativo enabled
+    const { data: ownerProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('relatorio_ativo, full_name')
+      .eq('id', pending.user_id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Error checking owner profile:', profileError);
+    }
+
+    if (!ownerProfile?.relatorio_ativo) {
+      console.log('Owner does not have relatorio_ativo enabled, ignoring');
+      return new Response(JSON.stringify({ ignored: true, reason: 'relatorio_not_active' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // === DECLINE FLOW ===
     if (isDecline) {
       console.log('Client DECLINED the report');
@@ -220,43 +238,53 @@ serve(async (req) => {
     }
 
     // === CONFIRM FLOW ===
-    console.log('Client CONFIRMED the report, sending...');
+    console.log('Client CONFIRMED the report, sending via Um Clique Digital API...');
 
-    // Determine if self-message or client message
-    const isSelfMessage = pending.message_type?.startsWith('self_');
-
-    let sendResult, sendError;
-
-    if (isSelfMessage) {
-      console.log('Sending self-message via send-whatsapp');
-      const result = await supabase.functions.invoke('send-whatsapp', {
-        body: {
-          phone: pending.client_phone,
-          message: pending.message_content,
-        },
-      });
-      sendResult = result.data;
-      sendError = result.error;
-    } else {
-      console.log('Sending client message via send-whatsapp-to-client');
-      const result = await supabase.functions.invoke('send-whatsapp-to-client', {
-        body: {
-          userId: pending.user_id,
-          clientPhone: pending.client_phone,
-          message: pending.message_content,
-        },
-      });
-      sendResult = result.data;
-      sendError = result.error;
+    // Send report via Um Clique Digital API (template message)
+    const umcliqueApiKey = Deno.env.get('UMCLIQUE_API_KEY');
+    if (!umcliqueApiKey) {
+      console.error('UMCLIQUE_API_KEY not configured');
+      throw new Error('UMCLIQUE_API_KEY not configured');
     }
 
-    if (sendError) {
-      console.error('Error sending message:', sendError);
+    // Format phone for the API (needs country code)
+    let apiPhone = pending.client_phone.replace(/\D/g, '');
+    if (!apiPhone.startsWith('55')) {
+      apiPhone = '55' + apiPhone;
+    }
+
+    const templateBody = {
+      channel_id: '1060061327180048',
+      to: apiPhone,
+      type: 'template',
+      template_name: 'relatorio',
+      template_language: 'pt_BR',
+      template_variables: [
+        { type: 'text', text: pending.client_name }
+      ],
+    };
+
+    console.log('Sending template via Um Clique API:', JSON.stringify(templateBody));
+
+    const apiResponse = await fetch('https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': umcliqueApiKey,
+      },
+      body: JSON.stringify(templateBody),
+    });
+
+    const apiResult = await apiResponse.text();
+    console.log('Um Clique API response:', apiResponse.status, apiResult);
+
+    if (!apiResponse.ok) {
+      console.error('Error sending via Um Clique API:', apiResult);
       await supabase
         .from('pending_messages')
         .update({ status: 'failed' })
         .eq('id', pending.id);
-      throw sendError;
+      throw new Error(`Um Clique API error: ${apiResponse.status} - ${apiResult}`);
     }
 
     // Update to confirmed + sent
@@ -289,7 +317,7 @@ serve(async (req) => {
       success: true,
       action: 'confirmed',
       clientName: pending.client_name,
-      message: 'Report sent successfully',
+      message: 'Report sent successfully via Um Clique Digital',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

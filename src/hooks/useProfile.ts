@@ -56,6 +56,8 @@ export interface Profile {
   auto_client_reports_enabled: boolean;
   auto_report_hour: number;
   auto_report_types: string[];
+  // Relatório via Um Clique Digital
+  relatorio_ativo: boolean;
 }
 
 export function useProfile() {
