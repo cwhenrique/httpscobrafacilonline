@@ -32,13 +32,12 @@ export interface NewExtraCost {
 }
 
 interface CashFlowCardProps {
-  initialBalance: number;
-  calculatedInitialBalance: number;
+  extraCash: number;
   loanedInPeriod: number;
   totalOnStreet: number;
   receivedInPeriod: number;
   interestReceived: number;
-  onUpdateInitialBalance: (value: number) => void;
+  onUpdateExtraCash: (value: number) => void;
   billsPaidTotal: number;
   billsPendingTotal: number;
   billsCount: number;
@@ -49,13 +48,12 @@ interface CashFlowCardProps {
 }
 
 export function CashFlowCard({
-  initialBalance,
-  calculatedInitialBalance,
+  extraCash,
   loanedInPeriod,
   totalOnStreet,
   receivedInPeriod,
   interestReceived,
-  onUpdateInitialBalance,
+  onUpdateExtraCash,
   billsPaidTotal,
   billsPendingTotal,
   billsCount,
@@ -75,17 +73,15 @@ export function CashFlowCard({
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const effectiveInitialBalance = initialBalance > 0 ? initialBalance : calculatedInitialBalance;
-  const isUsingCalculatedBalance = initialBalance <= 0 && calculatedInitialBalance > 0;
-
+  const extraCashValue = extraCash > 0 ? extraCash : 0;
   const extraCostsTotal = extraCosts.reduce((s, c) => s + c.amount, 0);
   const billsOutflow = includeBills ? billsPaidTotal : 0;
   const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
   const totalInflows = receivedInPeriod;
-  const currentBalance = effectiveInitialBalance - totalOutflows + totalInflows;
-  const isPositive = currentBalance >= 0;
-  const dynamicNetResult = totalInflows - totalOutflows;
+  const resultado = extraCashValue + totalInflows - totalOutflows;
+  const isPositive = resultado >= 0;
   const hasProfit = interestReceived > 0;
+  const dynamicNetResult = totalInflows - totalOutflows;
   const isNetPositive = dynamicNetResult >= 0;
 
   const handleSaveExtraCost = async () => {
@@ -132,32 +128,38 @@ export function CashFlowCard({
 
           <CardContent className="pt-0 space-y-3">
 
-            {/* ── Capital Inicial ─────────────────────────────────── */}
-            <div className="flex items-center justify-between bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">
-              <div className="flex items-start gap-3">
-                <PiggyBank className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-blue-500">Capital Inicial</p>
-                  <p className="text-xs text-blue-400/70 mt-0.5">
-                    {isUsingCalculatedBalance ? 'Baseado nos empréstimos do período' : 'Configurado manualmente'}
-                  </p>
+            {/* ── Caixa Extra (opcional) ────────────────────────── */}
+            {extraCashValue > 0 && (
+              <div className="flex items-center justify-between bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
+                <div className="flex items-center gap-2.5">
+                  <PiggyBank className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-500">Caixa Extra</p>
+                    <p className="text-xs text-blue-400/70">Dinheiro disponível não emprestado</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-lg font-bold text-blue-500">{formatCurrency(extraCashValue)}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfigOpen(true)}
+                    className="h-7 px-2 border-blue-500/40 text-blue-500 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/60 shrink-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <p className="text-xl sm:text-2xl font-bold text-blue-500 tracking-tight">
-                  {formatCurrency(effectiveInitialBalance)}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setConfigOpen(true)}
-                  className="h-8 px-3 border-blue-500/40 text-blue-500 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/60 gap-1.5 shrink-0"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  Editar
-                </Button>
-              </div>
-            </div>
+            )}
+            {extraCashValue <= 0 && (
+              <button
+                onClick={() => setConfigOpen(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-blue-500 transition-colors py-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar caixa extra
+              </button>
+            )}
 
             {/* ── Seta divisória ──────────────────────────────────── */}
             <div className="flex justify-center">
@@ -391,7 +393,7 @@ export function CashFlowCard({
               <ChevronDown className="w-4 h-4 text-muted-foreground/30" />
             </div>
 
-            {/* ── Saldo Atual ─────────────────────────────────────── */}
+            {/* ── Resultado do Período ──────────────────────────── */}
             <div className={cn(
               "rounded-xl p-5 border-2 text-center",
               isPositive
@@ -400,15 +402,17 @@ export function CashFlowCard({
             )}>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <Wallet className={cn("w-5 h-5", isPositive ? "text-emerald-500" : "text-red-500")} />
-                <span className="text-sm text-muted-foreground font-medium">Saldo Atual</span>
+                <span className="text-sm text-muted-foreground font-medium">Resultado do Período</span>
               </div>
               <p className={cn(
                 "text-3xl sm:text-4xl font-bold tracking-tight",
                 isPositive ? "text-emerald-500" : "text-red-500"
               )}>
-                {formatCurrency(currentBalance)}
+                {isPositive ? '+' : ''}{formatCurrency(resultado)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">em caixa</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isPositive ? 'entrou mais do que saiu' : 'saiu mais do que entrou'}
+              </p>
             </div>
 
             {/* ── Rodapé: 3 métricas ──────────────────────────────── */}
@@ -454,9 +458,8 @@ export function CashFlowCard({
       <CashFlowConfigModal
         open={configOpen}
         onOpenChange={setConfigOpen}
-        currentBalance={initialBalance}
-        suggestedBalance={calculatedInitialBalance}
-        onSave={onUpdateInitialBalance}
+        currentBalance={extraCash}
+        onSave={onUpdateExtraCash}
       />
     </>
   );

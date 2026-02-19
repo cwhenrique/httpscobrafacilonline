@@ -747,43 +747,12 @@ export default function ReportsLoans() {
   // Cash Flow calculations
   const initialCashBalance = profile?.cash_flow_initial_balance || 0;
   
-  // Cálculo do saldo inicial padrão = Principal dos contratos ativos (não quitados)
-  // Representa o capital que o usuário tem atualmente investido em empréstimos
-  const calculatedInitialBalance = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) {
-      return stats.allLoans
-        .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-    }
-    const start = startOfDay(dateRange.from);
-    const end = endOfDay(dateRange.to);
-    return stats.allLoans
-      .filter(loan => {
-        const loanDate = parseISO(loan.contract_date || loan.start_date);
-        return isWithinInterval(loanDate, { start, end });
-      })
-      .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-  }, [stats.allLoans, dateRange]);
-  
-  const cashFlowStats = useMemo(() => {
-    const loanedInPeriod = filteredStats.totalLent;
-    const receivedInPeriod = filteredStats.totalReceived;
-    const interestReceived = filteredStats.realizedProfit;
-    
-    // Usar valor manual se configurado, senão usar valor calculado
-    const effectiveBalance = initialCashBalance > 0 
-      ? initialCashBalance 
-      : calculatedInitialBalance;
-    
-    const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
-    
-    return {
-      initialBalance: initialCashBalance,
-      loanedInPeriod,
-      receivedInPeriod,
-      interestReceived,
-      currentBalance,
-    };
-  }, [initialCashBalance, calculatedInitialBalance, filteredStats]);
+  const cashFlowStats = useMemo(() => ({
+    extraCash: initialCashBalance,
+    loanedInPeriod: filteredStats.totalLent,
+    receivedInPeriod: filteredStats.totalReceived,
+    interestReceived: filteredStats.realizedProfit,
+  }), [initialCashBalance, filteredStats]);
 
   // ── Bills integration ──────────────────────────────────────────────────────
 
@@ -869,7 +838,7 @@ export default function ReportsLoans() {
       toast.error('Erro ao atualizar saldo inicial');
     } else {
       await refetchProfile();
-      toast.success('Saldo inicial atualizado!');
+      toast.success('Caixa extra atualizado!');
     }
   };
 
@@ -1229,13 +1198,12 @@ export default function ReportsLoans() {
 
         {/* Cash Flow Card */}
         <CashFlowCard
-          initialBalance={cashFlowStats.initialBalance}
-          calculatedInitialBalance={calculatedInitialBalance}
+          extraCash={cashFlowStats.extraCash}
           loanedInPeriod={cashFlowStats.loanedInPeriod}
           totalOnStreet={filteredStats.totalOnStreet}
           receivedInPeriod={cashFlowStats.receivedInPeriod}
           interestReceived={cashFlowStats.interestReceived}
-          onUpdateInitialBalance={handleUpdateCashFlowBalance}
+          onUpdateExtraCash={handleUpdateCashFlowBalance}
           billsPaidTotal={billsStats.paidTotal}
           billsPendingTotal={billsStats.pendingTotal}
           billsCount={billsStats.paidCount}
