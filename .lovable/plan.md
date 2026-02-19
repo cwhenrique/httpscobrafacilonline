@@ -1,54 +1,24 @@
 
 
-# Adicionar Contratos ao Relatório Diário
+# Remover Acesso ao Relatorio - clau_pogian@hotmail.com
 
 ## Objetivo
-Incluir a categoria "Contratos" no relatório diário do WhatsApp, seguindo o mesmo padrão já existente para Veículos e Produtos.
 
-## Como ficará no relatório
+Desativar o envio de relatorios diarios para a conta `clau_pogian@hotmail.com`.
 
-```text
-⏰ *VENCE HOJE* — R$ X.XXX,XX
+## Como funciona hoje
 
-💵 Empréstimos (2)
-...
+O campo `relatorio_ativo` na tabela `profiles` controla se o usuario recebe relatorios. Atualmente esta como `true` para esta conta.
 
-📄 Contratos (1)
-• João Silva — R$ 500,00
-  ↳ Aluguel Apt 202 • Parcela 3/12
+## Alteracao
 
-🚗 Veículos (1)
-...
+Executar um UPDATE simples no banco de dados para setar `relatorio_ativo = false` para o usuario com email `clau_pogian@hotmail.com` (ID: `f83121f6-8ffe-4945-a35e-aaf389974162`).
 
-🚨 *EM ATRASO* — R$ X.XXX,XX
+Isso fara com que a funcao `daily-summary` ignore este usuario, pois a query filtra por `relatorio_ativo.eq.true`.
 
-📄 Contratos (2)
-• Maria Santos — R$ 300,00
-  ↳ 5 dias de atraso • Contrato Mensal • Parcela 2/6
-```
+## Detalhes Tecnicos
 
-## Alterações Técnicas
-
-### Arquivo: `supabase/functions/daily-summary/index.ts`
-
-1. **Nova query paralela** (linha 289, no `Promise.all`):
-   - Consultar `contract_payments` com join em `contracts` para obter `client_name`, `contract_type` e `installments`
-   - Filtrar por `user_id`, `status = 'pending'`
-
-2. **Nova interface `ContractInfo`** (similar a `VehicleInfo` e `ProductInfo`):
-   - `id`, `clientName`, `contractType`, `amount`, `installment`, `totalInstallments`, `daysOverdue`
-
-3. **Categorizar contratos** em `dueTodayContracts` e `overdueContracts` (mesmo padrão de veículos/produtos)
-
-4. **Incluir nos totais**:
-   - `totalDueToday` soma `contractTotalToday`
-   - `grandTotalOverdue` soma `contractTotalOverdue`
-   - `hasDueToday`, `hasOverdue`, `totalDueTodayCount`, `totalOverdueCount` incluem contratos
-
-5. **Adicionar seções de contratos na mensagem**:
-   - Bloco "Vence Hoje": seção `📄 Contratos (N)` entre Empréstimos e Veículos
-   - Bloco "Em Atraso": seção `📄 Contratos (N)` entre Empréstimos e Veículos
-
-6. **Incluir contratos ativos nas métricas "Sua Carteira"**:
-   - Adicionar linha `▸ Contratos ativos: X`
+- Nenhuma alteracao de codigo necessaria
+- Apenas um UPDATE no banco: `UPDATE profiles SET relatorio_ativo = false WHERE id = 'f83121f6-...'`
+- O usuario ainda tera o WhatsApp conectado (`whatsapp_instance_id` permanece), apenas nao recebera mais o relatorio automatico
 
