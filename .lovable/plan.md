@@ -1,73 +1,63 @@
 
 
-# Corrigir Lógica do Fluxo de Caixa - Dupla Contagem no Capital Inicial
+# Reajustar Lógica do Fluxo de Caixa
 
-## Problema
+## Nova lógica
 
-O Capital Inicial esta sendo calculado como a soma do principal de **todos os emprestimos ativos**, incluindo os criados **durante** o periodo selecionado. Isso causa dupla contagem porque esses mesmos emprestimos tambem aparecem como "Saidas" (Emprestimos concedidos no periodo).
+O fluxo de caixa passa a funcionar assim:
 
-Exemplo do usuario:
-- Capital Inicial: R$7.700 (soma de todos emprestimos ativos)
-- Saidas: R$16.900 (emprestimos concedidos no periodo 01/02 a 19/02)
-- Os R$7.700 do capital inicial ja incluem emprestimos criados nesse periodo, inflando ambos os lados
+- **Capital Inicial** = soma do `principal_amount` de todos os emprestimos criados **dentro do periodo selecionado** (representa o dinheiro que o usuario tinha e colocou pra trabalhar)
+- **Saidas** = mesma soma (o dinheiro saiu como emprestimos concedidos no periodo)
+- **Entradas** = pagamentos recebidos no periodo
+- **Saldo Atual** = Capital Inicial - Saidas + Entradas
 
-Alem disso, na linha 770 do `ReportsLoans.tsx`, o calculo de `currentBalance` ainda soma `interestReceived`, duplicando o bug que acabamos de corrigir no componente `CashFlowCard.tsx`.
+Tudo respeita rigorosamente o filtro de periodo. Se um emprestimo foi criado no dia 18/02 e o filtro comeca no dia 19/02, ele nao aparece nem no capital inicial nem nas saidas.
 
-## Solucao
-
-1. **Capital Inicial calculado** deve representar o capital investido em emprestimos que ja existiam **antes** do inicio do periodo selecionado. Filtrar apenas emprestimos ativos cuja `contract_date` (ou `start_date`) seja anterior ao inicio do periodo.
-
-2. **Remover a soma de `interestReceived`** no calculo de `currentBalance` em `ReportsLoans.tsx` (linha 770), alinhando com a correcao ja feita no `CashFlowCard.tsx`.
-
-## Arquivo modificado
+## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/ReportsLoans.tsx` | Filtrar `calculatedInitialBalance` para incluir apenas emprestimos ativos criados antes do inicio do periodo. Remover `+ interestReceived` da linha 770. |
+| `src/pages/ReportsLoans.tsx` | Alterar `calculatedInitialBalance` para usar emprestimos criados **dentro** do periodo (nao antes). Corrigir `balanceStats` que ainda soma juros duplicados. |
+| `src/components/reports/CashFlowCard.tsx` | Atualizar texto do Capital Inicial para refletir que e baseado nos emprestimos do periodo. |
 
 ## Detalhes tecnicos
 
-### 1. Corrigir `calculatedInitialBalance` (linhas 752-758)
+### 1. `ReportsLoans.tsx` - calculatedInitialBalance (linhas 752-764)
 
-Antes:
+Antes: filtra emprestimos ativos criados **antes** do periodo.
+Depois: filtra emprestimos criados **dentro** do periodo selecionado (usando `isWithinInterval`), incluindo tanto ativos quanto pagos, pois o capital inicial representa o total investido no periodo.
+
 ```tsx
 const calculatedInitialBalance = useMemo(() => {
-  const activeLoansTotal = stats.allLoans
-    .filter(loan => loan.status !== 'paid')
-    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-  return activeLoansTotal;
-}, [stats.allLoans]);
-```
-
-Depois:
-```tsx
-const calculatedInitialBalance = useMemo(() => {
-  const periodStart = dateRange?.from ? startOfDay(dateRange.from) : null;
-  const activeLoansTotal = stats.allLoans
+  if (!dateRange?.from || !dateRange?.to) {
+    return stats.allLoans
+      .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
+  }
+  const start = startOfDay(dateRange.from);
+  const end = endOfDay(dateRange.to);
+  return stats.allLoans
     .filter(loan => {
-      if (loan.status === 'paid') return false;
-      if (!periodStart) return true;
       const loanDate = parseISO(loan.contract_date || loan.start_date);
-      return loanDate < periodStart;
+      return isWithinInterval(loanDate, { start, end });
     })
     .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-  return activeLoansTotal;
 }, [stats.allLoans, dateRange]);
 ```
 
-Isso garante que apenas emprestimos criados **antes** do periodo sejam contados como capital inicial. Emprestimos criados **durante** o periodo aparecerao apenas como saidas.
+### 2. `ReportsLoans.tsx` - balanceStats (linhas 821-826)
 
-### 2. Remover dupla contagem de juros (linha 770)
+Corrigir dupla contagem de juros que ainda existe neste calculo:
 
-Antes:
 ```tsx
-const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod + interestReceived;
+const balanceStats = useMemo(() => {
+  const totalInflows = filteredStats.totalReceived;
+  const totalOutflows = filteredStats.totalLent + billsStats.paidTotal;
+  const netResult = totalInflows - totalOutflows;
+  return { totalInflows, totalOutflows, netResult };
+}, [filteredStats, billsStats]);
 ```
 
-Depois:
-```tsx
-const currentBalance = effectiveBalance - loanedInPeriod + receivedInPeriod;
-```
+### 3. `CashFlowCard.tsx` - texto do Capital Inicial (linha ~117)
 
-Alinha com a correcao ja aplicada no `CashFlowCard.tsx`.
+Alterar o texto descritivo de "Baseado nos contratos ativos" para "Baseado nos emprestimos do periodo", e "Configurado manualmente" permanece quando o usuario definir manualmente.
 
