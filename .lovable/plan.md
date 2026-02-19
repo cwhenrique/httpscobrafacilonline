@@ -1,24 +1,20 @@
 
 
-# Remover Acesso ao Relatorio - clau_pogian@hotmail.com
+# Atualizar Link de Compra na Pagina de Relatorios
 
 ## Objetivo
-
-Desativar o envio de relatorios diarios para a conta `clau_pogian@hotmail.com`.
-
-## Como funciona hoje
-
-O campo `relatorio_ativo` na tabela `profiles` controla se o usuario recebe relatorios. Atualmente esta como `true` para esta conta.
+Substituir o link de checkout atual pelo novo link fornecido.
 
 ## Alteracao
 
-Executar um UPDATE simples no banco de dados para setar `relatorio_ativo = false` para o usuario com email `clau_pogian@hotmail.com` (ID: `f83121f6-8ffe-4945-a35e-aaf389974162`).
+No arquivo `src/pages/AutoReports.tsx`, trocar a constante `CAKTO_CHECKOUT_URL` de:
+```
+https://pay.cakto.com.br/DKbJ3gL
+```
+Para:
+```
+https://pay.cakto.com.br/3c4qf8i
+```
 
-Isso fara com que a funcao `daily-summary` ignore este usuario, pois a query filtra por `relatorio_ativo.eq.true`.
-
-## Detalhes Tecnicos
-
-- Nenhuma alteracao de codigo necessaria
-- Apenas um UPDATE no banco: `UPDATE profiles SET relatorio_ativo = false WHERE id = 'f83121f6-...'`
-- O usuario ainda tera o WhatsApp conectado (`whatsapp_instance_id` permanece), apenas nao recebera mais o relatorio automatico
+Isso afeta os dois botoes de compra na pagina: o botao no card de status ("Assinar R$ 19,90/mes") e o botao do CTA principal ("Assinar Agora — R$ 19,90/mes").
 
