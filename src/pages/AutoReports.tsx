@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 import {
@@ -16,20 +17,16 @@ import {
   FileText,
   Tv,
   Clock,
-  CalendarDays,
-  CalendarRange,
-  Calendar,
   Loader2,
+  Shield,
 } from 'lucide-react';
 
 const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/DKbJ3gL';
 
-const FREQUENCY_OPTIONS = [
-  { value: 'daily', label: 'Diário', description: 'Receba todos os dias', icon: Clock },
-  { value: 'weekly', label: 'Semanal', description: 'Uma vez por semana', icon: CalendarDays },
-  { value: 'biweekly', label: 'Quinzenal', description: 'A cada 15 dias', icon: CalendarRange },
-  { value: 'monthly', label: 'Mensal', description: 'Uma vez por mês', icon: Calendar },
-];
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: String(i),
+  label: `${String(i).padStart(2, '0')}:00`,
+}));
 
 const CATEGORY_OPTIONS = [
   { value: 'loans', label: 'Empréstimos', icon: DollarSign },
@@ -41,8 +38,8 @@ const CATEGORY_OPTIONS = [
 export default function AutoReports() {
   const { profile, loading, updateProfile } = useProfile();
   const [saving, setSaving] = useState(false);
-  const [selectedFrequency, setSelectedFrequency] = useState<string>(
-    profile?.auto_report_frequency || 'daily'
+  const [selectedHour, setSelectedHour] = useState<string>(
+    String(profile?.auto_report_hour ?? 8)
   );
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     profile?.auto_report_categories || ['loans']
@@ -53,7 +50,7 @@ export default function AutoReports() {
   const handleSave = async () => {
     setSaving(true);
     const { error } = await updateProfile({
-      auto_report_frequency: selectedFrequency,
+      auto_report_hour: Number(selectedHour),
       auto_report_categories: selectedCategories,
     } as any);
     setSaving(false);
@@ -87,9 +84,9 @@ export default function AutoReports() {
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in max-w-4xl">
         <div>
-          <h1 className="text-2xl font-display font-bold">Relatórios Automáticos</h1>
+          <h1 className="text-2xl font-display font-bold">Relatório Diário de Cobranças</h1>
           <p className="text-muted-foreground">
-            Receba relatórios completos via WhatsApp automaticamente
+            Receba diariamente no seu WhatsApp quem cobrar e quem está em atraso
           </p>
         </div>
 
@@ -112,8 +109,8 @@ export default function AutoReports() {
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {isActive
-                      ? 'Seus relatórios estão sendo enviados automaticamente'
-                      : 'Assine para receber relatórios automáticos via WhatsApp'}
+                      ? 'Você recebe diariamente via API oficial do WhatsApp a lista de cobranças do dia'
+                      : 'Assine para receber diariamente a lista de cobranças do dia via API oficial do WhatsApp'}
                   </p>
                 </div>
               </div>
@@ -140,18 +137,23 @@ export default function AutoReports() {
           <Card className="shadow-soft bg-gradient-to-br from-emerald-900/30 to-green-900/30 border-emerald-500/30">
             <CardContent className="p-8 text-center">
               <FileCheck className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-              <h2 className="text-xl font-bold mb-2">Relatórios Automáticos via WhatsApp</h2>
+              <h2 className="text-xl font-bold mb-2">Relatório Diário de Cobranças via WhatsApp</h2>
               <p className="text-muted-foreground mb-4 max-w-lg mx-auto">
-                Receba relatórios detalhados sobre empréstimos, produtos, contratos e IPTV
-                diretamente no seu WhatsApp. Escolha a frequência: diário, semanal, quinzenal ou mensal.
+                Receba uma vez por dia, de um número nosso via API oficial do WhatsApp, a lista completa
+                de quem você deve cobrar naquele dia e quem está em atraso. Você define o horário de
+                recebimento. Serviço em parceria com WhatsApp.
               </p>
-              <div className="flex flex-wrap justify-center gap-3 mb-6">
+              <div className="flex flex-wrap justify-center gap-3 mb-4">
                 {CATEGORY_OPTIONS.map(cat => (
                   <div key={cat.value} className="flex items-center gap-2 bg-background/30 rounded-full px-4 py-2">
                     <cat.icon className="w-4 h-4 text-emerald-400" />
                     <span className="text-sm font-medium">{cat.label}</span>
                   </div>
                 ))}
+              </div>
+              <div className="flex items-center justify-center gap-2 mb-6 text-xs text-muted-foreground">
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <span>Parceria oficial com WhatsApp — API verificada</span>
               </div>
               <Button
                 size="lg"
@@ -168,31 +170,27 @@ export default function AutoReports() {
         {/* Configuration - only for active subscribers */}
         {isActive && (
           <>
-            {/* Frequency */}
+            {/* Delivery Time */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Frequência dos Relatórios</CardTitle>
-                <CardDescription>Escolha com que frequência deseja receber os relatórios</CardDescription>
+                <CardTitle className="text-lg">Horário de Recebimento</CardTitle>
+                <CardDescription>Escolha em qual horário deseja receber a lista de cobranças do dia</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {FREQUENCY_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSelectedFrequency(opt.value)}
-                      className={`p-4 rounded-xl border-2 text-left transition-all ${
-                        selectedFrequency === opt.value
-                          ? 'border-emerald-500 bg-emerald-500/10'
-                          : 'border-border hover:border-emerald-500/50'
-                      }`}
-                    >
-                      <opt.icon className={`w-5 h-5 mb-2 ${
-                        selectedFrequency === opt.value ? 'text-emerald-400' : 'text-muted-foreground'
-                      }`} />
-                      <p className="font-medium text-sm">{opt.label}</p>
-                      <p className="text-xs text-muted-foreground">{opt.description}</p>
-                    </button>
-                  ))}
+                <div className="flex items-center gap-3 max-w-xs">
+                  <Clock className="w-5 h-5 text-emerald-400" />
+                  <Select value={selectedHour} onValueChange={setSelectedHour}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o horário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOUR_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
