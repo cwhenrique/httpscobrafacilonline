@@ -17,6 +17,22 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
+const getWeekdayName = (date: Date): string => {
+  const days = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  return days[date.getDay()];
+};
+
+const getPaymentTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    daily: 'Diário',
+    weekly: 'Semanal',
+    biweekly: 'Quinzenal',
+    installment: 'Mensal',
+    single: 'Único',
+  };
+  return labels[type] || 'Mensal';
+};
+
 const cleanApiUrl = (url: string): string => {
   let cleaned = url.replace(/\/+$/, '');
   const pathPatterns = [
@@ -317,6 +333,9 @@ const handler = async (req: Request): Promise<Response> => {
         dueDate: string;
         daysOverdue?: number;
         paymentType?: string;
+        installmentNumber?: number;
+        totalInstallments?: number;
+        paymentTypeLabel?: string;
       }
 
       const dueTodayLoans: LoanInfo[] = [];
@@ -384,6 +403,9 @@ const handler = async (req: Request): Promise<Response> => {
               amount: dailyAmount,
               dueDate: installmentDate,
               paymentType: loan.payment_type,
+              installmentNumber: i + 1,
+              totalInstallments: installmentDates.length,
+              paymentTypeLabel: getPaymentTypeLabel(loan.payment_type),
             };
             
             if (installmentDate === todayStr) {
@@ -434,6 +456,9 @@ const handler = async (req: Request): Promise<Response> => {
             amount: installmentAmount,
             dueDate: nextDueDate,
             paymentType: loan.payment_type,
+            installmentNumber: firstUnpaidIndex >= 0 ? firstUnpaidIndex + 1 : 1,
+            totalInstallments: numInstallments,
+            paymentTypeLabel: getPaymentTypeLabel(loan.payment_type),
           };
 
           if (nextDueDate === todayStr) {
@@ -538,86 +563,123 @@ const handler = async (req: Request): Promise<Response> => {
       const grandTotalOverdue = totalOverdue + vehicleTotalOverdue + productTotalOverdue;
       const hasDueToday = dueTodayLoans.length > 0 || dueTodayVehicles.length > 0 || dueTodayProducts.length > 0;
       const hasOverdue = overdueLoans.length > 0 || overdueVehicles.length > 0 || overdueProducts.length > 0;
+      const totalDueTodayCount = dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length;
+      const totalOverdueCount = overdueLoans.length + overdueVehicles.length + overdueProducts.length;
 
       if (!hasDueToday && !hasOverdue) {
         console.log(`User ${profile.id} has no pending items, skipping`);
         continue;
       }
 
-      // Build text message with ALL clients (no limits)
-      const titleText = isReminder 
-        ? `🔔 *Lembrete de Cobranças*`
-        : `📋 *Relatório do Dia*`;
-      
-      let messageText = `${titleText}\n\n`;
-      messageText += `📅 ${formatDate(today)}\n`;
-      messageText += `━━━━━━━━━━━━━━━━\n\n`;
-      
-      // VENCE HOJE - List ALL clients separated by category
-      if (hasDueToday) {
-        messageText += `⏰ *VENCE HOJE*\n`;
-        messageText += `💵 Total: ${formatCurrency(totalDueToday)}\n\n`;
-        
-        // Separate loans by type
-        const dueTodayDailyLoans = dueTodayLoans.filter(l => l.paymentType === 'daily');
-        const dueTodayOtherLoans = dueTodayLoans.filter(l => l.paymentType !== 'daily');
+      // Portfolio metrics
+      const activeLoansCount = (loans || []).filter(l => l.status !== 'paid').length;
+      const activeClientIds = new Set((loans || []).filter(l => l.status !== 'paid').map(l => l.client_id));
+      const capitalNaRua = (loans || []).filter(l => l.status !== 'paid').reduce((sum, l) => sum + l.remaining_balance, 0);
 
-        // DIÁRIOS - Separate section
-        if (dueTodayDailyLoans.length > 0) {
-          const dailyTotal = dueTodayDailyLoans.reduce((sum, l) => sum + l.amount, 0);
-          messageText += `📅 *DIÁRIOS* (${dueTodayDailyLoans.length})\n`;
-          dueTodayDailyLoans.forEach(l => {
-            messageText += `• ${l.clientName}: ${formatCurrency(l.amount)}\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(dailyTotal)}\n\n`;
-        }
-        
-        // OUTROS EMPRÉSTIMOS - Separate section
-        if (dueTodayOtherLoans.length > 0) {
-          const otherTotal = dueTodayOtherLoans.reduce((sum, l) => sum + l.amount, 0);
-          messageText += `💰 *OUTROS EMPRÉSTIMOS* (${dueTodayOtherLoans.length})\n`;
-          dueTodayOtherLoans.forEach(l => {
-            const typeLabel = l.paymentType === 'weekly' ? 'sem' : 
-                              l.paymentType === 'biweekly' ? 'quin' : 
-                              l.paymentType === 'single' ? 'único' : 'mens';
-            messageText += `• ${l.clientName} (${typeLabel}): ${formatCurrency(l.amount)}\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(otherTotal)}\n\n`;
-        }
-        
-        // VEÍCULOS - Separate section
-        if (dueTodayVehicles.length > 0) {
-          const vehicleTotal = dueTodayVehicles.reduce((sum, v) => sum + v.amount, 0);
-          messageText += `🚗 *VEÍCULOS* (${dueTodayVehicles.length})\n`;
-          dueTodayVehicles.forEach(v => {
-            messageText += `• ${v.buyerName}: ${formatCurrency(v.amount)}\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(vehicleTotal)}\n\n`;
-        }
-        
-        // PRODUTOS - Separate section
-        if (dueTodayProducts.length > 0) {
-          const productTotal = dueTodayProducts.reduce((sum, p) => sum + p.amount, 0);
-          messageText += `📦 *PRODUTOS* (${dueTodayProducts.length})\n`;
-          dueTodayProducts.forEach(p => {
-            messageText += `• ${p.clientName}: ${formatCurrency(p.amount)}\n`;
-          });
-          messageText += `Subtotal: ${formatCurrency(productTotal)}\n\n`;
-        }
-      }
-      
-      // EM ATRASO - Summary only (no individual listing)
-      if (hasOverdue) {
-        const totalOverdueClients = overdueLoans.length + overdueVehicles.length + overdueProducts.length;
-        
-        messageText += `🚨 *EM ATRASO*\n`;
-        messageText += `👥 ${totalOverdueClients} cliente${totalOverdueClients > 1 ? 's' : ''} em atraso\n`;
-        messageText += `💸 Total pendente: ${formatCurrency(grandTotalOverdue)}\n\n`;
-      }
-      
-      messageText += `━━━━━━━━━━━━━━━━\n`;
+      // Build executive report message
       const displayHour = targetHour !== null ? targetHour : 8;
-      messageText += `CobraFácil - ${displayHour}h`;
+      let messageText = `📊 *RELATÓRIO COBRAFÁCIL*\n`;
+      messageText += `📅 ${formatDate(today)} • ${getWeekdayName(today)}\n\n`;
+      messageText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      // RESUMO DO DIA
+      messageText += `💰 *RESUMO DO DIA*\n`;
+      if (hasDueToday) {
+        messageText += `▸ A cobrar hoje: ${formatCurrency(totalDueToday)} (${totalDueTodayCount} parcela${totalDueTodayCount > 1 ? 's' : ''})\n`;
+      }
+      if (hasOverdue) {
+        messageText += `▸ Em atraso: ${formatCurrency(grandTotalOverdue)} (${totalOverdueCount} parcela${totalOverdueCount > 1 ? 's' : ''})\n`;
+      }
+      messageText += `▸ Total pendente: ${formatCurrency(totalDueToday + grandTotalOverdue)}\n\n`;
+      messageText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      // VENCE HOJE
+      if (hasDueToday) {
+        messageText += `⏰ *VENCE HOJE* — ${formatCurrency(totalDueToday)}\n\n`;
+
+        // Empréstimos
+        if (dueTodayLoans.length > 0) {
+          messageText += `💵 Empréstimos (${dueTodayLoans.length})\n`;
+          dueTodayLoans.forEach(l => {
+            messageText += `• ${l.clientName} — ${formatCurrency(l.amount)}\n`;
+            const installmentInfo = l.totalInstallments && l.totalInstallments > 1
+              ? ` • Parcela ${l.installmentNumber}/${l.totalInstallments}`
+              : '';
+            messageText += `  ↳ ${l.paymentTypeLabel || 'Mensal'}${installmentInfo}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        // Veículos
+        if (dueTodayVehicles.length > 0) {
+          messageText += `🚗 Veículos (${dueTodayVehicles.length})\n`;
+          dueTodayVehicles.forEach(v => {
+            messageText += `• ${v.buyerName} — ${formatCurrency(v.amount)}\n`;
+            messageText += `  ↳ ${v.vehicleName} • Parcela ${v.installment}/${v.totalInstallments}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        // Produtos
+        if (dueTodayProducts.length > 0) {
+          messageText += `📦 Produtos (${dueTodayProducts.length})\n`;
+          dueTodayProducts.forEach(p => {
+            messageText += `• ${p.clientName} — ${formatCurrency(p.amount)}\n`;
+            messageText += `  ↳ ${p.productName} • Parcela ${p.installment}/${p.totalInstallments}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        messageText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      }
+
+      // EM ATRASO - Detailed per client with days
+      if (hasOverdue) {
+        messageText += `🚨 *EM ATRASO* — ${formatCurrency(grandTotalOverdue)}\n\n`;
+
+        // Empréstimos atrasados
+        if (overdueLoans.length > 0) {
+          messageText += `💵 Empréstimos (${overdueLoans.length})\n`;
+          overdueLoans.forEach(l => {
+            messageText += `• ${l.clientName} — ${formatCurrency(l.amount)}\n`;
+            const installmentInfo = l.totalInstallments && l.totalInstallments > 1
+              ? ` • Parcela ${l.installmentNumber}/${l.totalInstallments}`
+              : '';
+            messageText += `  ↳ ${l.daysOverdue} dia${(l.daysOverdue || 0) > 1 ? 's' : ''} de atraso • ${l.paymentTypeLabel || 'Mensal'}${installmentInfo}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        // Veículos atrasados
+        if (overdueVehicles.length > 0) {
+          messageText += `🚗 Veículos (${overdueVehicles.length})\n`;
+          overdueVehicles.forEach(v => {
+            messageText += `• ${v.buyerName} — ${formatCurrency(v.amount)}\n`;
+            messageText += `  ↳ ${v.daysOverdue} dia${(v.daysOverdue || 0) > 1 ? 's' : ''} de atraso • ${v.vehicleName} • Parcela ${v.installment}/${v.totalInstallments}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        // Produtos atrasados
+        if (overdueProducts.length > 0) {
+          messageText += `📦 Produtos (${overdueProducts.length})\n`;
+          overdueProducts.forEach(p => {
+            messageText += `• ${p.clientName} — ${formatCurrency(p.amount)}\n`;
+            messageText += `  ↳ ${p.daysOverdue} dia${(p.daysOverdue || 0) > 1 ? 's' : ''} de atraso • ${p.productName} • Parcela ${p.installment}/${p.totalInstallments}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        messageText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      }
+
+      // SUA CARTEIRA
+      messageText += `📈 *SUA CARTEIRA*\n`;
+      messageText += `▸ Clientes ativos: ${activeClientIds.size}\n`;
+      messageText += `▸ Empréstimos ativos: ${activeLoansCount}\n`;
+      messageText += `▸ Capital na rua: ${formatCurrency(capitalNaRua)}\n\n`;
+      messageText += `━━━━━━━━━━━━━━━━━━━\n`;
+      messageText += `CobraFácil • ${displayHour}h`;
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
