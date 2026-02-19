@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ import {
   MessageCircle,
   Check,
   Infinity,
+  ChevronDown,
 } from "lucide-react";
 import { useAffiliateLinks, DEFAULT_AFFILIATE_LINKS } from "@/hooks/useAffiliateLinks";
 import { useAuth } from "@/contexts/AuthContext";
@@ -120,8 +122,13 @@ const featuresList = [
 const Plans = () => {
   const { user } = useAuth();
   const { links, loading } = useAffiliateLinks();
+  const [openPlan, setOpenPlan] = useState<string | null>(null);
 
   const effectiveLinks = user && !loading ? links : DEFAULT_AFFILIATE_LINKS;
+
+  const togglePlan = (planId: string) => {
+    setOpenPlan(prev => prev === planId ? null : planId);
+  };
 
   const scrollToPlans = () => {
     document.getElementById("plans-grid")?.scrollIntoView({ behavior: "smooth" });
@@ -173,11 +180,16 @@ const Plans = () => {
             
             {/* Mensal */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp}>
-              <Card className="h-full border-border/50 bg-card">
+              <Card className="h-full border-border/50 bg-card cursor-pointer transition-all hover:border-muted-foreground/50" onClick={() => togglePlan('mensal')}>
                 <CardContent className="p-6 flex flex-col h-full">
-                  <div className="text-center mb-6">
-                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Clock className="w-6 h-6 text-muted-foreground" />
+                  <div className="text-center mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                      <motion.div animate={{ rotate: openPlan === 'mensal' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      </motion.div>
                     </div>
                     <Badge variant="outline" className="mb-3 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
                     <div className="text-lg text-muted-foreground line-through">R$ 69,90</div>
@@ -187,28 +199,52 @@ const Plans = () => {
                     <p className="text-sm text-muted-foreground mt-1">por mês</p>
                     <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 14</Badge>
                   </div>
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {featuresList.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="text-muted-foreground text-xs">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <a href={effectiveLinks.monthly} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button variant="outline" size="lg" className="w-full">Assinar Mensal</Button>
-                  </a>
+                  <AnimatePresence>
+                    {openPlan !== 'mensal' && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
+                        Ideal para testar o sistema sem compromisso
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                    {openPlan === 'mensal' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-2 mb-6 flex-1">
+                          {featuresList.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                              <span className="text-muted-foreground text-xs">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <a href={effectiveLinks.monthly} target="_blank" rel="noopener noreferrer" className="block" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="outline" size="lg" className="w-full">Assinar Mensal</Button>
+                        </a>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </CardContent>
               </Card>
             </motion.div>
 
             {/* Trimestral */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} transition={{ delay: 0.1 }}>
-              <Card className="h-full border-primary/30 bg-card">
+              <Card className="h-full border-primary/30 bg-card cursor-pointer transition-all hover:border-primary/60" onClick={() => togglePlan('trimestral')}>
                 <CardContent className="p-6 flex flex-col h-full">
-                  <div className="text-center mb-6">
-                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Sparkles className="w-6 h-6 text-primary" />
+                  <div className="text-center mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-primary" />
+                      </div>
+                      <motion.div animate={{ rotate: openPlan === 'trimestral' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                        <ChevronDown className="w-5 h-5 text-primary" />
+                      </motion.div>
                     </div>
                     <Badge variant="outline" className="mb-3 border-primary/50 text-primary">Trimestral</Badge>
                     <div className="text-lg text-muted-foreground line-through">R$ 209,90</div>
@@ -218,26 +254,45 @@ const Plans = () => {
                     <p className="text-sm text-muted-foreground mt-1">por 3 meses (R$ 49,67/mês)</p>
                     <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 60,90</Badge>
                   </div>
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {featuresList.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-muted-foreground text-xs">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <a href={effectiveLinks.quarterly} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button variant="outline" size="lg" className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                      Assinar Trimestral
-                    </Button>
-                  </a>
+                  <AnimatePresence>
+                    {openPlan !== 'trimestral' && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
+                        Economia garantida com 3 meses de acesso
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                    {openPlan === 'trimestral' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-2 mb-6 flex-1">
+                          {featuresList.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                              <span className="text-muted-foreground text-xs">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <a href={effectiveLinks.quarterly} target="_blank" rel="noopener noreferrer" className="block" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="outline" size="lg" className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                            Assinar Trimestral
+                          </Button>
+                        </a>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </CardContent>
               </Card>
             </motion.div>
 
             {/* Anual - DESTAQUE */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={scaleIn} transition={{ delay: 0.15 }}>
-              <Card className="h-full border-2 border-primary bg-card relative overflow-hidden shadow-2xl shadow-primary/20">
+              <Card className="h-full border-2 border-primary bg-card relative overflow-hidden shadow-2xl shadow-primary/20 cursor-pointer transition-all hover:shadow-primary/30" onClick={() => togglePlan('anual')}>
                 <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-primary via-green-500 to-primary text-primary-foreground text-center py-2 text-xs font-bold tracking-wide">
                   🔥 MAIS VENDIDO
                 </div>
@@ -250,9 +305,14 @@ const Plans = () => {
                       💰 ECONOMIZE R$ 191
                     </Badge>
                   </div>
-                  <div className="text-center mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg shadow-primary/30">
-                      <Calendar className="w-7 h-7 text-primary-foreground" />
+                  <div className="text-center mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-14 h-14 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+                        <Calendar className="w-7 h-7 text-primary-foreground" />
+                      </div>
+                      <motion.div animate={{ rotate: openPlan === 'anual' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                        <ChevronDown className="w-5 h-5 text-primary" />
+                      </motion.div>
                     </div>
                     <Badge className="mb-3 bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
                     <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
@@ -265,36 +325,60 @@ const Plans = () => {
                       <span className="text-xs font-semibold text-primary">Melhor custo-benefício</span>
                     </div>
                   </div>
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {featuresList.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-foreground text-xs font-medium">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <a href={effectiveLinks.annual} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button size="lg" className="w-full bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
-                      <Zap className="w-4 h-4 mr-2" /> ASSINAR ANUAL
-                    </Button>
-                  </a>
-                  <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1">
-                    <Shield className="w-3 h-3" /> Pague em até 12x • Garantia de 7 dias
-                  </p>
+                  <AnimatePresence>
+                    {openPlan !== 'anual' && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
+                        Melhor custo-benefício, o mais vendido
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                    {openPlan === 'anual' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-2 mb-6 flex-1">
+                          {featuresList.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                              <span className="text-foreground text-xs font-medium">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <a href={effectiveLinks.annual} target="_blank" rel="noopener noreferrer" className="block" onClick={(e) => e.stopPropagation()}>
+                          <Button size="lg" className="w-full bg-gradient-to-r from-primary to-green-600 hover:from-green-600 hover:to-primary shadow-lg shadow-primary/30 font-bold">
+                            <Zap className="w-4 h-4 mr-2" /> ASSINAR ANUAL
+                          </Button>
+                        </a>
+                        <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1">
+                          <Shield className="w-3 h-3" /> Pague em até 12x • Garantia de 7 dias
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </CardContent>
               </Card>
             </motion.div>
 
             {/* Vitalício */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} transition={{ delay: 0.25 }}>
-              <Card className="h-full border-2 border-yellow-500/50 bg-gradient-to-b from-yellow-500/5 via-card to-yellow-500/5 relative overflow-hidden">
+              <Card className="h-full border-2 border-yellow-500/50 bg-gradient-to-b from-yellow-500/5 via-card to-yellow-500/5 relative overflow-hidden cursor-pointer transition-all hover:border-yellow-500/70" onClick={() => togglePlan('vitalicio')}>
                 <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-yellow-600 via-amber-500 to-yellow-600 text-yellow-950 text-center py-2 text-xs font-bold tracking-wide">
                   👑 MELHOR INVESTIMENTO
                 </div>
                 <CardContent className="p-6 pt-14 flex flex-col h-full">
-                  <div className="text-center mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg shadow-yellow-500/30">
-                      <Crown className="w-7 h-7 text-yellow-950" />
+                  <div className="text-center mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/30">
+                        <Crown className="w-7 h-7 text-yellow-950" />
+                      </div>
+                      <motion.div animate={{ rotate: openPlan === 'vitalicio' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                        <ChevronDown className="w-5 h-5 text-yellow-400" />
+                      </motion.div>
                     </div>
                     <Badge className="mb-3 bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-bold px-4">Vitalício</Badge>
                     <div className="text-lg text-muted-foreground line-through">R$ 1.499,00</div>
@@ -306,26 +390,45 @@ const Plans = () => {
                       Economize R$ 500
                     </Badge>
                   </div>
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {featuresList.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                        <span className="text-foreground text-xs font-medium">{f}</span>
-                      </li>
-                    ))}
-                    <li className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                      <span className="text-yellow-400 text-xs font-bold">Acesso PERMANENTE</span>
-                    </li>
-                  </ul>
-                  <a href={effectiveLinks.lifetime} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button size="lg" className="w-full bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-amber-500 hover:to-yellow-600 text-yellow-950 shadow-lg shadow-yellow-500/30 font-bold">
-                      <Crown className="w-4 h-4 mr-2" /> ASSINAR VITALÍCIO
-                    </Button>
-                  </a>
-                  <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1">
-                    <Shield className="w-3 h-3" /> Pague uma vez, use para sempre
-                  </p>
+                  <AnimatePresence>
+                    {openPlan !== 'vitalicio' && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
+                        Pague uma vez, use para sempre
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                    {openPlan === 'vitalicio' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-2 mb-6 flex-1">
+                          {featuresList.map((f) => (
+                            <li key={f} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                              <span className="text-foreground text-xs font-medium">{f}</span>
+                            </li>
+                          ))}
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                            <span className="text-yellow-400 text-xs font-bold">Acesso PERMANENTE</span>
+                          </li>
+                        </ul>
+                        <a href={effectiveLinks.lifetime} target="_blank" rel="noopener noreferrer" className="block" onClick={(e) => e.stopPropagation()}>
+                          <Button size="lg" className="w-full bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-amber-500 hover:to-yellow-600 text-yellow-950 shadow-lg shadow-yellow-500/30 font-bold">
+                            <Crown className="w-4 h-4 mr-2" /> ASSINAR VITALÍCIO
+                          </Button>
+                        </a>
+                        <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1">
+                          <Shield className="w-3 h-3" /> Pague uma vez, use para sempre
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </CardContent>
               </Card>
             </motion.div>
