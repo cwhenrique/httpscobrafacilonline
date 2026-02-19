@@ -43,45 +43,41 @@ interface ProfileWithWhatsApp {
   relatorio_ativo: boolean;
 }
 
-// Send WhatsApp message via Official WhatsApp Cloud API (Meta)
-const sendWhatsAppViaCloudAPI = async (phone: string, message: string): Promise<boolean> => {
-  const cloudApiToken = Deno.env.get("WHATSAPP_CLOUD_API_TOKEN");
-  const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-  
-  if (!cloudApiToken || !phoneNumberId) {
-    console.error("WHATSAPP_CLOUD_API_TOKEN or WHATSAPP_PHONE_NUMBER_ID not configured");
+// Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
+const sendWhatsAppViaUmClique = async (phone: string, message: string): Promise<boolean> => {
+  const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
+  if (!umcliqueApiKey) {
+    console.error("UMCLIQUE_API_KEY not configured");
     return false;
   }
 
-  // Format phone with country code
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
   try {
     const response = await fetch(
-      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+      'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message',
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${cloudApiToken}`,
+          "X-API-Key": umcliqueApiKey,
         },
         body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
+          channel_id: "1060061327180048",
           to: cleaned,
           type: "text",
-          text: { body: message },
+          text: message,
         }),
       }
     );
 
     const data = await response.text();
-    console.log(`WhatsApp Cloud API sent to ${cleaned}:`, response.status, data);
+    console.log(`Um Clique API sent to ${cleaned}:`, response.status, data);
     return response.ok;
   } catch (error) {
-    console.error(`Failed to send via WhatsApp Cloud API to ${cleaned}:`, error);
+    console.error(`Failed to send via Um Clique API to ${cleaned}:`, error);
     return false;
   }
 };
@@ -594,9 +590,9 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
-      // Route: relatorio_ativo users go via WhatsApp Cloud API, others via Evolution API
+      // Route: relatorio_ativo users go via Um Clique Digital API, others via Evolution API
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaCloudAPI(profile.phone, messageText)
+        ? await sendWhatsAppViaUmClique(profile.phone, messageText)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
