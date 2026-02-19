@@ -1,23 +1,35 @@
 
 
-# Adicionar Ancoragem de Preco nos Planos Mensal, Trimestral e Anual
+# Cards de Plano com Expansao ao Clicar
 
 ## O que sera feito
 
-Adicionar preco riscado (ancoragem) nos 3 primeiros cards de plano, igual ja existe no Vitalicio:
+Transformar os 4 cards de plano em componentes expansiveis (accordion-style). Por padrao, cada card mostra apenas um resumo compacto com:
+- Icone + nome do plano + uma breve descricao do que e cada plano
+- Preco principal com ancoragem (riscado)
+- Badge de destaque
 
-| Plano | Preco riscado (De) | Preco real (Por) |
-|---|---|---|
-| Mensal | ~~R$ 69,90~~ | R$ 55,90 |
-| Trimestral | ~~R$ 209,90~~ | R$ 149,00 |
-| Anual | ~~R$ 699,90~~ | R$ 479,00 |
-| Vitalicio | ~~R$ 1.499,00~~ (ja existe) | R$ 999,00 |
+Ao clicar no card, ele expande e revela:
+- Lista completa de funcionalidades
+- Botao CTA de assinatura
 
-Cada card recebera uma linha com o preco antigo riscado logo acima do preco atual, e um badge mostrando a economia em reais:
+## Resumo compacto de cada card (quando fechado)
 
-- Mensal: Economize R$ 14
-- Trimestral: Economize R$ 60,90
-- Anual: Economize R$ 220,90
+| Plano | Descricao curta |
+|---|---|
+| Mensal | Ideal para testar o sistema sem compromisso |
+| Trimestral | Economia garantida com 3 meses de acesso |
+| Anual | Melhor custo-beneficio, o mais vendido |
+| Vitalicio | Pague uma vez, use para sempre |
+
+## Comportamento
+
+- Cards iniciam fechados (compactos)
+- Ao clicar em qualquer card, ele expande mostrando funcionalidades + botao CTA
+- Apenas UM card aberto por vez (accordion) - ao abrir um, o outro fecha
+- Seta/chevron indica que o card e clicavel
+- Animacao suave de expansao com Framer Motion (AnimatePresence + motion.div com height auto)
+- Os destaques visuais (bordas, gradientes, badges "MAIS VENDIDO" e "MELHOR INVESTIMENTO") continuam visiveis mesmo com o card fechado
 
 ## Detalhes Tecnicos
 
@@ -25,29 +37,16 @@ Cada card recebera uma linha com o preco antigo riscado logo acima do preco atua
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/Plans.tsx` | Adicionar `line-through` com preco antigo e badge de economia nos cards Mensal, Trimestral e Anual |
+| `src/pages/Plans.tsx` | Adicionar estado `openPlan` para controlar qual card esta aberto; envolver conteudo expandido em AnimatePresence; adicionar ChevronDown com rotacao; adicionar descricao curta visivel quando fechado |
 
-### Mudancas especificas por card
+### Implementacao
 
-**Card Mensal (linha ~183):** Adicionar antes do preco atual:
-```
-R$ 69,90 (riscado)
-R$ 55,90 (preco real)
-Badge: Economize R$ 14
-```
+1. Adicionar estado: `const [openPlan, setOpenPlan] = useState<string | null>(null)`
+2. Cada card recebe um `onClick` que alterna `openPlan` entre o id do plano e `null`
+3. O conteudo expandivel (lista de funcionalidades + botao CTA) fica dentro de `AnimatePresence` com `motion.div` animando `opacity` e `height`
+4. Adicionar icone `ChevronDown` do lucide-react no canto do card, que rotaciona 180 graus quando aberto
+5. Quando fechado, mostrar a descricao curta do plano abaixo do preco
 
-**Card Trimestral (linha ~213):** Adicionar antes do preco atual:
-```
-R$ 209,90 (riscado)
-R$ 149,00 (preco real)
-Badge: Economize R$ 60,90 (substitui o badge atual "Economia de 11%")
-```
-
-**Card Anual (linha ~255):** Adicionar antes do preco atual:
-```
-R$ 699,90 (riscado)
-R$ 479,00 (preco real)
-Badge: Economize R$ 220,90 (adiciona ao lado do badge existente "ECONOMIZE R$ 191")
-```
-
-O estilo seguira o mesmo padrao visual ja usado no card do Vitalicio: `text-lg text-muted-foreground line-through` para o preco antigo.
+### Importacoes adicionais
+- `AnimatePresence` do framer-motion (ja importado `motion`)
+- `ChevronDown` do lucide-react
