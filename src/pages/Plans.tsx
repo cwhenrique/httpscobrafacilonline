@@ -192,12 +192,6 @@ const Plans = () => {
                       </motion.div>
                     </div>
                     <Badge variant="outline" className="mb-3 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
-                    <div className="text-lg text-muted-foreground line-through">R$ 69,90</div>
-                    <div className="text-4xl font-bold text-foreground">
-                      R$ 55<span className="text-xl">,90</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">por mês</p>
-                    <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 14</Badge>
                   </div>
                   <AnimatePresence>
                     {openPlan !== 'mensal' && (
@@ -215,6 +209,14 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <div className="text-center mb-4">
+                          <div className="text-lg text-muted-foreground line-through">R$ 69,90</div>
+                          <div className="text-4xl font-bold text-foreground">
+                            R$ 55<span className="text-xl">,90</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">por mês</p>
+                          <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 14</Badge>
+                        </div>
                         <ul className="space-y-2 mb-6 flex-1">
                           {featuresList.map((f) => (
                             <li key={f} className="flex items-center gap-2">
@@ -247,12 +249,6 @@ const Plans = () => {
                       </motion.div>
                     </div>
                     <Badge variant="outline" className="mb-3 border-primary/50 text-primary">Trimestral</Badge>
-                    <div className="text-lg text-muted-foreground line-through">R$ 209,90</div>
-                    <div className="text-4xl font-bold text-foreground">
-                      R$ 149<span className="text-xl">,00</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">por 3 meses (R$ 49,67/mês)</p>
-                    <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 60,90</Badge>
                   </div>
                   <AnimatePresence>
                     {openPlan !== 'trimestral' && (
@@ -270,6 +266,14 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <div className="text-center mb-4">
+                          <div className="text-lg text-muted-foreground line-through">R$ 209,90</div>
+                          <div className="text-4xl font-bold text-foreground">
+                            R$ 149<span className="text-xl">,00</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">por 3 meses (R$ 49,67/mês)</p>
+                          <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 60,90</Badge>
+                        </div>
                         <ul className="space-y-2 mb-6 flex-1">
                           {featuresList.map((f) => (
                             <li key={f} className="flex items-center gap-2">
@@ -315,15 +319,6 @@ const Plans = () => {
                       </motion.div>
                     </div>
                     <Badge className="mb-3 bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
-                    <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
-                    <div className="text-4xl font-bold text-primary">
-                      R$ 479<span className="text-xl">,00</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">por ano (12x de R$ 39,92)</p>
-                    <div className="mt-2 inline-flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-full px-3 py-1">
-                      <Star className="w-3 h-3 text-primary fill-primary" />
-                      <span className="text-xs font-semibold text-primary">Melhor custo-benefício</span>
-                    </div>
                   </div>
                   <AnimatePresence>
                     {openPlan !== 'anual' && (
@@ -341,6 +336,17 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <div className="text-center mb-4">
+                          <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
+                          <div className="text-4xl font-bold text-primary">
+                            R$ 479<span className="text-xl">,00</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">por ano (12x de R$ 39,92)</p>
+                          <div className="mt-2 inline-flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-full px-3 py-1">
+                            <Star className="w-3 h-3 text-primary fill-primary" />
+                            <span className="text-xs font-semibold text-primary">Melhor custo-benefício</span>
+                          </div>
+                        </div>
                         <ul className="space-y-2 mb-6 flex-1">
                           {featuresList.map((f) => (
                             <li key={f} className="flex items-center gap-2">
@@ -381,14 +387,6 @@ const Plans = () => {
                       </motion.div>
                     </div>
                     <Badge className="mb-3 bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-bold px-4">Vitalício</Badge>
-                    <div className="text-lg text-muted-foreground line-through">R$ 1.499,00</div>
-                    <div className="text-4xl font-bold text-yellow-400">
-                      R$ 999<span className="text-xl">,00</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">pagamento único, acesso permanente</p>
-                    <Badge className="mt-2 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-xs">
-                      Economize R$ 500
-                    </Badge>
                   </div>
                   <AnimatePresence>
                     {openPlan !== 'vitalicio' && (
@@ -406,6 +404,16 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <div className="text-center mb-4">
+                          <div className="text-lg text-muted-foreground line-through">R$ 1.499,00</div>
+                          <div className="text-4xl font-bold text-yellow-400">
+                            R$ 999<span className="text-xl">,00</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">pagamento único, acesso permanente</p>
+                          <Badge className="mt-2 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-xs">
+                            Economize R$ 500
+                          </Badge>
+                        </div>
                         <ul className="space-y-2 mb-6 flex-1">
                           {featuresList.map((f) => (
                             <li key={f} className="flex items-center gap-2">
