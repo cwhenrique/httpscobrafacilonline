@@ -1,58 +1,109 @@
 
 
-# Melhorar visibilidade e clareza do "Caixa Extra"
+# Webhook para Um Clique Digital - Resposta de Relatorio (Sim/Nao)
 
-## O que muda
+## Objetivo
 
-O botao "Adicionar caixa extra" atual e muito discreto (texto pequeno, cor apagada) e nao explica o que significa. Vamos tornar mais visivel e explicativo para que o usuario entenda que precisa informar manualmente o dinheiro que tem disponivel no banco/em maos.
+Criar uma edge function que recebe mensagens vindas da plataforma Um Clique Digital (connect.umcliquedigital.com). Quando o usuario/cliente responder "sim", o sistema envia o relatorio. Quando responder "nao", marca como recusado e nao envia.
 
-## Mudancas no arquivo `src/components/reports/CashFlowCard.tsx`
-
-### Quando o Caixa Extra esta vazio (linhas 154-162)
-
-Substituir o botao discreto por um bloco visual com fundo, icone e texto explicativo:
+## Como funciona
 
 ```text
-+--------------------------------------------------+
-| [icone cofrinho]                                  |
-| Caixa Extra                         [+ Adicionar] |
-| Informe aqui o dinheiro que voce tem              |
-| disponivel no banco ou em maos e que              |
-| ainda nao foi emprestado.                         |
-| Este valor nao e calculado automaticamente.       |
-+--------------------------------------------------+
+Um Clique Digital                Edge Function              Banco de Dados
+     |                               |                           |
+     |--- POST /umclique-webhook --->|                           |
+     |    (mensagem do cliente)      |                           |
+     |                               |-- busca pending_messages--|
+     |                               |<-- mensagem pendente -----|
+     |                               |                           |
+     |                    [sim?] --->|-- marca "confirmed" ----->|
+     |                               |-- envia relatorio ------->|
+     |                               |                           |
+     |                    [nao?] --->|-- marca "declined" ------>|
+     |                               |  (nao envia nada)         |
+     |                               |                           |
+     |<--- 200 OK ------------------|                           |
 ```
 
-- Fundo azul claro com borda tracejada (estilo "call to action")
-- Texto explicativo curto dizendo que e um valor manual, nao puxado dos emprestimos
-- Botao "Adicionar" visivel
+## Mudancas
 
-### Quando o Caixa Extra tem valor (linhas 132-153)
+### 1. Nova Edge Function: `supabase/functions/umclique-webhook/index.ts`
 
-Adicionar uma linha extra de texto explicativo abaixo do valor:
+A funcao recebe o webhook da plataforma Um Clique Digital. Como e parceira oficial do Meta, o formato do payload segue o padrao da API oficial do WhatsApp (Meta Cloud API) ou o formato proprio da plataforma.
 
-- Trocar "Dinheiro disponivel nao emprestado" por "Valor informado manualmente - nao e calculado dos emprestimos"
+A funcao:
 
-### Modal de configuracao (`CashFlowConfigModal.tsx`)
+- Aceita POST sem JWT (webhook externo)
+- Aceita GET para validacao do webhook (Meta envia um challenge de verificacao)
+- Extrai o numero do remetente e o texto da mensagem
+- Normaliza o texto e verifica se e "sim" ou "nao"
+- Busca na tabela `pending_messages` uma mensagem pendente para aquele telefone
+- Se **sim**: marca como `confirmed`, envia o relatorio via `send-whatsapp-to-client`
+- Se **nao**: marca como `declined`, nao envia nada
+- Loga tudo para debug
 
-Adicionar um alerta/nota no topo do modal explicando:
-- "Informe aqui quanto dinheiro voce tem disponivel que ainda nao foi emprestado. Esse valor e inserido por voce e nao e calculado automaticamente pelo sistema."
+**Keywords de confirmacao** (reutiliza a mesma lista do webhook existente):
+`ok, sim, confirmo, receber, quero, aceito, 1, yes, si, pode, manda, enviar, blz, beleza, ta, certo, positivo`
 
-## Detalhes tecnicos
+**Keywords de recusa** (novo):
+`nao, não, 2, no, nope, recuso, cancelar, cancela, para, parar, sair`
 
-### 1. `CashFlowCard.tsx` - Bloco vazio (linhas 154-162)
+### 2. Atualizar `supabase/config.toml`
 
-Substituir o `<button>` discreto por um `<div>` estilizado com:
-- `border border-dashed border-blue-500/30 bg-blue-500/5 rounded-xl p-3`
-- Icone `PiggyBank` + titulo "Caixa Extra"
-- Texto explicativo em `text-xs text-muted-foreground`
-- Botao `Button` com variante outline azul
+Adicionar:
+```toml
+[functions.umclique-webhook]
+verify_jwt = false
+```
 
-### 2. `CashFlowCard.tsx` - Bloco com valor (linhas 137-139)
+### 3. Nenhuma mudanca no banco de dados
 
-Trocar o subtexto de "Dinheiro disponivel nao emprestado" para "Valor informado manualmente"
+A tabela `pending_messages` ja tem o campo `status` que aceita qualquer string. Vamos usar `declined` para respostas negativas, alem dos existentes `pending`, `confirmed`, `failed`, `expired`.
 
-### 3. `CashFlowConfigModal.tsx` - Nota explicativa
+## Detalhes tecnicos da Edge Function
 
-Adicionar um bloco `bg-blue-500/10 rounded-lg p-3` no inicio do `space-y-4` (antes do input) com texto explicando que o valor e manual e nao vem dos emprestimos.
+### Formato esperado do webhook (Meta Cloud API / Um Clique Digital)
 
+A plataforma pode enviar no formato Meta padrao:
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "messages": [{
+          "from": "5517999999999",
+          "text": { "body": "sim" },
+          "type": "text"
+        }]
+      }
+    }]
+  }]
+}
+```
+
+Ou no formato simplificado da propria plataforma. A funcao vai tentar ambos os formatos para garantir compatibilidade.
+
+### Validacao do Webhook (GET)
+
+O Meta exige que o endpoint responda a um GET com o `hub.challenge` para validar o webhook. A funcao responde automaticamente a esse desafio.
+
+### Fluxo de "nao"
+
+Quando o cliente responde "nao":
+1. Busca a `pending_message` pendente
+2. Atualiza status para `declined`
+3. Registra `confirmed_at` com a data atual (para auditoria)
+4. Retorna sucesso sem enviar mensagem
+
+### Seguranca
+
+A funcao pode opcionalmente validar um token de verificacao configurado na plataforma Um Clique Digital (via header ou query param). Isso sera configuravel via secret `UMCLIQUE_VERIFY_TOKEN`.
+
+## URL do webhook para configurar na plataforma
+
+Apos deploy, a URL sera:
+`https://yulegybknvtanqkipsbj.supabase.co/functions/v1/umclique-webhook`
+
+Esta URL deve ser adicionada na configuracao de "Webhook Split" da plataforma Um Clique Digital.
