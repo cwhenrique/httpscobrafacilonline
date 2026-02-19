@@ -1,62 +1,69 @@
 
+# Corrigir Envio via WhatsApp Cloud API (Meta) - Usar Um Clique Digital
 
-# Enviar Relatorios via Um Clique Digital (API Oficial WhatsApp)
+## Problema Identificado
 
-## Resumo
+O codigo atual esta enviando via **WhatsApp Cloud API da Meta diretamente** (`graph.facebook.com`), mas a requisicao original era para enviar via **Um Clique Digital** (parceiro). A API da Meta exige janela de 24h para mensagens de texto livre, o que provavelmente esta impedindo a entrega.
 
-Modificar a edge function `daily-summary` para que usuarios com `relatorio_ativo = true` recebam o relatorio via **Um Clique Digital API** (API oficial do WhatsApp) em vez da Evolution API. Apenas usuarios com o painel ativo utilizarao este canal.
+Alem disso, o plano aprovado originalmente especificava o uso da **Um Clique Digital API** (endpoint `public-send-message`), nao a API direta da Meta.
+
+## Solucao
+
+Substituir a funcao `sendWhatsAppViaCloudAPI` por `sendWhatsAppViaUmClique` que usa o endpoint correto da Um Clique Digital, igual ao padrao ja existente no `umclique-webhook`.
 
 ## Alteracoes
 
 ### Arquivo: `supabase/functions/daily-summary/index.ts`
 
-**1. Nova funcao `sendWhatsAppViaUmClique`**
-- Envia mensagem de texto via endpoint `public-send-message` da Um Clique Digital
-- Usa a secret `UMCLIQUE_API_KEY` (ja configurada)
-- Formato: tipo `text` com `channel_id` e telefone formatado com codigo 55
-
-**2. Modificar `sendWhatsAppToSelf`**
-- Verificar se o usuario tem `relatorio_ativo = true`
-- Se sim, enviar via `sendWhatsAppViaUmClique` usando o telefone do perfil (`profile.phone`)
-- Se nao, manter o envio via Evolution API (comportamento atual para outros tipos de mensagem)
-
-**3. Modificar a query de perfis**
-- Incluir o campo `relatorio_ativo` na consulta
-- Para usuarios com `relatorio_ativo`, nao exigir `whatsapp_instance_id` e `whatsapp_connected_phone`
-- Separar a query: buscar usuarios com WhatsApp conectado OU com `relatorio_ativo = true`
-
-**4. Logica de decisao**
+**Substituir a funcao `sendWhatsAppViaCloudAPI` (linhas 46-87) por `sendWhatsAppViaUmClique`:**
 
 ```text
-Se relatorio_ativo = true:
-  -> Enviar via Um Clique Digital API (telefone do perfil)
-Se relatorio_ativo = false e tem WhatsApp conectado:
-  -> Enviar via Evolution API (comportamento atual)
-Se nenhum:
-  -> Pular usuario
-```
-
-### Detalhes da API Um Clique Digital
-
-Baseado no padrao ja existente em `umclique-webhook`:
-
-```text
-POST https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message
-Headers:
-  Content-Type: application/json
-  X-API-Key: {UMCLIQUE_API_KEY}
-Body:
-  {
-    "channel_id": "1060061327180048",
-    "to": "5515981046991",
-    "type": "text",
-    "text": "conteudo do relatorio"
+const sendWhatsAppViaUmClique = async (phone: string, message: string): Promise<boolean> => {
+  const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
+  if (!umcliqueApiKey) {
+    console.error("UMCLIQUE_API_KEY not configured");
+    return false;
   }
+
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
+
+  try {
+    const response = await fetch(
+      'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message',
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": umcliqueApiKey,
+        },
+        body: JSON.stringify({
+          channel_id: "1060061327180048",
+          to: cleaned,
+          type: "text",
+          text: message,
+        }),
+      }
+    );
+
+    const data = await response.text();
+    console.log(`Um Clique API sent to ${cleaned}:`, response.status, data);
+    return response.ok;
+  } catch (error) {
+    console.error(`Failed to send via Um Clique API to ${cleaned}:`, error);
+    return false;
+  }
+};
 ```
 
-### Impacto
+**Atualizar a chamada na linha 598:**
 
-- Usuario Henrique (clau_pogian@hotmail.com) passara a receber relatorios via API oficial
-- Usuarios sem `relatorio_ativo` continuam usando Evolution API normalmente
-- O botao "Enviar Relatorio de Teste" tambem passara a usar Um Clique para usuarios com painel ativo
+Trocar `sendWhatsAppViaCloudAPI` por `sendWhatsAppViaUmClique`.
 
+## Por que isso resolve
+
+- A Um Clique Digital e um parceiro oficial da Meta que gerencia templates e janelas de conversa
+- O endpoint `public-send-message` da Um Clique ja lida com as regras de template/janela de 24h
+- Usa a secret `UMCLIQUE_API_KEY` que ja esta configurada
+- Segue o mesmo padrao ja usado no `umclique-webhook`
