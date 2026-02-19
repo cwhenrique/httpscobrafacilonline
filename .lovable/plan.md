@@ -1,61 +1,44 @@
 
 
-# Cards Fechados sem Preço - Só Nome + Descrição
+# Simplificar Cards Fechados - Apenas Nome do Plano
 
 ## O que muda
 
-Quando o card estiver **fechado**, ele mostra apenas:
-- Ícone do plano
-- Nome (Mensal, Trimestral, Anual, Vitalício)
-- Descrição curta do plano
-- Badges de destaque (MAIS VENDIDO, etc.)
-- Seta indicando que é clicável
+Remover a descricao curta dos cards quando estao fechados. O card compacto mostra **somente**:
+- Icone do plano
+- Chevron (seta)
+- Badge com o nome (Mensal, Trimestral, Anual, Vitalicio)
+- Badges de destaque que ja existem (MAIS VENDIDO, MELHOR INVESTIMENTO, APENAS 20 VAGAS, ECONOMIZE R$ 191)
 
-Quando o card for **clicado e abrir**, aí sim aparece:
-- Preço riscado (ancoragem)
-- Preço real
-- Badge de economia
-- Lista de funcionalidades
-- Botão CTA
+A descricao curta ("Ideal para testar...", "Economia garantida...", etc.) sera **removida** completamente dos cards fechados. Ela aparecera apenas quando o card for aberto, junto com precos e funcionalidades.
+
+## Estrutura do card fechado
+
+```text
++----------------------------------+
+|  [Icone]              [Chevron]  |
+|         [Mensal]                 |
++----------------------------------+
+```
 
 ## Arquivo modificado
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---|---|
-| `src/pages/Plans.tsx` | Mover toda a seção de preços para dentro do bloco expandível (AnimatePresence), deixando visível apenas ícone + nome + descrição quando fechado |
+| `src/pages/Plans.tsx` | Remover os blocos `AnimatePresence` que mostram a descricao quando `openPlan !== 'plano'` nos 4 cards (Mensal, Trimestral, Anual, Vitalicio). Mover as descricoes para dentro do bloco expandido, antes dos precos. |
 
-## Estrutura do card fechado (compacto)
+## Detalhes tecnicos
 
-```text
-+----------------------------------+
-|  [Ícone]              [Chevron]  |
-|  Badge: Mensal                   |
-|  Ideal para testar sem           |
-|  compromisso                     |
-+----------------------------------+
+Para cada um dos 4 cards, remover o bloco:
+```tsx
+<AnimatePresence>
+  {openPlan !== 'mensal' && (
+    <motion.p ...>Ideal para testar...</motion.p>
+  )}
+</AnimatePresence>
 ```
 
-## Estrutura do card aberto (expandido)
+E adicionar a descricao como primeiro elemento dentro do `motion.div` expandido, antes do preco riscado.
 
-```text
-+----------------------------------+
-|  [Ícone]              [Chevron]  |
-|  Badge: Mensal                   |
-|  ~~R$ 69,90~~                    |
-|  R$ 55,90 /mês                   |
-|  Economize R$ 14                 |
-|  - Funcionalidade 1              |
-|  - Funcionalidade 2              |
-|  ...                             |
-|  [Assinar Mensal]                |
-+----------------------------------+
-```
+Isso deixa o card fechado bem compacto e limpo, mostrando apenas a identidade do plano.
 
-## Detalhes técnicos
-
-Para cada um dos 4 cards:
-1. Mover os elementos de preço (line-through, preço principal, texto "por mês", badge economia) para DENTRO do `motion.div` que é controlado pelo `openPlan`
-2. A descrição curta fica visível APENAS quando fechado (já funciona assim)
-3. O conteúdo expandido passa a incluir: preços + funcionalidades + botão CTA
-
-Os badges de destaque do card (MAIS VENDIDO, MELHOR INVESTIMENTO, APENAS 20 VAGAS) continuam visíveis mesmo com o card fechado.
