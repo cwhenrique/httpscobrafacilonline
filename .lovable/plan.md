@@ -1,33 +1,30 @@
 
+# Corrigir Dupla Contagem de Juros no Fluxo de Caixa
 
-# Adicionar Informação de Suporte via WhatsApp
+## Problema
 
-## O que será feito
+O Fluxo de Caixa esta somando "Pagamentos recebidos" (R$12.574) + "Juros recebidos" (R$2.462) = R$15.036, porem os R$2.462 de juros ja estao incluidos nos R$12.574 de pagamentos. O valor correto de entradas e R$12.574.
 
-Adicionar uma seção visual entre os cards de planos e a tabela comparativa informando que **todos os planos incluem suporte via WhatsApp das 9h às 20h**.
-
-## Layout
-
-```text
-+--------------------------------------------------+
-|  [MessageCircle]  Suporte via WhatsApp            |
-|  Todos os planos incluem atendimento              |
-|  de segunda a sexta, das 09h às 20h               |
-+--------------------------------------------------+
+A causa esta na linha 84 do `CashFlowCard.tsx`:
+```
+totalInflows = receivedInPeriod + interestReceived
 ```
 
-Um card compacto com ícone do WhatsApp, texto claro e visual destacado (borda verde, fundo sutil).
+`receivedInPeriod` ja contem os juros (e a soma de `payment.amount`, que inclui principal + juros). Somar `interestReceived` novamente causa dupla contagem.
+
+## Solucao
+
+Alterar o calculo de `totalInflows` para usar apenas `receivedInPeriod`, e exibir "Juros recebidos" como um **detalhamento informativo** (quanto dos pagamentos recebidos veio de juros), nao como uma entrada adicional.
 
 ## Arquivo modificado
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---|---|
-| `src/pages/Plans.tsx` | Adicionar uma seção entre os cards de planos (linha ~441) e a tabela comparativa com um card informativo sobre o suporte via WhatsApp incluído em todos os planos |
+| `src/components/reports/CashFlowCard.tsx` | Corrigir `totalInflows` para nao somar juros duas vezes. Exibir juros como subtotal informativo dentro de "Pagamentos recebidos". |
 
-## Detalhes técnicos
+## Detalhes tecnicos
 
-- Usar o mesmo padrão `motion.div` com `fadeInUp` para animação consistente
-- Card com `border-green-500/30 bg-green-500/5` para visual associado ao WhatsApp
-- Ícone `MessageCircle` ou `Headphones` com cor verde
-- Texto: "Suporte via WhatsApp" como título e "Todos os planos incluem atendimento de segunda a sexta, das 09h às 20h" como descrição
-- Posicionado logo após a seção dos cards de planos, antes da tabela comparativa
+1. Mudar `totalInflows = receivedInPeriod` (remover `+ interestReceived`)
+2. Atualizar `currentBalance` que tambem usa `totalInflows` (corrigido automaticamente)
+3. Na secao visual de Entradas, manter "Pagamentos recebidos" como valor principal e mostrar "dos quais juros" como detalhe subordinado (indentado, texto menor), para o usuario entender a composicao sem dupla contagem
+4. O header de Entradas mostrara o valor correto (R$12.574 no caso do usuario)
