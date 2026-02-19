@@ -74,6 +74,11 @@ export function CashFlowConfigModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+            <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+              💡 Informe aqui quanto dinheiro você tem disponível que ainda não foi emprestado. Esse valor é inserido por você e <strong>não é calculado automaticamente</strong> pelo sistema.
+            </p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="balance">Valor do Caixa Extra</Label>
             <div className="relative">

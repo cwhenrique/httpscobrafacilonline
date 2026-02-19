@@ -135,7 +135,7 @@ export function CashFlowCard({
                   <PiggyBank className="w-4 h-4 text-blue-500 shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-blue-500">Caixa Extra</p>
-                    <p className="text-xs text-blue-400/70">Dinheiro disponível não emprestado</p>
+                    <p className="text-xs text-blue-400/70">Valor informado manualmente</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -152,13 +152,32 @@ export function CashFlowCard({
               </div>
             )}
             {extraCashValue <= 0 && (
-              <button
+              <div
+                className="border border-dashed border-blue-500/30 bg-blue-500/5 rounded-xl p-3 cursor-pointer hover:bg-blue-500/10 transition-colors"
                 onClick={() => setConfigOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-blue-500 transition-colors py-1"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar caixa extra
-              </button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <PiggyBank className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span className="text-sm font-semibold text-blue-500">Caixa Extra</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 border-blue-500/40 text-blue-500 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/60 text-xs"
+                    onClick={(e) => { e.stopPropagation(); setConfigOpen(true); }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Informe aqui o dinheiro que você tem disponível no banco ou em mãos e que ainda não foi emprestado.
+                </p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                  Este valor não é calculado automaticamente.
+                </p>
+              </div>
             )}
 
             {/* ── Seta divisória ──────────────────────────────────── */}
