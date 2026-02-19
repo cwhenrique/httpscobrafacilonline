@@ -180,6 +180,31 @@ function SidebarContent({ onNavigate, isEmployee, hasPermission, permissions }: 
         </div>
       )}
 
+      {/* Auto Reports Section - Below Employees */}
+      {!isEmployee && (
+        <div className="px-3 mb-4">
+          <Link
+            to="/auto-reports"
+            onClick={onNavigate}
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 border-2',
+              location.pathname === '/auto-reports'
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500'
+                : 'bg-emerald-500/10 text-sidebar-foreground border-emerald-500/50 hover:bg-emerald-500/20 hover:border-emerald-500'
+            )}
+          >
+            <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <FileCheck className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">Relatórios Auto</p>
+              <p className="text-xs text-sidebar-foreground/60">Relatórios via WhatsApp</p>
+            </div>
+            <ChevronRight className="w-4 h-4 opacity-60" />
+          </Link>
+        </div>
+      )}
+
 
       <ScrollArea className="flex-1 px-3">
         <p className="px-4 mb-2 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider">Menu</p>
