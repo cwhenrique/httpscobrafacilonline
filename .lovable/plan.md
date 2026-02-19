@@ -1,99 +1,54 @@
 
 
-# Reformular Relatorio Diario - Mais Detalhado e Informativo
+# Adicionar Contratos ao Relatório Diário
 
 ## Objetivo
+Incluir a categoria "Contratos" no relatório diário do WhatsApp, seguindo o mesmo padrão já existente para Veículos e Produtos.
 
-Transformar o relatorio atual (basico) em um relatorio executivo completo com:
-- Resumo geral no topo (total a receber hoje + total em atraso)
-- Secao "Vence Hoje" com detalhes de parcela (ex: "Parcela 3/10")
-- Secao "Em Atraso" detalhada por cliente com dias de atraso e valor individual
-- Secao "Resumo da Carteira" com metricas de saude (clientes em dia, ativos, etc.)
-
-## Formato Proposto da Mensagem
+## Como ficará no relatório
 
 ```text
-📊 *RELATÓRIO COBRAFÁCIL*
-📅 19/02/2026 • Quarta-feira
+⏰ *VENCE HOJE* — R$ X.XXX,XX
 
-━━━━━━━━━━━━━━━━━━━
+💵 Empréstimos (2)
+...
 
-💰 *RESUMO DO DIA*
-▸ A cobrar hoje: R$ 1.773,60 (3 parcelas)
-▸ Em atraso: R$ 4.520,00 (5 parcelas)
-▸ Total pendente: R$ 6.293,60
+📄 Contratos (1)
+• João Silva — R$ 500,00
+  ↳ Aluguel Apt 202 • Parcela 3/12
 
-━━━━━━━━━━━━━━━━━━━
+🚗 Veículos (1)
+...
 
-⏰ *VENCE HOJE* — R$ 1.773,60
+🚨 *EM ATRASO* — R$ X.XXX,XX
 
-💵 Emprestimos (2)
-• João Silva — R$ 1.560,00
-  ↳ Mensal • Parcela 3/10
-• Maria Souza — R$ 213,60
-  ↳ Semanal • Parcela 5/8
-
-🚗 Veiculos (1)
-• Pedro Santos — R$ 800,00
-  ↳ Fiat Uno 2020 • Parcela 2/12
-
-📦 Produtos (1)
-• Ana Lima — R$ 350,00
-  ↳ Notebook Dell • Parcela 4/6
-
-━━━━━━━━━━━━━━━━━━━
-
-🚨 *EM ATRASO* — R$ 4.520,00
-
-💵 Emprestimos (3)
-• Carlos Dias — R$ 2.000,00
-  ↳ 15 dias de atraso • Mensal • Parcela 2/6
-• Roberto Gomes — R$ 1.200,00
-  ↳ 7 dias de atraso • Diario
-• Fernanda Cruz — R$ 320,00
-  ↳ 3 dias de atraso • Quinzenal • Parcela 1/4
-
-🚗 Veiculos (1)
-• Lucas Pereira — R$ 1.000,00
-  ↳ 10 dias de atraso • Honda Civic 2019 • Parcela 5/24
-
-━━━━━━━━━━━━━━━━━━━
-
-📈 *SUA CARTEIRA*
-▸ Clientes ativos: 18
-▸ Emprestimos ativos: 25
-▸ Capital na rua: R$ 45.000,00
-
-━━━━━━━━━━━━━━━━━━━
-CobraFácil • 8h
+📄 Contratos (2)
+• Maria Santos — R$ 300,00
+  ↳ 5 dias de atraso • Contrato Mensal • Parcela 2/6
 ```
 
-## Alteracoes Tecnicas
+## Alterações Técnicas
 
 ### Arquivo: `supabase/functions/daily-summary/index.ts`
 
-1. **Adicionar interface LoanInfo ampliada** com campos extras:
-   - `installmentNumber` e `totalInstallments` (numero da parcela)
-   - `paymentTypeLabel` (texto legivel: Mensal, Semanal, Diario, etc.)
+1. **Nova query paralela** (linha 289, no `Promise.all`):
+   - Consultar `contract_payments` com join em `contracts` para obter `client_name`, `contract_type` e `installments`
+   - Filtrar por `user_id`, `status = 'pending'`
 
-2. **Preencher dados de parcela** ao categorizar emprestimos:
-   - Calcular numero da parcela nao paga (`firstUnpaidIndex + 1`)
-   - Gerar label do tipo de pagamento
+2. **Nova interface `ContractInfo`** (similar a `VehicleInfo` e `ProductInfo`):
+   - `id`, `clientName`, `contractType`, `amount`, `installment`, `totalInstallments`, `daysOverdue`
 
-3. **Adicionar query de resumo da carteira**:
-   - Contar clientes ativos distintos (dos emprestimos ja carregados)
-   - Contar emprestimos ativos
-   - Somar capital na rua (principal pendente)
+3. **Categorizar contratos** em `dueTodayContracts` e `overdueContracts` (mesmo padrão de veículos/produtos)
 
-4. **Reescrever bloco de formatacao da mensagem** (linhas 547-620):
-   - Cabecalho com dia da semana
-   - Bloco "Resumo do Dia" com totais consolidados
-   - Secao "Vence Hoje" com detalhes de parcela e tipo
-   - Secao "Em Atraso" detalhada com dias de atraso por cliente
-   - Secao "Sua Carteira" com metricas de saude
-   - Ordenar atrasados do mais antigo para o mais recente
+4. **Incluir nos totais**:
+   - `totalDueToday` soma `contractTotalToday`
+   - `grandTotalOverdue` soma `contractTotalOverdue`
+   - `hasDueToday`, `hasOverdue`, `totalDueTodayCount`, `totalOverdueCount` incluem contratos
 
-5. **Helpers novos**:
-   - `getWeekdayName(date)` para nome do dia da semana em portugues
-   - `getPaymentTypeLabel(type)` para converter tipo em texto legivel
+5. **Adicionar seções de contratos na mensagem**:
+   - Bloco "Vence Hoje": seção `📄 Contratos (N)` entre Empréstimos e Veículos
+   - Bloco "Em Atraso": seção `📄 Contratos (N)` entre Empréstimos e Veículos
+
+6. **Incluir contratos ativos nas métricas "Sua Carteira"**:
+   - Adicionar linha `▸ Contratos ativos: X`
 
