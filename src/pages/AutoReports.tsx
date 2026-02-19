@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/DKbJ3gL';
+const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/3c4qf8i';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
   value: String(i),
