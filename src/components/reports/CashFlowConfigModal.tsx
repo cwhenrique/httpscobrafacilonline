@@ -10,14 +10,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wallet, Sparkles, RotateCcw, Info } from 'lucide-react';
+import { Wallet, RotateCcw } from 'lucide-react';
 import { formatCurrency } from '@/lib/calculations';
 
 interface CashFlowConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentBalance: number;
-  suggestedBalance?: number; // Valor sugerido pelo sistema
   onSave: (value: number) => void;
 }
 
@@ -25,7 +24,6 @@ export function CashFlowConfigModal({
   open,
   onOpenChange,
   currentBalance,
-  suggestedBalance,
   onSave,
 }: CashFlowConfigModalProps) {
   const [value, setValue] = useState('');
@@ -52,12 +50,6 @@ export function CashFlowConfigModal({
       })
     : '';
 
-  const handleUseSuggested = () => {
-    if (suggestedBalance && suggestedBalance > 0) {
-      setValue(Math.round(suggestedBalance * 100).toString());
-    }
-  };
-
   const handleReset = () => {
     setValue('');
   };
@@ -74,38 +66,16 @@ export function CashFlowConfigModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="w-5 h-5 text-primary" />
-            Configurar Saldo Inicial
+            Configurar Caixa Extra
           </DialogTitle>
           <DialogDescription>
-            Defina o valor inicial do seu caixa para acompanhar o fluxo de dinheiro.
+            Defina o valor de dinheiro disponível que ainda não foi emprestado.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Sugestão do sistema */}
-          {suggestedBalance !== undefined && suggestedBalance > 0 && (
-            <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-4 h-4 text-blue-500" />
-                <p className="text-sm text-blue-500 font-medium">Sugestão do sistema:</p>
-              </div>
-              <p className="text-lg font-bold text-blue-500">{formatCurrency(suggestedBalance)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Baseado no principal dos contratos ativos atuais
-              </p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleUseSuggested}
-                className="mt-2 text-xs border-blue-500/30 text-blue-500 hover:bg-blue-500/10"
-              >
-                Usar este valor
-              </Button>
-            </div>
-          )}
-
           <div className="space-y-2">
-            <Label htmlFor="balance">Saldo Inicial do Caixa</Label>
+            <Label htmlFor="balance">Valor do Caixa Extra</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
                 R$
@@ -120,16 +90,9 @@ export function CashFlowConfigModal({
                 className="pl-10 text-lg font-medium"
               />
             </div>
-            {!value && suggestedBalance && suggestedBalance > 0 ? (
-              <p className="text-xs text-emerald-500 flex items-center gap-1">
-                <Info className="w-3 h-3" />
-                Será usado automaticamente: {formatCurrency(suggestedBalance)}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Este valor representa quanto dinheiro você tem disponível para empréstimos.
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Dinheiro disponível que ainda não foi emprestado.
+            </p>
           </div>
 
           {/* Botão de Reset */}
@@ -141,16 +104,17 @@ export function CashFlowConfigModal({
               className="text-muted-foreground hover:text-foreground"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
-              Resetar para automático
+              Remover caixa extra
             </Button>
           )}
 
           <div className="bg-muted/50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-medium">Como funciona:</p>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>📤 <strong>Saídas:</strong> Quando você empresta dinheiro, o caixa diminui</li>
-              <li>📥 <strong>Entradas:</strong> Quando recebe pagamentos, o caixa aumenta</li>
-              <li>📈 <strong>Lucro:</strong> Os juros recebidos são mostrados separadamente</li>
+              <li>💰 <strong>Caixa extra:</strong> Dinheiro que você tem mas ainda não emprestou</li>
+              <li>📤 <strong>Saídas:</strong> Empréstimos concedidos no período</li>
+              <li>📥 <strong>Entradas:</strong> Pagamentos recebidos no período</li>
+              <li>📊 <strong>Resultado:</strong> Caixa Extra + Entradas - Saídas</li>
             </ul>
           </div>
         </div>
