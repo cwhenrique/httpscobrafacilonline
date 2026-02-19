@@ -164,3 +164,6 @@ verify_jwt = false
 
 [functions.whatsapp-status-webhook]
 verify_jwt = false
+
+[functions.umclique-webhook]
+verify_jwt = false
