@@ -1,109 +1,83 @@
 
 
-# Webhook para Um Clique Digital - Resposta de Relatorio (Sim/Nao)
+# Correção: Multa/Juros por Atraso Não Incluídos no Pagamento e Comprovante
 
-## Objetivo
+## Problema Identificado
 
-Criar uma edge function que recebe mensagens vindas da plataforma Um Clique Digital (connect.umcliquedigital.com). Quando o usuario/cliente responder "sim", o sistema envia o relatorio. Quando responder "nao", marca como recusado e nao envia.
+O sistema exibe corretamente o valor da parcela com multa/juros de atraso na interface (dialog de pagamento), mas ao registrar o pagamento, o valor registrado é apenas o da parcela base, sem incluir a multa. O comprovante também mostra o valor sem multa.
 
-## Como funciona
+**Causa raiz:** Existem duas funções `getInstallmentValue` diferentes no código:
 
-```text
-Um Clique Digital                Edge Function              Banco de Dados
-     |                               |                           |
-     |--- POST /umclique-webhook --->|                           |
-     |    (mensagem do cliente)      |                           |
-     |                               |-- busca pending_messages--|
-     |                               |<-- mensagem pendente -----|
-     |                               |                           |
-     |                    [sim?] --->|-- marca "confirmed" ----->|
-     |                               |-- envia relatorio ------->|
-     |                               |                           |
-     |                    [nao?] --->|-- marca "declined" ------>|
-     |                               |  (nao envia nada)         |
-     |                               |                           |
-     |<--- 200 OK ------------------|                           |
-```
+1. **Na interface (linha ~12492):** Calcula `base + multa (DAILY_PENALTY) + juros dinâmicos (OVERDUE_CONFIG)` - valor CORRETO mostrado ao usuário
+2. **No processamento do pagamento (linha ~4354):** Calcula apenas `base + multa (DAILY_PENALTY)` - **FALTA o juros dinâmico de atraso**
 
-## Mudancas
+Além disso, a lógica de "consolidação" (que adiciona juros de atraso ao `remaining_balance` antes do pagamento) é apagada pelo trigger `recalculate_loan_total_paid`, que recalcula `remaining_balance` usando apenas os valores originais do contrato.
 
-### 1. Nova Edge Function: `supabase/functions/umclique-webhook/index.ts`
+## Solução
 
-A funcao recebe o webhook da plataforma Um Clique Digital. Como e parceira oficial do Meta, o formato do payload segue o padrao da API oficial do WhatsApp (Meta Cloud API) ou o formato proprio da plataforma.
+### 1. Incluir juros dinâmicos de atraso no `getInstallmentValue` do processamento de pagamento
 
-A funcao:
+No bloco de processamento (linha ~4354), a função `getInstallmentValue` será atualizada para incluir os juros dinâmicos de atraso (calculados via `OVERDUE_CONFIG`), da mesma forma que a versão da interface faz.
 
-- Aceita POST sem JWT (webhook externo)
-- Aceita GET para validacao do webhook (Meta envia um challenge de verificacao)
-- Extrai o numero do remetente e o texto da mensagem
-- Normaliza o texto e verifica se e "sim" ou "nao"
-- Busca na tabela `pending_messages` uma mensagem pendente para aquele telefone
-- Se **sim**: marca como `confirmed`, envia o relatorio via `send-whatsapp-to-client`
-- Se **nao**: marca como `declined`, nao envia nada
-- Loga tudo para debug
+Isso fará com que o `amount` registrado no `registerPayment` já inclua a multa/juros de atraso.
 
-**Keywords de confirmacao** (reutiliza a mesma lista do webhook existente):
-`ok, sim, confirmo, receber, quero, aceito, 1, yes, si, pode, manda, enviar, blz, beleza, ta, certo, positivo`
+### 2. Consolidar multas como DAILY_PENALTY antes do pagamento
 
-**Keywords de recusa** (novo):
-`nao, não, 2, no, nope, recuso, cancelar, cancela, para, parar, sair`
+Em vez de apenas somar ao `remaining_balance` (que é sobrescrito pelo trigger), o sistema vai:
+- Calcular os juros dinâmicos de atraso para cada parcela sendo paga
+- Salvar como tag `[DAILY_PENALTY:index:valor]` nas notas do empréstimo ANTES do pagamento
+- Isso garante que o `getInstallmentValue` (processamento) captura automaticamente o valor via `loanPenalties[index]`
 
-### 2. Atualizar `supabase/config.toml`
+### 3. Corrigir o comprovante
 
-Adicionar:
-```toml
-[functions.umclique-webhook]
-verify_jwt = false
-```
+A seção que calcula `totalPenaltyPaid` (linhas ~5149-5163) já lê de `loanPenalties`, então com a correção do item 2 (salvar como DAILY_PENALTY), o comprovante passará a mostrar o valor correto automaticamente.
 
-### 3. Nenhuma mudanca no banco de dados
+### 4. Remover a consolidação redundante
 
-A tabela `pending_messages` ja tem o campo `status` que aceita qualquer string. Vamos usar `declined` para respostas negativas, alem dos existentes `pending`, `confirmed`, `failed`, `expired`.
+A lógica de consolidação atual (linhas 4163-4244) que soma ao `remaining_balance` pode ser removida ou simplificada, já que o mecanismo correto é incluir os juros como DAILY_PENALTY e deixar o `getInstallmentValue` cuidar do resto.
 
-## Detalhes tecnicos da Edge Function
+## Detalhes Técnicos
 
-### Formato esperado do webhook (Meta Cloud API / Um Clique Digital)
+### Arquivo: `src/pages/Loans.tsx`
 
-A plataforma pode enviar no formato Meta padrao:
+**Mudança principal - Bloco de consolidação (~linha 4163-4244):**
 
-```json
-{
-  "object": "whatsapp_business_account",
-  "entry": [{
-    "changes": [{
-      "value": {
-        "messages": [{
-          "from": "5517999999999",
-          "text": { "body": "sim" },
-          "type": "text"
-        }]
-      }
-    }]
-  }]
+Em vez de adicionar ao `remaining_balance` (que é sobrescrito pelo trigger), o código vai:
+
+```typescript
+// Para cada parcela selecionada, calcular juros dinâmicos e salvar como DAILY_PENALTY
+if (daysOverdueForConsolidation > 0 && overdueConfigType && overdueConfigValue > 0) {
+  const existingPenalty = penaltiesForConsolidation[paidCountForConsolidation] || 0;
+  
+  // Se ainda não há DAILY_PENALTY para esta parcela, criar automaticamente
+  if (existingPenalty === 0) {
+    const penaltyTag = `[DAILY_PENALTY:${paidCountForConsolidation}:${dynamicOverdueInterest.toFixed(2)}]`;
+    let updatedNotesForPenalty = loanNotes;
+    updatedNotesForPenalty = `${penaltyTag}\n${updatedNotesForPenalty}`.trim();
+    
+    await supabase.from('loans').update({
+      notes: updatedNotesForPenalty
+    }).eq('id', selectedLoanId);
+    
+    // Atualizar referências locais
+    selectedLoan.notes = updatedNotesForPenalty;
+  }
 }
 ```
 
-Ou no formato simplificado da propria plataforma. A funcao vai tentar ambos os formatos para garantir compatibilidade.
+Isso garante que:
+- O juros dinâmico é materializado como DAILY_PENALTY
+- O `getInstallmentValue` do processamento inclui o valor
+- O `PARTIAL_PAID` salva o valor correto (com multa)
+- O comprovante mostra a multa separada
+- O trigger `recalculate_loan_total_paid` calcula corretamente (pois o `amount` do pagamento já inclui a multa)
 
-### Validacao do Webhook (GET)
+**Para pagamentos de múltiplas parcelas (installment type):** A mesma lógica será aplicada a cada parcela selecionada, garantindo que cada uma tenha seu DAILY_PENALTY materializado antes do processamento.
 
-O Meta exige que o endpoint responda a um GET com o `hub.challenge` para validar o webhook. A funcao responde automaticamente a esse desafio.
+## Impacto
 
-### Fluxo de "nao"
+- Pagamentos futuros incluirão corretamente o valor da multa/juros de atraso
+- Comprovantes mostrarão o valor da multa separadamente
+- Dados já pagos (como as parcelas da Vitória Rodrigues dos Santos) NÃO serão alterados retroativamente
+- Nenhuma mudança no banco de dados (apenas lógica no frontend)
 
-Quando o cliente responde "nao":
-1. Busca a `pending_message` pendente
-2. Atualiza status para `declined`
-3. Registra `confirmed_at` com a data atual (para auditoria)
-4. Retorna sucesso sem enviar mensagem
-
-### Seguranca
-
-A funcao pode opcionalmente validar um token de verificacao configurado na plataforma Um Clique Digital (via header ou query param). Isso sera configuravel via secret `UMCLIQUE_VERIFY_TOKEN`.
-
-## URL do webhook para configurar na plataforma
-
-Apos deploy, a URL sera:
-`https://yulegybknvtanqkipsbj.supabase.co/functions/v1/umclique-webhook`
-
-Esta URL deve ser adicionada na configuracao de "Webhook Split" da plataforma Um Clique Digital.
