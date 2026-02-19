@@ -286,7 +286,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       // ============= QUERIES PARALELAS PARA PERFORMANCE =============
-      const [loansResult, loanPaymentsResult, vehiclePaymentsResult, productPaymentsResult] = await Promise.all([
+      const [loansResult, loanPaymentsResult, vehiclePaymentsResult, productPaymentsResult, contractPaymentsResult] = await Promise.all([
         // EMPRÉSTIMOS
         supabase
           .from('loans')
@@ -303,21 +303,26 @@ const handler = async (req: Request): Promise<Response> => {
           .from('vehicle_payments')
           .select(`*, vehicles!inner(brand, model, year, plate, buyer_name, seller_name, user_id, purchase_value, total_paid, installments)`)
           .eq('user_id', profile.id)
-          .eq('status', 'pending')
-          .gte('due_date', todayStr),
+          .eq('status', 'pending'),
         // PRODUTOS
         supabase
           .from('product_sale_payments')
           .select(`*, productSale:product_sales!inner(product_name, client_name, user_id, total_amount, total_paid, installments)`)
           .eq('user_id', profile.id)
-          .eq('status', 'pending')
-          .gte('due_date', todayStr),
+          .eq('status', 'pending'),
+        // CONTRATOS
+        supabase
+          .from('contract_payments')
+          .select(`*, contract:contracts!inner(client_name, contract_type, installments)`)
+          .eq('user_id', profile.id)
+          .eq('status', 'pending'),
       ]);
 
       const loans = loansResult.data;
       const loanPaymentsData = loanPaymentsResult.data;
       const userVehiclePayments = vehiclePaymentsResult.data || [];
       const userProductPayments = productPaymentsResult.data || [];
+      const userContractPayments = contractPaymentsResult.data || [];
 
       // Criar mapa de contagem de pagamentos por empréstimo
       const loanPaymentCounts: Record<string, number> = {};
@@ -554,17 +559,58 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
+      // Categorize contracts
+      interface ContractInfo {
+        id: string;
+        clientName: string;
+        contractType: string;
+        amount: number;
+        installment: number;
+        totalInstallments: number;
+        daysOverdue?: number;
+      }
+
+      const dueTodayContracts: ContractInfo[] = [];
+      const overdueContracts: ContractInfo[] = [];
+      let contractTotalToday = 0;
+      let contractTotalOverdue = 0;
+
+      for (const payment of userContractPayments) {
+        const contract = payment.contract as any;
+        const paymentDueDate = new Date(payment.due_date);
+        paymentDueDate.setHours(0, 0, 0, 0);
+
+        const paymentInfo: ContractInfo = {
+          id: payment.id,
+          clientName: contract.client_name,
+          contractType: contract.contract_type || 'Contrato',
+          amount: payment.amount,
+          installment: payment.installment_number,
+          totalInstallments: contract.installments,
+        };
+
+        if (payment.due_date === todayStr) {
+          dueTodayContracts.push(paymentInfo);
+          contractTotalToday += payment.amount;
+        } else if (paymentDueDate < today) {
+          const daysOverdue = Math.floor((today.getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          overdueContracts.push({ ...paymentInfo, daysOverdue });
+          contractTotalOverdue += payment.amount;
+        }
+      }
+
       // Sort overdue by days (most overdue first)
       overdueLoans.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
       overdueVehicles.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
       overdueProducts.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+      overdueContracts.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
 
-      const totalDueToday = totalToReceiveToday + vehicleTotalToday + productTotalToday;
-      const grandTotalOverdue = totalOverdue + vehicleTotalOverdue + productTotalOverdue;
-      const hasDueToday = dueTodayLoans.length > 0 || dueTodayVehicles.length > 0 || dueTodayProducts.length > 0;
-      const hasOverdue = overdueLoans.length > 0 || overdueVehicles.length > 0 || overdueProducts.length > 0;
-      const totalDueTodayCount = dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length;
-      const totalOverdueCount = overdueLoans.length + overdueVehicles.length + overdueProducts.length;
+      const totalDueToday = totalToReceiveToday + vehicleTotalToday + productTotalToday + contractTotalToday;
+      const grandTotalOverdue = totalOverdue + vehicleTotalOverdue + productTotalOverdue + contractTotalOverdue;
+      const hasDueToday = dueTodayLoans.length > 0 || dueTodayVehicles.length > 0 || dueTodayProducts.length > 0 || dueTodayContracts.length > 0;
+      const hasOverdue = overdueLoans.length > 0 || overdueVehicles.length > 0 || overdueProducts.length > 0 || overdueContracts.length > 0;
+      const totalDueTodayCount = dueTodayLoans.length + dueTodayVehicles.length + dueTodayProducts.length + dueTodayContracts.length;
+      const totalOverdueCount = overdueLoans.length + overdueVehicles.length + overdueProducts.length + overdueContracts.length;
 
       if (!hasDueToday && !hasOverdue) {
         console.log(`User ${profile.id} has no pending items, skipping`);
@@ -575,6 +621,7 @@ const handler = async (req: Request): Promise<Response> => {
       const activeLoansCount = (loans || []).filter(l => l.status !== 'paid').length;
       const activeClientIds = new Set((loans || []).filter(l => l.status !== 'paid').map(l => l.client_id));
       const capitalNaRua = (loans || []).filter(l => l.status !== 'paid').reduce((sum, l) => sum + l.remaining_balance, 0);
+      const activeContractsCount = new Set(userContractPayments.map((p: any) => p.contract_id)).size;
 
       // Build executive report message
       const displayHour = targetHour !== null ? targetHour : 8;
@@ -606,6 +653,16 @@ const handler = async (req: Request): Promise<Response> => {
               ? ` • Parcela ${l.installmentNumber}/${l.totalInstallments}`
               : '';
             messageText += `  ↳ ${l.paymentTypeLabel || 'Mensal'}${installmentInfo}\n`;
+          });
+          messageText += `\n`;
+        }
+
+        // Contratos
+        if (dueTodayContracts.length > 0) {
+          messageText += `📄 Contratos (${dueTodayContracts.length})\n`;
+          dueTodayContracts.forEach(c => {
+            messageText += `• ${c.clientName} — ${formatCurrency(c.amount)}\n`;
+            messageText += `  ↳ ${c.contractType} • Parcela ${c.installment}/${c.totalInstallments}\n`;
           });
           messageText += `\n`;
         }
@@ -650,6 +707,16 @@ const handler = async (req: Request): Promise<Response> => {
           messageText += `\n`;
         }
 
+        // Contratos atrasados
+        if (overdueContracts.length > 0) {
+          messageText += `📄 Contratos (${overdueContracts.length})\n`;
+          overdueContracts.forEach(c => {
+            messageText += `• ${c.clientName} — ${formatCurrency(c.amount)}\n`;
+            messageText += `  ↳ ${c.daysOverdue} dia${(c.daysOverdue || 0) > 1 ? 's' : ''} de atraso • ${c.contractType} • Parcela ${c.installment}/${c.totalInstallments}\n`;
+          });
+          messageText += `\n`;
+        }
+
         // Veículos atrasados
         if (overdueVehicles.length > 0) {
           messageText += `🚗 Veículos (${overdueVehicles.length})\n`;
@@ -677,6 +744,9 @@ const handler = async (req: Request): Promise<Response> => {
       messageText += `📈 *SUA CARTEIRA*\n`;
       messageText += `▸ Clientes ativos: ${activeClientIds.size}\n`;
       messageText += `▸ Empréstimos ativos: ${activeLoansCount}\n`;
+      if (activeContractsCount > 0) {
+        messageText += `▸ Contratos ativos: ${activeContractsCount}\n`;
+      }
       messageText += `▸ Capital na rua: ${formatCurrency(capitalNaRua)}\n\n`;
       messageText += `━━━━━━━━━━━━━━━━━━━\n`;
       messageText += `CobraFácil • ${displayHour}h`;
