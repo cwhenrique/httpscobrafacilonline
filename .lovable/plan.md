@@ -1,77 +1,35 @@
 
-# Relatórios Diários via Um Clique Digital - Nova Funcionalidade
+
+# Ajustar Textos da Pagina de Relatorios Automaticos
 
 ## Resumo
 
-Criar um sistema de relatórios diários integrado à API Um Clique Digital, com um card promocional no Dashboard que alterna com o banner de funcionários, e uma área dedicada no menu lateral para gerenciamento. O serviço custa R$ 19,90/mês via checkout Cakto.
+Atualizar os textos da pagina `src/pages/AutoReports.tsx` para refletir que:
+- Os relatorios sao enviados via API oficial do WhatsApp
+- O usuario recebe uma vez por dia, de um numero nosso, a lista de quem cobrar naquele dia e quem esta em atraso
+- O usuario pode definir o horario de recebimento
+- Isso e uma parceria com o WhatsApp
 
-## O que será criado
+## Alteracoes no arquivo `src/pages/AutoReports.tsx`
 
-### 1. Card Promocional no Dashboard (intercalando com Funcionários)
+### Card de Status (nao assinado)
+- Texto atual: "Assine para receber relatórios automáticos via WhatsApp"
+- Novo texto: "Assine para receber diariamente a lista de cobranças do dia via API oficial do WhatsApp"
 
-No `src/pages/Dashboard.tsx`, adicionar um card promocional para relatórios que alterna automaticamente com o card de funcionários a cada ~5 segundos (ou ao clicar). O card terá visual similar ao de funcionários mas com cores diferentes (verde/esmeralda), destacando:
-- Relatórios automáticos via WhatsApp
-- Frequências: diário, semanal, quinzenal, mensal
-- Cobertura: empréstimos, produtos, contratos e IPTV
-- Preço: R$ 19,90/mês
-- Botão "Assinar Agora" redirecionando para checkout Cakto
+### Card CTA principal
+- Titulo atual: "Relatórios Automáticos via WhatsApp"
+- Novo titulo: "Relatorio Diario de Cobranças via WhatsApp"
+- Descricao atual: "Receba relatórios detalhados sobre empréstimos, produtos, contratos e IPTV diretamente no seu WhatsApp. Escolha a frequência: diário, semanal, quinzenal ou mensal."
+- Nova descricao: "Receba uma vez por dia, de um numero nosso via API oficial do WhatsApp, a lista completa de quem voce deve cobrar naquele dia e quem esta em atraso. Voce define o horario de recebimento. Servico em parceria com WhatsApp."
 
-Para usuários que já têm `relatorio_ativo = true`, o card mostrará "Ativo" com link para gerenciar.
+### Titulo da pagina
+- Subtitulo atual: "Receba relatórios completos via WhatsApp automaticamente"
+- Novo subtitulo: "Receba diariamente no seu WhatsApp quem cobrar e quem esta em atraso"
 
-### 2. Nova Página de Relatórios Automáticos
+### Secao de Frequencia
+- Remover opcoes de frequencia (diario/semanal/quinzenal/mensal) e substituir por um seletor de horario de recebimento, ja que o envio e uma vez por dia
 
-Criar `src/pages/AutoReports.tsx` com:
-- Status da assinatura (ativo/inativo)
-- Configuração de frequência preferida (diário, semanal, quinzenal, mensal)
-- Seleção de tipos de relatório (empréstimos, produtos, contratos, IPTV)
-- Histórico de relatórios enviados (dados da tabela `pending_messages`)
-- Para quem não assinou: CTA com botão para checkout Cakto
+### Card de Status (assinado)
+- Texto atual: "Seus relatórios estão sendo enviados automaticamente"
+- Novo texto: "Voce recebe diariamente via API oficial do WhatsApp a lista de cobranças do dia"
 
-### 3. Item no Menu Lateral
-
-No `DashboardLayout.tsx`, adicionar "Relatórios Auto" no menu lateral com ícone `FileCheck`, visível para owners (não funcionários). Se não tiver `relatorio_ativo`, mostrar badge "Novo".
-
-### 4. Novos Campos no Banco de Dados
-
-Adicionar campos na tabela `profiles` via migration:
-- `auto_report_frequency` (text, default 'daily') - frequência escolhida
-- `auto_report_categories` (text[], default '{loans}') - categorias selecionadas
-
-### 5. Lógica de Alternância no Dashboard
-
-Usar `useState` com `useEffect` + `setInterval` para alternar entre o banner de funcionários e o banner de relatórios a cada 6 segundos. Ambos cards terão botão de fechar independente (persistido em sessionStorage).
-
-## Detalhes técnicos
-
-### Arquivo: `src/pages/Dashboard.tsx`
-- Importar `useProfile` para verificar `relatorio_ativo`
-- Adicionar estado `activeBanner` alternando entre 'employee' e 'reports'
-- Adicionar estado `showReportsBanner` com sessionStorage
-- Novo card com gradiente verde/esmeralda
-- Timer useEffect para alternar banners
-
-### Arquivo: `src/pages/AutoReports.tsx` (novo)
-- Página com DashboardLayout
-- Cards de configuração de frequência e categorias
-- Salvamento via `updateProfile` do hook useProfile
-- CTA para não-assinantes com link Cakto
-
-### Arquivo: `src/components/layout/DashboardLayout.tsx`
-- Novo item de menu "Relatórios Auto" com ícone FileCheck
-- Visível apenas para owners
-
-### Arquivo: `src/App.tsx`
-- Nova rota `/auto-reports` com ProtectedRoute
-
-### Arquivo: `src/hooks/useProfile.ts`
-- Adicionar `auto_report_frequency` e `auto_report_categories` à interface Profile
-
-### Migration SQL
-```text
-ALTER TABLE profiles 
-  ADD COLUMN IF NOT EXISTS auto_report_frequency text DEFAULT 'daily',
-  ADD COLUMN IF NOT EXISTS auto_report_categories text[] DEFAULT '{loans}';
-```
-
-### Link Cakto
-O botão "Assinar" redirecionará para o checkout externo da Cakto. A ativação (`relatorio_ativo = true`) já é feita automaticamente pelo webhook Cakto existente quando identifica compra de "relatorio".
