@@ -60,12 +60,11 @@ import {
   Timer,
   Smartphone,
   Camera,
-  FileText
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import CompanyLogoUpload from '@/components/CompanyLogoUpload';
-import ReportScheduleSection from '@/components/ReportScheduleSection';
+
 
 interface WhatsAppStatus {
   connected: boolean;
@@ -84,7 +83,7 @@ export default function Profile() {
   const { links: affiliateLinks, renewalLinks } = useAffiliateLinks();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [sendingTest, setSendingTest] = useState(false);
+  
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -137,7 +136,7 @@ export default function Profile() {
   const [qrExpired, setQrExpired] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [resettingInstance, setResettingInstance] = useState(false);
-  const [sendingDailyTest, setSendingDailyTest] = useState(false);
+  
 
   const pollForQrCode = useCallback(
     async (maxAttempts = 20) => {
@@ -554,28 +553,6 @@ export default function Profile() {
     }
   };
 
-  const handleTestDailySummary = async () => {
-    if (!profile?.phone) {
-      toast.error('Você precisa ter um telefone cadastrado');
-      return;
-    }
-    
-    setSendingDailyTest(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('daily-summary', {
-        body: { testPhone: profile.phone }
-      });
-      
-      if (error) throw error;
-      
-      toast.success('Relatório enviado! Verifique seu WhatsApp.');
-    } catch (error) {
-      console.error('Error sending daily test:', error);
-      toast.error('Erro ao enviar relatório de teste');
-    } finally {
-      setSendingDailyTest(false);
-    }
-  };
 
   const formatPhoneDisplay = (phone: string) => {
     if (!phone) return '';
@@ -691,37 +668,6 @@ export default function Profile() {
     setIsEditing(false);
   };
 
-  const handleTestWhatsApp = async () => {
-    // Verificar se o WhatsApp está conectado
-    if (!profile?.whatsapp_instance_id || !profile?.whatsapp_connected_phone) {
-      toast.error('Conecte seu WhatsApp na seção acima primeiro');
-      return;
-    }
-
-    setSendingTest(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-whatsapp-to-self', {
-        body: {
-          userId: user?.id,
-          message: `🧪 *Teste do CobraFácil*\n\nOlá ${profile.full_name || ''}!\n\nEsta é uma mensagem de teste do sistema de notificações.\n\n✅ Se você está recebendo esta mensagem, a integração com WhatsApp está funcionando corretamente!\n\n_Mensagem automática de teste_`,
-        },
-      });
-
-      if (error) throw error;
-      
-      if (data?.success) {
-        toast.success('Mensagem de teste enviada! Você receberá do seu próprio número.');
-      } else if (data?.error === 'whatsapp_not_connected') {
-        toast.error('WhatsApp não conectado. Conecte na seção acima.');
-      } else {
-        throw new Error(data?.error || 'Erro ao enviar mensagem');
-      }
-    } catch (error: any) {
-      console.error('Error sending test:', error);
-      toast.error(`Erro ao enviar teste: ${error.message}`);
-    }
-    setSendingTest(false);
-  };
 
   const handleChangePassword = async () => {
     if (!passwordData.newPassword) {
@@ -1649,39 +1595,6 @@ export default function Profile() {
                   />
                 </div>
 
-                {/* Test Daily Summary Button */}
-                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Testar Relatório Diário</p>
-                      <p className="text-xs text-muted-foreground">
-                        Receba o relatório de cobranças do dia no seu WhatsApp
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleTestDailySummary}
-                    disabled={sendingDailyTest}
-                    variant="outline"
-                    className="w-full mt-2 border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
-                  >
-                    {sendingDailyTest ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Enviar Relatório de Teste
-                      </>
-                    )}
-                  </Button>
-                </div>
-
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button 
                     variant="outline" 
@@ -1819,58 +1732,6 @@ export default function Profile() {
                   Com o WhatsApp conectado, você poderá enviar notificações de cobrança e comprovantes diretamente para os telefones dos seus clientes.
                 </p>
               </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Report Schedule Section - only show when WhatsApp is connected */}
-        {whatsappStatus?.connected && (
-          <ReportScheduleSection
-            scheduleHours={profile?.report_schedule_hours || []}
-            onUpdate={async (hours) => {
-              return await updateProfile({ report_schedule_hours: hours } as any);
-            }}
-          />
-        )}
-
-        <Card className="shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-green-500" />
-              Teste de Notificações WhatsApp
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Envie uma mensagem de teste para o seu próprio WhatsApp conectado.
-            </p>
-            {profile?.whatsapp_connected_phone && (
-              <p className="text-sm text-green-600 mb-4 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                WhatsApp conectado: {profile.whatsapp_connected_phone}
-              </p>
-            )}
-            <Button 
-              onClick={handleTestWhatsApp} 
-              disabled={sendingTest || !profile?.whatsapp_instance_id}
-              className="gap-2"
-            >
-              {sendingTest ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Enviar Teste para Meu WhatsApp
-                </>
-              )}
-            </Button>
-            {!profile?.whatsapp_instance_id && (
-              <p className="text-xs text-destructive mt-2">
-                Conecte seu WhatsApp acima para testar
-              </p>
             )}
           </CardContent>
         </Card>
