@@ -155,6 +155,50 @@ function isEmployeeSlotPurchase(payload: any): boolean {
   return false;
 }
 
+// Check if this is a "Relatório" product purchase
+function isRelatorioPurchase(payload: any): boolean {
+  console.log('=== CHECKING IF RELATORIO PURCHASE ===');
+  
+  const productName = (
+    payload.data?.product?.name ||
+    payload.product?.name ||
+    payload.data?.offer?.name ||
+    payload.offer?.name ||
+    payload.product_name ||
+    payload.data?.item?.name ||
+    payload.item?.name ||
+    ''
+  ).toLowerCase();
+
+  const productId = (
+    payload.data?.product?.id ||
+    payload.product?.id ||
+    payload.data?.offer?.id ||
+    payload.offer_id ||
+    payload.data?.item?.id ||
+    ''
+  ).toLowerCase();
+
+  console.log('Relatorio detection - Product name:', productName);
+  console.log('Relatorio detection - Product ID:', productId);
+
+  const matches = (
+    productName.includes('relatorio') ||
+    productName.includes('relatório') ||
+    productName.includes('report') ||
+    productId.includes('relatorio') ||
+    productId.includes('report')
+  );
+
+  if (matches) {
+    console.log('=== RELATORIO PRODUCT MATCHED ===');
+    return true;
+  }
+
+  console.log('=== NOT A RELATORIO PURCHASE ===');
+  return false;
+}
+
 // Get plan days for accumulation
 function getPlanDays(plan: string): number {
   switch (plan) {
@@ -715,6 +759,53 @@ Obrigado pela confiança! 💚`;
           message: 'Employee slot added',
           email: customerEmail,
           max_employees: newMax
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if this is a "Relatório" product purchase
+    if (isRelatorioPurchase(payload)) {
+      console.log('=== RELATORIO PURCHASE DETECTED ===');
+      
+      let relatorioUser = await findUserByEmail(supabase, customerEmail);
+      
+      if (!relatorioUser) {
+        console.error('User not found for relatorio purchase email:', customerEmail);
+        return new Response(
+          JSON.stringify({ error: 'User not found', email: customerEmail }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Found user for relatorio:', relatorioUser.id);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ relatorio_ativo: true })
+        .eq('id', relatorioUser.id);
+
+      if (updateError) {
+        console.error('Error activating relatorio:', updateError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to activate relatorio' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('=== RELATORIO ACTIVATED SUCCESSFULLY ===');
+
+      // Send confirmation via WhatsApp
+      if (customerPhone) {
+        const confirmMessage = `✅ *Relatório Ativado!*\n\nOlá ${customerName || 'Cliente'}!\n\nSeu serviço de relatório automático foi ativado com sucesso. Você receberá seus relatórios via WhatsApp.\n\nObrigado pela confiança! 💚`;
+        await sendWhatsAppMessage(customerPhone, confirmMessage, 'SuporteApp');
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Relatorio activated',
+          email: customerEmail,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
