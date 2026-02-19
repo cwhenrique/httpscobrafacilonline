@@ -81,7 +81,7 @@ export function CashFlowCard({
   const extraCostsTotal = extraCosts.reduce((s, c) => s + c.amount, 0);
   const billsOutflow = includeBills ? billsPaidTotal : 0;
   const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
-  const totalInflows = receivedInPeriod + interestReceived;
+  const totalInflows = receivedInPeriod;
   const currentBalance = effectiveInitialBalance - totalOutflows + totalInflows;
   const isPositive = currentBalance >= 0;
   const dynamicNetResult = totalInflows - totalOutflows;
@@ -361,7 +361,7 @@ export function CashFlowCard({
 
               <div className="px-4 py-3 space-y-0">
                 {/* Pagamentos recebidos */}
-                <div className="flex items-center justify-between py-2.5 border-b border-emerald-500/10">
+                <div className="flex items-center justify-between py-2.5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     <span className="text-sm text-muted-foreground">Pagamentos recebidos</span>
@@ -371,16 +371,18 @@ export function CashFlowCard({
                   </span>
                 </div>
 
-                {/* Juros recebidos */}
-                <div className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                    <span className="text-sm text-muted-foreground">Juros recebidos</span>
+                {/* Juros recebidos — subtotal informativo */}
+                {interestReceived > 0 && (
+                  <div className="flex items-center justify-between py-1.5 pl-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="text-xs text-muted-foreground/70">dos quais juros</span>
+                    </div>
+                    <span className="text-xs font-medium text-emerald-400">
+                      {formatCurrency(interestReceived)}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-emerald-400">
-                    +{formatCurrency(interestReceived)}
-                  </span>
-                </div>
+                )}
               </div>
             </div>
 
