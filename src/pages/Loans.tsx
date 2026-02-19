@@ -4160,87 +4160,99 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       return;
     }
     
-    // 🆕 CONSOLIDAÇÃO DE JUROS/MULTAS DE ATRASO ANTES DO PAGAMENTO
-    // Isso garante que o remaining_balance inclua juros dinâmicos + multas aplicadas
-    const loanNotes = freshLoanData.notes || '';
-    const overdueMatch = loanNotes.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-    const overdueConfigType = overdueMatch?.[1] as 'percentage' | 'fixed' | null;
-    const overdueConfigValue = overdueMatch ? parseFloat(overdueMatch[2]) : 0;
+    // 🆕 MATERIALIZAÇÃO DE JUROS DE ATRASO COMO DAILY_PENALTY ANTES DO PAGAMENTO
+    // Em vez de somar ao remaining_balance (que é sobrescrito pelo trigger),
+    // salvamos como tags [DAILY_PENALTY:index:valor] para que o getInstallmentValue
+    // do processamento inclua automaticamente o valor da multa/juros de atraso.
+    let currentNotesForPenalty = freshLoanData.notes || '';
+    const overdueMatchForPenalty = currentNotesForPenalty.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const overdueConfigTypeForPenalty = overdueMatchForPenalty?.[1] as 'percentage' | 'fixed' | null;
+    const overdueConfigValueForPenalty = overdueMatchForPenalty ? parseFloat(overdueMatchForPenalty[2]) : 0;
     
-    // Calcular dias de atraso
-    const todayForConsolidation = new Date();
-    todayForConsolidation.setHours(0, 0, 0, 0);
-    const dates = safeDates(selectedLoan.installment_dates);
-    const paidCountForConsolidation = getPaidInstallmentsCount(selectedLoan);
-    let daysOverdueForConsolidation = 0;
+    let penaltyTagsAdded = false;
     
-    if (dates.length > 0 && paidCountForConsolidation < dates.length) {
-      const nextDueDateForConsolidation = new Date(dates[paidCountForConsolidation] + 'T12:00:00');
-      nextDueDateForConsolidation.setHours(0, 0, 0, 0);
-      if (todayForConsolidation > nextDueDateForConsolidation) {
-        daysOverdueForConsolidation = Math.floor((todayForConsolidation.getTime() - nextDueDateForConsolidation.getTime()) / (1000 * 60 * 60 * 24));
-      }
-    } else {
-      const dueDateForConsolidation = new Date(selectedLoan.due_date + 'T12:00:00');
-      dueDateForConsolidation.setHours(0, 0, 0, 0);
-      if (todayForConsolidation > dueDateForConsolidation) {
-        daysOverdueForConsolidation = Math.floor((todayForConsolidation.getTime() - dueDateForConsolidation.getTime()) / (1000 * 60 * 60 * 24));
-      }
-    }
-    
-    // Calcular juros dinâmicos de atraso
-    let dynamicOverdueInterest = 0;
-    if (daysOverdueForConsolidation > 0 && overdueConfigType && overdueConfigValue > 0) {
-      const numInstallmentsCalc = selectedLoan.installments || 1;
-      const isDailyCalc = selectedLoan.payment_type === 'daily';
+    if (overdueConfigTypeForPenalty && overdueConfigValueForPenalty > 0) {
+      const todayForPenalty = new Date();
+      todayForPenalty.setHours(0, 0, 0, 0);
+      const datesForPenalty = safeDates(selectedLoan.installment_dates);
+      const existingPenaltiesForCheck = getDailyPenaltiesFromNotes(currentNotesForPenalty);
       
-      let installmentValueCalc = 0;
-      if (isDailyCalc) {
-        installmentValueCalc = selectedLoan.total_interest || 0;
+      // Determinar quais parcelas estão sendo pagas
+      let indicesToCheck: number[] = [];
+      if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+        indicesToCheck = paymentData.selected_installments.filter(i => i >= 0);
       } else {
-        const totalToReceiveCalc = selectedLoan.principal_amount + (selectedLoan.total_interest || 0);
-        installmentValueCalc = totalToReceiveCalc / numInstallmentsCalc;
+        // Para pagamento parcial ou total, verificar a próxima parcela não paga
+        const paidCount = getPaidInstallmentsCount(selectedLoan);
+        if (paidCount < (selectedLoan.installments || 1)) {
+          indicesToCheck = [paidCount];
+        }
       }
       
-      if (overdueConfigType === 'percentage') {
-        dynamicOverdueInterest = (installmentValueCalc * (overdueConfigValue / 100)) * daysOverdueForConsolidation;
-      } else {
-        dynamicOverdueInterest = overdueConfigValue * daysOverdueForConsolidation;
+      // Para cada parcela, calcular e materializar juros de atraso
+      for (const idx of indicesToCheck) {
+        // Pular se já tem DAILY_PENALTY para esta parcela
+        if (existingPenaltiesForCheck[idx] && existingPenaltiesForCheck[idx] > 0) continue;
+        
+        // Calcular dias de atraso para esta parcela específica
+        let daysOverdueForIdx = 0;
+        if (datesForPenalty.length > idx) {
+          const dueDateForIdx = new Date(datesForPenalty[idx] + 'T12:00:00');
+          dueDateForIdx.setHours(0, 0, 0, 0);
+          if (todayForPenalty > dueDateForIdx) {
+            daysOverdueForIdx = Math.floor((todayForPenalty.getTime() - dueDateForIdx.getTime()) / (1000 * 60 * 60 * 24));
+          }
+        } else {
+          const dueDateGeneral = new Date(selectedLoan.due_date + 'T12:00:00');
+          dueDateGeneral.setHours(0, 0, 0, 0);
+          if (todayForPenalty > dueDateGeneral) {
+            daysOverdueForIdx = Math.floor((todayForPenalty.getTime() - dueDateGeneral.getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+        
+        if (daysOverdueForIdx <= 0) continue;
+        
+        // Calcular valor base da parcela
+        const numInstForPenalty = selectedLoan.installments || 1;
+        const isDailyForPenalty = selectedLoan.payment_type === 'daily';
+        let baseValueForPenalty = 0;
+        if (isDailyForPenalty) {
+          baseValueForPenalty = selectedLoan.total_interest || 0;
+        } else {
+          baseValueForPenalty = (selectedLoan.principal_amount + (selectedLoan.total_interest || 0)) / numInstForPenalty;
+        }
+        
+        // Calcular juros de atraso
+        let overdueInterest = 0;
+        if (overdueConfigTypeForPenalty === 'percentage') {
+          overdueInterest = (baseValueForPenalty * (overdueConfigValueForPenalty / 100)) * daysOverdueForIdx;
+        } else {
+          overdueInterest = overdueConfigValueForPenalty * daysOverdueForIdx;
+        }
+        
+        if (overdueInterest > 0.01) {
+          const penaltyTag = `[DAILY_PENALTY:${idx}:${overdueInterest.toFixed(2)}]`;
+          currentNotesForPenalty = `${penaltyTag}\n${currentNotesForPenalty}`.trim();
+          penaltyTagsAdded = true;
+          console.log(`[PENALTY_MATERIALIZATION] Parcela ${idx + 1}: ${daysOverdueForIdx} dias atraso → multa ${formatCurrency(overdueInterest)}`);
+        }
       }
-    }
-    
-    // Calcular multas aplicadas (DAILY_PENALTY) para a parcela atual
-    const penaltiesForConsolidation = getDailyPenaltiesFromNotes(loanNotes);
-    const penaltyForCurrentInstallment = penaltiesForConsolidation[paidCountForConsolidation] || 0;
-    
-    // Total a consolidar (juros dinâmicos + multa da parcela atual)
-    const totalToConsolidate = dynamicOverdueInterest + penaltyForCurrentInstallment;
-    
-    // Se há valor a consolidar, atualizar remaining_balance ANTES do pagamento
-    let consolidatedAmount = 0;
-    if (totalToConsolidate > 0.01) {
-      consolidatedAmount = totalToConsolidate;
-      const newRemainingWithOverdue = freshLoanData.remaining_balance + totalToConsolidate;
       
-      // Adicionar tag de consolidação para possível reversão
-      const consolidationTag = `[OVERDUE_CONSOLIDATED:${totalToConsolidate.toFixed(2)}:${format(new Date(), 'yyyy-MM-dd')}:${daysOverdueForConsolidation}]`;
-      let updatedNotesForConsolidation = loanNotes;
-      
-      // Remover tag de consolidação anterior se existir
-      updatedNotesForConsolidation = updatedNotesForConsolidation.replace(/\[OVERDUE_CONSOLIDATED:[^\]]+\]\n?/g, '');
-      updatedNotesForConsolidation = `${consolidationTag}\n${updatedNotesForConsolidation}`.trim();
-      
-      // Atualizar banco ANTES do registerPayment
-      await supabase.from('loans').update({
-        remaining_balance: newRemainingWithOverdue,
-        notes: updatedNotesForConsolidation
-      }).eq('id', selectedLoanId);
-      
-      // Atualizar objeto local para cálculos corretos
-      selectedLoan.remaining_balance = newRemainingWithOverdue;
-      selectedLoan.notes = updatedNotesForConsolidation;
-      
-      console.log(`[CONSOLIDATION] Juros/multas consolidados: ${formatCurrency(totalToConsolidate)} (Juros: ${formatCurrency(dynamicOverdueInterest)}, Multa: ${formatCurrency(penaltyForCurrentInstallment)}). Novo remaining: ${formatCurrency(newRemainingWithOverdue)}`);
+      // Se adicionou tags, salvar no banco e atualizar referências locais
+      if (penaltyTagsAdded) {
+        // Remover tag de consolidação anterior se existir (não é mais necessária)
+        currentNotesForPenalty = currentNotesForPenalty.replace(/\[OVERDUE_CONSOLIDATED:[^\]]+\]\n?/g, '');
+        
+        await supabase.from('loans').update({
+          notes: currentNotesForPenalty
+        }).eq('id', selectedLoanId);
+        
+        // Atualizar referências locais para que loanPenalties capture os novos valores
+        selectedLoan.notes = currentNotesForPenalty;
+        freshLoanData.notes = currentNotesForPenalty;
+        
+        console.log(`[PENALTY_MATERIALIZATION] Tags DAILY_PENALTY salvas com sucesso`);
+      }
     }
     
     // 🆕 PROTEÇÃO ANTI-DUPLICAÇÃO: Verificar se parcelas selecionadas já estão pagas
