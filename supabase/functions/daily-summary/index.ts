@@ -40,7 +40,51 @@ interface ProfileWithWhatsApp {
   evolution_api_url: string | null;
   evolution_api_key: string | null;
   report_schedule_hours: number[] | null;
+  relatorio_ativo: boolean;
 }
+
+// Send WhatsApp message via Official WhatsApp Cloud API (Meta)
+const sendWhatsAppViaCloudAPI = async (phone: string, message: string): Promise<boolean> => {
+  const cloudApiToken = Deno.env.get("WHATSAPP_CLOUD_API_TOKEN");
+  const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+  
+  if (!cloudApiToken || !phoneNumberId) {
+    console.error("WHATSAPP_CLOUD_API_TOKEN or WHATSAPP_PHONE_NUMBER_ID not configured");
+    return false;
+  }
+
+  // Format phone with country code
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cloudApiToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleaned,
+          type: "text",
+          text: { body: message },
+        }),
+      }
+    );
+
+    const data = await response.text();
+    console.log(`WhatsApp Cloud API sent to ${cleaned}:`, response.status, data);
+    return response.ok;
+  } catch (error) {
+    console.error(`Failed to send via WhatsApp Cloud API to ${cleaned}:`, error);
+    return false;
+  }
+};
 
 // Send WhatsApp message to user's own instance (self-message)
 const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string): Promise<boolean> => {
@@ -151,15 +195,14 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all ACTIVE PAYING users with WhatsApp connected
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key, report_schedule_hours')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key, report_schedule_hours, relatorio_ativo')
       .eq('is_active', true)
       .not('phone', 'is', null)
-      .not('whatsapp_instance_id', 'is', null)
-      .not('whatsapp_connected_phone', 'is', null)
       .not('subscription_plan', 'eq', 'trial')
+      .or('whatsapp_instance_id.not.is.null,relatorio_ativo.eq.true')
       .order('id');
     
-    console.log("Querying PAYING users with WhatsApp connected only");
+    console.log("Querying PAYING users with WhatsApp connected OR relatorio_ativo");
 
     // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
@@ -549,9 +592,12 @@ const handler = async (req: Request): Promise<Response> => {
       const displayHour = targetHour !== null ? targetHour : 8;
       messageText += `CobraFácil - ${displayHour}h`;
 
-      console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id}`);
+      console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
-      const sent = await sendWhatsAppToSelf(profile, messageText);
+      // Route: relatorio_ativo users go via WhatsApp Cloud API, others via Evolution API
+      const sent = profile.relatorio_ativo
+        ? await sendWhatsAppViaCloudAPI(profile.phone, messageText)
+        : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
       }
