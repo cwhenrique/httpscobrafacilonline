@@ -182,16 +182,14 @@ const Plans = () => {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp}>
               <Card className="h-full border-border/50 bg-card cursor-pointer transition-all hover:border-muted-foreground/50" onClick={() => togglePlan('mensal')}>
                 <CardContent className="p-6 flex flex-col h-full">
-                  <div className="text-center mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                      <motion.div animate={{ rotate: openPlan === 'mensal' ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      </motion.div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-5 h-5 text-muted-foreground" />
                     </div>
-                    <Badge variant="outline" className="mb-3 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
+                    <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
+                    <motion.div animate={{ rotate: openPlan === 'mensal' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                    </motion.div>
                   </div>
                   <AnimatePresence>
                     {openPlan === 'mensal' && (
@@ -233,16 +231,14 @@ const Plans = () => {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} transition={{ delay: 0.1 }}>
               <Card className="h-full border-primary/30 bg-card cursor-pointer transition-all hover:border-primary/60" onClick={() => togglePlan('trimestral')}>
                 <CardContent className="p-6 flex flex-col h-full">
-                  <div className="text-center mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                        <Sparkles className="w-6 h-6 text-primary" />
-                      </div>
-                      <motion.div animate={{ rotate: openPlan === 'trimestral' ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                        <ChevronDown className="w-5 h-5 text-primary" />
-                      </motion.div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-5 h-5 text-primary" />
                     </div>
-                    <Badge variant="outline" className="mb-3 border-primary/50 text-primary">Trimestral</Badge>
+                    <Badge variant="outline" className="border-primary/50 text-primary">Trimestral</Badge>
+                    <motion.div animate={{ rotate: openPlan === 'trimestral' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                      <ChevronDown className="w-5 h-5 text-primary" />
+                    </motion.div>
                   </div>
                   <AnimatePresence>
                     {openPlan === 'trimestral' && (
@@ -289,24 +285,14 @@ const Plans = () => {
                   🔥 MAIS VENDIDO
                 </div>
                 <CardContent className="p-6 pt-14 flex flex-col h-full">
-                  <div className="flex justify-center gap-2 mb-4">
-                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px] animate-pulse">
-                      🔥 APENAS 20 VAGAS
-                    </Badge>
-                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
-                      💰 ECONOMIZE R$ 191
-                    </Badge>
-                  </div>
-                  <div className="text-center mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-14 h-14 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                        <Calendar className="w-7 h-7 text-primary-foreground" />
-                      </div>
-                      <motion.div animate={{ rotate: openPlan === 'anual' ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                        <ChevronDown className="w-5 h-5 text-primary" />
-                      </motion.div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-10 h-10 bg-gradient-to-br from-primary to-green-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 flex-shrink-0">
+                      <Calendar className="w-5 h-5 text-primary-foreground" />
                     </div>
-                    <Badge className="mb-3 bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
+                    <Badge className="bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
+                    <motion.div animate={{ rotate: openPlan === 'anual' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                      <ChevronDown className="w-5 h-5 text-primary" />
+                    </motion.div>
                   </div>
                   <AnimatePresence>
                     {openPlan === 'anual' && (
@@ -317,6 +303,14 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <div className="flex justify-center gap-2 mb-3 mt-2">
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px] animate-pulse">
+                            🔥 APENAS 20 VAGAS
+                          </Badge>
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
+                            💰 ECONOMIZE R$ 191
+                          </Badge>
+                        </div>
                         <p className="text-sm text-muted-foreground text-center mb-4">Melhor custo-benefício, o mais vendido</p>
                         <div className="text-center mb-4">
                           <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
@@ -359,16 +353,14 @@ const Plans = () => {
                   👑 MELHOR INVESTIMENTO
                 </div>
                 <CardContent className="p-6 pt-14 flex flex-col h-full">
-                  <div className="text-center mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/30">
-                        <Crown className="w-7 h-7 text-yellow-950" />
-                      </div>
-                      <motion.div animate={{ rotate: openPlan === 'vitalicio' ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                        <ChevronDown className="w-5 h-5 text-yellow-400" />
-                      </motion.div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/30 flex-shrink-0">
+                      <Crown className="w-5 h-5 text-yellow-950" />
                     </div>
-                    <Badge className="mb-3 bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-bold px-4">Vitalício</Badge>
+                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-bold px-4">Vitalício</Badge>
+                    <motion.div animate={{ rotate: openPlan === 'vitalicio' ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                      <ChevronDown className="w-5 h-5 text-yellow-400" />
+                    </motion.div>
                   </div>
                   <AnimatePresence>
                     {openPlan === 'vitalicio' && (
