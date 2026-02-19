@@ -1,53 +1,33 @@
 
 
-# Melhorar UI dos Cards Fechados
+# Adicionar Informação de Suporte via WhatsApp
 
-## Problema atual
+## O que será feito
 
-Os cards fechados tem layout inconsistente: icone e chevron desalinhados, badges de destaque (APENAS 20 VAGAS, ECONOMIZE R$ 191) aparecendo no card fechado do Anual ocupando espaco desnecessario, e o layout geral nao fica uniforme entre os 4 cards.
+Adicionar uma seção visual entre os cards de planos e a tabela comparativa informando que **todos os planos incluem suporte via WhatsApp das 9h às 20h**.
 
-## O que sera feito
-
-Redesenhar os 4 cards fechados para ficarem limpos, alinhados e uniformes:
+## Layout
 
 ```text
-+------------------------------------------+
-|   [Icone]     Mensal          [Chevron]   |
-+------------------------------------------+
++--------------------------------------------------+
+|  [MessageCircle]  Suporte via WhatsApp            |
+|  Todos os planos incluem atendimento              |
+|  de segunda a sexta, das 09h às 20h               |
++--------------------------------------------------+
 ```
 
-Layout horizontal em uma unica linha:
-- Icone a esquerda
-- Nome do plano (badge) centralizado
-- Chevron a direita
-- Tudo alinhado verticalmente no centro
-
-Para os cards Anual e Vitalicio, as badges de destaque (APENAS 20 VAGAS, ECONOMIZE R$ 191) serao movidas para dentro do bloco expandido, junto com precos e funcionalidades.
+Um card compacto com ícone do WhatsApp, texto claro e visual destacado (borda verde, fundo sutil).
 
 ## Arquivo modificado
 
-| Arquivo | Mudanca |
+| Arquivo | Mudança |
 |---|---|
-| `src/pages/Plans.tsx` | Reestruturar o layout dos 4 cards fechados para usar `flex items-center justify-between` em uma unica linha horizontal. Mover badges extras do Anual para dentro do bloco expandido. |
+| `src/pages/Plans.tsx` | Adicionar uma seção entre os cards de planos (linha ~441) e a tabela comparativa com um card informativo sobre o suporte via WhatsApp incluído em todos os planos |
 
-## Detalhes tecnicos
+## Detalhes técnicos
 
-Para cada card, o conteudo visivel quando fechado sera simplificado para:
-
-```tsx
-<div className="flex items-center justify-between w-full">
-  <div className="w-10 h-10 rounded-full flex items-center justify-center ...">
-    <Icon className="w-5 h-5" />
-  </div>
-  <Badge>Nome do Plano</Badge>
-  <ChevronDown />
-</div>
-```
-
-Mudancas especificas:
-1. **Mensal/Trimestral**: Remover `text-center mb-4` wrapper, usar flex horizontal
-2. **Anual**: Mover o bloco com badges "APENAS 20 VAGAS" e "ECONOMIZE R$ 191" para dentro do `motion.div` expandido
-3. **Vitalicio**: Mesmo tratamento - layout horizontal simples
-4. Remover `mb-3` e `mb-4` extras que criam espacamento vertical desnecessario nos cards fechados
-5. O banner superior (MAIS VENDIDO / MELHOR INVESTIMENTO) continua visivel nos cards Anual e Vitalicio
-
+- Usar o mesmo padrão `motion.div` com `fadeInUp` para animação consistente
+- Card com `border-green-500/30 bg-green-500/5` para visual associado ao WhatsApp
+- Ícone `MessageCircle` ou `Headphones` com cor verde
+- Texto: "Suporte via WhatsApp" como título e "Todos os planos incluem atendimento de segunda a sexta, das 09h às 20h" como descrição
+- Posicionado logo após a seção dos cards de planos, antes da tabela comparativa
