@@ -1,44 +1,53 @@
 
 
-# Simplificar Cards Fechados - Apenas Nome do Plano
+# Melhorar UI dos Cards Fechados
 
-## O que muda
+## Problema atual
 
-Remover a descricao curta dos cards quando estao fechados. O card compacto mostra **somente**:
-- Icone do plano
-- Chevron (seta)
-- Badge com o nome (Mensal, Trimestral, Anual, Vitalicio)
-- Badges de destaque que ja existem (MAIS VENDIDO, MELHOR INVESTIMENTO, APENAS 20 VAGAS, ECONOMIZE R$ 191)
+Os cards fechados tem layout inconsistente: icone e chevron desalinhados, badges de destaque (APENAS 20 VAGAS, ECONOMIZE R$ 191) aparecendo no card fechado do Anual ocupando espaco desnecessario, e o layout geral nao fica uniforme entre os 4 cards.
 
-A descricao curta ("Ideal para testar...", "Economia garantida...", etc.) sera **removida** completamente dos cards fechados. Ela aparecera apenas quando o card for aberto, junto com precos e funcionalidades.
+## O que sera feito
 
-## Estrutura do card fechado
+Redesenhar os 4 cards fechados para ficarem limpos, alinhados e uniformes:
 
 ```text
-+----------------------------------+
-|  [Icone]              [Chevron]  |
-|         [Mensal]                 |
-+----------------------------------+
++------------------------------------------+
+|   [Icone]     Mensal          [Chevron]   |
++------------------------------------------+
 ```
+
+Layout horizontal em uma unica linha:
+- Icone a esquerda
+- Nome do plano (badge) centralizado
+- Chevron a direita
+- Tudo alinhado verticalmente no centro
+
+Para os cards Anual e Vitalicio, as badges de destaque (APENAS 20 VAGAS, ECONOMIZE R$ 191) serao movidas para dentro do bloco expandido, junto com precos e funcionalidades.
 
 ## Arquivo modificado
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/Plans.tsx` | Remover os blocos `AnimatePresence` que mostram a descricao quando `openPlan !== 'plano'` nos 4 cards (Mensal, Trimestral, Anual, Vitalicio). Mover as descricoes para dentro do bloco expandido, antes dos precos. |
+| `src/pages/Plans.tsx` | Reestruturar o layout dos 4 cards fechados para usar `flex items-center justify-between` em uma unica linha horizontal. Mover badges extras do Anual para dentro do bloco expandido. |
 
 ## Detalhes tecnicos
 
-Para cada um dos 4 cards, remover o bloco:
+Para cada card, o conteudo visivel quando fechado sera simplificado para:
+
 ```tsx
-<AnimatePresence>
-  {openPlan !== 'mensal' && (
-    <motion.p ...>Ideal para testar...</motion.p>
-  )}
-</AnimatePresence>
+<div className="flex items-center justify-between w-full">
+  <div className="w-10 h-10 rounded-full flex items-center justify-center ...">
+    <Icon className="w-5 h-5" />
+  </div>
+  <Badge>Nome do Plano</Badge>
+  <ChevronDown />
+</div>
 ```
 
-E adicionar a descricao como primeiro elemento dentro do `motion.div` expandido, antes do preco riscado.
-
-Isso deixa o card fechado bem compacto e limpo, mostrando apenas a identidade do plano.
+Mudancas especificas:
+1. **Mensal/Trimestral**: Remover `text-center mb-4` wrapper, usar flex horizontal
+2. **Anual**: Mover o bloco com badges "APENAS 20 VAGAS" e "ECONOMIZE R$ 191" para dentro do `motion.div` expandido
+3. **Vitalicio**: Mesmo tratamento - layout horizontal simples
+4. Remover `mb-3` e `mb-4` extras que criam espacamento vertical desnecessario nos cards fechados
+5. O banner superior (MAIS VENDIDO / MELHOR INVESTIMENTO) continua visivel nos cards Anual e Vitalicio
 
