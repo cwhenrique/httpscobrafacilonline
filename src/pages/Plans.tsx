@@ -440,6 +440,27 @@ const Plans = () => {
         </div>
       </section>
 
+      {/* WhatsApp Support Info */}
+      <section className="px-4 pb-8">
+        <div className="container mx-auto max-w-4xl">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+            className="flex items-center gap-4 p-5 rounded-xl border border-green-500/30 bg-green-500/5"
+          >
+            <div className="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="w-6 h-6 text-green-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground text-base">Suporte via WhatsApp</h3>
+              <p className="text-sm text-muted-foreground">Todos os planos incluem atendimento de segunda a sexta, das 09h às 20h</p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Comparison Table */}
       <section className="px-4 pb-20">
         <div className="container mx-auto max-w-4xl">
