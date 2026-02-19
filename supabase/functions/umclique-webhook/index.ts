@@ -41,8 +41,16 @@ const extractMetaMessage = (body: any): { from: string; text: string } | null =>
           const messages = change?.value?.messages;
           if (messages && messages.length > 0) {
             const msg = messages[0];
-            if (msg.type === 'text' && msg.text?.body) {
-              return { from: msg.from, text: msg.text.body };
+            // Support text, button, interactive, and list reply types
+            const text = 
+              msg.text?.body ||
+              msg.button?.text ||
+              msg.button?.payload ||
+              msg.interactive?.button_reply?.title ||
+              msg.interactive?.list_reply?.title ||
+              null;
+            if (text && msg.from) {
+              return { from: msg.from, text };
             }
           }
         }
