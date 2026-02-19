@@ -1,63 +1,86 @@
 
 
-# Reajustar Lógica do Fluxo de Caixa
+# Reestruturar Fluxo de Caixa - Remover Capital Inicial, Mostrar Resultado do Periodo
 
-## Nova lógica
+## Problema atual
 
-O fluxo de caixa passa a funcionar assim:
+O "Capital Inicial" era igual ao total emprestado (R$16.900), que tambem era o valor das saidas. Isso se cancelava e o saldo ficava = entradas, o que nao faz sentido. Na realidade, se saiu R$16.900 e entrou R$12.574, o resultado do periodo e **-R$4.326** (negativo), mas o usuario ainda tem R$7.700 na rua + juros pendentes.
 
-- **Capital Inicial** = soma do `principal_amount` de todos os emprestimos criados **dentro do periodo selecionado** (representa o dinheiro que o usuario tinha e colocou pra trabalhar)
-- **Saidas** = mesma soma (o dinheiro saiu como emprestimos concedidos no periodo)
-- **Entradas** = pagamentos recebidos no periodo
-- **Saldo Atual** = Capital Inicial - Saidas + Entradas
+## Nova estrutura do Fluxo de Caixa
 
-Tudo respeita rigorosamente o filtro de periodo. Se um emprestimo foi criado no dia 18/02 e o filtro comeca no dia 19/02, ele nao aparece nem no capital inicial nem nas saidas.
+```text
++------------------------------------------+
+| Caixa Extra (opcional)       R$ 0   [+]  |
+|                                          |
+| SAIDAS                      -R$ 16.900   |
+|   Emprestimos concedidos    -R$ 16.900   |
+|   Contas a pagar            -R$ 0        |
+|   Custos extras             -R$ 0        |
+|                                          |
+| ENTRADAS                    +R$ 12.574   |
+|   Pagamentos recebidos      +R$ 12.574   |
+|     dos quais juros          R$ X.XXX    |
+|                                          |
+| RESULTADO DO PERIODO        -R$ 4.326    |
+|                                          |
+| Na Rua: R$7.700  Lucro: R$X  Resultado   |
++------------------------------------------+
+```
+
+- **Sem "Capital Inicial" na formula** -- era circular e confuso
+- **Resultado do Periodo** = Caixa Extra + Entradas - Saidas
+- **Caixa Extra** = dinheiro manual que o usuario tem disponivel mas ainda nao emprestou (opcional, so aparece se > 0 ou ao clicar para adicionar)
+- **Na Rua** (rodape) mostra o principal pendente dos emprestimos ativos -- dinheiro que ainda vai voltar
 
 ## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/ReportsLoans.tsx` | Alterar `calculatedInitialBalance` para usar emprestimos criados **dentro** do periodo (nao antes). Corrigir `balanceStats` que ainda soma juros duplicados. |
-| `src/components/reports/CashFlowCard.tsx` | Atualizar texto do Capital Inicial para refletir que e baseado nos emprestimos do periodo. |
+| `src/pages/ReportsLoans.tsx` | Remover `calculatedInitialBalance`. Simplificar `cashFlowStats`. Passar `initialBalance` como "caixa extra". |
+| `src/components/reports/CashFlowCard.tsx` | Remover bloco azul "Capital Inicial" fixo. Adicionar bloco opcional "Caixa Extra". Renomear "Saldo Atual" para "Resultado do Periodo". Ajustar formula. |
+| `src/components/reports/CashFlowConfigModal.tsx` | Renomear labels de "Capital Inicial" para "Caixa Extra". |
 
 ## Detalhes tecnicos
 
-### 1. `ReportsLoans.tsx` - calculatedInitialBalance (linhas 752-764)
+### 1. `ReportsLoans.tsx` (linhas 748-786)
 
-Antes: filtra emprestimos ativos criados **antes** do periodo.
-Depois: filtra emprestimos criados **dentro** do periodo selecionado (usando `isWithinInterval`), incluindo tanto ativos quanto pagos, pois o capital inicial representa o total investido no periodo.
-
-```tsx
-const calculatedInitialBalance = useMemo(() => {
-  if (!dateRange?.from || !dateRange?.to) {
-    return stats.allLoans
-      .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-  }
-  const start = startOfDay(dateRange.from);
-  const end = endOfDay(dateRange.to);
-  return stats.allLoans
-    .filter(loan => {
-      const loanDate = parseISO(loan.contract_date || loan.start_date);
-      return isWithinInterval(loanDate, { start, end });
-    })
-    .reduce((sum, loan) => sum + Number(loan.principal_amount), 0);
-}, [stats.allLoans, dateRange]);
-```
-
-### 2. `ReportsLoans.tsx` - balanceStats (linhas 821-826)
-
-Corrigir dupla contagem de juros que ainda existe neste calculo:
+Remover `calculatedInitialBalance` inteiramente. Simplificar `cashFlowStats`:
 
 ```tsx
-const balanceStats = useMemo(() => {
-  const totalInflows = filteredStats.totalReceived;
-  const totalOutflows = filteredStats.totalLent + billsStats.paidTotal;
-  const netResult = totalInflows - totalOutflows;
-  return { totalInflows, totalOutflows, netResult };
-}, [filteredStats, billsStats]);
+const cashFlowStats = useMemo(() => ({
+  extraCash: initialCashBalance,
+  loanedInPeriod: filteredStats.totalLent,
+  receivedInPeriod: filteredStats.totalReceived,
+  interestReceived: filteredStats.realizedProfit,
+}), [initialCashBalance, filteredStats]);
 ```
 
-### 3. `CashFlowCard.tsx` - texto do Capital Inicial (linha ~117)
+Atualizar as props do `CashFlowCard`:
+- Remover `calculatedInitialBalance`
+- Renomear `initialBalance` para `extraCash`
+- Renomear `onUpdateInitialBalance` para `onUpdateExtraCash`
 
-Alterar o texto descritivo de "Baseado nos contratos ativos" para "Baseado nos emprestimos do periodo", e "Configurado manualmente" permanece quando o usuario definir manualmente.
+### 2. `CashFlowCard.tsx` - Props e formula
+
+Remover props: `calculatedInitialBalance`.
+Renomear: `initialBalance` -> `extraCash`, `onUpdateInitialBalance` -> `onUpdateExtraCash`.
+
+Nova formula:
+```tsx
+const extraCashValue = extraCash > 0 ? extraCash : 0;
+const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
+const totalInflows = receivedInPeriod;
+const resultado = extraCashValue + totalInflows - totalOutflows;
+```
+
+### 3. `CashFlowCard.tsx` - UI
+
+- **Remover** o bloco azul grande "Capital Inicial" do topo
+- **Adicionar** um bloco compacto "Caixa Extra" que so aparece se valor > 0, com botao [+] para adicionar/editar. Fica antes das saidas.
+- **Renomear** "Saldo Atual" para "Resultado do Periodo" no bloco grande final
+- Manter os 3 cards do rodape (Na Rua, Lucro, Resultado)
+
+### 4. `CashFlowConfigModal.tsx` - Labels
+
+Trocar textos de "Capital Inicial" para "Caixa Extra" e ajustar descricao para "Dinheiro disponivel que ainda nao foi emprestado".
 
