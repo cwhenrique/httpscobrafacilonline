@@ -194,13 +194,6 @@ const Plans = () => {
                     <Badge variant="outline" className="mb-3 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
                   </div>
                   <AnimatePresence>
-                    {openPlan !== 'mensal' && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
-                        Ideal para testar o sistema sem compromisso
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <AnimatePresence>
                     {openPlan === 'mensal' && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -209,6 +202,7 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <p className="text-sm text-muted-foreground text-center mb-4">Ideal para testar o sistema sem compromisso</p>
                         <div className="text-center mb-4">
                           <div className="text-lg text-muted-foreground line-through">R$ 69,90</div>
                           <div className="text-4xl font-bold text-foreground">
@@ -251,13 +245,6 @@ const Plans = () => {
                     <Badge variant="outline" className="mb-3 border-primary/50 text-primary">Trimestral</Badge>
                   </div>
                   <AnimatePresence>
-                    {openPlan !== 'trimestral' && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
-                        Economia garantida com 3 meses de acesso
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <AnimatePresence>
                     {openPlan === 'trimestral' && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -266,6 +253,7 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <p className="text-sm text-muted-foreground text-center mb-4">Economia garantida com 3 meses de acesso</p>
                         <div className="text-center mb-4">
                           <div className="text-lg text-muted-foreground line-through">R$ 209,90</div>
                           <div className="text-4xl font-bold text-foreground">
@@ -321,13 +309,6 @@ const Plans = () => {
                     <Badge className="mb-3 bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
                   </div>
                   <AnimatePresence>
-                    {openPlan !== 'anual' && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
-                        Melhor custo-benefício, o mais vendido
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <AnimatePresence>
                     {openPlan === 'anual' && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -336,6 +317,7 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <p className="text-sm text-muted-foreground text-center mb-4">Melhor custo-benefício, o mais vendido</p>
                         <div className="text-center mb-4">
                           <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
                           <div className="text-4xl font-bold text-primary">
@@ -389,13 +371,6 @@ const Plans = () => {
                     <Badge className="mb-3 bg-yellow-500/20 text-yellow-400 border-yellow-500/30 font-bold px-4">Vitalício</Badge>
                   </div>
                   <AnimatePresence>
-                    {openPlan !== 'vitalicio' && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted-foreground text-center">
-                        Pague uma vez, use para sempre
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                  <AnimatePresence>
                     {openPlan === 'vitalicio' && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -404,6 +379,7 @@ const Plans = () => {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
+                        <p className="text-sm text-muted-foreground text-center mb-4">Pague uma vez, use para sempre</p>
                         <div className="text-center mb-4">
                           <div className="text-lg text-muted-foreground line-through">R$ 1.499,00</div>
                           <div className="text-4xl font-bold text-yellow-400">
