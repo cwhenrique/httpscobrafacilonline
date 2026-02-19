@@ -44,7 +44,8 @@ interface ProfileWithWhatsApp {
 }
 
 // Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
-const sendWhatsAppViaUmClique = async (phone: string, message: string): Promise<boolean> => {
+// Step 1: Send template to open conversation window, Step 2: Send report text
+const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string): Promise<boolean> => {
   const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
   if (!umcliqueApiKey) {
     console.error("UMCLIQUE_API_KEY not configured");
@@ -55,27 +56,57 @@ const sendWhatsAppViaUmClique = async (phone: string, message: string): Promise<
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
-  try {
-    const response = await fetch(
-      'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message',
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": umcliqueApiKey,
-        },
-        body: JSON.stringify({
-          channel_id: "1060061327180048",
-          to: cleaned,
-          type: "text",
-          content: message,
-        }),
-      }
-    );
+  const apiUrl = 'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message';
+  const headers = {
+    "Content-Type": "application/json",
+    "X-API-Key": umcliqueApiKey,
+  };
 
-    const data = await response.text();
-    console.log(`Um Clique API sent to ${cleaned}:`, response.status, data);
-    return response.ok;
+  try {
+    // Step 1: Send template to open conversation window
+    console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
+    const templateResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel_id: "1060061327180048",
+        to: cleaned,
+        type: "template",
+        template_name: "relatorio",
+        template_language: "pt_BR",
+        template_variables: [
+          { type: "text", text: userName }
+        ],
+      }),
+    });
+
+    const templateResult = await templateResponse.text();
+    console.log(`Template response for ${cleaned}:`, templateResponse.status, templateResult);
+
+    if (!templateResponse.ok) {
+      console.error(`Failed to send template to ${cleaned}:`, templateResult);
+      return false;
+    }
+
+    // Step 2: Wait for conversation window to open
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Step 3: Send report text
+    console.log(`Sending report text to ${cleaned}`);
+    const textResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel_id: "1060061327180048",
+        to: cleaned,
+        type: "text",
+        content: message,
+      }),
+    });
+
+    const textResult = await textResponse.text();
+    console.log(`Text response for ${cleaned}:`, textResponse.status, textResult);
+    return textResponse.ok;
   } catch (error) {
     console.error(`Failed to send via Um Clique API to ${cleaned}:`, error);
     return false;
@@ -592,7 +623,7 @@ const handler = async (req: Request): Promise<Response> => {
       
       // Route: relatorio_ativo users go via Um Clique Digital API, others via Evolution API
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, messageText)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
