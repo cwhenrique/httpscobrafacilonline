@@ -43,6 +43,7 @@ const Install = lazy(() => import("./pages/Install"));
 const Tutorials = lazy(() => import("./pages/Tutorials"));
 const Employees = lazy(() => import("./pages/Employees"));
 const Quiz = lazy(() => import("./pages/Quiz"));
+const Plans = lazy(() => import("./pages/Plans"));
 const ConnectionTest = lazy(() => import("./pages/ConnectionTest"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -89,6 +90,7 @@ const AppContent = () => {
               <Route path="/dasiydsad-adsyasfdca" element={<CreateTrialUser />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/planos" element={<Plans />} />
               <Route path="/teste-conexao" element={<ConnectionTest />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><PermissionRoute permission="view_clients"><Clients /></PermissionRoute></ProtectedRoute>} />

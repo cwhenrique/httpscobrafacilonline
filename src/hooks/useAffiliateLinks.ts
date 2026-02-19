@@ -6,6 +6,7 @@ export interface AffiliateLinks {
   monthly: string;
   quarterly: string;
   annual: string;
+  lifetime: string;
 }
 
 interface AffiliateData {
@@ -19,6 +20,7 @@ export const DEFAULT_AFFILIATE_LINKS: AffiliateLinks = {
   monthly: "https://pay.cakto.com.br/di6pnvu",
   quarterly: "https://pay.cakto.com.br/3823rxj",
   annual: "https://pay.cakto.com.br/j35f794",
+  lifetime: "https://pay.cakto.com.br/PLACEHOLDER_LIFETIME",
 };
 
 // Renewal-specific links (with ?SCK=renew)
@@ -26,6 +28,7 @@ export const DEFAULT_RENEWAL_LINKS: AffiliateLinks = {
   monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
   quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
   annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
+  lifetime: "https://pay.cakto.com.br/PLACEHOLDER_LIFETIME?SCK=renew",
 };
 
 interface UseAffiliateLinksResult {
@@ -82,6 +85,7 @@ export function useAffiliateLinks(): UseAffiliateLinksResult {
         monthly: affiliateData.link_mensal,
         quarterly: affiliateData.link_trimestral,
         annual: affiliateData.link_anual,
+        lifetime: DEFAULT_AFFILIATE_LINKS.lifetime,
       };
     }
     return DEFAULT_AFFILIATE_LINKS;
@@ -95,6 +99,7 @@ export function useAffiliateLinks(): UseAffiliateLinksResult {
         monthly: affiliateData.link_mensal,
         quarterly: affiliateData.link_trimestral,
         annual: affiliateData.link_anual,
+        lifetime: DEFAULT_AFFILIATE_LINKS.lifetime,
       };
     }
     return DEFAULT_RENEWAL_LINKS;
