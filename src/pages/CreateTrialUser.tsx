@@ -59,7 +59,12 @@ export default function CreateTrialUser() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const [affiliateLinkUser, setAffiliateLinkUser] = useState<User | null>(null);
   const [affiliates, setAffiliates] = useState<{ id: string; email: string; name: string }[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('admin_selected_users');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -86,6 +91,10 @@ export default function CreateTrialUser() {
       return new Set(allIds);
     });
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('admin_selected_users', JSON.stringify([...selectedUsers]));
+  }, [selectedUsers]);
 
   useEffect(() => {
     const authStatus = sessionStorage.getItem('trial_admin_auth');
