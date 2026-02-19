@@ -1,86 +1,58 @@
 
 
-# Reestruturar Fluxo de Caixa - Remover Capital Inicial, Mostrar Resultado do Periodo
+# Melhorar visibilidade e clareza do "Caixa Extra"
 
-## Problema atual
+## O que muda
 
-O "Capital Inicial" era igual ao total emprestado (R$16.900), que tambem era o valor das saidas. Isso se cancelava e o saldo ficava = entradas, o que nao faz sentido. Na realidade, se saiu R$16.900 e entrou R$12.574, o resultado do periodo e **-R$4.326** (negativo), mas o usuario ainda tem R$7.700 na rua + juros pendentes.
+O botao "Adicionar caixa extra" atual e muito discreto (texto pequeno, cor apagada) e nao explica o que significa. Vamos tornar mais visivel e explicativo para que o usuario entenda que precisa informar manualmente o dinheiro que tem disponivel no banco/em maos.
 
-## Nova estrutura do Fluxo de Caixa
+## Mudancas no arquivo `src/components/reports/CashFlowCard.tsx`
+
+### Quando o Caixa Extra esta vazio (linhas 154-162)
+
+Substituir o botao discreto por um bloco visual com fundo, icone e texto explicativo:
 
 ```text
-+------------------------------------------+
-| Caixa Extra (opcional)       R$ 0   [+]  |
-|                                          |
-| SAIDAS                      -R$ 16.900   |
-|   Emprestimos concedidos    -R$ 16.900   |
-|   Contas a pagar            -R$ 0        |
-|   Custos extras             -R$ 0        |
-|                                          |
-| ENTRADAS                    +R$ 12.574   |
-|   Pagamentos recebidos      +R$ 12.574   |
-|     dos quais juros          R$ X.XXX    |
-|                                          |
-| RESULTADO DO PERIODO        -R$ 4.326    |
-|                                          |
-| Na Rua: R$7.700  Lucro: R$X  Resultado   |
-+------------------------------------------+
++--------------------------------------------------+
+| [icone cofrinho]                                  |
+| Caixa Extra                         [+ Adicionar] |
+| Informe aqui o dinheiro que voce tem              |
+| disponivel no banco ou em maos e que              |
+| ainda nao foi emprestado.                         |
+| Este valor nao e calculado automaticamente.       |
++--------------------------------------------------+
 ```
 
-- **Sem "Capital Inicial" na formula** -- era circular e confuso
-- **Resultado do Periodo** = Caixa Extra + Entradas - Saidas
-- **Caixa Extra** = dinheiro manual que o usuario tem disponivel mas ainda nao emprestou (opcional, so aparece se > 0 ou ao clicar para adicionar)
-- **Na Rua** (rodape) mostra o principal pendente dos emprestimos ativos -- dinheiro que ainda vai voltar
+- Fundo azul claro com borda tracejada (estilo "call to action")
+- Texto explicativo curto dizendo que e um valor manual, nao puxado dos emprestimos
+- Botao "Adicionar" visivel
 
-## Arquivos modificados
+### Quando o Caixa Extra tem valor (linhas 132-153)
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/ReportsLoans.tsx` | Remover `calculatedInitialBalance`. Simplificar `cashFlowStats`. Passar `initialBalance` como "caixa extra". |
-| `src/components/reports/CashFlowCard.tsx` | Remover bloco azul "Capital Inicial" fixo. Adicionar bloco opcional "Caixa Extra". Renomear "Saldo Atual" para "Resultado do Periodo". Ajustar formula. |
-| `src/components/reports/CashFlowConfigModal.tsx` | Renomear labels de "Capital Inicial" para "Caixa Extra". |
+Adicionar uma linha extra de texto explicativo abaixo do valor:
+
+- Trocar "Dinheiro disponivel nao emprestado" por "Valor informado manualmente - nao e calculado dos emprestimos"
+
+### Modal de configuracao (`CashFlowConfigModal.tsx`)
+
+Adicionar um alerta/nota no topo do modal explicando:
+- "Informe aqui quanto dinheiro voce tem disponivel que ainda nao foi emprestado. Esse valor e inserido por voce e nao e calculado automaticamente pelo sistema."
 
 ## Detalhes tecnicos
 
-### 1. `ReportsLoans.tsx` (linhas 748-786)
+### 1. `CashFlowCard.tsx` - Bloco vazio (linhas 154-162)
 
-Remover `calculatedInitialBalance` inteiramente. Simplificar `cashFlowStats`:
+Substituir o `<button>` discreto por um `<div>` estilizado com:
+- `border border-dashed border-blue-500/30 bg-blue-500/5 rounded-xl p-3`
+- Icone `PiggyBank` + titulo "Caixa Extra"
+- Texto explicativo em `text-xs text-muted-foreground`
+- Botao `Button` com variante outline azul
 
-```tsx
-const cashFlowStats = useMemo(() => ({
-  extraCash: initialCashBalance,
-  loanedInPeriod: filteredStats.totalLent,
-  receivedInPeriod: filteredStats.totalReceived,
-  interestReceived: filteredStats.realizedProfit,
-}), [initialCashBalance, filteredStats]);
-```
+### 2. `CashFlowCard.tsx` - Bloco com valor (linhas 137-139)
 
-Atualizar as props do `CashFlowCard`:
-- Remover `calculatedInitialBalance`
-- Renomear `initialBalance` para `extraCash`
-- Renomear `onUpdateInitialBalance` para `onUpdateExtraCash`
+Trocar o subtexto de "Dinheiro disponivel nao emprestado" para "Valor informado manualmente"
 
-### 2. `CashFlowCard.tsx` - Props e formula
+### 3. `CashFlowConfigModal.tsx` - Nota explicativa
 
-Remover props: `calculatedInitialBalance`.
-Renomear: `initialBalance` -> `extraCash`, `onUpdateInitialBalance` -> `onUpdateExtraCash`.
-
-Nova formula:
-```tsx
-const extraCashValue = extraCash > 0 ? extraCash : 0;
-const totalOutflows = loanedInPeriod + billsOutflow + extraCostsTotal;
-const totalInflows = receivedInPeriod;
-const resultado = extraCashValue + totalInflows - totalOutflows;
-```
-
-### 3. `CashFlowCard.tsx` - UI
-
-- **Remover** o bloco azul grande "Capital Inicial" do topo
-- **Adicionar** um bloco compacto "Caixa Extra" que so aparece se valor > 0, com botao [+] para adicionar/editar. Fica antes das saidas.
-- **Renomear** "Saldo Atual" para "Resultado do Periodo" no bloco grande final
-- Manter os 3 cards do rodape (Na Rua, Lucro, Resultado)
-
-### 4. `CashFlowConfigModal.tsx` - Labels
-
-Trocar textos de "Capital Inicial" para "Caixa Extra" e ajustar descricao para "Dinheiro disponivel que ainda nao foi emprestado".
+Adicionar um bloco `bg-blue-500/10 rounded-lg p-3` no inicio do `space-y-4` (antes do input) com texto explicando que o valor e manual e nao vem dos emprestimos.
 
