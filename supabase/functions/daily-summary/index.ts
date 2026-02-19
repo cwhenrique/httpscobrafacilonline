@@ -68,7 +68,7 @@ const sendWhatsAppViaUmClique = async (phone: string, message: string): Promise<
           channel_id: "1060061327180048",
           to: cleaned,
           type: "text",
-          text: message,
+          content: message,
         }),
       }
     );
