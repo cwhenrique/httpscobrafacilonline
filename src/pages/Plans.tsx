@@ -180,10 +180,12 @@ const Plans = () => {
                       <Clock className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <Badge variant="outline" className="mb-3 border-muted-foreground/30 text-muted-foreground">Mensal</Badge>
+                    <div className="text-lg text-muted-foreground line-through">R$ 69,90</div>
                     <div className="text-4xl font-bold text-foreground">
                       R$ 55<span className="text-xl">,90</span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">por mês</p>
+                    <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 14</Badge>
                   </div>
                   <ul className="space-y-2 mb-6 flex-1">
                     {featuresList.map((f) => (
@@ -209,11 +211,12 @@ const Plans = () => {
                       <Sparkles className="w-6 h-6 text-primary" />
                     </div>
                     <Badge variant="outline" className="mb-3 border-primary/50 text-primary">Trimestral</Badge>
+                    <div className="text-lg text-muted-foreground line-through">R$ 209,90</div>
                     <div className="text-4xl font-bold text-foreground">
                       R$ 149<span className="text-xl">,00</span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">por 3 meses (R$ 49,67/mês)</p>
-                    <Badge className="mt-2 bg-primary/10 text-primary border-primary/30 text-xs">Economia de 11%</Badge>
+                    <Badge className="mt-2 bg-green-500/10 text-green-400 border-green-500/20 text-xs">Economize R$ 60,90</Badge>
                   </div>
                   <ul className="space-y-2 mb-6 flex-1">
                     {featuresList.map((f) => (
@@ -252,6 +255,7 @@ const Plans = () => {
                       <Calendar className="w-7 h-7 text-primary-foreground" />
                     </div>
                     <Badge className="mb-3 bg-primary text-primary-foreground font-bold px-4">Anual</Badge>
+                    <div className="text-lg text-muted-foreground line-through">R$ 699,90</div>
                     <div className="text-4xl font-bold text-primary">
                       R$ 479<span className="text-xl">,00</span>
                     </div>
