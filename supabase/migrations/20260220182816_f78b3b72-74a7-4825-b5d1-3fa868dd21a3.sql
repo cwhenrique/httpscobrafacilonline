@@ -1,0 +1,1 @@
+ALTER TYPE interest_mode ADD VALUE 'sac';

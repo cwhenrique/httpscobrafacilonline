@@ -347,13 +347,16 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
   } else if (loan.interest_mode === 'compound') {
     // Juros compostos puros: M = P × (1 + i)^n - P
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else if (loan.interest_mode === 'sac') {
+    totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
+  const isSAC = loan.interest_mode === 'sac';
   const principalPerInstallment = loan.principal_amount / numInstallments;
   const interestPerInstallment = totalInterest / numInstallments;
-  const baseInstallmentValue = principalPerInstallment + interestPerInstallment;
+  const baseInstallmentValue = isSAC ? 0 : principalPerInstallment + interestPerInstallment;
   
   // Verificar taxa de renovação
   const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
@@ -363,6 +366,9 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
   const getInstallmentValue = (index: number) => {
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
+    }
+    if (isSAC) {
+      return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
     }
     return baseInstallmentValue;
   };
@@ -563,6 +569,99 @@ export function generatePriceTable(
     totalPayment,
     totalInterest,
   };
+}
+
+/**
+ * Interface para uma linha da Tabela SAC (Sistema de Amortização Constante)
+ */
+export interface SACTableRow {
+  installmentNumber: number;  // Número da parcela
+  payment: number;            // Valor da parcela (decrescente)
+  amortization: number;       // Amortização do principal (constante)
+  interest: number;           // Juros sobre saldo devedor (decrescente)
+  balance: number;            // Saldo Devedor após a parcela
+}
+
+/**
+ * Gera a Tabela SAC completa (Sistema de Amortização Constante)
+ * 
+ * No SAC:
+ * - A amortização é CONSTANTE em todas as prestações (Principal / N)
+ * - Os juros são calculados sobre o saldo devedor (decrescentes)
+ * - A parcela é a soma de amortização + juros (decrescente)
+ * 
+ * @param principal - Valor emprestado (capital)
+ * @param monthlyRate - Taxa de juros mensal em percentual (ex: 10 para 10%)
+ * @param installments - Número de parcelas
+ * @returns Objeto com as linhas da tabela, total a pagar e total de juros
+ */
+export function generateSACTable(
+  principal: number,
+  monthlyRate: number,
+  installments: number
+): { rows: SACTableRow[]; totalPayment: number; totalInterest: number; firstPayment: number; lastPayment: number } {
+  const rate = monthlyRate / 100;
+  const amortization = principal / installments;
+  
+  const rows: SACTableRow[] = [];
+  let balance = principal;
+  let totalInterest = 0;
+  let totalPayment = 0;
+  
+  for (let i = 1; i <= installments; i++) {
+    const interest = balance * rate;
+    totalInterest += interest;
+    
+    const payment = amortization + interest;
+    totalPayment += payment;
+    
+    balance = Math.max(0, balance - amortization);
+    const finalBalance = i === installments ? 0 : balance;
+    
+    rows.push({
+      installmentNumber: i,
+      payment,
+      amortization,
+      interest,
+      balance: finalBalance,
+    });
+  }
+  
+  return {
+    rows,
+    totalPayment,
+    totalInterest,
+    firstPayment: rows[0]?.payment || 0,
+    lastPayment: rows[rows.length - 1]?.payment || 0,
+  };
+}
+
+/**
+ * Calcula o total de juros no sistema SAC
+ */
+export function calculateSACInterest(
+  principal: number,
+  monthlyRate: number,
+  installments: number
+): number {
+  const { totalInterest } = generateSACTable(principal, monthlyRate, installments);
+  return totalInterest;
+}
+
+/**
+ * Calcula o valor da parcela SAC para um índice específico (0-based)
+ */
+export function calculateSACInstallmentValue(
+  principal: number,
+  monthlyRate: number,
+  installments: number,
+  index: number
+): number {
+  const rate = monthlyRate / 100;
+  const amortization = principal / installments;
+  const balance = principal - (index * amortization);
+  const interest = balance * rate;
+  return amortization + interest;
 }
 
 /**

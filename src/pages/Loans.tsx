@@ -27,7 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable, calculateSACInterest, calculateSACInstallmentValue, generateSACTable } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck, ArrowUpRight, UserPlus, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -87,11 +87,15 @@ const getPaidIndicesFromNotes = (loan: { notes: string | null; installments: num
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else if (loan.interest_mode === 'sac') {
+    totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
-  const baseInstallmentValue = (loan.principal_amount + totalInterest) / numInstallments;
+  const baseInstallmentValue = loan.interest_mode === 'sac' 
+    ? calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, 0)
+    : (loan.principal_amount + totalInterest) / numInstallments;
   
   // Verificar taxa de renovação
   const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
@@ -402,6 +406,8 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   } else if (loan.interest_mode === 'compound') {
     // Juros compostos puros: M = P × (1 + i)^n
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else if (loan.interest_mode === 'sac') {
+    totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
@@ -554,6 +560,8 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100);
   } else if (loan.interest_mode === 'compound') {
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+  } else if (loan.interest_mode === 'sac') {
+    totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
@@ -1113,7 +1121,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     principal_amount: string;
     interest_rate: string;
     interest_type: InterestType;
-    interest_mode: 'per_installment' | 'on_total' | 'compound';
+    interest_mode: 'per_installment' | 'on_total' | 'compound' | 'sac';
     payment_type: LoanPaymentType;
     installments: string;
     contract_date: string;
@@ -1744,6 +1752,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       } else if (editFormData.interest_mode === 'compound') {
         // Juros compostos puros: M = P × (1 + i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (editFormData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         // per_installment
         totalInterest = principal * (rate / 100) * numInstallments;
@@ -2147,7 +2157,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
-    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound',
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound' | 'sac',
     payment_type: 'installment' as LoanPaymentType | 'daily',
     installments: '1',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
@@ -2297,6 +2307,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       } else if (formData.interest_mode === 'compound') {
         // Juros compostos puros: M = P × (1 + i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -2335,6 +2347,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       } else if (formData.interest_mode === 'compound') {
         // Juros compostos puros: M = P × (1 + i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -2363,6 +2377,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         totalInterest = principal * (rate / 100);
       }
@@ -2396,6 +2412,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Juros compostos puros: inverter M = P × (1+r)^n => r = (M/P)^(1/n) - 1
       // onde M = P + totalInterest
       newRate = (Math.pow((newTotalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+    } else if (formData.interest_mode === 'sac') {
+      // SAC: não há fórmula simples para inverter, manter taxa atual
+      newRate = parseFloat(formData.interest_rate) || 0;
     } else {
       // on_total
       newRate = (newTotalInterest / principal) * 100;
@@ -2426,6 +2445,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       // Juros compostos puros: inverter M = P × (1+r)^n => r = (M/P)^(1/n) - 1
       // onde M = P + totalInterest = totalToReceive
       newRate = (Math.pow(totalToReceive / principal, 1 / numInstallments) - 1) * 100;
+    } else if (formData.interest_mode === 'sac') {
+      newRate = parseFloat(formData.interest_rate) || 0;
     } else {
       // on_total
       newRate = (totalInterest / principal) * 100;
@@ -2591,6 +2612,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     } else if (loan.interest_mode === 'compound') {
       // Juros compostos puros: M = P × (1 + i)^n - P
       totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
+      totalToReceive = loan.principal_amount + totalInterest;
+    } else if (loan.interest_mode === 'sac') {
+      totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
       totalToReceive = loan.principal_amount + totalInterest;
     } else {
       totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
@@ -3505,6 +3529,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         } else if (formData.interest_mode === 'compound') {
           // Juros compostos: M = P × (1 + i)^n - P
           totalInterestCalc = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+        } else if (formData.interest_mode === 'sac') {
+          totalInterestCalc = calculateSACInterest(principal, rate, numInstallments);
         } else {
           // on_total
           totalInterestCalc = principal * (rate / 100);
@@ -3569,6 +3595,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
           } else if (formData.interest_mode === 'compound') {
             // Juros compostos: M = P × (1 + i)^n - P
             totalInterestCalc = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+          } else if (formData.interest_mode === 'sac') {
+            totalInterestCalc = calculateSACInterest(principal, rate, numInstallments);
           } else {
             // on_total
             totalInterestCalc = principal * (rate / 100);
@@ -3661,6 +3689,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         totalInterest = principal * (rate / 100) * numInstallments;
       } else if (formData.interest_mode === 'compound') {
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         totalInterest = principal * (rate / 100);
       }
@@ -3764,9 +3794,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         if (formData.interest_mode === 'per_installment') {
           computedRate = (totalInterest / principal / numInstallments) * 100;
         } else if (formData.interest_mode === 'compound') {
-          // Inverter a fórmula de juros compostos para encontrar a taxa
-          // totalInterest = P * (1+r)^n - P => totalInterest/P + 1 = (1+r)^n => r = (totalInterest/P + 1)^(1/n) - 1
           computedRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+        } else if (formData.interest_mode === 'sac') {
+          computedRate = parseFloat(formData.interest_rate) || 0;
         } else {
           computedRate = (totalInterest / principal) * 100;
         }
@@ -3778,6 +3808,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       } else if (formData.interest_mode === 'compound') {
         // Juros compostos: M = P(1+i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), numInstallments) - principal;
+      } else if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
@@ -7176,12 +7208,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
-                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total' | 'compound') => setFormData({ ...formData, interest_mode: v })}>
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total' | 'compound' | 'sac') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
                           <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
                           <SelectItem value="compound" className="text-xs sm:text-sm">Juros Compostos Puros</SelectItem>
+                          <SelectItem value="sac" className="text-xs sm:text-sm">SAC (Amort. Constante)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -10052,7 +10085,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 </div>
                                 <div>
                                   <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Modo de Juros</p>
-                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.interest_mode === 'on_total' ? 'Sobre o Total' : 'Por Parcela'}</p>
+                                  <p className={`font-medium ${hasSpecialStyle ? 'text-white' : ''}`}>{loan.interest_mode === 'on_total' ? 'Sobre o Total' : loan.interest_mode === 'compound' ? 'Compostos Puros' : loan.interest_mode === 'sac' ? 'SAC' : 'Por Parcela'}</p>
                                 </div>
                                 <div>
                                   <p className={hasSpecialStyle ? 'text-white/60' : 'text-muted-foreground'}>Total de Juros</p>
@@ -14119,13 +14152,14 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                     <Select 
                       value={editFormData.interest_mode} 
-                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' | 'compound' })}
+                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' | 'compound' | 'sac' })}
                     >
                       <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="per_installment">Por Parcela</SelectItem>
                         <SelectItem value="on_total">Sobre o Total</SelectItem>
                         <SelectItem value="compound">Juros Compostos</SelectItem>
+                        <SelectItem value="sac">SAC (Amort. Constante)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -14148,6 +14182,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               } else if (editFormData.interest_mode === 'compound') {
                                 // Juros compostos puros: M = P × (1 + i)^n - P
                                 totalInterest = principal * Math.pow(1 + (rate / 100), numInst) - principal;
+                              } else if (editFormData.interest_mode === 'sac') {
+                                totalInterest = calculateSACInterest(principal, rate, numInst);
                               } else {
                                 totalInterest = principal * (rate / 100) * numInst;
                               }
