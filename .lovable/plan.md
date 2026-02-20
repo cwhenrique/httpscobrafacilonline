@@ -1,26 +1,18 @@
 
-# Atualizar Card de Relatorios no Menu Lateral
+# Ativar Relatorio para cw@gmail.com
 
-## Alteracoes
+## Situacao Atual
+- Usuario: `cw@gmail.com` (ID: `5dfd21d1-2b58-4e28-ae94-5a5d6c03128b`)
+- `relatorio_ativo`: **false** (desativado)
 
-### 1. Renomear "Relatorios Auto" para "Relatorios Diario"
-No arquivo `src/components/layout/DashboardLayout.tsx`, linha 200, trocar o texto de "Relatorios Auto" para "Relatorios Diario".
+## Alteracao Necessaria
+Executar um UPDATE no banco de dados para ativar a flag `relatorio_ativo = true` para esse usuario.
 
-### 2. Mudar cor para chamar mais atencao
-Trocar o esquema de cores do card de verde (emerald) para uma cor mais chamativa como amarelo/dourado (amber/yellow), que destaca melhor e chama mais atencao no menu lateral escuro.
-
-Cores atuais (emerald/verde):
-- `bg-emerald-500/20`, `text-emerald-400`, `border-emerald-500`
-
-Novas cores (amber/dourado):
-- `bg-amber-500/20`, `text-amber-400`, `border-amber-500`
+```sql
+UPDATE profiles 
+SET relatorio_ativo = true 
+WHERE email = 'cw@gmail.com';
+```
 
 ## Detalhes Tecnicos
-
-Arquivo: `src/components/layout/DashboardLayout.tsx` (linhas 189-201)
-
-- Linha 192: `bg-emerald-500/20` -> `bg-amber-500/20`, `text-emerald-400` -> `text-amber-400`, `border-emerald-500` -> `border-amber-500`
-- Linha 193: Mesma troca para estado inativo/hover
-- Linha 196: `bg-emerald-500/20` -> `bg-amber-500/20`
-- Linha 197: `text-emerald-400` -> `text-amber-400`
-- Linha 200: "Relatorios Auto" -> "Relatorios Diario"
+Sera utilizada a ferramenta de migracao do banco para executar o UPDATE, ja que operacoes de escrita nao podem ser feitas pela query de leitura. A migracao vai simplesmente setar o campo `relatorio_ativo` para `true` no perfil do usuario `cw@gmail.com`.
