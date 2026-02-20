@@ -1,39 +1,26 @@
 
 
-## Correção: Parcelas 9-17 marcadas como pagas sem pagamentos
+## Atualizar chave da Evolution API
 
-### Problema Identificado
-O empréstimo de **Samuel Rufino Da Silva** (ID: `dc5e778c`) tem os valores financeiros corretos após a exclusão do histórico:
-- `total_paid: 0.00` (correto)
-- `remaining_balance: 720.00` (correto)
+### O que sera feito
 
-Porém, o campo `notes` ainda contém **tags PARTIAL_PAID residuais** que não foram removidas pelo gatilho de exclusão:
+1. **Atualizar o secret `EVOLUTION_API_KEY`** com o novo valor `429683C4C977415CAAFCCE10F7D57E11`
 
-```
-[PARTIAL_PAID:8:47.00][PARTIAL_PAID:9:36.00][PARTIAL_PAID:10:36.00]
-[PARTIAL_PAID:11:36.00][PARTIAL_PAID:12:36.00][PARTIAL_PAID:13:36.00]
-[PARTIAL_PAID:14:36.00][PARTIAL_PAID:15:36.00][PARTIAL_PAID:16:36.00]
-```
+2. **Re-deploy das edge functions** que utilizam a Evolution API para garantir que pegem o novo valor:
+   - `whatsapp-get-qrcode`
+   - `whatsapp-check-status`
+   - `whatsapp-create-instance`
+   - `send-whatsapp`
+   - `send-whatsapp-cobrafacil`
+   - `send-whatsapp-to-client`
+   - `send-whatsapp-to-self`
+   - `send-test-whatsapp`
+   - `send-test-message`
+   - `check-trial-expiring`
+   - `check-subscription-expiring`
+   - E demais funcoes que referenciam `EVOLUTION_API_KEY`
 
-A interface lê essas tags para determinar quais parcelas estao pagas, entao mostra as parcelas 9 a 17 como pagas mesmo sem pagamentos no banco.
+### Resultado esperado
 
-### Causa Raiz
-O gatilho `revert_loan_on_payment_delete` tenta remover tags PARTIAL_PAID ao excluir pagamentos, mas so consegue remover as tags referenciadas nas notas de cada pagamento individual. Se os pagamentos foram excluidos em massa ou se as notas do pagamento nao continham a referencia correta da parcela, as tags ficam orfas.
-
-### Correção
-
-1. **Limpeza direta dos dados**: Remover todas as tags `[PARTIAL_PAID:...]` do campo `notes` deste emprestimo especifico, ja que nao ha pagamentos registrados.
-
-2. O campo `notes` limpo ficara:
-```
-[SKIP_SATURDAY] [SKIP_SUNDAY] [SKIP_HOLIDAYS]
-Valor emprestado: R$ 500.00
-Parcela diária: R$ 36.00
-Total a receber: R$ 720.00
-Lucro: R$ 220.00
-```
-
-### Detalhes Tecnicos
-
-Sera executado um UPDATE direto na tabela `loans` para remover as tags PARTIAL_PAID do campo `notes` do emprestimo `dc5e778c-e512-481b-9956-30b80c216747`. Nenhuma alteracao de codigo e necessaria - apenas correcao de dados.
+Todas as funcoes de WhatsApp passarao a autenticar com a nova chave, resolvendo possiveis erros 401/403 que estejam ocorrendo com a chave anterior.
 
