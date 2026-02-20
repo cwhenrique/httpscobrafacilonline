@@ -1,92 +1,64 @@
 
-## Adicionar Sistema de Amortizacao SAC (Sistema de Amortizacao Constante)
+## Correção: Parcelas SAC com Valores Individuais Decrescentes
 
-### O que e o SAC?
-No SAC, a amortizacao do principal e constante em todas as parcelas. Os juros sao calculados sobre o saldo devedor, que diminui a cada parcela. Resultado: parcelas decrescentes (a primeira e a maior, a ultima e a menor).
+### Problema
+Atualmente, ao criar um empréstimo SAC, todas as parcelas aparecem com o mesmo valor (total dividido igualmente). No SAC, cada parcela deve ter um valor diferente e decrescente, pois a amortização é constante mas os juros diminuem conforme o saldo devedor cai.
 
-### Formula SAC
-- Amortizacao = Principal / N (constante)
-- Juros da parcela k = Saldo devedor x Taxa mensal
-- Saldo devedor apos parcela k = Principal - (k x Amortizacao)
-- Parcela k = Amortizacao + Juros da parcela k
+### Exemplo Esperado (R$ 10.000, 10% a.m., 5 parcelas)
+- Parcela 1: R$ 3.000 (R$ 2.000 amort. + R$ 1.000 juros)
+- Parcela 2: R$ 2.800 (R$ 2.000 amort. + R$ 800 juros)
+- Parcela 3: R$ 2.600 (R$ 2.000 amort. + R$ 600 juros)
+- Parcela 4: R$ 2.400 (R$ 2.000 amort. + R$ 400 juros)
+- Parcela 5: R$ 2.200 (R$ 2.000 amort. + R$ 200 juros)
 
-### Alteracoes Necessarias
+### Correções no `src/pages/Loans.tsx`
 
-**1. Banco de Dados - Adicionar valor 'sac' ao enum `interest_mode`**
+Todas as funções `getInstallmentBaseValue` e `getInstallmentValue` que retornam `totalPerInstallment` (valor fixo) precisam verificar se `interest_mode === 'sac'` e, nesse caso, usar `calculateSACInstallmentValue(principal, rate, installments, index)` para retornar o valor correto de cada parcela.
 
-Migracao SQL:
-```sql
-ALTER TYPE interest_mode ADD VALUE 'sac';
-```
+**Locais a corrigir:**
 
-Isso permite salvar `interest_mode = 'sac'` nos emprestimos.
+1. **Linha ~12484 - `getInstallmentBaseValue` no dialog de pagamento por parcela**: Em vez de retornar `totalPerInstallment`, verificar se é SAC e calcular o valor individual.
 
-**2. `src/lib/calculations.ts` - Adicionar funcoes SAC**
+2. **Linha ~12370 - calculo de `totalPerInstallment`**: Para SAC, o `totalPerInstallment` exibido no header do dialog deve mostrar a primeira parcela como referência, mas cada parcela individual usa seu próprio valor.
 
-- Nova funcao `generateSACTable(principal, monthlyRate, installments)` que retorna:
-  - Array de linhas com: numero da parcela, amortizacao (constante), juros (decrescente), valor da parcela (decrescente), saldo devedor
-  - Total de juros e total a pagar
-- Nova funcao `calculateSACInterest(principal, monthlyRate, installments)` que retorna o total de juros no SAC
+3. **Linha ~4398 - `getInstallmentValue` no processamento de pagamento**: Adicionar tratamento SAC para calcular valor correto da parcela sendo paga.
 
-**3. `src/types/database.ts` - Atualizar tipo InterestMode**
+4. **Linhas ~8115, ~8187, ~8275, ~10509, ~10581 - displays de lista de empréstimos**: Onde `totalPerInstallment` é usado para exibir valor na listagem, para SAC mostrar o valor da primeira parcela ou indicar "decrescente".
 
-Adicionar `'sac'` ao tipo:
-```typescript
-export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac';
-```
+5. **Linha ~13469 - calculo no dialog de detalhes**: Usar valor SAC individual.
 
-**4. `src/pages/Loans.tsx` - Multiplas alteracoes**
-
-- **Formulario de criacao (linha ~7182)**: Adicionar opcao `<SelectItem value="sac">SAC</SelectItem>` no dropdown "Juros Aplicado"
-- **Formulario de edicao (linha ~14126)**: Adicionar mesma opcao no dropdown de edicao
-- **Calculo na criacao (linha ~3776)**: Adicionar `else if (formData.interest_mode === 'sac')` com calculo SAC
-- **Calculo na edicao**: Adicionar mesma logica no recalculo
-- **Display do modo (linha ~10055)**: Adicionar label "SAC" quando `interest_mode === 'sac'`
-- **Tipo do formData (linha ~1116)**: Incluir `'sac'` no union type
-- **Todas as funcoes helper** (getPaidIndicesFromNotes, getPaidInstallmentsCount, etc.): Adicionar tratamento para `'sac'`
-- **remaining_balance na criacao**: Usar total SAC (principal + total juros SAC)
-- **Parcelas individuais**: Como SAC tem parcelas decrescentes, ao exibir valor de cada parcela na tabela de parcelas, calcular individualmente usando a formula SAC em vez de dividir igualmente
-
-**5. `src/components/LoanSimulator.tsx` - Adicionar modo SAC**
-
-- Adicionar `'sac'` ao tipo InterestMode local
-- Adicionar label `sac: 'SAC (Amort. Constante)'` nos labels
-- Adicionar caso `'sac'` na funcao `calculateInterest`
-- Gerar schedule com parcelas decrescentes no SAC (amortizacao constante, juros sobre saldo)
-- Adicionar na tabela de comparacao
-- Adicionar estilo visual (cor verde para diferenciar)
-
-**6. `src/components/PriceTableDialog.tsx` - Referencia**
-
-Manter como esta - a Tabela Price ja tem seu dialog separado. O SAC usara o fluxo normal de criacao com `interest_mode = 'sac'`.
-
-**7. Funcoes de cobranca/notificacao**
-
-- `src/components/SendOverdueNotification.tsx`: Tratar `interest_mode === 'sac'` nos calculos de valor de parcela (parcelas nao sao iguais no SAC)
-- `src/lib/messageUtils.ts`: Calculos de opcoes de pagamento para SAC
-
-**8. Relatorios e outras paginas**
-
-- `src/pages/CalendarView.tsx`: Adicionar tratamento SAC no calculo de juros
-- `src/pages/ReportsLoans.tsx` e outras paginas que calculam juros: Adicionar caso SAC
-
-### Diferencial do SAC vs Price vs outros modos
-
-| Modo | Parcela | Amortizacao | Juros |
-|------|---------|-------------|-------|
-| Por Parcela | Constante | Constante | Constante |
-| Sobre o Total | Constante | Constante | Constante |
-| Compostos Puros | Constante | Constante | Constante |
-| Tabela Price | Constante | Crescente | Decrescente |
-| **SAC** | **Decrescente** | **Constante** | **Decrescente** |
+6. **Linhas ~435-439 - `getInstallmentValue` em `getPaidInstallmentsCount`**: Já tratado no `calculations.ts`, mas verificar consistência.
 
 ### Detalhes Tecnicos
 
-A principal complexidade do SAC e que cada parcela tem um valor diferente. O sistema atual assume parcelas iguais em varios lugares. Precisaremos:
+Em cada local onde há `getInstallmentBaseValue` ou cálculo de `totalPerInstallment`, adicionar:
 
-1. Armazenar o `total_interest` correto (soma de todos os juros SAC)
-2. Ao exibir valor individual de cada parcela, recalcular com base no indice usando: `parcela[i] = (principal/n) + ((principal - i*(principal/n)) * taxa/100)`
-3. No pagamento, calcular o valor esperado da parcela especifica
-4. No remaining_balance, a logica existente de subtrair pagamentos ja funciona
+```typescript
+// Dentro de getInstallmentBaseValue:
+if (selectedLoan.interest_mode === 'sac') {
+  return calculateSACInstallmentValue(
+    selectedLoan.principal_amount,
+    selectedLoan.interest_rate,
+    numInstallments,
+    index
+  );
+}
+return totalPerInstallment;
+```
 
-A tag `[SAC_TABLE]` sera adicionada nas notas do emprestimo para identificacao rapida.
+Para o header do dialog de pagamento (que mostra "Parcela: R$ X.XXX"):
+```typescript
+// Para SAC, mostrar primeira e última parcela
+if (selectedLoan.interest_mode === 'sac') {
+  const firstInstallment = calculateSACInstallmentValue(principal, rate, n, 0);
+  const lastInstallment = calculateSACInstallmentValue(principal, rate, n, n - 1);
+  // Exibir: "Parcela: R$ 3.000 → R$ 2.200 (SAC)"
+}
+```
+
+Para o processamento de pagamento (`handlePaymentSubmit`), a mesma lógica se aplica: o valor esperado de cada parcela deve ser calculado individualmente usando `calculateSACInstallmentValue`.
+
+Isso garante que:
+- Cada parcela aparece com seu valor correto (decrescente)
+- Os pagamentos são validados contra o valor correto de cada parcela
+- O display mostra claramente que é um empréstimo com parcelas variáveis
