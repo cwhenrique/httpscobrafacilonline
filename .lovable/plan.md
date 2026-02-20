@@ -1,37 +1,39 @@
 
 
-## Correção: Campo "Juros Total" no Formulário SAC
+## Correção: Parcelas 9-17 marcadas como pagas sem pagamentos
 
-### Problema
-O campo "Juros Total (R$)" mostra R$ 10.000 em vez de R$ 6.000 para um empréstimo SAC de R$ 10.000, 20% a.m., 5 parcelas.
+### Problema Identificado
+O empréstimo de **Samuel Rufino Da Silva** (ID: `dc5e778c`) tem os valores financeiros corretos após a exclusão do histórico:
+- `total_paid: 0.00` (correto)
+- `remaining_balance: 720.00` (correto)
 
-**Causa raiz:** Na função `getTotalInterestRawValue()` (linha 2392), quando `payment_type === 'installment'` e existe `installmentValue`, o código entra no primeiro `if` e faz:
+Porém, o campo `notes` ainda contém **tags PARTIAL_PAID residuais** que não foram removidas pelo gatilho de exclusão:
+
 ```
-perInstallment * numInstallments - principal
-= 4000 * 5 - 10000
-= 10000   (ERRADO)
+[PARTIAL_PAID:8:47.00][PARTIAL_PAID:9:36.00][PARTIAL_PAID:10:36.00]
+[PARTIAL_PAID:11:36.00][PARTIAL_PAID:12:36.00][PARTIAL_PAID:13:36.00]
+[PARTIAL_PAID:14:36.00][PARTIAL_PAID:15:36.00][PARTIAL_PAID:16:36.00]
 ```
 
-Como `installmentValue` agora mostra a primeira parcela SAC (4000 - a maior), essa multiplicacao gera um total inflado. O correto seria usar `calculateSACInterest` que soma os juros reais de cada parcela (6000).
+A interface lê essas tags para determinar quais parcelas estao pagas, entao mostra as parcelas 9 a 17 como pagas mesmo sem pagamentos no banco.
+
+### Causa Raiz
+O gatilho `revert_loan_on_payment_delete` tenta remover tags PARTIAL_PAID ao excluir pagamentos, mas so consegue remover as tags referenciadas nas notas de cada pagamento individual. Se os pagamentos foram excluidos em massa ou se as notas do pagamento nao continham a referencia correta da parcela, as tags ficam orfas.
 
 ### Correção
 
-**Arquivo: `src/pages/Loans.tsx` - Linhas 2391-2395**
+1. **Limpeza direta dos dados**: Remover todas as tags `[PARTIAL_PAID:...]` do campo `notes` deste emprestimo especifico, ja que nao ha pagamentos registrados.
 
-Adicionar uma verificação para SAC antes do cálculo baseado em `installmentValue`:
-
-```typescript
-if (formData.interest_mode === 'sac' && formData.interest_rate) {
-  const rate = parseFloat(formData.interest_rate);
-  totalInterest = calculateSACInterest(principal, rate, numInstallments);
-} else if ((formData.payment_type === 'installment' || ...) && installmentValue) {
-  const perInstallment = parseFloat(installmentValue);
-  if (!perInstallment) return '';
-  totalInterest = perInstallment * numInstallments - principal;
-} else if (...) {
-  // restante inalterado
-}
+2. O campo `notes` limpo ficara:
+```
+[SKIP_SATURDAY] [SKIP_SUNDAY] [SKIP_HOLIDAYS]
+Valor emprestado: R$ 500.00
+Parcela diária: R$ 36.00
+Total a receber: R$ 720.00
+Lucro: R$ 220.00
 ```
 
-Isso garante que para SAC o cálculo sempre use a soma real dos juros amortizados (R$ 6.000), independente do valor exibido no campo "1a Parcela".
+### Detalhes Tecnicos
+
+Sera executado um UPDATE direto na tabela `loans` para remover as tags PARTIAL_PAID do campo `notes` do emprestimo `dc5e778c-e512-481b-9956-30b80c216747`. Nenhuma alteracao de codigo e necessaria - apenas correcao de dados.
 
