@@ -1,20 +1,26 @@
 
+# Atualizar Card de Relatorios no Menu Lateral
 
-# Atualizar Link de Compra na Pagina de Relatorios
+## Alteracoes
 
-## Objetivo
-Substituir o link de checkout atual pelo novo link fornecido.
+### 1. Renomear "Relatorios Auto" para "Relatorios Diario"
+No arquivo `src/components/layout/DashboardLayout.tsx`, linha 200, trocar o texto de "Relatorios Auto" para "Relatorios Diario".
 
-## Alteracao
+### 2. Mudar cor para chamar mais atencao
+Trocar o esquema de cores do card de verde (emerald) para uma cor mais chamativa como amarelo/dourado (amber/yellow), que destaca melhor e chama mais atencao no menu lateral escuro.
 
-No arquivo `src/pages/AutoReports.tsx`, trocar a constante `CAKTO_CHECKOUT_URL` de:
-```
-https://pay.cakto.com.br/DKbJ3gL
-```
-Para:
-```
-https://pay.cakto.com.br/3c4qf8i
-```
+Cores atuais (emerald/verde):
+- `bg-emerald-500/20`, `text-emerald-400`, `border-emerald-500`
 
-Isso afeta os dois botoes de compra na pagina: o botao no card de status ("Assinar R$ 19,90/mes") e o botao do CTA principal ("Assinar Agora — R$ 19,90/mes").
+Novas cores (amber/dourado):
+- `bg-amber-500/20`, `text-amber-400`, `border-amber-500`
 
+## Detalhes Tecnicos
+
+Arquivo: `src/components/layout/DashboardLayout.tsx` (linhas 189-201)
+
+- Linha 192: `bg-emerald-500/20` -> `bg-amber-500/20`, `text-emerald-400` -> `text-amber-400`, `border-emerald-500` -> `border-amber-500`
+- Linha 193: Mesma troca para estado inativo/hover
+- Linha 196: `bg-emerald-500/20` -> `bg-amber-500/20`
+- Linha 197: `text-emerald-400` -> `text-amber-400`
+- Linha 200: "Relatorios Auto" -> "Relatorios Diario"
