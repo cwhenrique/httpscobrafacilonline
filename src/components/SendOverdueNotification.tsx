@@ -156,7 +156,7 @@ export default function SendOverdueNotification({
       const totalExtras = appliedPenalty + overdueInterest;
       const totalAmount = data.amount + totalExtras;
 
-      return replaceTemplateVariables(config.customTemplateOverdue, {
+      let message = replaceTemplateVariables(config.customTemplateOverdue, {
         clientName: data.clientName,
         amount: data.amount,
         installmentNumber: data.installmentNumber,
@@ -174,6 +174,20 @@ export default function SendOverdueNotification({
         closingMessage: config.customClosingMessage,
         contractInterestAmount: data.interestAmount,
       });
+
+      // Adicionar opções de pagamento se habilitado no config
+      if (config.includePaymentOptions) {
+        message += generatePaymentOptions(
+          totalAmount,
+          data.interestAmount,
+          data.principalAmount,
+          data.isDaily,
+          appliedPenalty,
+          overdueInterest
+        );
+      }
+
+      return message;
     }
     
     // Lógica original baseada em checkboxes
