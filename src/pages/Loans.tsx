@@ -3806,23 +3806,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     let totalInterest: number;
 
     if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
-      const perInstallment = parseFloat(installmentValue);
-      const totalToReceive = perInstallment * numInstallments;
-      totalInterest = totalToReceive - principal;
+      // SAC: parcelas são variáveis, não usar perInstallment * numInstallments
+      if (formData.interest_mode === 'sac') {
+        totalInterest = calculateSACInterest(principal, rate, numInstallments);
+      } else {
+        const perInstallment = parseFloat(installmentValue);
+        const totalToReceive = perInstallment * numInstallments;
+        totalInterest = totalToReceive - principal;
 
-      // Recalcula a taxa de juros apenas para exibição, baseada no valor arredondado da parcela
-      if (totalInterest >= 0) {
-        let computedRate: number;
-        if (formData.interest_mode === 'per_installment') {
-          computedRate = (totalInterest / principal / numInstallments) * 100;
-        } else if (formData.interest_mode === 'compound') {
-          computedRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
-        } else if (formData.interest_mode === 'sac') {
-          computedRate = parseFloat(formData.interest_rate) || 0;
-        } else {
-          computedRate = (totalInterest / principal) * 100;
+        // Recalcula a taxa de juros apenas para exibição, baseada no valor arredondado da parcela
+        if (totalInterest >= 0) {
+          let computedRate: number;
+          if (formData.interest_mode === 'per_installment') {
+            computedRate = (totalInterest / principal / numInstallments) * 100;
+          } else if (formData.interest_mode === 'compound') {
+            computedRate = (Math.pow((totalInterest / principal) + 1, 1 / numInstallments) - 1) * 100;
+          } else {
+            computedRate = (totalInterest / principal) * 100;
+          }
+          rate = parseFloat(computedRate.toFixed(2));
         }
-        rate = parseFloat(computedRate.toFixed(2));
       }
     } else {
       if (formData.interest_mode === 'per_installment') {
