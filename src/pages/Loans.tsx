@@ -2333,7 +2333,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const total = principal + totalInterest;
       // Validar antes de setar para evitar NaN/Infinity
       if (isFinite(total) && !isNaN(total) && numInstallments > 0) {
-        setInstallmentValue((total / numInstallments).toFixed(2));
+        if (formData.interest_mode === 'sac') {
+          const firstInstallment = calculateSACInstallmentValue(principal, rate, numInstallments, 0);
+          setInstallmentValue(firstInstallment.toFixed(2));
+        } else {
+          setInstallmentValue((total / numInstallments).toFixed(2));
+        }
       }
     }
   }, [formData.principal_amount, formData.installments, formData.interest_rate, formData.interest_mode, formData.payment_type, isManuallyEditingInstallment]);
@@ -7271,7 +7276,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Valor da {formData.payment_type === 'weekly' ? 'Semana' : formData.payment_type === 'biweekly' ? 'Quinzena' : 'Parcela'} (R$)</Label>
+                        <Label className="text-xs sm:text-sm">{formData.interest_mode === 'sac' ? '1ª Parcela (R$)' : `Valor da ${formData.payment_type === 'weekly' ? 'Semana' : formData.payment_type === 'biweekly' ? 'Quinzena' : 'Parcela'} (R$)`}</Label>
                         <Input 
                           type="number" 
                           step="0.01"
@@ -7285,10 +7290,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <Input 
                           type="text" 
                           readOnly 
-                          value={installmentValue && formData.installments
-                            ? formatCurrency(parseFloat(installmentValue) * parseInt(formData.installments))
-                            : 'R$ 0,00'
-                          } 
+                          value={(() => {
+                            if (formData.interest_mode === 'sac' && formData.principal_amount && formData.interest_rate && formData.installments) {
+                              const { totalPayment } = generateSACTable(
+                                parseFloat(formData.principal_amount),
+                                parseFloat(formData.interest_rate),
+                                parseInt(formData.installments)
+                              );
+                              return formatCurrency(totalPayment);
+                            }
+                            return installmentValue && formData.installments
+                              ? formatCurrency(parseFloat(installmentValue) * parseInt(formData.installments))
+                              : 'R$ 0,00';
+                          })()}
                           className="bg-muted h-9 sm:h-10 text-sm"
                         />
                       </div>
@@ -7482,6 +7496,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                               onChange={(e) => updateInstallmentDate(index, e.target.value)} 
                               className="flex-1 h-8 sm:h-10 text-xs sm:text-sm"
                             />
+                            {formData.interest_mode === 'sac' && formData.principal_amount && formData.interest_rate && formData.installments && (
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {formatCurrency(calculateSACInstallmentValue(
+                                  parseFloat(formData.principal_amount),
+                                  parseFloat(formData.interest_rate),
+                                  parseInt(formData.installments) || 1,
+                                  index
+                                ))}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
