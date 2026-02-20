@@ -244,7 +244,9 @@ export default function SendOverdueNotification({
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
         : 'Pagamento';
       
-      const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
+      const dynamicPenalty = data.hasDynamicPenalty ? (data.totalPenaltyAmount || 0) : 0;
+      const manualPenalty2 = data.manualPenaltyAmount || 0;
+      const appliedPenalty = data.hasDynamicPenalty ? dynamicPenalty : manualPenalty2;
       const overdueInterest = data.overdueInterestAmount || 0;
       const totalExtras = appliedPenalty + overdueInterest;
       const totalAmount = data.amount + totalExtras;
