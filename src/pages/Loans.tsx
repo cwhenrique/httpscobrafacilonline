@@ -2388,8 +2388,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const numInstallments = parseInt(formData.installments || '1');
     let totalInterest = 0;
 
-    // Se o usuário editou o valor da parcela, usamos ele como base
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
+    // SAC: sempre usar calculateSACInterest (parcelas são variáveis)
+    if (formData.interest_mode === 'sac' && formData.interest_rate) {
+      const rate = parseFloat(formData.interest_rate);
+      totalInterest = calculateSACInterest(principal, rate, numInstallments);
+    } else if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
       const perInstallment = parseFloat(installmentValue);
       if (!perInstallment) return '';
       totalInterest = perInstallment * numInstallments - principal;
