@@ -122,7 +122,7 @@ export default function Dashboard() {
       icon: FileText,
       color: 'text-purple-500',
       bg: 'bg-purple-500/10',
-      href: '/bills',
+      href: '/product-sales?tab=contracts',
     },
   ];
 
