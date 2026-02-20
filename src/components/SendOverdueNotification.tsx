@@ -149,8 +149,9 @@ export default function SendOverdueNotification({
       const paidCount = data.paidCount || 0;
       const totalInstallments = data.totalInstallments || 1;
       const progressPercent = Math.round((paidCount / totalInstallments) * 100);
-      const hasManualPenalty = data.manualPenaltyAmount && data.manualPenaltyAmount > 0;
-      const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
+      const dynamicPenalty = data.hasDynamicPenalty ? (data.totalPenaltyAmount || 0) : 0;
+      const manualPenalty = data.manualPenaltyAmount || 0;
+      const appliedPenalty = data.hasDynamicPenalty ? dynamicPenalty : manualPenalty;
       const overdueInterest = data.overdueInterestAmount || 0;
       const totalExtras = appliedPenalty + overdueInterest;
       const totalAmount = data.amount + totalExtras;
