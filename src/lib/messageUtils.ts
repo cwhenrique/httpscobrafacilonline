@@ -191,31 +191,46 @@ export const generatePaymentOptions = (
   penaltyAmount?: number,
   overdueInterestAmount?: number
 ): string => {
-  if (!interestAmount || interestAmount <= 0 || isDaily || !principalAmount || principalAmount <= 0) {
-    return '';
-  }
-  
+  const hasContractInterest = interestAmount && interestAmount > 0;
   const hasOverdueInterest = (overdueInterestAmount || 0) > 0;
   const hasPenalty = (penaltyAmount || 0) > 0;
+  const hasExtras = hasOverdueInterest || hasPenalty;
+
+  // Se não tem juros de contrato NEM encargos extras, não mostra nada
+  if (!hasContractInterest && !hasExtras) return '';
+  if (!principalAmount || principalAmount <= 0) return '';
+
+  const contractInterest = interestAmount || 0;
   
   // Total de encargos (juros contrato + juros atraso + multa)
-  const totalEncargos = interestAmount + (overdueInterestAmount || 0) + (penaltyAmount || 0);
+  const totalEncargos = contractInterest + (overdueInterestAmount || 0) + (penaltyAmount || 0);
   
   // Valor da parcela original (principal + juros do contrato)
-  const parcelaOriginal = principalAmount + interestAmount;
+  const parcelaOriginal = principalAmount + contractInterest;
   
   let message = `💡 *Opções de Pagamento:*\n`;
   message += `✅ Valor total: ${formatCurrency(totalAmount)}\n`;
   
-  if (hasOverdueInterest && hasPenalty) {
-    // Quando tem AMBOS: opção é pagar juros + multa (não só juros)
-    message += `⚠️ Juros + Multa: ${formatCurrency(totalEncargos)}\n`;
+  if (hasContractInterest) {
+    // Tem juros de contrato
+    if (hasOverdueInterest && hasPenalty) {
+      message += `⚠️ Juros + Multa: ${formatCurrency(totalEncargos)}\n`;
+    } else {
+      message += `⚠️ Só juros: ${formatCurrency(totalEncargos)}\n`;
+    }
+    message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   } else {
-    // Quando tem só juros (ou nenhum encargo extra)
-    message += `⚠️ Só juros: ${formatCurrency(totalEncargos)}\n`;
+    // Sem juros de contrato, mas tem encargos extras (multa e/ou juros por atraso)
+    const extrasTotal = (overdueInterestAmount || 0) + (penaltyAmount || 0);
+    if (hasOverdueInterest && hasPenalty) {
+      message += `⚠️ Só encargos (Juros + Multa): ${formatCurrency(extrasTotal)}\n`;
+    } else if (hasPenalty) {
+      message += `⚠️ Só multa: ${formatCurrency(extrasTotal)}\n`;
+    } else {
+      message += `⚠️ Só juros por atraso: ${formatCurrency(extrasTotal)}\n`;
+    }
+    message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   }
-  
-  message += `   (Parcela de ${formatCurrency(parcelaOriginal)} segue para próximo mês)\n\n`;
   
   return message;
 };
