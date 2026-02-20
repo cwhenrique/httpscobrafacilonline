@@ -1,40 +1,37 @@
 
 
-## Correção: Total a Receber e Remaining Balance no SAC
+## Correção: Campo "Juros Total" no Formulário SAC
 
 ### Problema
-Ao criar um empréstimo SAC (ex: R$ 10.000, 20% a.m., 5 parcelas), o sistema calcula o total errado porque:
+O campo "Juros Total (R$)" mostra R$ 10.000 em vez de R$ 6.000 para um empréstimo SAC de R$ 10.000, 20% a.m., 5 parcelas.
 
-1. O campo `installmentValue` mostra o valor da **primeira parcela** (R$ 4.000)
-2. Na hora de salvar (linha 3810), o código faz `4.000 × 5 = R$ 20.000`
-3. O correto seria somar todas as parcelas SAC: `4.000 + 3.600 + 3.200 + 2.800 + 2.400 = R$ 16.000`
+**Causa raiz:** Na função `getTotalInterestRawValue()` (linha 2392), quando `payment_type === 'installment'` e existe `installmentValue`, o código entra no primeiro `if` e faz:
+```
+perInstallment * numInstallments - principal
+= 4000 * 5 - 10000
+= 10000   (ERRADO)
+```
 
-Isso faz o `remaining_balance` e `total_interest` serem salvos errados no banco.
+Como `installmentValue` agora mostra a primeira parcela SAC (4000 - a maior), essa multiplicacao gera um total inflado. O correto seria usar `calculateSACInterest` que soma os juros reais de cada parcela (6000).
 
 ### Correção
 
-**Arquivo: `src/pages/Loans.tsx` - Linha ~3808-3811**
+**Arquivo: `src/pages/Loans.tsx` - Linhas 2391-2395**
 
-Para SAC, ignorar o cálculo baseado em `installmentValue` e usar `calculateSACInterest` diretamente:
+Adicionar uma verificação para SAC antes do cálculo baseado em `installmentValue`:
 
 ```typescript
-if ((formData.payment_type === 'installment' || ...) && installmentValue) {
-  // SAC: não usar perInstallment * numInstallments (parcelas são variáveis)
-  if (formData.interest_mode === 'sac') {
-    totalInterest = calculateSACInterest(principal, rate, numInstallments);
-  } else {
-    const perInstallment = parseFloat(installmentValue);
-    const totalToReceive = perInstallment * numInstallments;
-    totalInterest = totalToReceive - principal;
-    // ... recálculo de taxa existente
-  }
+if (formData.interest_mode === 'sac' && formData.interest_rate) {
+  const rate = parseFloat(formData.interest_rate);
+  totalInterest = calculateSACInterest(principal, rate, numInstallments);
+} else if ((formData.payment_type === 'installment' || ...) && installmentValue) {
+  const perInstallment = parseFloat(installmentValue);
+  if (!perInstallment) return '';
+  totalInterest = perInstallment * numInstallments - principal;
+} else if (...) {
+  // restante inalterado
 }
 ```
 
-Isso garante que:
-- `total_interest` = R$ 6.000 (soma real dos juros SAC)
-- `remaining_balance` = R$ 16.000 (principal + juros reais)
-- Os valores salvos no banco ficam consistentes com as parcelas decrescentes
+Isso garante que para SAC o cálculo sempre use a soma real dos juros amortizados (R$ 6.000), independente do valor exibido no campo "1a Parcela".
 
-### Impacto
-Apenas 1 trecho de código precisa ser ajustado. A correção afeta somente a criação de empréstimos SAC com parcelas.
