@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import whatsappReportExample from '@/assets/whatsapp-relatorio-exemplo.png';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -167,6 +168,18 @@ export default function AutoReports() {
                 de quem você deve cobrar naquele dia e quem está em atraso. Você define o horário de
                 recebimento. Serviço em parceria com WhatsApp.
               </p>
+
+              {/* Example report image */}
+              <div className="mb-6 flex justify-center">
+                <div className="rounded-xl overflow-hidden border border-emerald-500/30 shadow-lg max-w-xs">
+                  <img
+                    src={whatsappReportExample}
+                    alt="Exemplo de relatório diário enviado via WhatsApp"
+                    className="w-full h-auto"
+                  />
+                </div>
+              </div>
+
               <div className="flex flex-wrap justify-center gap-3 mb-4">
                 {CATEGORY_OPTIONS.map(cat => (
                   <div key={cat.value} className="flex items-center gap-2 bg-background/30 rounded-full px-4 py-2">
