@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatCurrency, formatDate } from '@/lib/calculations';
+import { formatCurrency, formatDate, calculateSACInterest, generateSACTable } from '@/lib/calculations';
 import { generateSimulationPDF } from '@/lib/pdfGenerator';
 import { Calculator, TrendingUp, Calendar as CalendarIcon, Percent, DollarSign, GitCompare, Zap, FileDown } from 'lucide-react';
 import { format, addDays, addMonths, addWeeks } from 'date-fns';
@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useProfile } from '@/hooks/useProfile';
 
 type PaymentType = 'single' | 'installment' | 'weekly' | 'biweekly' | 'daily';
-type InterestMode = 'per_installment' | 'on_total' | 'compound_pure' | 'compound_price';
+type InterestMode = 'per_installment' | 'on_total' | 'compound_pure' | 'compound_price' | 'sac';
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   single: 'Pagamento Único',
@@ -34,6 +34,7 @@ const INTEREST_MODE_LABELS: Record<InterestMode, string> = {
   on_total: 'Sobre o Total',
   compound_pure: 'Juros Compostos Puro',
   compound_price: 'Tabela Price',
+  sac: 'SAC (Amort. Constante)',
 };
 
 const getMaxInstallments = (paymentType: PaymentType) => {
@@ -71,18 +72,19 @@ export function LoanSimulator() {
       case 'on_total':
         return p * (rate / 100);
       case 'compound_pure': {
-        // Juros Compostos Puro: M = P × (1 + i)^n - P
         const i = rate / 100;
         if (i === 0 || !isFinite(i)) return 0;
         return p * Math.pow(1 + i, n) - p;
       }
       case 'compound_price': {
-        // Tabela Price (PMT): Parcelas fixas amortizadas
         const i = rate / 100;
         if (i === 0 || !isFinite(i)) return 0;
         const factor = Math.pow(1 + i, n);
         const pmt = p * (i * factor) / (factor - 1);
         return (pmt * n) - p;
+      }
+      case 'sac': {
+        return calculateSACInterest(p, rate, n);
       }
       default:
         return 0;
@@ -147,6 +149,32 @@ export function LoanSimulator() {
       };
     }
 
+    // SAC: variable installments
+    if (interestMode === 'sac') {
+      const sacTable = generateSACTable(principal, interestRate, effectiveInstallments);
+      const dates = generateDates(firstDueDate, effectiveInstallments, paymentType);
+      const schedule = dates.map((date, i) => ({
+        number: i + 1,
+        dueDate: format(date, 'dd/MM/yyyy'),
+        principal: sacTable.rows[i].amortization,
+        interest: sacTable.rows[i].interest,
+        total: sacTable.rows[i].payment,
+        remainingBalance: sacTable.rows[i].balance,
+      }));
+      return {
+        principal,
+        interestRate,
+        installments: effectiveInstallments,
+        totalInterest: sacTable.totalInterest,
+        totalAmount: sacTable.totalPayment,
+        installmentValue: sacTable.firstPayment,
+        schedule,
+        effectiveRate: (sacTable.totalInterest / principal) * 100,
+        paymentType,
+        interestMode,
+      };
+    }
+
     // Standard calculation for other types
     const totalInterest = calculateInterest(interestMode, principal, interestRate, effectiveInstallments);
     const totalAmount = principal + totalInterest;
@@ -204,6 +232,10 @@ export function LoanSimulator() {
         interest: calculateInterest('compound_price', principal, interestRate, effectiveInstallments),
         total: principal + calculateInterest('compound_price', principal, interestRate, effectiveInstallments),
       },
+      sac: {
+        interest: calculateInterest('sac', principal, interestRate, effectiveInstallments),
+        total: principal + calculateInterest('sac', principal, interestRate, effectiveInstallments),
+      },
     };
   }, [principal, interestRate, installments, paymentType]);
 
@@ -235,6 +267,7 @@ export function LoanSimulator() {
     if (interestMode === 'compound_pure') return 'bg-purple-500/10 border-purple-400/30';
     if (interestMode === 'compound_price') return 'bg-cyan-500/10 border-cyan-400/30';
     if (interestMode === 'on_total') return 'bg-yellow-500/10 border-yellow-400/30';
+    if (interestMode === 'sac') return 'bg-emerald-500/10 border-emerald-400/30';
     return 'bg-primary/5 border-primary/20';
   };
 
@@ -242,6 +275,7 @@ export function LoanSimulator() {
     if (interestMode === 'compound_pure') return 'text-purple-400';
     if (interestMode === 'compound_price') return 'text-cyan-400';
     if (interestMode === 'on_total') return 'text-yellow-400';
+    if (interestMode === 'sac') return 'text-emerald-400';
     return 'text-primary';
   };
 
@@ -602,6 +636,19 @@ export function LoanSimulator() {
                         <td className="p-3 text-right text-warning font-medium">{formatCurrency(comparison.compound_price.interest)}</td>
                         <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.compound_price.total)}</td>
                         <td className="p-3 text-right font-medium">{formatCurrency(comparison.compound_price.total / installments)}</td>
+                      </tr>
+                      <tr className={cn("border-t", interestMode === 'sac' && "bg-emerald-500/10")}>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-400/30">
+                              SAC
+                            </Badge>
+                            {interestMode === 'sac' && <span className="text-xs text-emerald-400">✓ Selecionado</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right text-warning font-medium">{formatCurrency(comparison.sac.interest)}</td>
+                        <td className="p-3 text-right text-success font-medium">{formatCurrency(comparison.sac.total)}</td>
+                        <td className="p-3 text-right font-medium text-muted-foreground text-xs">Variável</td>
                       </tr>
                     </tbody>
                   </table>
