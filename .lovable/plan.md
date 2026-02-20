@@ -1,68 +1,92 @@
 
-## Correção: Opções de Pagamento no Template Padrão
+## Adicionar Sistema de Amortizacao SAC (Sistema de Amortizacao Constante)
 
-### Problemas Identificados
+### O que e o SAC?
+No SAC, a amortizacao do principal e constante em todas as parcelas. Os juros sao calculados sobre o saldo devedor, que diminui a cada parcela. Resultado: parcelas decrescentes (a primeira e a maior, a ultima e a menor).
 
-**1. Bug da multa no template padrão (mesmo bug já corrigido para templates customizados)**
+### Formula SAC
+- Amortizacao = Principal / N (constante)
+- Juros da parcela k = Saldo devedor x Taxa mensal
+- Saldo devedor apos parcela k = Principal - (k x Amortizacao)
+- Parcela k = Amortizacao + Juros da parcela k
 
-Na linha 247 de `SendOverdueNotification.tsx`, no caminho do template padrão (checkboxes), o cálculo da multa ignora multas dinâmicas:
+### Alteracoes Necessarias
+
+**1. Banco de Dados - Adicionar valor 'sac' ao enum `interest_mode`**
+
+Migracao SQL:
+```sql
+ALTER TYPE interest_mode ADD VALUE 'sac';
 ```
-const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
-```
-Precisa considerar `hasDynamicPenalty` e `totalPenaltyAmount`, igual ao fix já aplicado no caminho de templates customizados.
 
-**2. Função `generatePaymentOptions` retorna vazio quando não deveria**
+Isso permite salvar `interest_mode = 'sac'` nos emprestimos.
 
-Em `src/lib/messageUtils.ts` (linha 194), a função retorna vazio se:
-- `interestAmount` for 0 (empréstimo sem juros de contrato)
-- `isDaily` for true (empréstimo diário)
+**2. `src/lib/calculations.ts` - Adicionar funcoes SAC**
 
-Porem, mesmo nesses casos, se houver multa ou juros por atraso, o usuario quer ver as opções de pagamento mostrando os encargos.
+- Nova funcao `generateSACTable(principal, monthlyRate, installments)` que retorna:
+  - Array de linhas com: numero da parcela, amortizacao (constante), juros (decrescente), valor da parcela (decrescente), saldo devedor
+  - Total de juros e total a pagar
+- Nova funcao `calculateSACInterest(principal, monthlyRate, installments)` que retorna o total de juros no SAC
 
-### Correções Planejadas
+**3. `src/types/database.ts` - Atualizar tipo InterestMode**
 
-**Arquivo 1: `src/components/SendOverdueNotification.tsx`**
-
-Linha 247 - corrigir calculo da `appliedPenalty` no caminho padrão (checkboxes):
-
+Adicionar `'sac'` ao tipo:
 ```typescript
-// ANTES:
-const appliedPenalty = hasManualPenalty ? data.manualPenaltyAmount! : 0;
-
-// DEPOIS:
-const dynamicPenalty = data.hasDynamicPenalty ? (data.totalPenaltyAmount || 0) : 0;
-const manualPenalty = data.manualPenaltyAmount || 0;
-const appliedPenalty = data.hasDynamicPenalty ? dynamicPenalty : manualPenalty;
+export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac';
 ```
 
-**Arquivo 2: `src/lib/messageUtils.ts`**
+**4. `src/pages/Loans.tsx` - Multiplas alteracoes**
 
-Linha 194 - modificar `generatePaymentOptions` para mostrar opcoes quando houver multa ou juros por atraso, mesmo sem juros de contrato:
+- **Formulario de criacao (linha ~7182)**: Adicionar opcao `<SelectItem value="sac">SAC</SelectItem>` no dropdown "Juros Aplicado"
+- **Formulario de edicao (linha ~14126)**: Adicionar mesma opcao no dropdown de edicao
+- **Calculo na criacao (linha ~3776)**: Adicionar `else if (formData.interest_mode === 'sac')` com calculo SAC
+- **Calculo na edicao**: Adicionar mesma logica no recalculo
+- **Display do modo (linha ~10055)**: Adicionar label "SAC" quando `interest_mode === 'sac'`
+- **Tipo do formData (linha ~1116)**: Incluir `'sac'` no union type
+- **Todas as funcoes helper** (getPaidIndicesFromNotes, getPaidInstallmentsCount, etc.): Adicionar tratamento para `'sac'`
+- **remaining_balance na criacao**: Usar total SAC (principal + total juros SAC)
+- **Parcelas individuais**: Como SAC tem parcelas decrescentes, ao exibir valor de cada parcela na tabela de parcelas, calcular individualmente usando a formula SAC em vez de dividir igualmente
 
-```typescript
-// ANTES:
-if (!interestAmount || interestAmount <= 0 || isDaily || !principalAmount || principalAmount <= 0) {
-    return '';
-}
+**5. `src/components/LoanSimulator.tsx` - Adicionar modo SAC**
 
-// DEPOIS:
-const hasContractInterest = interestAmount && interestAmount > 0;
-const hasExtras = (penaltyAmount || 0) > 0 || (overdueInterestAmount || 0) > 0;
+- Adicionar `'sac'` ao tipo InterestMode local
+- Adicionar label `sac: 'SAC (Amort. Constante)'` nos labels
+- Adicionar caso `'sac'` na funcao `calculateInterest`
+- Gerar schedule com parcelas decrescentes no SAC (amortizacao constante, juros sobre saldo)
+- Adicionar na tabela de comparacao
+- Adicionar estilo visual (cor verde para diferenciar)
 
-// Se nao tem juros de contrato NEM encargos extras, nao mostra nada
-if (!hasContractInterest && !hasExtras) return '';
-if (!principalAmount || principalAmount <= 0) return '';
-```
+**6. `src/components/PriceTableDialog.tsx` - Referencia**
 
-Tambem ajustar a logica de exibicao para quando so tem encargos extras (sem juros de contrato):
+Manter como esta - a Tabela Price ja tem seu dialog separado. O SAC usara o fluxo normal de criacao com `interest_mode = 'sac'`.
 
-- Se tem juros de contrato: mostra "Valor total" e "So juros" (comportamento atual)
-- Se NAO tem juros de contrato mas TEM multa/juros atraso: mostra "Valor total" e "So encargos" (multa + juros atraso)
-- Para emprestimos diarios com encargos: tambem mostrar opcao de pagar so encargos
+**7. Funcoes de cobranca/notificacao**
 
-### Impacto
+- `src/components/SendOverdueNotification.tsx`: Tratar `interest_mode === 'sac'` nos calculos de valor de parcela (parcelas nao sao iguais no SAC)
+- `src/lib/messageUtils.ts`: Calculos de opcoes de pagamento para SAC
 
-- Usuarios com template padrao verao as opcoes de pagamento quando houver multa ou juros por atraso
-- A opcao "So juros" mostrara o valor consolidado de juros + multa quando ambos existirem
-- Emprestimos diarios com multa tambem mostrarao a opcao de pagar so encargos
-- Nenhuma alteracao em templates customizados (ja corrigidos anteriormente)
+**8. Relatorios e outras paginas**
+
+- `src/pages/CalendarView.tsx`: Adicionar tratamento SAC no calculo de juros
+- `src/pages/ReportsLoans.tsx` e outras paginas que calculam juros: Adicionar caso SAC
+
+### Diferencial do SAC vs Price vs outros modos
+
+| Modo | Parcela | Amortizacao | Juros |
+|------|---------|-------------|-------|
+| Por Parcela | Constante | Constante | Constante |
+| Sobre o Total | Constante | Constante | Constante |
+| Compostos Puros | Constante | Constante | Constante |
+| Tabela Price | Constante | Crescente | Decrescente |
+| **SAC** | **Decrescente** | **Constante** | **Decrescente** |
+
+### Detalhes Tecnicos
+
+A principal complexidade do SAC e que cada parcela tem um valor diferente. O sistema atual assume parcelas iguais em varios lugares. Precisaremos:
+
+1. Armazenar o `total_interest` correto (soma de todos os juros SAC)
+2. Ao exibir valor individual de cada parcela, recalcular com base no indice usando: `parcela[i] = (principal/n) + ((principal - i*(principal/n)) * taxa/100)`
+3. No pagamento, calcular o valor esperado da parcela especifica
+4. No remaining_balance, a logica existente de subtrair pagamentos ja funciona
+
+A tag `[SAC_TABLE]` sera adicionada nas notas do emprestimo para identificacao rapida.
