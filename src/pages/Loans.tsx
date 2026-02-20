@@ -106,6 +106,9 @@ const getPaidIndicesFromNotes = (loan: { notes: string | null; installments: num
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
     }
+    if (loan.interest_mode === 'sac') {
+      return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
+    }
     return baseInstallmentValue;
   };
   
@@ -172,9 +175,9 @@ const getEffectivePerInstallmentValues = (
   };
 };
 
-// Helper para calcular o valor efetivo da parcela considerando amortizações
+// Helper para calcular o valor efetivo da parcela considerando amortizações e SAC
 // Se houve amortização, usa remaining_balance / parcelas_restantes
-// Caso contrário, usa o cálculo normal (principal/parcelas + juros/parcelas)
+// Para SAC, calcula valor individual da parcela baseado no índice
 const getEffectiveInstallmentValue = (
   loan: { 
     notes: string | null; 
@@ -183,6 +186,8 @@ const getEffectiveInstallmentValue = (
     installments: number | null;
     principal_amount: number;
     total_interest: number | null;
+    interest_mode?: string | null;
+    interest_rate: number;
   },
   normalInstallmentValue: number,
   paidInstallmentsCount: number
@@ -195,6 +200,12 @@ const getEffectiveInstallmentValue = (
     const numInstallments = loan.installments || 1;
     const remainingInstallments = Math.max(1, numInstallments - paidInstallmentsCount);
     return loan.remaining_balance / remainingInstallments;
+  }
+  
+  // SAC: cada parcela tem valor individual decrescente
+  if (loan.interest_mode === 'sac' && !isDaily) {
+    const numInstallments = loan.installments || 1;
+    return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, paidInstallmentsCount);
   }
   
   return normalInstallmentValue;
@@ -436,6 +447,9 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
     }
+    if (loan.interest_mode === 'sac') {
+      return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
+    }
     return baseInstallmentValue;
   };
   
@@ -586,6 +600,9 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
   const getInstallmentValue = (index: number) => {
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
+    }
+    if (loan.interest_mode === 'sac') {
+      return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
     }
     return baseInstallmentValue;
   };
@@ -4399,6 +4416,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       let value = baseInstallmentValue;
       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
         value = renewalFeeValue;
+      } else if (selectedLoan.interest_mode === 'sac') {
+        value = calculateSACInstallmentValue(selectedLoan.principal_amount, selectedLoan.interest_rate, numInstallments, index);
       }
       // Adicionar multa se existir para esta parcela
       const penalty = loanPenalties[index] || 0;
@@ -12485,6 +12504,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       // Se há taxa de renovação aplicada nesta parcela específica
                       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
                         return renewalFeeValue;
+                      }
+                      // SAC: cada parcela tem valor individual decrescente
+                      if (selectedLoan.interest_mode === 'sac') {
+                        return calculateSACInstallmentValue(selectedLoan.principal_amount, selectedLoan.interest_rate, numInstallments, index);
                       }
                       // Caso contrário, usar o valor normal da parcela
                       return totalPerInstallment;
