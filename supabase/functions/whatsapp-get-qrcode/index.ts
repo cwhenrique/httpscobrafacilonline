@@ -30,7 +30,6 @@ serve(async (req) => {
     }
 
     const baseUrl = (rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/) || [])[1] || rawEvolutionApiUrl;
-    console.log('Base URL:', baseUrl);
 
     const evoFetch = async (url: string, init: RequestInit = {}) => {
       const h = ((init as any).headers ?? {}) as Record<string, string>;
@@ -39,27 +38,21 @@ serve(async (req) => {
       return r;
     };
 
-    const json = async (r: Response) => {
-      const t = await r.text();
-      try { return JSON.parse(t); } catch { return null; }
-    };
+    const respond = (body: any, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    // Deep extract QR from any response shape (base64 image OR raw QR string)
+    // Extract QR from any response shape
     const findQR = (d: any): string | null => {
       if (!d || typeof d !== 'object') return null;
-      // Direct base64 fields (long strings = base64 image)
       for (const k of ['base64', 'qr']) {
         if (typeof d[k] === 'string' && d[k].length > 100) return d[k];
       }
-      // Nested qrcode object
       if (d.qrcode && typeof d.qrcode === 'object') {
         if (typeof d.qrcode.base64 === 'string' && d.qrcode.base64.length > 100) return d.qrcode.base64;
-        // Raw QR code string (e.g. "2@abc..." typically 20-300 chars) - accept shorter strings
         if (typeof d.qrcode.code === 'string' && d.qrcode.code.length > 10) return d.qrcode.code;
         if (typeof d.qrcode.qr === 'string' && d.qrcode.qr.length > 10) return d.qrcode.qr;
       }
       if (typeof d.qrcode === 'string' && d.qrcode.length > 20) return d.qrcode;
-      // Check code at top level
       if (typeof d.code === 'string' && d.code.length > 10 && !d.code.includes('{')) return d.code;
       return null;
     };
@@ -74,138 +67,87 @@ serve(async (req) => {
       .single();
 
     if (!profile?.whatsapp_instance_id) {
-      return new Response(JSON.stringify({ error: 'Instância WhatsApp não encontrada. Conecte primeiro.' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return respond({ error: 'Instância WhatsApp não encontrada. Conecte primeiro.' }, 404);
     }
 
     const instanceName = profile.whatsapp_instance_id;
-    console.log(`Instance: ${instanceName}, forceReset: ${forceReset}`);
+    console.log(`[QR] Instance: ${instanceName}, forceReset: ${forceReset}`);
 
-    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-    const respond = (body: any, status = 200) =>
-      new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
+    // ── Step 1: Check webhook QR table (fastest path) ──
+    const { data: qrRow } = await supabase
+      .from('whatsapp_qr_codes')
+      .select('qr_code')
+      .eq('instance_name', instanceName)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    // ─── Get state ───
-    const getState = async (name: string): Promise<string> => {
-      try {
-        const r = await evoFetch(`${baseUrl}/instance/connectionState/${name}`);
-        if (r.status === 404) { await r.text(); return 'not_found'; }
-        const d = await json(r);
-        return d?.instance?.state || d?.state || 'unknown';
-      } catch { return 'unknown'; }
-    };
+    if (qrRow?.qr_code) {
+      console.log('[QR] Found QR from webhook table');
+      return respond({ success: true, qrCode: qrRow.qr_code, instanceName });
+    }
 
-    // ─── Try connect endpoint ───
-    const tryConnect = async (name: string): Promise<string | null> => {
-      try {
-        // Try standard connect
-        const r = await evoFetch(`${baseUrl}/instance/connect/${name}`);
-        if (!r.ok) { await r.text(); return null; }
-        const d = await json(r);
-        if (!d) return null;
-        if (d.instance?.state === 'open') return 'CONNECTED';
-        const qr = findQR(d);
-        if (qr) return qr;
-        console.log(`Connect returned: ${JSON.stringify(d).substring(0, 200)}`);
-        
-        // Try alternative QR endpoints for Evolution API v2
-        try {
-          const qrResp = await evoFetch(`${baseUrl}/instance/qrcode/${name}`);
-          if (qrResp.ok) {
-            const qrData = await json(qrResp);
-            console.log(`QR endpoint returned: ${JSON.stringify(qrData).substring(0, 200)}`);
-            const qr2 = findQR(qrData);
-            if (qr2) return qr2;
-          } else { await qrResp.text(); }
-        } catch (e) { console.log('Alt QR endpoint error:', e); }
-        
-        return null;
-      } catch { return null; }
-    };
-
-    // ─── Fetch instance info (alternative QR source) ───
-    const fetchInstanceQR = async (name: string): Promise<string | null> => {
-      try {
-        const r = await evoFetch(`${baseUrl}/instance/fetchInstances?instanceName=${name}`);
-        if (!r.ok) { await r.text(); return null; }
-        const d = await json(r);
-        if (!d) return null;
-        
-        // fetchInstances can return array or object
-        const instances = Array.isArray(d) ? d : [d];
-        for (const inst of instances) {
-          console.log(`fetchInstances state: ${inst?.instance?.state}, has qrcode: ${!!inst?.qrcode}`);
-          if (inst?.instance?.state === 'open') return 'CONNECTED';
-          
-          // Log qrcode field details
-          if (inst?.qrcode) {
-            const qrType = typeof inst.qrcode;
-            const qrPreview = qrType === 'string' ? inst.qrcode.substring(0, 100) : JSON.stringify(inst.qrcode).substring(0, 300);
-            console.log(`fetchInstances qrcode type: ${qrType}, preview: ${qrPreview}`);
-          }
-          
-          const qr = findQR(inst);
-          if (qr) return qr;
-        }
-        return null;
-      } catch (e) { console.error('fetchInstances error:', e); return null; }
-    };
-
-    // ─── Create instance ───
-    const createInstance = async (name: string): Promise<string | null> => {
-      console.log(`Creating: ${name}`);
-      const r = await evoFetch(`${baseUrl}/instance/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceName: name,
-          qrcode: true,
-          integration: 'WHATSAPP-BAILEYS',
-          webhook: {
-            url: webhookUrl,
-            byEvents: true,
-            base64: true,
-            events: [
-              'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'MESSAGES_UPSERT',
-              'connection.update', 'qrcode.updated', 'messages.upsert'
-            ]
-          },
-        }),
-      });
-      console.log(`Create status: ${r.status}`);
-      if (r.status === 403) { await r.text(); return null; }
-      if (!r.ok) { await r.text(); return null; }
-      const d = await json(r);
-      if (!d) return null;
-      
-      // Log the qrcode field from create response
-      if (d.qrcode !== undefined) {
-        const preview = typeof d.qrcode === 'string' ? d.qrcode.substring(0, 200) : JSON.stringify(d.qrcode).substring(0, 500);
-        console.log(`Create qrcode type: ${typeof d.qrcode}, preview: ${preview}`);
-      }
-      
-      return findQR(d);
-    };
-
-    // ─── Delete instance ───
-    const deleteInstance = async (name: string) => {
-      try {
-        await evoFetch(`${baseUrl}/instance/logout/${name}`, { method: 'DELETE' }).then(r => r.text()).catch(() => {});
-        await delay(500);
-        const r = await evoFetch(`${baseUrl}/instance/delete/${name}`, { method: 'DELETE' });
-        console.log(`Delete ${name}: ${r.status}`);
+    // ── Step 2: Check instance state ──
+    let state = 'unknown';
+    try {
+      const r = await evoFetch(`${baseUrl}/instance/connectionState/${instanceName}`);
+      if (r.status === 404) {
         await r.text();
-        await delay(2000);
-      } catch {}
-    };
+        state = 'not_found';
+      } else {
+        const d = await r.json().catch(() => null);
+        state = d?.instance?.state || d?.state || 'unknown';
+      }
+    } catch { /* ignore */ }
 
-    // ═══════════════════ MAIN FLOW ═══════════════════
+    console.log(`[QR] State: ${state}`);
 
-    // ─── Check for QR code saved by webhook first ───
-    const checkWebhookQR = async (): Promise<string | null> => {
-      const { data: qrRow } = await supabase
+    if (state === 'open' || state === 'connected') {
+      return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+    }
+
+    // ── Step 3: If forceReset, do logout first ──
+    if (forceReset && state !== 'not_found') {
+      try {
+        await evoFetch(`${baseUrl}/instance/logout/${instanceName}`, { method: 'DELETE' }).then(r => r.text());
+        await new Promise(r => setTimeout(r, 1000));
+      } catch { /* ignore */ }
+    }
+
+    // ── Step 4: If instance not found, create it ──
+    if (state === 'not_found') {
+      console.log('[QR] Creating instance...');
+      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
+      try {
+        const r = await evoFetch(`${baseUrl}/instance/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instanceName,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS',
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              byEvents: false,
+              base64: true,
+              events: ['CONNECTION_UPDATE', 'QRCODE_UPDATED', 'MESSAGES_UPSERT',
+                       'connection.update', 'qrcode.updated', 'messages.upsert']
+            },
+          }),
+        });
+        const d = await r.json().catch(() => null);
+        console.log(`[QR] Create status: ${r.status}`);
+        const qr = findQR(d);
+        if (qr) return respond({ success: true, qrCode: qr, instanceName });
+      } catch (e) {
+        console.error('[QR] Create error:', e);
+      }
+
+      // Wait briefly for async QR generation then check webhook table
+      await new Promise(r => setTimeout(r, 3000));
+      const { data: qr2 } = await supabase
         .from('whatsapp_qr_codes')
         .select('qr_code')
         .eq('instance_name', instanceName)
@@ -213,125 +155,47 @@ serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-      return qrRow?.qr_code || null;
-    };
-
-    const state = await getState(instanceName);
-    console.log('State:', state);
-
-    if (state === 'open') {
-      return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+      if (qr2?.qr_code) return respond({ success: true, qrCode: qr2.qr_code, instanceName });
     }
 
-    // Check webhook QR immediately
-    let webhookQR = await checkWebhookQR();
-    if (webhookQR) {
-      console.log('Found QR from webhook!');
-      return respond({ success: true, qrCode: webhookQR, instanceName });
-    }
+    // ── Step 5: Call connect endpoint (main QR source) ──
+    try {
+      const r = await evoFetch(`${baseUrl}/instance/connect/${instanceName}`);
+      const d = await r.json().catch(() => null);
+      console.log(`[QR] Connect status: ${r.status}, keys: ${d ? Object.keys(d) : 'null'}`);
 
-    // If forceReset or stuck, cleanup
-    if (forceReset || state === 'connecting' || state === 'close') {
-      await evoFetch(`${baseUrl}/instance/logout/${instanceName}`, { method: 'DELETE' }).then(r => r.text()).catch(() => {});
-      await delay(1500);
-    }
+      if (d?.instance?.state === 'open') {
+        return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+      }
 
-    // ─── Strategy 1: Simple connect ───
-    if (state !== 'not_found') {
-      let qr = await tryConnect(instanceName);
-      if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+      const qr = findQR(d);
       if (qr) return respond({ success: true, qrCode: qr, instanceName });
+    } catch (e) {
+      console.error('[QR] Connect error:', e);
+    }
 
-      // Wait for webhook to deliver QR
-      await delay(3000);
-      webhookQR = await checkWebhookQR();
-      if (webhookQR) {
-        console.log('Found QR from webhook after connect!');
-        return respond({ success: true, qrCode: webhookQR, instanceName });
+    // ── Step 6: Try fetchInstances as alternative QR source ──
+    try {
+      const r = await evoFetch(`${baseUrl}/instance/fetchInstances?instanceName=${instanceName}`);
+      if (r.ok) {
+        const d = await r.json().catch(() => null);
+        const instances = Array.isArray(d) ? d : [d];
+        for (const inst of instances) {
+          if (inst?.instance?.state === 'open') {
+            return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+          }
+          const qr = findQR(inst);
+          if (qr) return respond({ success: true, qrCode: qr, instanceName });
+        }
       }
+    } catch { /* ignore */ }
 
-      // Try fetchInstances as alternative QR source
-      let qr2 = await fetchInstanceQR(instanceName);
-      if (qr2 === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-      if (qr2) return respond({ success: true, qrCode: qr2, instanceName });
-    }
-
-    // ─── Strategy 2: Restart + connect ───
-    if (state !== 'not_found') {
-      console.log('Restarting...');
-      const rr = await evoFetch(`${baseUrl}/instance/restart/${instanceName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      console.log('Restart:', rr.status);
-      await rr.text();
-      
-      if (rr.ok) {
-        await delay(4000);
-        
-        // Check webhook QR first
-        webhookQR = await checkWebhookQR();
-        if (webhookQR) return respond({ success: true, qrCode: webhookQR, instanceName });
-        
-        let qr = await tryConnect(instanceName);
-        if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-        if (qr) return respond({ success: true, qrCode: qr, instanceName });
-      }
-    }
-
-    // ─── Strategy 3: Delete + recreate ───
-    console.log('Recreating...');
-    await deleteInstance(instanceName);
-    
-    let qr = await createInstance(instanceName);
-    if (qr) return respond({ success: true, qrCode: qr, instanceName });
-
-    // Wait for webhook to deliver QR after recreation
-    await delay(5000);
-    webhookQR = await checkWebhookQR();
-    if (webhookQR) return respond({ success: true, qrCode: webhookQR, instanceName });
-    
-    qr = await tryConnect(instanceName);
-    if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-    if (qr) return respond({ success: true, qrCode: qr, instanceName });
-
-    // ─── Strategy 4: Brand new name ───
-    const newName = `cf_${userId.substring(0, 8)}_${Date.now().toString(36)}`;
-    console.log(`New name: ${newName}`);
-    
-    qr = await createInstance(newName);
-    if (qr) {
-      await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
-      return respond({ success: true, qrCode: qr, instanceName: newName });
-    }
-
-    // Wait for webhook QR with new name
-    await delay(5000);
-    const { data: newQrRow } = await supabase
-      .from('whatsapp_qr_codes')
-      .select('qr_code')
-      .eq('instance_name', newName)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (newQrRow?.qr_code) {
-      await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
-      return respond({ success: true, qrCode: newQrRow.qr_code, instanceName: newName });
-    }
-
-    qr = await tryConnect(newName);
-    if (qr && qr !== 'CONNECTED') {
-      await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
-      return respond({ success: true, qrCode: qr, instanceName: newName });
-    }
-    if (qr === 'CONNECTED') {
-      await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
-      return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-    }
-
-    return respond({ error: 'QR Code não disponível. Tente novamente em alguns segundos.' }, 500);
+    // ── QR not ready yet - tell frontend to keep polling ──
+    console.log('[QR] QR not available yet, returning pending');
+    return respond({ success: true, pendingQr: true, instanceName, message: 'QR Code sendo gerado, aguarde...' }, 202);
 
   } catch (error: unknown) {
-    console.error('Error:', error);
+    console.error('[QR] Error:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro interno' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
