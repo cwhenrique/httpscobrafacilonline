@@ -84,7 +84,7 @@ export function PaymentsHistoryTab() {
         .select(`
           id, loan_id, amount, principal_paid, interest_paid,
           payment_date, notes, created_at, created_by,
-          loans!inner ( client_id, clients!inner ( full_name ) )
+          loans!inner ( client_id, payment_type, clients!inner ( full_name ) )
         `)
         .gte('payment_date', startStr)
         .lte('payment_date', endStr)
@@ -105,6 +105,7 @@ export function PaymentsHistoryTab() {
         created_by: p.created_by || '',
         client_name: p.loans?.clients?.full_name || 'Cliente',
         payment_type: getPaymentType(p.notes),
+        loan_payment_type: p.loans?.payment_type || 'single',
       }));
     },
     enabled: !!user && !employeeLoading && !!effectiveUserId,
