@@ -128,16 +128,14 @@ serve(async (req) => {
         alwaysOnline: true,
         syncFullHistory: false,
         webhook: {
+          enabled: true,
           url: webhookUrl,
-          byEvents: true,
+          byEvents: false,
           base64: true,
           events: [
             "CONNECTION_UPDATE",
             "QRCODE_UPDATED",
-            "MESSAGES_UPSERT",
-            "connection.update",
-            "qrcode.updated",
-            "messages.upsert"
+            "MESSAGES_UPSERT"
           ]
         }
       }),
@@ -312,13 +310,15 @@ serve(async (req) => {
       );
     }
 
-    // QR ainda não disponível: responda rápido para não estourar timeout.
+    // QR not available (Evolution API v2.3.7 bug) - signal frontend to use pairing code
+    console.log('QR not available, signaling pairing code fallback');
     return new Response(
       JSON.stringify({
         success: true,
         instanceName,
         pendingQr: true,
-        message: 'QR Code ainda está sendo gerado. Aguarde alguns segundos...',
+        usePairingCode: true,
+        message: 'QR Code não disponível nesta versão. Use o código de pareamento.',
       }),
       {
         status: 202,

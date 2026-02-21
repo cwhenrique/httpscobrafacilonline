@@ -136,6 +136,9 @@ export default function Profile() {
   const [qrExpired, setQrExpired] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [resettingInstance, setResettingInstance] = useState(false);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [requestingPairing, setRequestingPairing] = useState(false);
   
 
   const pollForQrCode = useCallback(
@@ -406,12 +409,13 @@ export default function Profile() {
 
       if (data.qrCode || data.code) {
         setQrCode((data.qrCode ?? data.code) as string);
-      } else if (data.pendingQr) {
-        // Evolution ainda está gerando o QR: faz polling rápido via whatsapp-get-qrcode
-        toast.info('Gerando QR Code… pode levar alguns segundos.');
-        // solta o spinner do backend e faz a espera no frontend
-        setGeneratingQr(false);
-        void pollForQrCode(20);
+        setPairingCode(null);
+      } else if (data.usePairingCode || data.pendingQr) {
+        // Evolution API v2.3.7 bug: QR not available via REST API
+        // Show pairing code flow instead
+        setQrCode(null);
+        setPairingCode(null);
+        toast.info('Use o código de pareamento para conectar seu WhatsApp.', { duration: 5000 });
       } else if (data.error) {
         console.error('QR Code error:', data.error);
         // Check if error message indicates server offline
@@ -473,6 +477,45 @@ export default function Profile() {
       toast.error('Erro ao atualizar QR Code');
     } finally {
       setGeneratingQr(false);
+    }
+  };
+
+  const handleRequestPairingCode = async () => {
+    if (!user?.id || !pairingPhone.trim()) {
+      toast.error('Digite seu número de WhatsApp com DDD (ex: 5511999999999)');
+      return;
+    }
+    
+    setRequestingPairing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-get-pairing-code', {
+        body: { userId: user.id, phoneNumber: pairingPhone.replace(/\D/g, '') }
+      });
+
+      if (error) {
+        toast.error('Erro ao obter código de pareamento');
+        return;
+      }
+
+      if (data?.alreadyConnected) {
+        toast.success('WhatsApp já está conectado!');
+        setShowQrModal(false);
+        setPairingCode(null);
+        await checkWhatsAppStatus();
+        return;
+      }
+
+      if (data?.pairingCode) {
+        setPairingCode(data.pairingCode);
+        toast.success('Código gerado! Digite-o no seu WhatsApp.');
+      } else {
+        toast.error(data?.error || 'Não foi possível gerar o código. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Error getting pairing code:', error);
+      toast.error('Erro ao obter código de pareamento');
+    } finally {
+      setRequestingPairing(false);
     }
   };
 
@@ -1903,12 +1946,44 @@ export default function Profile() {
                 )}
               </div>
             ) : (
-              <div className="w-72 flex flex-col items-center justify-center bg-muted rounded-lg p-6">
-                <AlertCircle className="w-12 h-12 text-destructive mb-3" />
-                <p className="text-foreground font-medium text-center mb-1">Erro ao gerar QR Code</p>
+              <div className="w-full flex flex-col items-center justify-center bg-muted rounded-lg p-6">
+                <MessageCircle className="w-12 h-12 text-green-500 mb-3" />
+                <p className="text-foreground font-medium text-center mb-1">Conectar via Código de Pareamento</p>
                 <p className="text-xs text-muted-foreground text-center mb-4">
-                  A instância pode estar travada. Tente as opções abaixo:
+                  Digite seu número de WhatsApp para receber um código de 8 dígitos.
                 </p>
+                
+                {pairingCode ? (
+                  <div className="flex flex-col items-center gap-3 w-full">
+                    <div className="bg-background border-2 border-green-500 rounded-xl px-6 py-4">
+                      <p className="text-3xl font-mono font-bold tracking-widest text-center">{pairingCode}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground text-center">
+                      No seu WhatsApp, vá em <strong>Configurações → Aparelhos conectados → Conectar dispositivo → Conectar com número de telefone</strong> e digite este código.
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => { setPairingCode(null); setPairingPhone(''); }}>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Gerar Novo Código
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 w-full">
+                    <Input
+                      placeholder="5511999999999"
+                      value={pairingPhone}
+                      onChange={(e) => setPairingPhone(e.target.value)}
+                      className="text-center text-lg"
+                    />
+                    <Button
+                      onClick={handleRequestPairingCode}
+                      disabled={requestingPairing || !pairingPhone.trim()}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      {requestingPairing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
+                      Gerar Código de Pareamento
+                    </Button>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2 w-full">
                   <Button 
                     variant="outline"
