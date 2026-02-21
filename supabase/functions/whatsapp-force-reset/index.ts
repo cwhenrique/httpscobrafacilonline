@@ -35,9 +35,10 @@ serve(async (req) => {
       });
     }
 
-    // Clean the URL
-    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
+    // Clean the URL - auto-add https:// if missing
+    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
+    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
     console.log(`[whatsapp-force-reset] Using Evolution API URL: ${evolutionApiUrl}`);
 
     // Evolution API request helper with auth fallback

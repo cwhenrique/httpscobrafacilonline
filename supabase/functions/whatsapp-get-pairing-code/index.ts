@@ -49,9 +49,10 @@ serve(async (req) => {
       });
     }
 
-    // Clean the URL - extract just the base URL (protocol + host)
-    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
+    // Clean the URL - auto-add https:// if missing
+    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
+    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
     console.log('Using Evolution API base URL:', evolutionApiUrl);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
