@@ -3695,8 +3695,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       return date < today;
     });
     
-    // Limit to 60 installments for performance
-    const limitedPastDates = pastDates.slice(0, 60);
+    // Show all past installments (no artificial limit)
+    const limitedPastDates = pastDates;
     
     // Calculate interest per installment
     let interestPerInstallment = 0;
@@ -6659,7 +6659,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <Input 
                       type="number" 
                       min="1"
-                      max="365"
+                      
                       value={formData.daily_period || ''} 
                       onChange={(e) => {
                         const count = e.target.value;
