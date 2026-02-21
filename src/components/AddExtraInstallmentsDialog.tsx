@@ -64,7 +64,7 @@ export default function AddExtraInstallmentsDialog({
   };
   
   const handleIncrement = () => {
-    if (extraCount < 30) setExtraCount(extraCount + 1);
+    setExtraCount(extraCount + 1);
   };
   
   const handleDecrement = () => {
@@ -103,11 +103,11 @@ export default function AddExtraInstallmentsDialog({
               <Input
                 type="number"
                 min={1}
-                max={30}
+                max={9999}
                 value={extraCount}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
-                  if (val >= 1 && val <= 30) setExtraCount(val);
+                  if (val >= 1 && val <= 9999) setExtraCount(val);
                 }}
                 className="w-20 text-center text-lg font-semibold"
               />
@@ -116,7 +116,7 @@ export default function AddExtraInstallmentsDialog({
                 variant="outline"
                 size="icon"
                 onClick={handleIncrement}
-                disabled={extraCount >= 30}
+                disabled={extraCount >= 9999}
               >
                 <Plus className="w-4 h-4" />
               </Button>

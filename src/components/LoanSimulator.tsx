@@ -40,7 +40,7 @@ const INTEREST_MODE_LABELS: Record<InterestMode, string> = {
 const getMaxInstallments = (paymentType: PaymentType) => {
   switch (paymentType) {
     case 'single': return 1;
-    case 'daily': return 365;
+    case 'daily': return 9999;
     case 'weekly': return 52;
     case 'biweekly': return 26;
     default: return 120;
