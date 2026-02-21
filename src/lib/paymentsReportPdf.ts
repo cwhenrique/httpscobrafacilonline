@@ -9,6 +9,7 @@ const WHITE = { r: 255, g: 255, b: 255 };
 const DARK_TEXT = { r: 30, g: 30, b: 30 };
 const MUTED_TEXT = { r: 100, g: 100, b: 100 };
 const PURPLE = { r: 168, g: 85, b: 247 };
+const SECTION_BG = { r: 240, g: 253, b: 244 };
 
 const formatCurrency = (value: number): string =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -55,6 +56,16 @@ const getPaymentTypeLabel = (type: PaymentRecord['payment_type']): string => {
     case 'historical': return 'Juros Histórico';
     default: return 'Pagamento';
   }
+};
+
+const LOAN_TYPE_ORDER = ['daily', 'weekly', 'biweekly', 'installment', 'single'] as const;
+
+const LOAN_TYPE_LABELS: Record<string, string> = {
+  daily: 'EMPRÉSTIMOS DIÁRIOS',
+  weekly: 'EMPRÉSTIMOS SEMANAIS',
+  biweekly: 'EMPRÉSTIMOS QUINZENAIS',
+  installment: 'EMPRÉSTIMOS MENSAIS',
+  single: 'EMPRÉSTIMOS PARCELA ÚNICA',
 };
 
 export interface PaymentsReportOptions {
@@ -108,6 +119,64 @@ export const generatePaymentsReport = async (options: PaymentsReportOptions): Pr
     }
   };
 
+  // Column positions
+  const colX = {
+    date: margin + 2,
+    client: margin + 28,
+    installment: margin + 90,
+    type: margin + 120,
+    amount: pageWidth - margin - 2,
+  };
+
+  const drawTableHeader = () => {
+    doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
+    doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
+    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data', colX.date, currentY + 5.5);
+    doc.text('Cliente', colX.client, currentY + 5.5);
+    doc.text('Parcela', colX.installment, currentY + 5.5);
+    doc.text('Tipo', colX.type, currentY + 5.5);
+    doc.text('Valor', colX.amount, currentY + 5.5, { align: 'right' });
+    currentY += 10;
+  };
+
+  const drawPaymentRow = (payment: PaymentRecord, index: number) => {
+    if (index % 2 === 0) {
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin, currentY - 1, pageWidth - 2 * margin, 8, 'F');
+    }
+
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    doc.text(formatDateBR(payment.payment_date), colX.date, currentY + 4.5);
+
+    const clientName = payment.client_name.length > 28 ? payment.client_name.substring(0, 26) + '…' : payment.client_name;
+    doc.text(clientName, colX.client, currentY + 4.5);
+
+    const installmentMatch = (payment.notes || '').match(/Parcela (\d+ de \d+)/);
+    const installmentText = installmentMatch ? installmentMatch[1] : '-';
+    doc.text(installmentText, colX.installment, currentY + 4.5);
+
+    const typeLabel = getPaymentTypeLabel(payment.payment_type);
+    if (payment.payment_type === 'interest_only' || payment.payment_type === 'partial_interest' || payment.payment_type === 'historical') {
+      doc.setTextColor(PURPLE.r, PURPLE.g, PURPLE.b);
+      doc.setFont('helvetica', 'bold');
+    }
+    doc.text(typeLabel, colX.type, currentY + 4.5);
+    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
+    doc.setFont('helvetica', 'normal');
+
+    doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(payment.amount), colX.amount, currentY + 4.5, { align: 'right' });
+
+    currentY += 8;
+  };
+
   // Page 1
   drawHeader();
   currentY = 38;
@@ -155,77 +224,77 @@ export const generatePaymentsReport = async (options: PaymentsReportOptions): Pr
     return;
   }
 
-  // Table header
-  const colX = {
-    date: margin + 2,
-    client: margin + 28,
-    installment: margin + 90,
-    type: margin + 120,
-    amount: pageWidth - margin - 2,
-  };
+  // Group payments by loan_payment_type
+  const groupedMap: Record<string, PaymentRecord[]> = {};
+  for (const p of payments) {
+    const key = p.loan_payment_type || 'single';
+    if (!groupedMap[key]) groupedMap[key] = [];
+    groupedMap[key].push(p);
+  }
 
-  const drawTableHeader = () => {
-    doc.setFillColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
-    doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
-    doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Data', colX.date, currentY + 5.5);
-    doc.text('Cliente', colX.client, currentY + 5.5);
-    doc.text('Parcela', colX.installment, currentY + 5.5);
-    doc.text('Tipo', colX.type, currentY + 5.5);
-    doc.text('Valor', colX.amount, currentY + 5.5, { align: 'right' });
-    currentY += 10;
-  };
+  // Sort each group by date ascending
+  for (const key of Object.keys(groupedMap)) {
+    groupedMap[key].sort((a, b) => a.payment_date.localeCompare(b.payment_date));
+  }
 
-  drawTableHeader();
+  // Render each group in order
+  for (const typeKey of LOAN_TYPE_ORDER) {
+    const groupPayments = groupedMap[typeKey];
+    if (!groupPayments || groupPayments.length === 0) continue;
 
-  // Table rows
-  payments.forEach((payment, index) => {
-    checkNewPage(10);
-    if (currentY <= 40) drawTableHeader();
+    const groupLabel = LOAN_TYPE_LABELS[typeKey] || typeKey.toUpperCase();
+    const groupTotal = groupPayments.reduce((s, p) => s + p.amount, 0);
+    const groupInterest = groupPayments.reduce((s, p) => s + p.interest_paid, 0);
+    const groupPrincipal = groupPayments.reduce((s, p) => s + p.principal_paid, 0);
 
-    // Alternating bg
-    if (index % 2 === 0) {
-      doc.setFillColor(245, 245, 245);
-      doc.rect(margin, currentY - 1, pageWidth - 2 * margin, 8, 'F');
-    }
+    // Section header (need ~28px for header + subtotals + table header)
+    checkNewPage(28);
 
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-
-    // Date
-    doc.text(formatDateBR(payment.payment_date), colX.date, currentY + 4.5);
-
-    // Client name (truncate)
-    const clientName = payment.client_name.length > 28 ? payment.client_name.substring(0, 26) + '…' : payment.client_name;
-    doc.text(clientName, colX.client, currentY + 4.5);
-
-    // Installment info
-    const installmentMatch = (payment.notes || '').match(/Parcela (\d+ de \d+)/);
-    const installmentText = installmentMatch ? installmentMatch[1] : '-';
-    doc.text(installmentText, colX.installment, currentY + 4.5);
-
-    // Type - highlight interest-only in purple
-    const typeLabel = getPaymentTypeLabel(payment.payment_type);
-    if (payment.payment_type === 'interest_only' || payment.payment_type === 'partial_interest' || payment.payment_type === 'historical') {
-      doc.setTextColor(PURPLE.r, PURPLE.g, PURPLE.b);
-      doc.setFont('helvetica', 'bold');
-    }
-    doc.text(typeLabel, colX.type, currentY + 4.5);
-    doc.setTextColor(DARK_TEXT.r, DARK_TEXT.g, DARK_TEXT.b);
-    doc.setFont('helvetica', 'normal');
-
-    // Amount
+    // Section title bar
+    doc.setFillColor(SECTION_BG.r, SECTION_BG.g, SECTION_BG.b);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 10, 2, 2, 'F');
+    doc.setDrawColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 10, 2, 2, 'S');
     doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(payment.amount), colX.amount, currentY + 4.5, { align: 'right' });
+    doc.text(`${groupLabel} (${groupPayments.length})`, margin + 4, currentY + 7);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `Total: ${formatCurrency(groupTotal)}  |  Juros: ${formatCurrency(groupInterest)}  |  Principal: ${formatCurrency(groupPrincipal)}`,
+      pageWidth - margin - 2, currentY + 7, { align: 'right' }
+    );
+    currentY += 13;
 
-    currentY += 8;
-  });
+    // Table header
+    drawTableHeader();
 
-  // Footer line
+    // Table rows
+    groupPayments.forEach((payment, index) => {
+      checkNewPage(10);
+      if (currentY <= 40) drawTableHeader();
+      drawPaymentRow(payment, index);
+    });
+
+    // Group subtotal line
+    checkNewPage(10);
+    doc.setDrawColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setLineWidth(0.3);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 4;
+    doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(
+      `Subtotal: ${formatCurrency(groupTotal)} em ${groupPayments.length} pagamento(s)`,
+      pageWidth - margin, currentY + 2, { align: 'right' }
+    );
+    currentY += 10;
+  }
+
+  // Footer - grand total
   checkNewPage(12);
   doc.setDrawColor(PRIMARY_GREEN.r, PRIMARY_GREEN.g, PRIMARY_GREEN.b);
   doc.setLineWidth(0.5);
@@ -234,7 +303,7 @@ export const generatePaymentsReport = async (options: PaymentsReportOptions): Pr
   doc.setTextColor(DARK_GREEN.r, DARK_GREEN.g, DARK_GREEN.b);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Total: ${formatCurrency(summary.totalReceived)} em ${summary.count} pagamento(s)`, pageWidth - margin, currentY + 3, { align: 'right' });
+  doc.text(`Total Geral: ${formatCurrency(summary.totalReceived)} em ${summary.count} pagamento(s)`, pageWidth - margin, currentY + 3, { align: 'right' });
 
   doc.save(`recebimentos-${periodLabel.replace(/[\s/]+/g, '-').toLowerCase()}.pdf`);
 };

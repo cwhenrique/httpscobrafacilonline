@@ -19,6 +19,7 @@ export interface PaymentRecord {
   client_name: string;
   created_by: string;
   payment_type: 'normal' | 'interest_only' | 'partial_interest' | 'amortization' | 'installment' | 'historical';
+  loan_payment_type?: string;
 }
 
 export const getPaymentType = (notes: string | null): PaymentRecord['payment_type'] => {
