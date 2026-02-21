@@ -481,7 +481,7 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
         break;
       }
     }
-    return paidCount;
+    return Math.min(paidCount, numInstallments);
   }
   
   // Extrair sub-parcelas de adiantamento - se houver sub-parcela pendente para um índice, 
@@ -1888,10 +1888,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       updatedDates[paidCount] = newDateStr;
     }
 
-    // Calculate new due_date (last installment or the new date)
-    const newDueDateForLoan = updatedDates.length > 0 
-      ? updatedDates[updatedDates.length - 1] 
-      : newDateStr;
+    // CORREÇÃO: due_date deve ser a data da próxima parcela não paga (que acabou de ser editada)
+    const newDueDateForLoan = newDateStr;
 
     try {
       const { error } = await supabase
@@ -5057,7 +5055,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         // Usar o updatedNotes que já foi salvo no banco, não o notes antigo do selectedLoan
         const loanWithUpdatedNotes = { 
           ...selectedLoan, 
-          notes: updatedNotes 
+          notes: updatedNotes,
+          total_paid: (selectedLoan.total_paid || 0) + amount
         };
         const paidInstallmentsCount = getPaidInstallmentsCount(loanWithUpdatedNotes);
         // Atualiza a data da próxima parcela em aberto
@@ -5130,11 +5129,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const hasMultipleInstallments = ['weekly', 'biweekly', 'installment', 'daily'].includes(selectedLoan.payment_type);
       
       if (hasMultipleInstallments && dates.length > 1) {
-        // Usar o updatedNotes que já foi salvo no banco
+        // Buscar dados frescos do banco para cálculo preciso (trigger já atualizou total_paid)
+        const { data: freshLoanForDueDate } = await supabase
+          .from('loans')
+          .select('notes, total_paid, remaining_balance')
+          .eq('id', selectedLoanId)
+          .single();
+
         const loanForCalc = { 
           ...selectedLoan, 
-          notes: updatedNotes,
-          total_paid: (selectedLoan.total_paid || 0) + amount // Simular o novo total_paid
+          notes: freshLoanForDueDate?.notes || updatedNotes,
+          total_paid: freshLoanForDueDate?.total_paid ?? ((selectedLoan.total_paid || 0) + amount),
+          remaining_balance: freshLoanForDueDate?.remaining_balance ?? selectedLoan.remaining_balance
         };
         const newPaidInstallments = getPaidInstallmentsCount(loanForCalc);
         
