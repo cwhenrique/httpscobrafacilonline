@@ -10240,8 +10240,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   nextDueDate.setHours(0, 0, 0, 0);
                   
                   if (nextDueDate.getTime() === today.getTime()) {
-                    dueToday += dailyInstallmentAmount;
-                    profitTodayExpected += profitPerInstallment;
+                    const alreadyPaidPartial = partialPayments[paidCount] || 0;
+                    const remainingDue = Math.max(0, dailyInstallmentAmount - alreadyPaidPartial);
+                    dueToday += remainingDue;
+                    const ratio = dailyInstallmentAmount > 0 ? remainingDue / dailyInstallmentAmount : 0;
+                    profitTodayExpected += profitPerInstallment * ratio;
                     dueTodayCount++;
                   }
                 }
