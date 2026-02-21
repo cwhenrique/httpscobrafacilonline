@@ -32,6 +32,8 @@ interface User {
   subscription_expires_at: string | null;
   created_at: string | null;
   affiliate_email: string | null;
+  relatorio_ativo: boolean;
+  check_discount_enabled: boolean;
 }
 
 const ADMIN_USER = 'Clauclau';
@@ -538,6 +540,34 @@ export default function CreateTrialUser() {
     }
   };
 
+  const handleToggleFeature = async (user: User, feature: 'relatorio_ativo' | 'check_discount_enabled') => {
+    const newValue = !user[feature];
+    const featureLabel = feature === 'relatorio_ativo' ? 'Relatório' : 'Desconto de Cheque';
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-toggle-user-status', {
+        body: { userId: user.id, newStatus: user.is_active, featureUpdate: { [feature]: newValue } }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: `${featureLabel} ${newValue ? 'liberado' : 'bloqueado'}!`,
+        description: `${user.full_name || user.email}`,
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error(`Error toggling ${feature}:`, error);
+      toast({
+        title: `Erro ao alterar ${featureLabel}`,
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusInfo = (user: User) => {
     if (!user.is_active) {
       return { label: 'Inativo', className: 'bg-destructive/20 text-destructive' };
@@ -1031,6 +1061,8 @@ export default function CreateTrialUser() {
                         <TableHead>Afiliado</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead>Plano</TableHead>
+                        <TableHead>Relatório</TableHead>
+                        <TableHead>Cheque</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
@@ -1122,6 +1154,18 @@ export default function CreateTrialUser() {
                               <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${statusInfo.className}`}>
                                 {statusInfo.label}
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={user.relatorio_ativo}
+                                onCheckedChange={() => handleToggleFeature(user, 'relatorio_ativo')}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={user.check_discount_enabled}
+                                onCheckedChange={() => handleToggleFeature(user, 'check_discount_enabled')}
+                              />
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

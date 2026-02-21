@@ -13,16 +13,12 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, newStatus } = await req.json();
+    const { userId, newStatus, featureUpdate } = await req.json();
     
-    console.log('Toggling user status:', { userId, newStatus });
+    console.log('Toggling user status:', { userId, newStatus, featureUpdate });
 
     if (!userId) {
       throw new Error('userId é obrigatório');
-    }
-
-    if (typeof newStatus !== 'boolean') {
-      throw new Error('newStatus deve ser um boolean');
     }
 
     // Create admin client with service role key to bypass RLS
@@ -32,9 +28,25 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Build update object
+    const updateData: Record<string, any> = {};
+    
+    if (typeof newStatus === 'boolean') {
+      updateData.is_active = newStatus;
+    }
+    
+    // Handle feature toggles (relatorio_ativo, check_discount_enabled)
+    if (featureUpdate && typeof featureUpdate === 'object') {
+      Object.assign(updateData, featureUpdate);
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('Nenhuma alteração fornecida');
+    }
+
     const { error } = await supabaseAdmin
       .from('profiles')
-      .update({ is_active: newStatus })
+      .update(updateData)
       .eq('id', userId);
 
     if (error) {
