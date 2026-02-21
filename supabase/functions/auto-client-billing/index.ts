@@ -235,8 +235,9 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Missing Evolution API configuration");
     }
 
-    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : cleanApiUrl(rawEvolutionApiUrl);
+    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
+    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : cleanApiUrl(normalizedUrl);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

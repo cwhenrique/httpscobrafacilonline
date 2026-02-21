@@ -29,7 +29,8 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = (rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/) || [])[1] || rawEvolutionApiUrl;
+    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
+    const baseUrl = (normalizedUrl.match(/^(https?:\/\/[^\/]+)/) || [])[1] || normalizedUrl;
 
     const evoFetch = async (url: string, init: RequestInit = {}) => {
       const h = ((init as any).headers ?? {}) as Record<string, string>;

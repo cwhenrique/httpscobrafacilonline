@@ -55,8 +55,10 @@ serve(async (req) => {
     }
 
     // Clean the URL - extract just the base URL (protocol + host)
-    const urlMatch = rawEvolutionApiUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : rawEvolutionApiUrl;
+    // Auto-add https:// if no protocol specified
+    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
+    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
+    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
     console.log('Using Evolution API base URL:', evolutionApiUrl);
     console.log('API Key prefix:', evolutionApiKey.substring(0, 8) + '...');
 
