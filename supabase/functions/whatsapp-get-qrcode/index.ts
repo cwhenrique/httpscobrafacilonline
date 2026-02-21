@@ -100,6 +100,7 @@ serve(async (req) => {
     // ─── Try connect endpoint ───
     const tryConnect = async (name: string): Promise<string | null> => {
       try {
+        // Try standard connect
         const r = await evoFetch(`${baseUrl}/instance/connect/${name}`);
         if (!r.ok) { await r.text(); return null; }
         const d = await json(r);
@@ -108,6 +109,18 @@ serve(async (req) => {
         const qr = findQR(d);
         if (qr) return qr;
         console.log(`Connect returned: ${JSON.stringify(d).substring(0, 200)}`);
+        
+        // Try alternative QR endpoints for Evolution API v2
+        try {
+          const qrResp = await evoFetch(`${baseUrl}/instance/qrcode/${name}`);
+          if (qrResp.ok) {
+            const qrData = await json(qrResp);
+            console.log(`QR endpoint returned: ${JSON.stringify(qrData).substring(0, 200)}`);
+            const qr2 = findQR(qrData);
+            if (qr2) return qr2;
+          } else { await qrResp.text(); }
+        } catch (e) { console.log('Alt QR endpoint error:', e); }
+        
         return null;
       } catch { return null; }
     };
@@ -150,7 +163,15 @@ serve(async (req) => {
           instanceName: name,
           qrcode: true,
           integration: 'WHATSAPP-BAILEYS',
-          webhook: { url: webhookUrl, byEvents: true, base64: true, events: ['CONNECTION_UPDATE', 'QRCODE_UPDATED'] },
+          webhook: {
+            url: webhookUrl,
+            byEvents: true,
+            base64: true,
+            events: [
+              'CONNECTION_UPDATE', 'QRCODE_UPDATED', 'MESSAGES_UPSERT',
+              'connection.update', 'qrcode.updated', 'messages.upsert'
+            ]
+          },
         }),
       });
       console.log(`Create status: ${r.status}`);
@@ -182,11 +203,31 @@ serve(async (req) => {
 
     // ═══════════════════ MAIN FLOW ═══════════════════
 
+    // ─── Check for QR code saved by webhook first ───
+    const checkWebhookQR = async (): Promise<string | null> => {
+      const { data: qrRow } = await supabase
+        .from('whatsapp_qr_codes')
+        .select('qr_code')
+        .eq('instance_name', instanceName)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      return qrRow?.qr_code || null;
+    };
+
     const state = await getState(instanceName);
     console.log('State:', state);
 
     if (state === 'open') {
       return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+    }
+
+    // Check webhook QR immediately
+    let webhookQR = await checkWebhookQR();
+    if (webhookQR) {
+      console.log('Found QR from webhook!');
+      return respond({ success: true, qrCode: webhookQR, instanceName });
     }
 
     // If forceReset or stuck, cleanup
@@ -201,11 +242,18 @@ serve(async (req) => {
       if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
       if (qr) return respond({ success: true, qrCode: qr, instanceName });
 
+      // Wait for webhook to deliver QR
+      await delay(3000);
+      webhookQR = await checkWebhookQR();
+      if (webhookQR) {
+        console.log('Found QR from webhook after connect!');
+        return respond({ success: true, qrCode: webhookQR, instanceName });
+      }
+
       // Try fetchInstances as alternative QR source
-      await delay(2000);
-      qr = await fetchInstanceQR(instanceName);
-      if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-      if (qr) return respond({ success: true, qrCode: qr, instanceName });
+      let qr2 = await fetchInstanceQR(instanceName);
+      if (qr2 === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
+      if (qr2) return respond({ success: true, qrCode: qr2, instanceName });
     }
 
     // ─── Strategy 2: Restart + connect ───
@@ -216,14 +264,13 @@ serve(async (req) => {
       await rr.text();
       
       if (rr.ok) {
-        await delay(3000);
+        await delay(4000);
+        
+        // Check webhook QR first
+        webhookQR = await checkWebhookQR();
+        if (webhookQR) return respond({ success: true, qrCode: webhookQR, instanceName });
+        
         let qr = await tryConnect(instanceName);
-        if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-        if (qr) return respond({ success: true, qrCode: qr, instanceName });
-
-        // Try fetchInstances after restart
-        await delay(2000);
-        qr = await fetchInstanceQR(instanceName);
         if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
         if (qr) return respond({ success: true, qrCode: qr, instanceName });
       }
@@ -236,14 +283,12 @@ serve(async (req) => {
     let qr = await createInstance(instanceName);
     if (qr) return respond({ success: true, qrCode: qr, instanceName });
 
-    // Wait for QR to generate, then try connect + fetchInstances
-    await delay(3000);
+    // Wait for webhook to deliver QR after recreation
+    await delay(5000);
+    webhookQR = await checkWebhookQR();
+    if (webhookQR) return respond({ success: true, qrCode: webhookQR, instanceName });
+    
     qr = await tryConnect(instanceName);
-    if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
-    if (qr) return respond({ success: true, qrCode: qr, instanceName });
-
-    await delay(2000);
-    qr = await fetchInstanceQR(instanceName);
     if (qr === 'CONNECTED') return respond({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' });
     if (qr) return respond({ success: true, qrCode: qr, instanceName });
 
@@ -257,10 +302,23 @@ serve(async (req) => {
       return respond({ success: true, qrCode: qr, instanceName: newName });
     }
 
-    await delay(3000);
-    qr = await tryConnect(newName);
-    if (!qr) { await delay(2000); qr = await fetchInstanceQR(newName); }
+    // Wait for webhook QR with new name
+    await delay(5000);
+    const { data: newQrRow } = await supabase
+      .from('whatsapp_qr_codes')
+      .select('qr_code')
+      .eq('instance_name', newName)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
     
+    if (newQrRow?.qr_code) {
+      await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
+      return respond({ success: true, qrCode: newQrRow.qr_code, instanceName: newName });
+    }
+
+    qr = await tryConnect(newName);
     if (qr && qr !== 'CONNECTED') {
       await supabase.from('profiles').update({ whatsapp_instance_id: newName }).eq('id', userId);
       return respond({ success: true, qrCode: qr, instanceName: newName });
