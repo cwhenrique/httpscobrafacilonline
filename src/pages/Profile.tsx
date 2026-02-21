@@ -1578,21 +1578,7 @@ export default function Profile() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {profile?.email !== 'cw@gmail.com' ? (
-              /* Maintenance mode - block all users except cw@gmail.com */
-              <div className="p-6 rounded-lg bg-amber-500/10 text-center border border-amber-500/20">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">🔧 Em Manutenção</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  A funcionalidade de conexão WhatsApp está temporariamente em manutenção.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Estamos trabalhando para melhorar a estabilidade da conexão. Por favor, tente novamente mais tarde.
-                </p>
-              </div>
-            ) : !isPaidPlan() ? (
+            {!isPaidPlan() ? (
               /* Trial/Non-paid User - Locked State */
               <div className="p-6 rounded-lg bg-muted/50 text-center border border-amber-500/20">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/10 flex items-center justify-center">
