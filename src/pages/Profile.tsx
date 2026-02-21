@@ -142,7 +142,7 @@ export default function Profile() {
   
 
   const pollForQrCode = useCallback(
-    async (maxAttempts = 20) => {
+    async (maxAttempts = 30) => {
       if (!user?.id) return;
       for (let i = 0; i < maxAttempts; i++) {
         try {
@@ -150,10 +150,25 @@ export default function Profile() {
             body: { userId: user.id, forceReset: false },
           });
 
+          if (!error && data?.alreadyConnected) {
+            setShowQrModal(false);
+            setQrCode(null);
+            setSendToClientsEnabled(true);
+            toast.success('WhatsApp conectado com sucesso!');
+            await checkWhatsAppStatus();
+            return;
+          }
+
           if (!error && (data?.qrCode || data?.code)) {
             setQrCode((data.qrCode ?? data.code) as string);
             setQrTimeRemaining(90);
+            setGeneratingQr(false);
             return;
+          }
+
+          // If pendingQr, keep polling - QR is being generated asynchronously
+          if (!error && data?.pendingQr) {
+            console.log(`[QR Poll] Attempt ${i + 1}/${maxAttempts} - QR pending...`);
           }
         } catch (e) {
           // ignore and retry
@@ -162,7 +177,8 @@ export default function Profile() {
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      toast.error('Não conseguimos obter o QR Code agora. Tente "Gerar Novo QR Code".', {
+      setGeneratingQr(false);
+      toast.error('Não conseguimos obter o QR Code. Use o código de pareamento abaixo ou tente novamente.', {
         duration: 8000,
       });
     },
@@ -391,37 +407,41 @@ export default function Profile() {
 
       if (error) {
         console.error('Error from whatsapp-create-instance:', error);
-        // Don't show error - just let user use pairing code flow
-        return;
       }
 
       // Handle server offline
-      if (data.serverOffline) {
+      if (data?.serverOffline) {
         toast.error('Servidor WhatsApp em manutenção. Tente novamente em 5 minutos.', {
           duration: 8000,
         });
         setShowQrModal(false);
+        setGeneratingQr(false);
         return;
       }
 
-      if (data.alreadyConnected) {
+      if (data?.alreadyConnected) {
         toast.success('WhatsApp já está conectado!');
         setShowQrModal(false);
+        setGeneratingQr(false);
         await checkWhatsAppStatus();
         return;
       }
 
-      if (data.qrCode || data.code) {
+      if (data?.qrCode || data?.code) {
         setQrCode((data.qrCode ?? data.code) as string);
         setPairingCode(null);
+        setGeneratingQr(false);
+        return;
       }
-      // For any other case (usePairingCode, pendingQr, no QR available), 
-      // the modal will show the pairing code flow automatically
+
+      // QR not immediately available - start polling
+      // The create-instance triggers async QR generation in Evolution API
+      console.log('[WhatsApp] QR not in create response, starting poll...');
+      pollForQrCode(30);
     } catch (error) {
       console.error('Error connecting WhatsApp:', error);
-      // Don't show error toast - pairing code flow is still available
-    } finally {
-      setGeneratingQr(false);
+      // Start polling anyway - the instance might have been created
+      pollForQrCode(30);
     }
   };
 
