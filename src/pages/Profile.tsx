@@ -198,15 +198,18 @@ export default function Profile() {
     }
   }, [profile]);
 
-  // Poll for connection status when QR modal is open
+  // Poll for connection status when QR modal is open (works for both QR and pairing code)
   useEffect(() => {
-    if (!showQrModal || !qrCode) return;
+    if (!showQrModal) return;
+    // Only poll when we have a QR code OR a pairing code active
+    if (!qrCode && !pairingCode) return;
     
     const interval = setInterval(() => {
       checkWhatsAppStatus().then(status => {
         if (status?.connected) {
           setShowQrModal(false);
           setQrCode(null);
+          setPairingCode(null);
           setSendToClientsEnabled(true);
           toast.success('WhatsApp conectado com sucesso!');
         }
@@ -214,7 +217,7 @@ export default function Profile() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [showQrModal, qrCode]);
+  }, [showQrModal, qrCode, pairingCode]);
 
   const isProbablyBase64PngPayload = (value: string) => {
     // Evolution API pode retornar:
@@ -379,6 +382,7 @@ export default function Profile() {
     setGeneratingQr(true);
     setShowQrModal(true);
     setQrCode(null);
+    setPairingCode(null);
     
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-create-instance', {
@@ -387,7 +391,7 @@ export default function Profile() {
 
       if (error) {
         console.error('Error from whatsapp-create-instance:', error);
-        toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
+        // Don't show error - just let user use pairing code flow
         return;
       }
 
@@ -410,29 +414,12 @@ export default function Profile() {
       if (data.qrCode || data.code) {
         setQrCode((data.qrCode ?? data.code) as string);
         setPairingCode(null);
-      } else if (data.usePairingCode || data.pendingQr) {
-        // Evolution API v2.3.7 bug: QR not available via REST API
-        // Show pairing code flow instead
-        setQrCode(null);
-        setPairingCode(null);
-        toast.info('Use o código de pareamento para conectar seu WhatsApp.', { duration: 5000 });
-      } else if (data.error) {
-        console.error('QR Code error:', data.error);
-        // Check if error message indicates server offline
-        if (data.error.includes('indisponível') || data.error.includes('temporariamente')) {
-          toast.error('Servidor WhatsApp em manutenção. Tente novamente em 5 minutos.', {
-            duration: 8000,
-          });
-          setShowQrModal(false);
-        } else {
-          toast.error('Erro ao gerar QR Code. Tente "Reiniciar Conexão".');
-        }
-      } else {
-        toast.error('Não foi possível gerar o QR Code. Tente "Reiniciar Conexão".');
       }
+      // For any other case (usePairingCode, pendingQr, no QR available), 
+      // the modal will show the pairing code flow automatically
     } catch (error) {
       console.error('Error connecting WhatsApp:', error);
-      toast.error('Erro ao conectar WhatsApp');
+      // Don't show error toast - pairing code flow is still available
     } finally {
       setGeneratingQr(false);
     }
@@ -1880,8 +1867,8 @@ export default function Profile() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <QrCode className="w-5 h-5 text-green-500" />
-              Escaneie o QR Code
+              <MessageCircle className="w-5 h-5 text-green-500" />
+              Conectar WhatsApp
             </DialogTitle>
             <DialogDescription>
               Conecte seu WhatsApp para enviar mensagens aos clientes
@@ -1947,7 +1934,7 @@ export default function Profile() {
               </div>
             ) : (
               <div className="w-full flex flex-col items-center justify-center bg-muted rounded-lg p-6">
-                <MessageCircle className="w-12 h-12 text-green-500 mb-3" />
+                <Smartphone className="w-12 h-12 text-green-500 mb-3" />
                 <p className="text-foreground font-medium text-center mb-1">Conectar via Código de Pareamento</p>
                 <p className="text-xs text-muted-foreground text-center mb-4">
                   Digite seu número de WhatsApp para receber um código de 8 dígitos.
@@ -1984,45 +1971,11 @@ export default function Profile() {
                     </Button>
                   </div>
                 )}
-                <div className="flex flex-col gap-2 w-full">
-                  <Button 
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRefreshQrCode()}
-                    disabled={generatingQr || resettingInstance}
-                    className="w-full"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Tentar Novamente
-                  </Button>
-                  <Button 
-                    variant="default"
-                    size="sm"
-                    onClick={handleResetInstance}
-                    disabled={generatingQr || resettingInstance}
-                    className="w-full bg-destructive hover:bg-destructive/90"
-                  >
-                    {resettingInstance ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Recriando...
-                      </>
-                    ) : (
-                      <>
-                        <Unplug className="w-4 h-4 mr-2" />
-                        Recriar Instância
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center mt-3">
-                  "Recriar Instância" resolve problemas persistentes
-                </p>
               </div>
             )}
 
             {/* Instructions */}
-            {!qrExpired && (
+            {(
               <div className="mt-6 w-full space-y-3">
                 {/* Warning about device conflicts */}
                 <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -2056,11 +2009,11 @@ export default function Profile() {
                 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="p-2 rounded-full bg-green-500/10">
-                    <Camera className="w-5 h-5 text-green-600" />
+                    <KeyRound className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">3. Escaneie este QR Code</p>
-                    <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e escaneie</p>
+                    <p className="text-sm font-medium">3. Conectar com número de telefone</p>
+                    <p className="text-xs text-muted-foreground">Toque em "Conectar um aparelho" e depois em "Conectar com número de telefone"</p>
                   </div>
                 </div>
               </div>
