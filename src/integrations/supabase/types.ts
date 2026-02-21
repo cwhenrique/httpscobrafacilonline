@@ -1743,6 +1743,33 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_qr_codes: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          instance_name: string
+          qr_code: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          instance_name: string
+          qr_code: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          instance_name?: string
+          qr_code?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

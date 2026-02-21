@@ -122,21 +122,22 @@ serve(async (req) => {
         instanceName: instanceName,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-        // Configurações para manter conexão PERSISTENTE
         rejectCall: false,
-        readMessages: false,  // Não marcar mensagens como lidas automaticamente
-        readStatus: false,    // Não marcar status como lido
-        alwaysOnline: true,   // ✅ MANTER SEMPRE ONLINE - conexão persistente
+        readMessages: false,
+        readStatus: false,
+        alwaysOnline: true,
         syncFullHistory: false,
-        // ✅ Webhook para notificação de mudanças de conexão e mensagens recebidas
         webhook: {
           url: webhookUrl,
           byEvents: true,
-          base64: false,
+          base64: true,
           events: [
             "CONNECTION_UPDATE",
             "QRCODE_UPDATED",
-            "MESSAGES_UPSERT"
+            "MESSAGES_UPSERT",
+            "connection.update",
+            "qrcode.updated",
+            "messages.upsert"
           ]
         }
       }),
@@ -277,6 +278,24 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('Error updating profile with instance:', updateError);
+      }
+    }
+
+    // Check if webhook delivered a QR code
+    if (!qrCodeBase64) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const { data: qrRow } = await supabase
+        .from('whatsapp_qr_codes')
+        .select('qr_code')
+        .eq('instance_name', instanceName)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (qrRow?.qr_code) {
+        console.log('Found QR code from webhook!');
+        qrCodeBase64 = qrRow.qr_code;
       }
     }
 

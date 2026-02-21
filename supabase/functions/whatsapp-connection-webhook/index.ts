@@ -82,6 +82,75 @@ serve(async (req) => {
       }
     }
 
+    // Handle QRCODE_UPDATED events - save QR code for polling
+    if (event === 'QRCODE_UPDATED' || event === 'qrcode.updated') {
+      console.log('Processing QR code update event');
+      
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      const instanceName = instance?.instanceName || instance;
+      if (!instanceName) {
+        return new Response(JSON.stringify({ received: true, noInstance: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Find user by instance name
+      const { data: qrProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('whatsapp_instance_id', instanceName)
+        .single();
+      
+      if (!qrProfile) {
+        console.log('No profile found for QR code instance:', instanceName);
+        return new Response(JSON.stringify({ received: true, profileNotFound: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Extract QR code from data
+      const qrData = data?.qrcode || data;
+      let qrCode = null;
+      
+      if (typeof qrData?.base64 === 'string' && qrData.base64.length > 100) {
+        qrCode = qrData.base64;
+      } else if (typeof qrData?.code === 'string' && qrData.code.length > 10) {
+        qrCode = qrData.code;
+      } else if (typeof qrData === 'string' && qrData.length > 100) {
+        qrCode = qrData;
+      }
+      
+      if (qrCode) {
+        console.log(`Saving QR code for user ${qrProfile.id}, instance ${instanceName} (${qrCode.substring(0, 50)}...)`);
+        
+        // Delete old QR codes for this instance, then insert new one
+        await supabase
+          .from('whatsapp_qr_codes')
+          .delete()
+          .eq('instance_name', instanceName);
+        
+        await supabase
+          .from('whatsapp_qr_codes')
+          .insert({
+            instance_name: instanceName,
+            user_id: qrProfile.id,
+            qr_code: qrCode,
+          });
+        
+        return new Response(JSON.stringify({ received: true, qrSaved: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      console.log('No valid QR code found in event data');
+      return new Response(JSON.stringify({ received: true, noQrFound: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Only process CONNECTION_UPDATE events
     if (event !== 'CONNECTION_UPDATE' && event !== 'connection.update') {
       console.log('Ignoring non-connection event:', event);
