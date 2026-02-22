@@ -1,29 +1,77 @@
 
-# Corrigir Emojis Quebrados na Mensagem via Link WhatsApp
+# Corrigir Loop Infinito na Geracao de QR Code WhatsApp
 
-## Problema
-Quando a mensagem e enviada pelo botao "Cobrar via WhatsApp" (link wa.me), os emojis como 📋, 💵, 📊, 📅, 📈, 💳 aparecem como ◆ (losango preto) no WhatsApp do destinatario. Isso acontece em certos dispositivos Android onde a URL curta `wa.me` nao decodifica corretamente caracteres Unicode de 4 bytes (emojis do plano suplementar).
+## Problema Identificado
+Quando a instancia WhatsApp esta no estado `close`, o endpoint `connect` da Evolution API retorna `{"count":0}` (sem QR Code). O sistema atual fica em loop infinito porque:
 
-## Causa
-A URL `https://wa.me/XXXX?text=...` com emojis codificados via `encodeURIComponent` nao e processada corretamente por algumas versoes do WhatsApp/Android. A URL completa `https://api.whatsapp.com/send` lida melhor com Unicode.
+1. `whatsapp-create-instance` tenta criar a instancia mas recebe 403 ("nome ja em uso")
+2. Tenta logout (falha com 400)
+3. Chama `connect` que retorna `{"count":0}` - sem QR
+4. Retorna `pendingQr` e o frontend continua fazendo polling para sempre sem nunca receber o QR
 
 ## Solucao
 
-### Arquivo: `src/components/MessagePreviewDialog.tsx`
+### 1. Edge Function: `whatsapp-get-qrcode/index.ts`
+Quando o estado for `close` ou `connecting` e o `connect` nao retornar QR, **deletar a instancia e recriar**:
 
-Trocar a construcao do link de:
-```
-https://wa.me/${waPhone}?text=${encodeURIComponent(editedMessage)}
-```
-Para:
-```
-https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(editedMessage)}
+- Apos Step 5 (connect) falhar em retornar QR, adicionar logica de recuperacao:
+  - Se estado era `close`: deletar instancia via `DELETE /instance/delete/{name}`, aguardar 2s, recriar via `POST /instance/create` com webhook configurado
+  - Extrair QR da resposta de criacao ou aguardar webhook
+- Adicionar controle para nao ficar em loop de delete/recreate (limite de 1 tentativa de recreate por chamada)
+
+### 2. Edge Function: `whatsapp-create-instance/index.ts`
+Quando receber 403 ("already in use"):
+
+- Verificar o estado da instancia existente
+- Se estado for `close`: deletar a instancia e recriar em vez de apenas tentar connect
+- Se estado for `connecting`: aguardar brevemente e tentar connect novamente (a instancia pode estar gerando QR)
+
+### 3. Frontend: `src/pages/Profile.tsx`
+Ajustar o polling para evitar loop infinito:
+
+- Reduzir `maxAttempts` de 30 para 15 (30 segundos no total)
+- Apos esgotar tentativas, oferecer botao "Reiniciar e Gerar Novo QR" que chama `handleRefreshQrCode(true)` com forceReset
+- Adicionar tratamento para quando o backend retorna `usePairingCode: true`, mostrar opcao de codigo de pareamento automaticamente
+
+## Detalhes Tecnicos
+
+### Arquivo 1: `supabase/functions/whatsapp-get-qrcode/index.ts`
+Adicionar bloco de recuperacao apos o Step 5 (connect):
+
+```text
+// Apos connect falhar:
+// Step 5b: Recovery - delete and recreate instance
+if (state === 'close' || state === 'connecting') {
+  // Delete instance
+  await evoFetch(`${baseUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
+  await delay(2000);
+  // Recreate with webhook
+  const createResp = await evoFetch(`${baseUrl}/instance/create`, { ... });
+  // Extract QR from response
+}
 ```
 
-A URL `api.whatsapp.com/send` e o endpoint oficial do WhatsApp e lida melhor com caracteres Unicode em todos os dispositivos.
+### Arquivo 2: `supabase/functions/whatsapp-create-instance/index.ts`
+Quando status 403, deletar e recriar:
+
+```text
+// Apos 403:
+if (instanceState === 'close') {
+  // Delete instance
+  await evolutionFetch(`${evolutionApiUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
+  await delay(2000);
+  // Retry create
+  const retryResp = await evolutionFetch(`${evolutionApiUrl}/instance/create`, { ... });
+}
+```
+
+### Arquivo 3: `src/pages/Profile.tsx`
+- Reduzir maxAttempts no pollForQrCode
+- Mostrar opcao de codigo de pareamento quando polling falhar
 
 ## Resumo
-- 1 arquivo modificado: `src/components/MessagePreviewDialog.tsx`
-- 1 linha alterada (linha 101)
-- Sem alteracao de banco de dados
-- Corrige emojis em todas as mensagens enviadas via link (cobrancas, lembretes, etc.)
+- 3 arquivos modificados
+- 2 edge functions com logica de recuperacao (delete + recreate)
+- 1 componente frontend com melhor tratamento de falha
+- Sem alteracoes de banco de dados
+- Resolve o loop infinito e gera QR code mesmo quando instancia esta em estado "close"
