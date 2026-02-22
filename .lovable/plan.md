@@ -1,33 +1,29 @@
 
-
-# Ativar Lista de Parcelas para Todos os Usuarios Existentes
+# Corrigir Emojis Quebrados na Mensagem via Link WhatsApp
 
 ## Problema
-A alteracao anterior mudou o valor padrao de `includeInstallmentsList` para `true`, porem todos os usuarios existentes ja possuem `includeInstallmentsList: false` salvo explicitamente no banco de dados. Como o sistema faz merge (`{ ...DEFAULT, ...savedConfig }`), o valor salvo `false` sobrescreve o novo padrao `true`.
+Quando a mensagem e enviada pelo botao "Cobrar via WhatsApp" (link wa.me), os emojis como 📋, 💵, 📊, 📅, 📈, 💳 aparecem como ◆ (losango preto) no WhatsApp do destinatario. Isso acontece em certos dispositivos Android onde a URL curta `wa.me` nao decodifica corretamente caracteres Unicode de 4 bytes (emojis do plano suplementar).
+
+## Causa
+A URL `https://wa.me/XXXX?text=...` com emojis codificados via `encodeURIComponent` nao e processada corretamente por algumas versoes do WhatsApp/Android. A URL completa `https://api.whatsapp.com/send` lida melhor com Unicode.
 
 ## Solucao
 
-Duas acoes necessarias:
+### Arquivo: `src/components/MessagePreviewDialog.tsx`
 
-### 1. Atualizar dados existentes no banco (migration SQL)
-Executar um UPDATE em todos os perfis que possuem `billing_message_config` com `includeInstallmentsList: false`, trocando para `true`:
-
-```sql
-UPDATE profiles
-SET billing_message_config = jsonb_set(
-  billing_message_config::jsonb,
-  '{includeInstallmentsList}',
-  'true'::jsonb
-)
-WHERE billing_message_config IS NOT NULL
-  AND (billing_message_config::jsonb->>'includeInstallmentsList') = 'false';
+Trocar a construcao do link de:
+```
+https://wa.me/${waPhone}?text=${encodeURIComponent(editedMessage)}
+```
+Para:
+```
+https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(editedMessage)}
 ```
 
-### 2. Garantir que novos perfis usem o padrao correto
-A alteracao anterior no `DEFAULT_BILLING_MESSAGE_CONFIG` ja cobre novos usuarios. Nenhuma mudanca adicional de codigo necessaria.
+A URL `api.whatsapp.com/send` e o endpoint oficial do WhatsApp e lida melhor com caracteres Unicode em todos os dispositivos.
 
 ## Resumo
-- 1 migration SQL para atualizar perfis existentes
-- Nenhuma alteracao de codigo
-- Efeito imediato: todos os usuarios passarao a ver a lista de parcelas na proxima mensagem de cobranca
-- Usuarios que nao quiserem podem desativar manualmente nas configuracoes
+- 1 arquivo modificado: `src/components/MessagePreviewDialog.tsx`
+- 1 linha alterada (linha 101)
+- Sem alteracao de banco de dados
+- Corrige emojis em todas as mensagens enviadas via link (cobrancas, lembretes, etc.)
