@@ -143,7 +143,7 @@ export default function Profile() {
   
 
   const pollForQrCode = useCallback(
-    async (maxAttempts = 30) => {
+    async (maxAttempts = 15) => {
       if (!user?.id) return;
       for (let i = 0; i < maxAttempts; i++) {
         try {
@@ -179,7 +179,7 @@ export default function Profile() {
       }
 
       setGeneratingQr(false);
-      toast.error('Não conseguimos obter o QR Code. Use o código de pareamento abaixo ou tente novamente.', {
+      toast.error('QR Code não gerado. Clique em "Atualizar QR Code" ou use o código de pareamento.', {
         duration: 8000,
       });
     },
@@ -438,11 +438,11 @@ export default function Profile() {
       // QR not immediately available - start polling
       // The create-instance triggers async QR generation in Evolution API
       console.log('[WhatsApp] QR not in create response, starting poll...');
-      pollForQrCode(30);
+      pollForQrCode(15);
     } catch (error) {
       console.error('Error connecting WhatsApp:', error);
       // Start polling anyway - the instance might have been created
-      pollForQrCode(30);
+      pollForQrCode(15);
     }
   };
 
