@@ -191,10 +191,10 @@ export default function SendDueTodayNotification({
       message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     }
     
-    message += `\nEvite juros e multas pagando em dia!`;
-    
     if (config.customClosingMessage) {
       message += `\n${config.customClosingMessage}`;
+    } else {
+      message += `\nEvite juros e multas pagando em dia!`;
     }
     
     if (config.includeSignature) {
@@ -240,6 +240,16 @@ export default function SendDueTodayNotification({
       message += `📅 *Vencimento:* Hoje (${formatDate(data.dueDate)})\n`;
     }
     
+    // Lista de parcelas (até 20)
+    if (data.installmentDates && data.installmentDates.length > 0 && data.installmentDates.length <= 20) {
+      message += `\n`;
+      message += generateInstallmentStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: paidCount,
+        paidIndices: data.paidIndices,
+      });
+    }
+    
     // Pagamento parcial de juros (se houver)
     if (data.partialInterestPaid && data.partialInterestPaid > 0) {
       message += `\n💜 *JUROS PARCIAL:*\n`;
@@ -252,11 +262,11 @@ export default function SendDueTodayNotification({
       message += generatePixSection(profile?.pix_key || null, profile?.pix_key_type || null, profile?.pix_pre_message || null);
     }
     
-    message += `\nEvite juros e multas pagando em dia!`;
-    
-    // Mensagem de fechamento customizada
+    // Mensagem de fechamento
     if (config.customClosingMessage) {
       message += `\n${config.customClosingMessage}`;
+    } else {
+      message += `\nEvite juros e multas pagando em dia!`;
     }
     
     // Assinatura
