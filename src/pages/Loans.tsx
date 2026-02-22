@@ -9505,6 +9505,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
                                   principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
                                   isDaily: loan.payment_type === 'daily',
+                                  // Status das parcelas com emojis
+                                  installmentDates: (loan.installment_dates as string[]) || [],
+                                  paidCount: getPaidInstallmentsCount(loan),
+                                  paidIndices: getPaidIndicesFromNotes(loan),
                                   // Pagamento parcial de juros
                                   partialInterestPaid: (() => {
                                     const paidList = getPartialInterestPaidFromNotes(loan.notes);
@@ -11661,6 +11665,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     })(),
                                     principalAmount: loan.principal_amount / numInstallments,
                                     isDaily: true,
+                                    // Status das parcelas com emojis
+                                    installmentDates: (loan.installment_dates as string[]) || [],
+                                    paidCount: getPaidInstallmentsCount(loan),
+                                    paidIndices: getPaidIndicesFromNotes(loan),
                                   }}
                                   className="w-full mt-2"
                                 />
