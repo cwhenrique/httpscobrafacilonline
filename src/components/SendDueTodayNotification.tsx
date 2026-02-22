@@ -131,6 +131,9 @@ export default function SendDueTodayNotification({
         signatureName: profile?.billing_signature_name || profile?.company_name,
         closingMessage: config.customClosingMessage || 'Evite juros e multas pagando em dia!',
         contractInterestAmount: data.interestAmount,
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        paidIndices: data.paidIndices,
       });
     }
     

@@ -273,6 +273,10 @@ export interface TemplateData {
   closingMessage?: string;
   // Juros do contrato (diferença entre total e principal)
   contractInterestAmount?: number;
+  // Dados para lista de parcelas
+  installmentDates?: string[];
+  paidCount?: number;
+  paidIndices?: number[];
 }
 
 /**
@@ -323,6 +327,15 @@ export const replaceTemplateVariables = (
     ? `📈 *Progresso:* ${generateProgressBar(data.progressPercent)}`
     : '';
 
+  // Lista de parcelas pagas/abertas
+  const parcelasStatus = data.installmentDates && data.installmentDates.length > 0
+    ? generateInstallmentStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount || 0,
+        paidIndices: data.paidIndices,
+      })
+    : '';
+
   // PIX
   const pixSection = generatePixSection(
     data.pixKey || null,
@@ -349,6 +362,7 @@ export const replaceTemplateVariables = (
     .replace(/\{JUROS_MULTA\}/g, jurosMultaLine)
     .replace(/\{TOTAL\}/g, totalLine)
     .replace(/\{PROGRESSO\}/g, progressBar)
+    .replace(/\{PARCELAS_STATUS\}/g, parcelasStatus)
     .replace(/\{PIX\}/g, pixSection)
     .replace(/\{ASSINATURA\}/g, signature)
     .replace(/\{FECHAMENTO\}/g, closingMessage)
