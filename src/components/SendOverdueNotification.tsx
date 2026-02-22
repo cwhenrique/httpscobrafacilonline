@@ -173,6 +173,9 @@ export default function SendOverdueNotification({
         signatureName: profile?.billing_signature_name || profile?.company_name,
         closingMessage: config.customClosingMessage,
         contractInterestAmount: data.interestAmount,
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        paidIndices: data.paidIndices,
       });
 
       // Adicionar opções de pagamento se habilitado no config

@@ -95,6 +95,9 @@ export function SendEarlyNotification({ data, className }: SendEarlyNotification
         signatureName: profile?.billing_signature_name || profile?.company_name,
         closingMessage: config.customClosingMessage || 'Qualquer dúvida, estou à disposição! 😊',
         contractInterestAmount: data.interestAmount,
+        installmentDates: data.installmentDates,
+        paidCount: data.paidCount,
+        paidIndices: data.paidIndices,
       });
     }
     

@@ -29,7 +29,7 @@ export const DEFAULT_BILLING_MESSAGE_CONFIG: BillingMessageConfig = {
   includeDaysOverdue: true,
   includePenalty: true,
   includeProgressBar: true,
-  includeInstallmentsList: false,
+  includeInstallmentsList: true,
   includePaymentOptions: true,
   includePixKey: true,
   includeSignature: true,
@@ -101,6 +101,8 @@ export const DEFAULT_TEMPLATE_OVERDUE = `⚠️ *Atenção {CLIENTE}*
 
 {PROGRESSO}
 
+{PARCELAS_STATUS}
+
 {PIX}
 
 {FECHAMENTO}
@@ -116,6 +118,8 @@ export const DEFAULT_TEMPLATE_DUE_TODAY = `Olá *{CLIENTE}*!
 📅 *Vencimento:* Hoje ({DATA})
 
 {PROGRESSO}
+
+{PARCELAS_STATUS}
 
 {PIX}
 
@@ -134,6 +138,8 @@ export const DEFAULT_TEMPLATE_EARLY = `Olá *{CLIENTE}*!
 📅 *Vencimento:* {DATA} (em {DIAS_PARA_VENCER} dias)
 
 {PROGRESSO}
+
+{PARCELAS_STATUS}
 
 {PIX}
 
@@ -157,6 +163,7 @@ export const TEMPLATE_VARIABLES = [
   { variable: '{PIX}', description: 'Seção completa do PIX' },
   { variable: '{ASSINATURA}', description: 'Assinatura da empresa' },
   { variable: '{FECHAMENTO}', description: 'Mensagem de fechamento' },
+  { variable: '{PARCELAS_STATUS}', description: 'Lista de parcelas pagas/abertas' },
 ];
 
 // Templates prontos (presets) por tipo de mensagem
