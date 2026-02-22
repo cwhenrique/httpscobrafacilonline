@@ -177,8 +177,71 @@ serve(async (req) => {
 
     let qrCodeBase64 = null;
 
+    // If 403 ("already in use"), check state and delete+recreate if close
+    if (createResponse.status === 403) {
+      console.log('[Create] Instance already exists (403), checking state...');
+      let existingState = 'unknown';
+      try {
+        const stResp = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`);
+        const stData = await stResp.json().catch(() => null);
+        existingState = stData?.instance?.state || stData?.state || 'unknown';
+        console.log(`[Create] Existing instance state: ${existingState}`);
+      } catch { /* ignore */ }
+
+      if (existingState === 'open' || existingState === 'connected') {
+        return new Response(
+          JSON.stringify({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (existingState === 'close' || existingState === 'unknown') {
+        console.log('[Create] Deleting stuck instance and recreating...');
+        try {
+          const delResp = await evolutionFetch(`${evolutionApiUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
+          console.log(`[Create] Delete status: ${delResp.status}`);
+          await delResp.text();
+        } catch (e) {
+          console.log('[Create] Delete error (continuing):', e);
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Retry create
+        const retryResp = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instanceName,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS',
+            rejectCall: false,
+            readMessages: false,
+            readStatus: false,
+            alwaysOnline: true,
+            syncFullHistory: false,
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              byEvents: false,
+              base64: true,
+              events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPSERT"]
+            }
+          }),
+        });
+        const retryText = await retryResp.text();
+        console.log(`[Create] Retry create status: ${retryResp.status}`);
+
+        try {
+          const retryData = JSON.parse(retryText);
+          if (retryData.base64) qrCodeBase64 = retryData.base64;
+          else if (retryData.qrcode?.base64) qrCodeBase64 = retryData.qrcode.base64;
+          else if (retryData.code) qrCodeBase64 = retryData.code;
+        } catch { /* ignore */ }
+      }
+    }
+
     // If instance was created or already exists, try to get QR code (fast-path)
-    if (createResponse.ok || createResponse.status === 403) {
+    if (createResponse.ok || (createResponse.status === 403 && !qrCodeBase64)) {
       // First, check instance state
       const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
         method: 'GET',
