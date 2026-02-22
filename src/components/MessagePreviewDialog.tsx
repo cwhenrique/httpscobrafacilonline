@@ -98,7 +98,7 @@ export default function MessagePreviewDialog({
   const handleOpenWhatsApp = () => {
     if (!clientPhone || !phoneHasDDD) return;
     const waPhone = getWhatsAppPhone();
-    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(editedMessage)}`;
+    const url = `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(editedMessage)}`;
     window.open(url, '_blank');
     toast.success('WhatsApp aberto! Envie a mensagem.');
   };
