@@ -70,7 +70,47 @@ serve(async (req) => {
       .single();
 
     if (!profile?.whatsapp_instance_id) {
-      return respond({ error: 'Instância WhatsApp não encontrada. Conecte primeiro.' }, 404);
+      // Instead of returning 404, try to create instance automatically
+      console.log('[QR] No instance found, creating one automatically...');
+      const shortUserId = userId.substring(0, 8);
+      const newInstanceName = `cf_${shortUserId}`;
+      
+      try {
+        const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
+        const createResp = await evoFetch(`${baseUrl}/instance/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instanceName: newInstanceName,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS',
+            webhook: { enabled: true, url: webhookUrl, byEvents: false, base64: true,
+              events: ['CONNECTION_UPDATE', 'QRCODE_UPDATED', 'MESSAGES_UPSERT'] }
+          }),
+        });
+        const createText = await createResp.text();
+        
+        // Check if server is offline
+        if (createResp.status === 502 || createResp.status === 503 || 
+            createText.trim().startsWith('<!') || createText.includes('<html')) {
+          return respond({ error: 'Servidor WhatsApp temporariamente indisponível.', serverOffline: true }, 503);
+        }
+        
+        // Save instance to profile
+        await supabase.from('profiles').update({ whatsapp_instance_id: newInstanceName }).eq('id', userId);
+        
+        // Try to extract QR from create response
+        try {
+          const createData = JSON.parse(createText);
+          const qr = findQR(createData);
+          if (qr) return respond({ success: true, qrCode: qr, instanceName: newInstanceName });
+        } catch { /* ignore */ }
+        
+        return respond({ success: true, pendingQr: true, instanceName: newInstanceName, message: 'Instância criada, QR sendo gerado...' }, 202);
+      } catch (e) {
+        console.error('[QR] Auto-create failed:', e);
+        return respond({ error: 'Não foi possível criar instância WhatsApp. Tente novamente.' }, 500);
+      }
     }
 
     const instanceName = profile.whatsapp_instance_id;
