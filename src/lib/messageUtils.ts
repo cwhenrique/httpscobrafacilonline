@@ -349,7 +349,9 @@ export const replaceTemplateVariables = (
   // Mensagem de fechamento
   const closingMessage = data.closingMessage || '';
 
-  return template
+  const templateHadParcelas = template.includes('{PARCELAS_STATUS}');
+
+  let result = template
     .replace(/\{CLIENTE\}/g, data.clientName)
     .replace(/\{VALOR\}/g, formatCurrency(data.amount))
     .replace(/\{PARCELA\}/g, parcela)
@@ -366,7 +368,26 @@ export const replaceTemplateVariables = (
     .replace(/\{PIX\}/g, pixSection)
     .replace(/\{ASSINATURA\}/g, signature)
     .replace(/\{FECHAMENTO\}/g, closingMessage)
-    // Remove linhas vazias duplicadas
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  // Auto-insert parcelas for old templates that don't have {PARCELAS_STATUS}
+  if (!templateHadParcelas && parcelasStatus) {
+    const progressIndex = result.lastIndexOf('Progresso:');
+    if (progressIndex !== -1) {
+      const nextNewline = result.indexOf('\n', progressIndex);
+      if (nextNewline !== -1) {
+        result = result.slice(0, nextNewline + 1) + '\n' + parcelasStatus + result.slice(nextNewline + 1);
+      }
+    } else {
+      const pixIndex = result.indexOf('━━━━━━━━━━━━━━━━\n');
+      if (pixIndex !== -1) {
+        result = result.slice(0, pixIndex) + parcelasStatus + '\n' + result.slice(pixIndex);
+      } else {
+        result += '\n\n' + parcelasStatus;
+      }
+    }
+  }
+
+  return result;
 };

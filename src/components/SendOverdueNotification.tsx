@@ -368,6 +368,16 @@ export default function SendOverdueNotification({
       message += `⚠️ *Multa:* +${formatCurrency(appliedPenalty)}\n`;
     }
     
+    // Lista de parcelas (até 20)
+    if (data.installmentDates && data.installmentDates.length > 0 && data.installmentDates.length <= 20) {
+      message += `\n`;
+      message += generateInstallmentStatusList({
+        installmentDates: data.installmentDates,
+        paidCount: paidCount,
+        paidIndices: data.paidIndices,
+      });
+    }
+    
     // Pagamento parcial de juros (se houver)
     if (data.partialInterestPaid && data.partialInterestPaid > 0) {
       message += `\n💜 *JUROS PARCIAL:*\n`;
