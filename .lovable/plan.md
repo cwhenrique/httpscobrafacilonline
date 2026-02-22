@@ -1,77 +1,43 @@
 
-# Corrigir Loop Infinito na Geracao de QR Code WhatsApp
+# Adicionar Status das Parcelas na Mensagem "Vence Hoje"
 
-## Problema Identificado
-Quando a instancia WhatsApp esta no estado `close`, o endpoint `connect` da Evolution API retorna `{"count":0}` (sem QR Code). O sistema atual fica em loop infinito porque:
+## Problema
+A mensagem de cobranca "Vence Hoje" para emprestimos mensais nao inclui a lista de status das parcelas (Paga/Em Aberto/Em Atraso) porque os dados `installmentDates`, `paidCount` e `paidIndices` nao estao sendo passados nos componentes `SendDueTodayNotification` dentro das secoes "Due Today" da pagina de emprestimos.
 
-1. `whatsapp-create-instance` tenta criar a instancia mas recebe 403 ("nome ja em uso")
-2. Tenta logout (falha com 400)
-3. Chama `connect` que retorna `{"count":0}` - sem QR
-4. Retorna `pendingQr` e o frontend continua fazendo polling para sempre sem nunca receber o QR
+Os botoes de emprestimos diarios ja passam esses dados corretamente (linhas ~9448-9450 e ~11616-11618), mas os botoes da secao "Vence Hoje" para emprestimos mensais/semanais (linhas ~9495-9524 e ~11647-11664) nao incluem essas propriedades.
 
 ## Solucao
 
-### 1. Edge Function: `whatsapp-get-qrcode/index.ts`
-Quando o estado for `close` ou `connecting` e o `connect` nao retornar QR, **deletar a instancia e recriar**:
+### Arquivo: `src/pages/Loans.tsx`
 
-- Apos Step 5 (connect) falhar em retornar QR, adicionar logica de recuperacao:
-  - Se estado era `close`: deletar instancia via `DELETE /instance/delete/{name}`, aguardar 2s, recriar via `POST /instance/create` com webhook configurado
-  - Extrair QR da resposta de criacao ou aguardar webhook
-- Adicionar controle para nao ficar em loop de delete/recreate (limite de 1 tentativa de recreate por chamada)
+Adicionar as propriedades `installmentDates`, `paidCount` e `paidIndices` em **4 locais** onde `SendDueTodayNotification` e chamado sem esses dados:
 
-### 2. Edge Function: `whatsapp-create-instance/index.ts`
-Quando receber 403 ("already in use"):
+1. **Linha ~9507** (secao "Due Today" - card view, tema claro): adicionar apos `isDaily`:
+   - `installmentDates: (loan.installment_dates as string[]) || []`
+   - `paidCount: getPaidInstallmentsCount(loan)`
+   - `paidIndices: getPaidIndicesFromNotes(loan)`
 
-- Verificar o estado da instancia existente
-- Se estado for `close`: deletar a instancia e recriar em vez de apenas tentar connect
-- Se estado for `connecting`: aguardar brevemente e tentar connect novamente (a instancia pode estar gerando QR)
+2. **Linha ~11663** (secao "Due Today" - list view, tema escuro): mesma adicao
 
-### 3. Frontend: `src/pages/Profile.tsx`
-Ajustar o polling para evitar loop infinito:
+### Arquivo: `src/lib/messageUtils.ts`
 
-- Reduzir `maxAttempts` de 30 para 15 (30 segundos no total)
-- Apos esgotar tentativas, oferecer botao "Reiniciar e Gerar Novo QR" que chama `handleRefreshQrCode(true)` com forceReset
-- Adicionar tratamento para quando o backend retorna `usePairingCode: true`, mostrar opcao de codigo de pareamento automaticamente
+Ajustar `generateInstallmentStatusList` para limitar a 20 parcelas no maximo (evitar mensagens muito longas para emprestimos com muitas parcelas):
+- Se `installmentDates.length > 20`: nao gerar lista (retornar string vazia)
+- Isso garante que a lista so aparece para emprestimos com ate 20 parcelas, como solicitado
 
-## Detalhes Tecnicos
+## Resultado Esperado
+A mensagem passara a incluir o bloco:
 
-### Arquivo 1: `supabase/functions/whatsapp-get-qrcode/index.ts`
-Adicionar bloco de recuperacao apos o Step 5 (connect):
-
-```text
-// Apos connect falhar:
-// Step 5b: Recovery - delete and recreate instance
-if (state === 'close' || state === 'connecting') {
-  // Delete instance
-  await evoFetch(`${baseUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
-  await delay(2000);
-  // Recreate with webhook
-  const createResp = await evoFetch(`${baseUrl}/instance/create`, { ... });
-  // Extract QR from response
-}
 ```
-
-### Arquivo 2: `supabase/functions/whatsapp-create-instance/index.ts`
-Quando status 403, deletar e recriar:
-
-```text
-// Apos 403:
-if (instanceState === 'close') {
-  // Delete instance
-  await evolutionFetch(`${evolutionApiUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
-  await delay(2000);
-  // Retry create
-  const retryResp = await evolutionFetch(`${evolutionApiUrl}/instance/create`, { ... });
-}
+STATUS DAS PARCELAS:
+1 - 02/02/2026 - Paga
+2 - 09/02/2026 - Paga
+3 - 18/02/2026 - Em Aberto
+4 - 25/02/2026 - Em Aberto
+5 - 02/03/2026 - Em Aberto
 ```
-
-### Arquivo 3: `src/pages/Profile.tsx`
-- Reduzir maxAttempts no pollForQrCode
-- Mostrar opcao de codigo de pareamento quando polling falhar
 
 ## Resumo
-- 3 arquivos modificados
-- 2 edge functions com logica de recuperacao (delete + recreate)
-- 1 componente frontend com melhor tratamento de falha
-- Sem alteracoes de banco de dados
-- Resolve o loop infinito e gera QR code mesmo quando instancia esta em estado "close"
+- 1 arquivo principal modificado: `src/pages/Loans.tsx` (2 locais)
+- 1 arquivo auxiliar: `src/lib/messageUtils.ts` (limite de 20 parcelas)
+- Sem alteracao de banco de dados
