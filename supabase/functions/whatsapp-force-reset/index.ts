@@ -126,10 +126,21 @@ serve(async (req) => {
     // CRITICAL: Check if server is offline (HTML response or 502/503)
     if (isHtmlResponse(createText) || createResponse.status === 502 || createResponse.status === 503) {
       console.error('[whatsapp-force-reset] Evolution API server is offline/unreachable');
-      // DO NOT clear profile data - the server is offline, keep old instance reference
+      // Clear old instance data so a fresh instance is created when server comes back
+      await supabase
+        .from('profiles')
+        .update({
+          whatsapp_instance_id: null,
+          whatsapp_connected_phone: null,
+          whatsapp_connected_at: null,
+          whatsapp_to_clients_enabled: false,
+        })
+        .eq('id', userId);
+
       return new Response(JSON.stringify({
-        error: 'Servidor WhatsApp temporariamente indisponível. Tente novamente em alguns minutos.',
+        error: 'Servidor WhatsApp temporariamente indisponível. Os dados antigos foram limpos. Tente reconectar em alguns minutos.',
         serverOffline: true,
+        cleared: true,
       }), {
         status: 503,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
