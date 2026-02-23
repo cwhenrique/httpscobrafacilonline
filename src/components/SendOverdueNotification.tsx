@@ -23,7 +23,7 @@ interface OverdueData {
   loanId: string;
   // Campos de multa dinâmica
   penaltyAmount?: number;
-  penaltyType?: 'percentage' | 'fixed';
+  penaltyType?: 'percentage' | 'fixed' | 'percentage_total';
   penaltyValue?: number;
   // Campos para opção de pagamento só de juros
   interestAmount?: number;

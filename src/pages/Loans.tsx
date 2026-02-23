@@ -1183,7 +1183,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   
   // Inline penalty configuration states
   const [configuringPenaltyLoanId, setConfiguringPenaltyLoanId] = useState<string | null>(null);
-  const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed' | 'manual'>('percentage');
+  const [inlinePenaltyType, setInlinePenaltyType] = useState<'percentage' | 'fixed' | 'percentage_total' | 'manual'>('percentage');
   const [inlinePenaltyValue, setInlinePenaltyValue] = useState('');
   
   // Edit due date inline states
@@ -8215,8 +8215,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 
                 if (daysOverdue <= 0) return null;
                 
-                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | undefined;
                 const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
                 const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
                 
@@ -10621,8 +10621,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   
                   if (daysOverdue <= 0) return null;
                   
-                  const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-                  const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                  const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+                  const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | undefined;
                   const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
                   const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
                   
@@ -11556,7 +11556,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   variant="ghost" 
                                   onClick={() => {
                                     setConfiguringPenaltyLoanId(loan.id);
-                                    setInlinePenaltyType(overdueConfigType === 'percentage_total' ? 'percentage' : (overdueConfigType || 'percentage'));
+                                    setInlinePenaltyType(overdueConfigType || 'percentage');
                                     setInlinePenaltyValue(overdueConfigValue.toString());
                                   }}
                                   className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300"
@@ -12605,8 +12605,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     const getPenaltyForInstallment = (index: number) => dailyPenalties[index] || 0;
                     
                     // Ler configuração de juros de atraso [OVERDUE_CONFIG]
-                    const overdueConfigMatch = (selectedLoan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-                    const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                    const overdueConfigMatch = (selectedLoan.notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+                    const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | undefined;
                     const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
                     
                     // Função para calcular juros de atraso dinâmico para uma parcela específica
