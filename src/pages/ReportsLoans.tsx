@@ -203,8 +203,16 @@ export default function ReportsLoans() {
         
         // Calculate installment value
         let installmentValue: number;
+        const customValues = loan.interest_mode === 'custom' ? (() => {
+          const match = (loan.notes || '').match(/\[CUSTOM_INSTALLMENTS:([^\]]+)\]/);
+          return match ? match[1].split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v > 0) : null;
+        })() : null;
+        
         if (isDaily) {
           installmentValue = Number(loan.total_interest) || 0;
+        } else if (loan.interest_mode === 'custom' && customValues) {
+          // For custom, use average value; individual values handled per installment below
+          installmentValue = customValues.reduce((s, v) => s + v, 0) / customValues.length;
         } else if (loan.interest_mode === 'on_total') {
           const totalInterest = Number(loan.principal_amount) * (Number(loan.interest_rate) / 100);
           installmentValue = (Number(loan.principal_amount) + totalInterest) / numInstallments;
@@ -215,8 +223,11 @@ export default function ReportsLoans() {
         
         // Build installment details
         const installmentDetails: InstallmentDetail[] = installmentDates.map((dateStr: string, index: number) => {
+          const currentInstallmentValue = (loan.interest_mode === 'custom' && customValues && customValues[index] !== undefined)
+            ? customValues[index]
+            : installmentValue;
           const paidAmount = partialPayments[index] || 0;
-          const isPaid = paidAmount >= installmentValue * 0.99;
+          const isPaid = paidAmount >= currentInstallmentValue * 0.99;
           const dueDate = parseISO(dateStr);
           const isOverdue = !isPaid && dueDate < new Date();
           
@@ -229,7 +240,7 @@ export default function ReportsLoans() {
           return {
             number: index + 1,
             dueDate: dateStr,
-            amount: installmentValue,
+            amount: currentInstallmentValue,
             status: isPaid ? 'paid' as const : isOverdue ? 'overdue' as const : 'pending' as const,
             paidDate: matchingPayment?.payment_date || null,
             paidAmount: paidAmount,
@@ -647,9 +658,17 @@ export default function ReportsLoans() {
         const rate = Number(loan.interest_rate);
         const interestMode = loan.interest_mode || 'per_installment';
         
+        // Parse custom installment values if applicable
+        const customVals = interestMode === 'custom' ? (() => {
+          const m = (loan.notes || '').match(/\[CUSTOM_INSTALLMENTS:([^\]]+)\]/);
+          return m ? m[1].split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v > 0) : null;
+        })() : null;
+        
         let installmentValue: number;
         if (isDaily) {
           installmentValue = Number(loan.total_interest) || 0;
+        } else if (interestMode === 'custom' && customVals) {
+          installmentValue = customVals.reduce((s, v) => s + v, 0) / customVals.length;
         } else if (interestMode === 'on_total') {
           const tInterest = principal * (rate / 100);
           installmentValue = (principal + tInterest) / numInst;
@@ -665,9 +684,10 @@ export default function ReportsLoans() {
         installmentDates.forEach((dateStr: string, idx: number) => {
           const dueDate = startOfDay(new Date(dateStr + 'T00:00:00'));
           if (dueDate < today) {
+            const idxValue = (interestMode === 'custom' && customVals && customVals[idx] !== undefined) ? customVals[idx] : installmentValue;
             const paidAmount = partialPayments[idx] || 0;
-            if (paidAmount < installmentValue * 0.99) {
-              overdueInLoan += Math.max(0, installmentValue - paidAmount);
+            if (paidAmount < idxValue * 0.99) {
+              overdueInLoan += Math.max(0, idxValue - paidAmount);
             }
           }
         });
