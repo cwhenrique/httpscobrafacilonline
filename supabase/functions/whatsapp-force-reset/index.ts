@@ -6,10 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Helper to detect HTML responses from Evolution API (Easypanel "Service is not reachable")
-const isHtmlResponse = (text: string) =>
-  text.trim().startsWith('<!') || text.includes('<html');
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -27,35 +23,22 @@ serve(async (req) => {
 
     console.log(`[whatsapp-force-reset] Starting force reset for user: ${userId}`);
 
-    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    const uazapiUrl = Deno.env.get('UAZAPI_URL');
+    const adminToken = Deno.env.get('UAZAPI_ADMIN_TOKEN');
 
-    if (!rawEvolutionApiUrl || !evolutionApiKey) {
-      return new Response(JSON.stringify({ error: 'Evolution API não configurada no servidor' }), {
+    if (!uazapiUrl || !adminToken) {
+      return new Response(JSON.stringify({ error: 'UAZAPI não configurada no servidor' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
-    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
-
-    const evolutionFetch = async (url: string, init: RequestInit & { headers?: Record<string, string> } = {}) => {
-      const baseHeaders = (init.headers ?? {}) as Record<string, string>;
-      let resp = await fetch(url, { ...init, headers: { ...baseHeaders, apikey: evolutionApiKey } });
-      if (resp.status === 401) {
-        resp = await fetch(url, { ...init, headers: { ...baseHeaders, Authorization: `Bearer ${evolutionApiKey}` } });
-      }
-      return resp;
-    };
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id, whatsapp_connected_phone, whatsapp_connected_at')
+      .select('whatsapp_instance_id, whatsapp_instance_token')
       .eq('id', userId)
       .single();
 
@@ -65,80 +48,65 @@ serve(async (req) => {
       });
     }
 
-    const oldInstanceName = profile?.whatsapp_instance_id;
-    console.log(`[whatsapp-force-reset] Old instance: ${oldInstanceName}`);
-
-    // Step 1: Try to delete old instance (best-effort, don't fail if server is down)
-    if (oldInstanceName) {
+    // Step 1: Try to disconnect and delete old instance
+    if (profile?.whatsapp_instance_token) {
       try {
-        const logoutResp = await evolutionFetch(`${evolutionApiUrl}/instance/logout/${oldInstanceName}`, { method: 'DELETE' });
-        const logoutText = await logoutResp.text();
-        console.log(`[whatsapp-force-reset] Logout: ${logoutResp.status}, html=${isHtmlResponse(logoutText)}`);
+        await fetch(`${uazapiUrl}/instance/disconnect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': profile.whatsapp_instance_token },
+          body: JSON.stringify({}),
+        });
+        console.log('[whatsapp-force-reset] Disconnected old instance');
       } catch (e) {
-        console.log(`[whatsapp-force-reset] Logout failed:`, e);
+        console.log('[whatsapp-force-reset] Disconnect failed:', e);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(r => setTimeout(r, 1000));
 
       try {
-        const delResp = await evolutionFetch(`${evolutionApiUrl}/instance/delete/${oldInstanceName}`, { method: 'DELETE' });
-        const delText = await delResp.text();
-        console.log(`[whatsapp-force-reset] Delete: ${delResp.status}, html=${isHtmlResponse(delText)}`);
+        await fetch(`${uazapiUrl}/instance/delete`, {
+          method: 'DELETE',
+          headers: { 'admintoken': adminToken },
+        });
+        console.log('[whatsapp-force-reset] Deleted old instance');
       } catch (e) {
-        console.log(`[whatsapp-force-reset] Delete failed:`, e);
+        console.log('[whatsapp-force-reset] Delete failed:', e);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     // Step 2: Create new instance
     const shortUserId = userId.substring(0, 8);
-    const timestamp = Date.now().toString(36).substring(-4);
+    const timestamp = Date.now().toString(36).slice(-4);
     const newInstanceName = `cf_${shortUserId}_${timestamp}`;
     console.log(`[whatsapp-force-reset] Creating new instance: ${newInstanceName}`);
 
-    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
-
-    const createResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
+    const createResponse = await fetch(`${uazapiUrl}/instance/init`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instanceName: newInstanceName,
-        qrcode: true,
-        integration: 'WHATSAPP-BAILEYS',
-        rejectCall: false,
-        readMessages: false,
-        readStatus: false,
-        alwaysOnline: true,
-        syncFullHistory: false,
-        webhook: {
-          url: webhookUrl,
-          byEvents: true,
-          base64: false,
-          events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPSERT"]
-        }
-      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'admintoken': adminToken,
+      },
+      body: JSON.stringify({ name: newInstanceName }),
     });
 
     const createText = await createResponse.text();
     console.log(`[whatsapp-force-reset] Create status: ${createResponse.status}`);
 
-    // CRITICAL: Check if server is offline (HTML response or 502/503)
-    if (isHtmlResponse(createText) || createResponse.status === 502 || createResponse.status === 503) {
-      console.error('[whatsapp-force-reset] Evolution API server is offline/unreachable');
-      // Clear old instance data so a fresh instance is created when server comes back
-      await supabase
-        .from('profiles')
-        .update({
-          whatsapp_instance_id: null,
-          whatsapp_connected_phone: null,
-          whatsapp_connected_at: null,
-          whatsapp_to_clients_enabled: false,
-        })
-        .eq('id', userId);
+    const isHtml = createText.trim().startsWith('<!') || createText.includes('<html');
+    if (isHtml || createResponse.status === 502 || createResponse.status === 503) {
+      console.error('[whatsapp-force-reset] UAZAPI server is offline');
+      await supabase.from('profiles').update({
+        whatsapp_instance_id: null,
+        whatsapp_instance_token: null,
+        whatsapp_connected_phone: null,
+        whatsapp_connected_at: null,
+        whatsapp_to_clients_enabled: false,
+      }).eq('id', userId);
 
       return new Response(JSON.stringify({
-        error: 'Servidor WhatsApp temporariamente indisponível. Os dados antigos foram limpos. Tente reconectar em alguns minutos.',
+        error: 'Servidor WhatsApp temporariamente indisponível. Dados limpos. Tente novamente em alguns minutos.',
         serverOffline: true,
         cleared: true,
       }), {
@@ -147,43 +115,41 @@ serve(async (req) => {
       });
     }
 
-    if (!createResponse.ok && createResponse.status !== 403) {
-      return new Response(JSON.stringify({
-        error: 'Erro ao criar nova instância. Tente novamente.',
-        details: createText.substring(0, 200),
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    let createData: any = null;
+    try {
+      createData = JSON.parse(createText);
+    } catch {
+      return new Response(JSON.stringify({ error: 'Resposta inválida do servidor' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Step 3: Instance created successfully - NOW clear old data and save new instance
-    console.log(`[whatsapp-force-reset] Instance created OK, updating profile`);
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        whatsapp_instance_id: newInstanceName,
-        whatsapp_connected_phone: null,
-        whatsapp_connected_at: null,
-        whatsapp_to_clients_enabled: false,
-      })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('[whatsapp-force-reset] Error updating profile:', updateError);
+    const newToken = createData?.token || createData?.data?.token;
+    if (!newToken) {
+      return new Response(JSON.stringify({ error: 'Token não retornado pela UAZAPI' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    // Step 3: Update profile with new instance
+    await supabase.from('profiles').update({
+      whatsapp_instance_id: newInstanceName,
+      whatsapp_instance_token: newToken,
+      whatsapp_connected_phone: null,
+      whatsapp_connected_at: null,
+      whatsapp_to_clients_enabled: false,
+    }).eq('id', userId);
 
     // Step 4: Get QR code
     let qrCodeBase64 = null;
     try {
-      const connectResp = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${newInstanceName}`);
-      const connectText = await connectResp.text();
-      if (connectResp.ok && !isHtmlResponse(connectText)) {
-        try {
-          const data = JSON.parse(connectText);
-          qrCodeBase64 = data.base64 || data.qrcode?.base64 || data.code || null;
-        } catch { /* ignore */ }
-      }
+      const connectResp = await fetch(`${uazapiUrl}/instance/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'token': newToken },
+        body: JSON.stringify({}),
+      });
+      const connectData = await connectResp.json().catch(() => null);
+      qrCodeBase64 = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
     } catch (e) {
       console.error('[whatsapp-force-reset] Connect error:', e);
     }

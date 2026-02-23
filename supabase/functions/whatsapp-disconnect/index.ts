@@ -21,71 +21,61 @@ serve(async (req) => {
       });
     }
 
-    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    const uazapiUrl = Deno.env.get('UAZAPI_URL');
 
-    if (!rawEvolutionApiUrl || !evolutionApiKey) {
-      return new Response(JSON.stringify({ error: 'Evolution API não configurada' }), {
+    if (!uazapiUrl) {
+      return new Response(JSON.stringify({ error: 'UAZAPI não configurada' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Clean the URL - auto-add https:// if missing
-    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
-    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
-    console.log('Using Evolution API base URL:', evolutionApiUrl);
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Get user's instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id')
+      .select('whatsapp_instance_id, whatsapp_instance_token')
       .eq('id', userId)
       .single();
 
-    if (profileError || !profile?.whatsapp_instance_id) {
+    if (profileError || !profile?.whatsapp_instance_token) {
       return new Response(JSON.stringify({ error: 'Instância WhatsApp não encontrada' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const instanceName = profile.whatsapp_instance_id;
-    console.log(`Disconnecting instance: ${instanceName}`);
+    console.log(`Disconnecting UAZAPI instance: ${profile.whatsapp_instance_id}`);
 
-    // Logout the instance (keeps it for reconnection later)
-    const logoutResponse = await fetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
-      method: 'DELETE',
-      headers: {
-        'apikey': evolutionApiKey,
-      },
-    });
+    // Disconnect via UAZAPI
+    try {
+      const disconnectResp = await fetch(`${uazapiUrl}/instance/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'token': profile.whatsapp_instance_token,
+        },
+        body: JSON.stringify({}),
+      });
+      console.log('Disconnect response:', disconnectResp.status);
+    } catch (e) {
+      console.error('Error disconnecting:', e);
+    }
 
-    const logoutText = await logoutResponse.text();
-    console.log('Logout response:', logoutResponse.status, logoutText);
-
-    // Update profile to clear connection info
-    const { error: updateError } = await supabase
+    // Clear connection info
+    await supabase
       .from('profiles')
-      .update({ 
+      .update({
         whatsapp_connected_phone: null,
         whatsapp_connected_at: null,
         whatsapp_to_clients_enabled: false,
       })
       .eq('id', userId);
 
-    if (updateError) {
-      console.error('Error updating profile:', updateError);
-    }
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'WhatsApp desconectado com sucesso'
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'WhatsApp desconectado com sucesso',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
