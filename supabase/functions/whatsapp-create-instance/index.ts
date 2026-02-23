@@ -51,7 +51,8 @@ serve(async (req) => {
     }
 
     // Restrict to authorized email only
-    if (profile?.email !== 'cw@gmail.com') {
+    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com'];
+    if (!allowedEmails.includes(profile?.email)) {
       return new Response(JSON.stringify({ error: 'Função temporariamente restrita.' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
