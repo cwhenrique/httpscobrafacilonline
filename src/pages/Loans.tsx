@@ -27,7 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable, calculateSACInterest, calculateSACInstallmentValue, generateSACTable } from '@/lib/calculations';
+import { formatCurrency, formatDate, getPaymentStatusColor, getPaymentStatusLabel, formatPercentage, calculateOverduePenalty, calculatePMT, calculatePureCompoundInterest, calculateRateFromPMT, generatePriceTable, calculateSACInterest, calculateSACInstallmentValue, generateSACTable, parseCustomInstallments } from '@/lib/calculations';
 import { ClientSelector } from '@/components/ClientSelector';
 import { Plus, Minus, Search, Trash2, DollarSign, CreditCard, User, Calendar as CalendarIcon, Percent, RefreshCw, Camera, Clock, Pencil, FileText, Download, HelpCircle, History, Check, X, MessageCircle, ChevronDown, ChevronUp, Phone, MapPin, Mail, ListPlus, Bell, CheckCircle2, Table2, LayoutGrid, List, UserCheck, ArrowUpRight, UserPlus, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -89,13 +89,21 @@ const getPaidIndicesFromNotes = (loan: { notes: string | null; installments: num
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else if (loan.interest_mode === 'sac') {
     totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
+  } else if (loan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(loan.notes);
+    if (customValues) {
+      totalInterest = customValues.reduce((sum: number, v: number) => sum + v, 0) - loan.principal_amount;
+    } else {
+      totalInterest = loan.total_interest || 0;
+    }
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
+  const isCustom = loan.interest_mode === 'custom';
   const baseInstallmentValue = loan.interest_mode === 'sac' 
     ? calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, 0)
-    : (loan.principal_amount + totalInterest) / numInstallments;
+    : (isCustom ? 0 : (loan.principal_amount + totalInterest) / numInstallments);
   
   // Verificar taxa de renovação
   const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
@@ -105,6 +113,10 @@ const getPaidIndicesFromNotes = (loan: { notes: string | null; installments: num
   const getInstallmentValue = (index: number) => {
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
+    }
+    if (isCustom) {
+      const customValues = parseCustomInstallments(loan.notes);
+      if (customValues && index < customValues.length) return customValues[index];
     }
     if (loan.interest_mode === 'sac') {
       return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
@@ -1138,7 +1150,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     principal_amount: string;
     interest_rate: string;
     interest_type: InterestType;
-    interest_mode: 'per_installment' | 'on_total' | 'compound' | 'sac';
+    interest_mode: 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom';
     payment_type: LoanPaymentType;
     installments: string;
     contract_date: string;
@@ -2212,7 +2224,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     principal_amount: '',
     interest_rate: '',
     interest_type: 'simple' as InterestType,
-    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound' | 'sac',
+    interest_mode: 'per_installment' as 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom',
     payment_type: 'installment' as LoanPaymentType | 'daily',
     installments: '1',
     contract_date: format(new Date(), 'yyyy-MM-dd'),
@@ -2227,6 +2239,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     overdue_penalty_enabled: false, // Juros por atraso automático
     overdue_penalty_type: 'percentage' as 'percentage' | 'fixed' | 'percentage_total',
     overdue_penalty_value: '', // Valor da multa (% ou fixo)
+    custom_installment_values: [] as string[], // Valores individuais para parcelas personalizadas
   });
   
   // Handlers para sincronização bidirecional do empréstimo diário
@@ -3845,8 +3858,24 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     let rate = parseFloat(String(formData.interest_rate)) || 0;
     const numInstallments = parseInt(formData.installments) || 1;
     let totalInterest: number;
+    let customInstallmentsTag = '';
 
-    if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
+    // Modo custom: valores individuais por parcela
+    if (formData.interest_mode === 'custom') {
+      const customValues = formData.custom_installment_values.map(v => parseFloat(v) || 0);
+      const hasAllValues = customValues.length === numInstallments && customValues.every(v => v > 0);
+      
+      if (!hasAllValues) {
+        toast.error('Preencha o valor de todas as parcelas personalizadas');
+        setIsCreatingLoan(false);
+        return;
+      }
+      
+      const customTotal = customValues.reduce((sum, v) => sum + v, 0);
+      totalInterest = customTotal - principal;
+      rate = 0; // Não se aplica
+      customInstallmentsTag = `[CUSTOM_INSTALLMENTS:${customValues.map(v => v.toFixed(2)).join(',')}]`;
+    } else if ((formData.payment_type === 'installment' || formData.payment_type === 'weekly' || formData.payment_type === 'biweekly') && installmentValue) {
       // SAC: parcelas são variáveis, não usar perInstallment * numInstallments
       if (formData.interest_mode === 'sac') {
         totalInterest = calculateSACInterest(principal, rate, numInstallments);
@@ -3890,8 +3919,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       return;
     }
     
+    // Append custom installments tag to notes
+    if (customInstallmentsTag) {
+      notes = `${customInstallmentsTag}\n${notes}`.trim();
+    }
+    
+    // Para custom, remaining_balance é a soma das parcelas
+    const remainingBalance = formData.interest_mode === 'custom' 
+      ? formData.custom_installment_values.reduce((sum, v) => sum + (parseFloat(v) || 0), 0)
+      : principal + totalInterest;
+    
     // 🆕 VALIDAÇÃO DE INCONSISTÊNCIA: principal > total a receber
-    const totalToReceiveRegular = principal + totalInterest;
+    const totalToReceiveRegular = remainingBalance;
     if (!skipInconsistencyCheck && checkLoanInconsistency(principal, totalToReceiveRegular)) {
       setPendingLoanData({
         principal,
@@ -3909,7 +3948,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       interest_rate: rate,
       installments: formData.payment_type === 'single' ? 1 : numInstallments,
       total_interest: totalInterest,
-      remaining_balance: principal + totalInterest,
+      remaining_balance: remainingBalance,
       due_date: finalDueDate,
       installment_dates: ['installment', 'weekly', 'biweekly', 'daily'].includes(formData.payment_type) ? installmentDates : [],
       notes: notes || undefined,
@@ -5340,6 +5379,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       start_date: format(new Date(), 'yyyy-MM-dd'), due_date: '', notes: '',
       daily_amount: '', daily_period: '1', daily_interest_rate: '', is_historical_contract: false, send_creation_notification: false,
       overdue_penalty_enabled: false, overdue_penalty_type: 'percentage', overdue_penalty_value: '',
+      custom_installment_values: [],
     });
     setInstallmentDates([]);
     setInstallmentValue('');
@@ -7294,23 +7334,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       <Label className="text-xs sm:text-sm">Valor *</Label>
                       <Input type="number" step="0.01" value={formData.principal_amount} onChange={(e) => setFormData({ ...formData, principal_amount: e.target.value })} required className="h-9 sm:h-10 text-sm" />
                     </div>
-                    <div className="space-y-1 sm:space-y-2 tutorial-form-interest">
-                      <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
-                      <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
-                    </div>
+                    {formData.interest_mode !== 'custom' && (
+                      <div className="space-y-1 sm:space-y-2 tutorial-form-interest">
+                        <Label className="text-xs sm:text-sm">Taxa de Juros (%) *</Label>
+                        <Input type="number" step="0.01" value={formData.interest_rate} onChange={(e) => setFormData({ ...formData, interest_rate: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                      </div>
+                    )}
                   </div>
                 )}
                 {formData.payment_type !== 'daily' && (
                   <div className="grid grid-cols-2 gap-2 sm:gap-4">
                     <div className="space-y-1 sm:space-y-2 tutorial-form-interest-mode">
                       <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
-                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total' | 'compound' | 'sac') => setFormData({ ...formData, interest_mode: v })}>
+                      <Select value={formData.interest_mode} onValueChange={(v: 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom') => setFormData({ ...formData, interest_mode: v })}>
                         <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[10001]">
                           <SelectItem value="per_installment" className="text-xs sm:text-sm">Por Parcela</SelectItem>
                           <SelectItem value="on_total" className="text-xs sm:text-sm">Sobre o Total</SelectItem>
                           <SelectItem value="compound" className="text-xs sm:text-sm">Juros Compostos Puros</SelectItem>
                           <SelectItem value="sac" className="text-xs sm:text-sm">SAC (Amort. Constante)</SelectItem>
+                          <SelectItem value="custom" className="text-xs sm:text-sm">Parcelas Personalizadas</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -7332,53 +7375,109 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <div className="space-y-1 sm:space-y-2">
                         <Label className="text-xs sm:text-sm">Nº de {formData.payment_type === 'weekly' ? 'Semanas' : formData.payment_type === 'biweekly' ? 'Quinzenas' : 'Parcelas'} *</Label>
-                        <Input type="number" min="1" value={formData.installments} onChange={(e) => setFormData({ ...formData, installments: e.target.value })} required className="h-9 sm:h-10 text-sm" />
+                        <Input type="number" min="1" value={formData.installments} onChange={(e) => {
+                          const newInstallments = e.target.value;
+                          setFormData({ ...formData, installments: newInstallments });
+                          // Ajustar array de valores customizados quando o número de parcelas mudar
+                          if (formData.interest_mode === 'custom') {
+                            const numInst = parseInt(newInstallments) || 0;
+                            setFormData(prev => ({
+                              ...prev,
+                              installments: newInstallments,
+                              custom_installment_values: Array.from({ length: numInst }, (_, i) => prev.custom_installment_values[i] || '')
+                            }));
+                          }
+                        }} required className="h-9 sm:h-10 text-sm" />
                       </div>
-                      <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Juros Total (R$)</Label>
-                        <Input 
-                          type="number" 
-                          step="0.01"
-                          placeholder="Ex: 160.00"
-                          value={isManuallyEditingInterest ? editableTotalInterest : getTotalInterestRawValue()} 
-                          onChange={(e) => handleTotalInterestChange(e.target.value)}
-                          className="h-9 sm:h-10 text-sm"
-                        />
-                      </div>
+                      {formData.interest_mode !== 'custom' && (
+                        <div className="space-y-1 sm:space-y-2">
+                          <Label className="text-xs sm:text-sm">Juros Total (R$)</Label>
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            placeholder="Ex: 160.00"
+                            value={isManuallyEditingInterest ? editableTotalInterest : getTotalInterestRawValue()} 
+                            onChange={(e) => handleTotalInterestChange(e.target.value)}
+                            className="h-9 sm:h-10 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                      <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">{formData.interest_mode === 'sac' ? '1ª Parcela (R$)' : `Valor da ${formData.payment_type === 'weekly' ? 'Semana' : formData.payment_type === 'biweekly' ? 'Quinzena' : 'Parcela'} (R$)`}</Label>
-                        <Input 
-                          type="number" 
-                          step="0.01"
-                          value={installmentValue}
-                          onChange={(e) => handleInstallmentValueChange(e.target.value)}
-                          className="h-9 sm:h-10 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1 sm:space-y-2">
-                        <Label className="text-xs sm:text-sm">Total a Receber</Label>
-                        <Input 
-                          type="text" 
-                          readOnly 
-                          value={(() => {
-                            if (formData.interest_mode === 'sac' && formData.principal_amount && formData.interest_rate && formData.installments) {
-                              const { totalPayment } = generateSACTable(
-                                parseFloat(formData.principal_amount),
-                                parseFloat(formData.interest_rate),
-                                parseInt(formData.installments)
-                              );
-                              return formatCurrency(totalPayment);
-                            }
-                            return installmentValue && formData.installments
-                              ? formatCurrency(parseFloat(installmentValue) * parseInt(formData.installments))
-                              : 'R$ 0,00';
+                    {formData.interest_mode === 'custom' ? (
+                      <>
+                        {/* Parcelas Personalizadas - inputs individuais */}
+                        <div className="space-y-2 border border-border rounded-md p-3">
+                          <Label className="text-xs sm:text-sm font-semibold">Valores das Parcelas</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {Array.from({ length: parseInt(formData.installments) || 0 }).map((_, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[55px]">Parcela {idx + 1}:</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="R$ 0,00"
+                                  value={formData.custom_installment_values[idx] || ''}
+                                  onChange={(e) => {
+                                    const newValues = [...formData.custom_installment_values];
+                                    newValues[idx] = e.target.value;
+                                    setFormData({ ...formData, custom_installment_values: newValues });
+                                  }}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          {/* Resumo automático */}
+                          {formData.custom_installment_values.some(v => parseFloat(v) > 0) && (() => {
+                            const customTotal = formData.custom_installment_values.reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+                            const principal = parseFloat(formData.principal_amount) || 0;
+                            const profit = customTotal - principal;
+                            return (
+                              <div className="mt-2 p-2 bg-muted rounded-md text-xs space-y-1">
+                                <div className="flex justify-between"><span>Soma das parcelas:</span><span className="font-semibold">{formatCurrency(customTotal)}</span></div>
+                                <div className="flex justify-between"><span>Lucro (juros):</span><span className={`font-semibold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(profit)}</span></div>
+                              </div>
+                            );
                           })()}
-                          className="bg-muted h-9 sm:h-10 text-sm"
-                        />
-                      </div>
-                    </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                          <div className="space-y-1 sm:space-y-2">
+                            <Label className="text-xs sm:text-sm">{formData.interest_mode === 'sac' ? '1ª Parcela (R$)' : `Valor da ${formData.payment_type === 'weekly' ? 'Semana' : formData.payment_type === 'biweekly' ? 'Quinzena' : 'Parcela'} (R$)`}</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01"
+                              value={installmentValue}
+                              onChange={(e) => handleInstallmentValueChange(e.target.value)}
+                              className="h-9 sm:h-10 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1 sm:space-y-2">
+                            <Label className="text-xs sm:text-sm">Total a Receber</Label>
+                            <Input 
+                              type="text" 
+                              readOnly 
+                              value={(() => {
+                                if (formData.interest_mode === 'sac' && formData.principal_amount && formData.interest_rate && formData.installments) {
+                                  const { totalPayment } = generateSACTable(
+                                    parseFloat(formData.principal_amount),
+                                    parseFloat(formData.interest_rate),
+                                    parseInt(formData.installments)
+                                  );
+                                  return formatCurrency(totalPayment);
+                                }
+                                return installmentValue && formData.installments
+                                  ? formatCurrency(parseFloat(installmentValue) * parseInt(formData.installments))
+                                  : 'R$ 0,00';
+                              })()}
+                              className="bg-muted h-9 sm:h-10 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                     
                     {/* Aviso visual quando o usuário arredonda manualmente o valor da parcela */}
                     {isManuallyEditingInstallment && installmentValue && formData.principal_amount && formData.installments && (() => {
@@ -14303,7 +14402,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <Label className="text-xs sm:text-sm">Juros Aplicado</Label>
                     <Select 
                       value={editFormData.interest_mode} 
-                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' | 'compound' | 'sac' })}
+                      onValueChange={(v) => setEditFormData({ ...editFormData, interest_mode: v as 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom' })}
                     >
                       <SelectTrigger className="h-9 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -14311,6 +14410,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         <SelectItem value="on_total">Sobre o Total</SelectItem>
                         <SelectItem value="compound">Juros Compostos</SelectItem>
                         <SelectItem value="sac">SAC (Amort. Constante)</SelectItem>
+                        <SelectItem value="custom">Parcelas Personalizadas</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

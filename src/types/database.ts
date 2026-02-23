@@ -53,7 +53,7 @@ export interface Client {
   facebook: string | null;
 }
 
-export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac';
+export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom';
 
 export interface Loan {
   id: string;

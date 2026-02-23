@@ -162,7 +162,7 @@ export function useLoans() {
     principal_amount: number;
     interest_rate: number;
     interest_type: InterestType;
-    interest_mode?: 'per_installment' | 'on_total' | 'compound' | 'sac';
+    interest_mode?: 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom';
     payment_type: LoanPaymentType;
     installments?: number;
     contract_date?: string;

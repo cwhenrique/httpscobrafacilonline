@@ -349,14 +349,22 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
     totalInterest = loan.principal_amount * Math.pow(1 + (loan.interest_rate / 100), numInstallments) - loan.principal_amount;
   } else if (loan.interest_mode === 'sac') {
     totalInterest = calculateSACInterest(loan.principal_amount, loan.interest_rate, numInstallments);
+  } else if (loan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(loan.notes || null);
+    if (customValues) {
+      totalInterest = customValues.reduce((sum, v) => sum + v, 0) - loan.principal_amount;
+    } else {
+      totalInterest = loan.total_interest || 0;
+    }
   } else {
     totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
   }
   
+  const isCustom = loan.interest_mode === 'custom';
   const isSAC = loan.interest_mode === 'sac';
   const principalPerInstallment = loan.principal_amount / numInstallments;
   const interestPerInstallment = totalInterest / numInstallments;
-  const baseInstallmentValue = isSAC ? 0 : principalPerInstallment + interestPerInstallment;
+  const baseInstallmentValue = isSAC ? 0 : (isCustom ? 0 : principalPerInstallment + interestPerInstallment);
   
   // Verificar taxa de renovação
   const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
@@ -366,6 +374,10 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
   const getInstallmentValue = (index: number) => {
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
+    }
+    if (isCustom) {
+      const customValues = parseCustomInstallments(loan.notes || null);
+      if (customValues && index < customValues.length) return customValues[index];
     }
     if (isSAC) {
       return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
@@ -691,8 +703,15 @@ export function calculateInstallmentValue(loan: LoanForCalculation): number {
   const isDaily = loan.payment_type === 'daily';
   
   if (isDaily && loan.total_interest) {
-    // Para diários, total_interest já é o valor da parcela diária
     return loan.total_interest;
+  }
+  
+  // Parcelas personalizadas - retornar a primeira parcela como valor base
+  if (loan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(loan.notes || null);
+    if (customValues && customValues.length > 0) {
+      return customValues[0]; // Retorna primeira parcela como referência
+    }
   }
   
   let totalInterest = 0;
@@ -715,6 +734,29 @@ export function calculateInstallmentValue(loan: LoanForCalculation): number {
  * @param daysOverdue - Dias em atraso
  * @returns Valor total de juros por atraso
  */
+/**
+ * Extrai valores de parcelas personalizadas da tag [CUSTOM_INSTALLMENTS:...] nas notas
+ * @param notes - Campo notes do empréstimo
+ * @returns Array de valores numéricos ou null se não encontrado
+ */
+export function parseCustomInstallments(notes: string | null): number[] | null {
+  if (!notes) return null;
+  const match = notes.match(/\[CUSTOM_INSTALLMENTS:([^\]]+)\]/);
+  if (!match) return null;
+  const values = match[1].split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v > 0);
+  return values.length > 0 ? values : null;
+}
+
+/**
+ * Retorna o valor da parcela para um índice específico, considerando parcelas personalizadas
+ */
+export function getCustomInstallmentValue(loan: LoanForCalculation, index: number): number | null {
+  if (loan.interest_mode !== 'custom') return null;
+  const values = parseCustomInstallments(loan.notes || null);
+  if (!values) return null;
+  return index < values.length ? values[index] : null;
+}
+
 export function calculateDynamicOverdueInterest(
   loan: LoanForCalculation,
   daysOverdue: number
