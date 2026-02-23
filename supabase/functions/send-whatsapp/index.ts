@@ -1,348 +1,122 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ListRow {
-  title: string;
-  description: string;
-  rowId: string;
-}
-
-interface ListSection {
-  title: string;
-  rows: ListRow[];
-}
-
-interface ListData {
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  sections: ListSection[];
-}
-
 interface WhatsAppRequest {
   phone: string;
   message?: string;
-  listData?: ListData;
+  userId?: string;
+  listData?: {
+    title: string;
+    description: string;
+    buttonText: string;
+    footerText: string;
+    sections: Array<{
+      title: string;
+      rows: Array<{ title: string; description: string; rowId: string }>;
+    }>;
+  };
 }
-
-// Track if webhook has been configured (in-memory, resets on cold start)
-let webhookConfigured = false;
 
 const formatPhoneNumber = (phone: string): string => {
   let cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('0')) {
-    cleaned = cleaned.substring(1);
-  }
-  if (!cleaned.startsWith('55')) {
-    cleaned = '55' + cleaned;
-  }
+  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
   return cleaned;
-};
-
-const cleanApiUrl = (url: string): string => {
-  let cleaned = url.replace(/\/+$/, '');
-  const pathPatterns = [
-    /\/message\/sendText\/[^\/]+$/i,
-    /\/message\/sendList\/[^\/]+$/i,
-    /\/message\/sendText$/i,
-    /\/message\/sendList$/i,
-    /\/message$/i,
-  ];
-  for (const pattern of pathPatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-  return cleaned;
-};
-
-// Helper to truncate strings for API limits
-const truncate = (str: string, max: number): string => 
-  str.length > max ? str.substring(0, max - 3) + '...' : str;
-
-// Configure webhook for the notficacao instance
-const ensureWebhookConfigured = async (evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string): Promise<void> => {
-  if (webhookConfigured) {
-    console.log("Webhook already configured in this instance, skipping...");
-    return;
-  }
-
-  const instanceName = "notficacao";
-  const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-message-webhook`;
-  
-  console.log(`Ensuring webhook is configured for instance: ${instanceName}`);
-  console.log(`Webhook URL: ${webhookUrl}`);
-
-  try {
-    const webhookSetUrl = `${evolutionApiUrl}/webhook/set/${instanceName}`;
-    console.log(`Calling: ${webhookSetUrl}`);
-
-    // Try new format first (with nested webhook object and enabled: true)
-    const newFormatPayload = {
-      webhook: {
-        enabled: true,
-        url: webhookUrl,
-        byEvents: true,
-        base64: false,
-        events: [
-          "MESSAGES_UPSERT",
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED"
-        ],
-      }
-    };
-
-    console.log("Trying new webhook format:", JSON.stringify(newFormatPayload));
-
-    let response = await fetch(webhookSetUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": evolutionApiKey,
-      },
-      body: JSON.stringify(newFormatPayload),
-    });
-
-    let responseData = await response.json();
-    console.log("Webhook config response (new format):", response.status, JSON.stringify(responseData));
-
-    // If new format fails with 400, try old format
-    if (!response.ok && response.status === 400) {
-      console.log("New format failed, trying old format...");
-      
-      const oldFormatPayload = {
-        enabled: true,
-        url: webhookUrl,
-        webhookByEvents: true,
-        webhookBase64: false,
-        events: [
-          "MESSAGES_UPSERT",
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED"
-        ],
-      };
-
-      response = await fetch(webhookSetUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify(oldFormatPayload),
-      });
-
-      responseData = await response.json();
-      console.log("Webhook config response (old format):", response.status, JSON.stringify(responseData));
-    }
-
-    if (response.ok) {
-      webhookConfigured = true;
-      console.log("Webhook configured successfully!");
-    } else {
-      console.error("Failed to configure webhook:", responseData);
-    }
-  } catch (error) {
-    console.error("Error configuring webhook:", error);
-  }
-};
-
-// Helper to send list with specific format
-const trySendList = async (
-  url: string,
-  apiKey: string,
-  phone: string,
-  listData: ListData,
-  useValuesFormat: boolean
-): Promise<{ ok: boolean; data: any }> => {
-  const formatName = useValuesFormat ? 'values' : 'sections';
-  console.log(`Trying sendList with ${formatName} format...`);
-  
-  let body: any = {
-    number: phone,
-    title: truncate(listData.title, 60),
-    description: truncate(listData.description, 1024),
-    buttonText: truncate(listData.buttonText, 20),
-    footerText: truncate(listData.footerText || '', 60),
-  };
-
-  const mappedSections = listData.sections.map(section => ({
-    title: truncate(section.title, 24),
-    rows: section.rows.map(row => ({
-      title: truncate(row.title, 24),
-      description: truncate(row.description, 72),
-      rowId: row.rowId,
-    })),
-  }));
-
-  // Evolution API v2 uses "values", older versions use "sections"
-  if (useValuesFormat) {
-    body.values = mappedSections;
-  } else {
-    body.sections = mappedSections;
-  }
-
-  console.log(`List payload (${formatName}): sections=${mappedSections.length}, rows=${mappedSections.reduce((acc, s) => acc + s.rows.length, 0)}`);
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": apiKey,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-  console.log(`sendList (${formatName}) response:`, response.status, JSON.stringify(data).substring(0, 200));
-  
-  return { ok: response.ok, data };
 };
 
 const handler = async (req: Request): Promise<Response> => {
-  console.log("send-whatsapp function called");
-  
+  console.log("send-whatsapp function called (UAZAPI)");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-    const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const instanceName = "notficacao";
-
-    console.log("Raw EVOLUTION_API_URL:", evolutionApiUrlRaw);
-    console.log("Using fixed system instance: notficacao");
-
-    if (!evolutionApiUrlRaw || !evolutionApiKey) {
-      console.error("Missing Evolution API configuration");
-      throw new Error("Evolution API not configured");
+    const uazapiUrl = Deno.env.get("UAZAPI_URL");
+    if (!uazapiUrl) {
+      throw new Error("UAZAPI not configured");
     }
 
-    const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
-    console.log("Cleaned EVOLUTION_API_URL:", evolutionApiUrl);
+    const { phone, message, userId, listData }: WhatsAppRequest = await req.json();
 
-    // Ensure webhook is configured for receiving confirmations
-    if (supabaseUrl) {
-      await ensureWebhookConfigured(evolutionApiUrl, evolutionApiKey, supabaseUrl);
+    if (!phone) throw new Error("Phone is required");
+    if (!message && !listData) throw new Error("Either message or listData is required");
+
+    // This function sends system notifications - needs to use the user's instance token
+    // If userId is provided, fetch their token; otherwise this is a system notification
+    let instanceToken: string | null = null;
+
+    if (userId) {
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('whatsapp_instance_token')
+        .eq('id', userId)
+        .single();
+      instanceToken = profile?.whatsapp_instance_token || null;
     }
 
-    const { phone, message, listData }: WhatsAppRequest = await req.json();
-    
-    if (!phone) {
-      throw new Error("Phone is required");
-    }
-
-    if (!message && !listData) {
-      throw new Error("Either message or listData is required");
+    if (!instanceToken) {
+      console.error("No instance token available for sending");
+      throw new Error("No WhatsApp instance token available");
     }
 
     const formattedPhone = formatPhoneNumber(phone);
-    const isListMessage = !!listData && !message;
 
-    // For regular text messages
-    if (!isListMessage) {
-      const textUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-      console.log(`Sending WhatsApp TEXT to: ${formattedPhone}`);
-      
-      const response = await fetch(textUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: formattedPhone,
-          text: message,
-        }),
-      });
-
-      const responseData = await response.json();
-      console.log("Evolution API response:", responseData);
-
-      if (!response.ok) {
-        throw new Error(`Evolution API error: ${JSON.stringify(responseData)}`);
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, data: responseData }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Convert listData to rich formatted text (sendList is broken in Evolution API v2 Easypanel build)
-    console.log(`Converting WhatsApp LIST to rich text for: ${formattedPhone}`);
-    
-    let formattedText = '';
-    
-    // Title with emoji
-    if (listData.title) {
-      formattedText += `${listData.title}\n\n`;
-    }
-    
-    // Description
-    if (listData.description) {
-      formattedText += `${listData.description}\n\n`;
-    }
-    
-    // Sections as structured text
-    for (const section of listData.sections) {
-      if (section.title) {
-        formattedText += `*${section.title}*\n`;
-      }
-      for (const row of section.rows) {
-        formattedText += `  • ${row.title}`;
-        if (row.description) {
-          formattedText += `: ${row.description}`;
+    // Convert listData to text if needed
+    let textToSend = message || '';
+    if (listData && !message) {
+      textToSend = '';
+      if (listData.title) textToSend += `${listData.title}\n\n`;
+      if (listData.description) textToSend += `${listData.description}\n\n`;
+      for (const section of listData.sections) {
+        if (section.title) textToSend += `*${section.title}*\n`;
+        for (const row of section.rows) {
+          textToSend += `  • ${row.title}`;
+          if (row.description) textToSend += `: ${row.description}`;
+          textToSend += `\n`;
         }
-        formattedText += `\n`;
+        textToSend += `\n`;
       }
-      formattedText += `\n`;
+      if (listData.footerText) textToSend += `━━━━━━━━━━━━━━━━\n${listData.footerText}`;
+      textToSend = textToSend.trim();
     }
-    
-    // Footer
-    if (listData.footerText) {
-      formattedText += `━━━━━━━━━━━━━━━━\n${listData.footerText}`;
-    }
-    
-    const textUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-    console.log(`Sending rich text message to: ${formattedPhone}`);
-    
-    const response = await fetch(textUrl, {
+
+    console.log(`Sending WhatsApp via UAZAPI to: ${formattedPhone}`);
+
+    const response = await fetch(`${uazapiUrl}/send/text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": evolutionApiKey,
+        "token": instanceToken,
       },
       body: JSON.stringify({
         number: formattedPhone,
-        text: formattedText.trim(),
+        text: textToSend,
       }),
     });
 
     const responseData = await response.json();
-    console.log("Rich text response:", responseData);
+    console.log("UAZAPI response:", responseData);
 
     if (!response.ok) {
-      throw new Error(`Evolution API error: ${JSON.stringify(responseData)}`);
+      throw new Error(`UAZAPI error: ${JSON.stringify(responseData)}`);
     }
 
     return new Response(
-      JSON.stringify({ success: true, data: responseData, format: 'rich_text' }),
+      JSON.stringify({ success: true, data: responseData }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-
   } catch (error: any) {
     console.error("Error sending WhatsApp:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };

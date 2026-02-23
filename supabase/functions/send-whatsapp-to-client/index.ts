@@ -16,282 +16,136 @@ serve(async (req) => {
     const { userId, clientPhone, message } = await req.json();
 
     if (!userId) {
-      console.error('Missing userId');
       return new Response(JSON.stringify({ error: 'userId é obrigatório' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
     if (!clientPhone) {
-      console.error('Missing clientPhone');
       return new Response(JSON.stringify({ error: 'clientPhone é obrigatório' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
     if (!message) {
-      console.error('Missing message');
       return new Response(JSON.stringify({ error: 'message é obrigatório' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Get central Evolution API credentials from environment
-    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-
-    if (!rawEvolutionApiUrl || !evolutionApiKey) {
-      console.error('Evolution API not configured in environment');
-      return new Response(JSON.stringify({ error: 'Evolution API não configurada no servidor' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const uazapiUrl = Deno.env.get('UAZAPI_URL');
+    if (!uazapiUrl) {
+      return new Response(JSON.stringify({ error: 'UAZAPI não configurada no servidor' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Clean the URL - auto-add https:// if missing
-    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
-    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
-    console.log('Using Evolution API base URL:', evolutionApiUrl);
-
-    // Create Supabase client to fetch user's instance
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Fetch user's WhatsApp instance from profiles
+    // Fetch user's WhatsApp instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id, whatsapp_to_clients_enabled, whatsapp_connected_phone, company_name')
+      .select('whatsapp_instance_id, whatsapp_instance_token, whatsapp_to_clients_enabled, whatsapp_connected_phone, company_name')
       .eq('id', userId)
       .single();
 
-    if (profileError) {
-      console.error('Error fetching profile:', profileError);
+    if (profileError || !profile) {
       return new Response(JSON.stringify({ error: 'Erro ao buscar configuração do perfil' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!profile) {
-      console.error('Profile not found for userId:', userId);
-      return new Response(JSON.stringify({ error: 'Perfil não encontrado' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Check if WhatsApp to clients is enabled
     if (!profile.whatsapp_to_clients_enabled) {
-      console.log('WhatsApp to clients disabled for user:', userId);
       return new Response(JSON.stringify({ error: 'Envio de WhatsApp para clientes está desativado' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Check if user has a WhatsApp instance connected
-    if (!profile.whatsapp_instance_id) {
-      console.error('WhatsApp instance not configured for user:', userId);
+    if (!profile.whatsapp_instance_token) {
       return new Response(JSON.stringify({ error: 'Conecte seu WhatsApp nas configurações para enviar mensagens aos clientes' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const instanceName = profile.whatsapp_instance_id;
-    
-    // CRITICAL: Check real-time connection state before attempting to send
-    console.log(`Checking real-time connection state for instance: ${instanceName}`);
-    
+    const instanceToken = profile.whatsapp_instance_token;
+
+    // Check real-time connection status via UAZAPI
     try {
-      const stateResponse = await fetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
+      const statusResp = await fetch(`${uazapiUrl}/instance/status`, {
         method: 'GET',
-        headers: {
-          'apikey': evolutionApiKey,
-        },
+        headers: { 'token': instanceToken },
       });
-      
-      const stateText = await stateResponse.text();
-      console.log('Connection state check:', stateResponse.status, stateText);
-      
-      if (!stateResponse.ok) {
-        console.error('Instance not found or error checking state');
-        return new Response(JSON.stringify({ 
-          error: 'WhatsApp desconectado. Reconecte nas configurações escaneando o QR Code.' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      const stateData = JSON.parse(stateText);
-      const instanceState = stateData?.instance?.state || stateData?.state;
-      console.log(`Real-time instance state: ${instanceState}`);
-      
-      if (instanceState !== 'open') {
-        console.error(`Instance not connected. State: ${instanceState}`);
-        
+      const statusData = await statusResp.json().catch(() => null);
+      const state = statusData?.status || statusData?.state || 'unknown';
+      console.log(`Instance state: ${state}`);
+
+      if (state !== 'connected' && state !== 'open') {
         let errorMessage = 'WhatsApp não conectado.';
-        if (instanceState === 'connecting') {
+        if (state === 'connecting') {
           errorMessage = 'WhatsApp aguardando leitura do QR Code. Acesse as configurações para escanear.';
-        } else if (instanceState === 'close' || instanceState === 'disconnected') {
+        } else {
           errorMessage = 'WhatsApp desconectado. Reconecte nas configurações escaneando o QR Code.';
         }
-        
         return new Response(JSON.stringify({ error: errorMessage }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      
-      // Also update the profile if we detect it's connected but phone is missing
-      if (instanceState === 'open' && !profile.whatsapp_connected_phone) {
-        console.log('Instance is open but phone is missing in profile, attempting to update...');
-        
-        try {
-          const fetchResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
-            method: 'GET',
-            headers: { 'apikey': evolutionApiKey },
-          });
-          
-          if (fetchResponse.ok) {
-            const instances = await fetchResponse.json();
-            const inst = Array.isArray(instances) ? instances[0] : instances;
-            
-            // Extract phone from ownerJid
-            const ownerJid = inst?.ownerJid || inst?.owner || inst?.instance?.ownerJid || inst?.instance?.owner;
-            if (typeof ownerJid === 'string' && ownerJid.includes('@')) {
-              const phoneNumber = ownerJid.split('@')[0].replace(/\D/g, '');
-              if (phoneNumber.length >= 10) {
-                console.log('Found and updating phone number:', phoneNumber);
-                await supabase
-                  .from('profiles')
-                  .update({
-                    whatsapp_connected_phone: phoneNumber,
-                    whatsapp_connected_at: new Date().toISOString(),
-                    whatsapp_to_clients_enabled: true,
-                  })
-                  .eq('id', userId);
-              }
-            }
-          }
-        } catch (e) {
-          console.log('Could not update missing phone:', e);
-        }
-      }
-      
-    } catch (stateError) {
-      console.error('Error checking connection state:', stateError);
-      return new Response(JSON.stringify({ 
-        error: 'Erro ao verificar conexão do WhatsApp. Tente novamente.' 
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    } catch (e) {
+      console.error('Error checking connection state:', e);
+      return new Response(JSON.stringify({ error: 'Erro ao verificar conexão do WhatsApp. Tente novamente.' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Format phone number (remove non-digits)
-    const formattedPhone = clientPhone.replace(/\D/g, '');
-    
-    // Validate phone has actual digits (not just empty or whitespace)
+    // Format phone number
+    let formattedPhone = clientPhone.replace(/\D/g, '');
     if (!formattedPhone || formattedPhone.length < 8) {
-      console.error('Invalid phone number after formatting:', formattedPhone);
       return new Response(JSON.stringify({ error: 'Número de telefone do cliente inválido ou não cadastrado' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    
-    // Add country code if not present
-    const phoneWithCountryCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+    if (!formattedPhone.startsWith('55')) formattedPhone = `55${formattedPhone}`;
 
-    console.log(`Sending WhatsApp TEXT message to client via user's instance`);
-    console.log(`Instance: ${instanceName}`);
-    console.log(`Phone: ${phoneWithCountryCode}`);
+    console.log(`Sending WhatsApp via UAZAPI to: ${formattedPhone}`);
 
-    // Always use sendText endpoint for client messages
-    const apiUrl = `${evolutionApiUrl}/message/sendText/${instanceName}`;
-    
-    const response = await fetch(apiUrl, {
+    // Send via UAZAPI
+    const response = await fetch(`${uazapiUrl}/send/text`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
+        'token': instanceToken,
       },
       body: JSON.stringify({
-        number: phoneWithCountryCode,
+        number: formattedPhone,
         text: message,
       }),
     });
 
     const responseText = await response.text();
-    console.log('Evolution API response status:', response.status);
-    console.log('Evolution API response:', responseText);
+    console.log('UAZAPI response:', response.status, responseText);
 
     if (!response.ok) {
-      console.error('Evolution API error:', responseText);
-      
-      // Try to parse error for better message
       let errorDetail = 'Erro ao enviar mensagem pelo WhatsApp';
       let errorCode = 'UNKNOWN_ERROR';
-      
       try {
         const errorData = JSON.parse(responseText);
-        
-        // Detect "number does not exist on WhatsApp" error
-        const messageInfo = errorData?.response?.message;
-        if (Array.isArray(messageInfo) && messageInfo[0]?.exists === false) {
-          const invalidNumber = messageInfo[0]?.number || phoneWithCountryCode;
-          errorDetail = `O número ${invalidNumber} não possui WhatsApp ou está inválido. Verifique o cadastro do cliente.`;
-          errorCode = 'NUMBER_NOT_ON_WHATSAPP';
-          console.error('Number not on WhatsApp:', invalidNumber);
-        } else if (errorData?.message) {
-          errorDetail = errorData.message;
-        }
-      } catch {
-        // Use default error message
-      }
-      
-      return new Response(JSON.stringify({ 
-        error: errorDetail,
-        errorCode: errorCode,
-        details: responseText 
-      }), {
-        status: response.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        if (errorData?.message) errorDetail = errorData.message;
+      } catch { /* use default */ }
+
+      return new Response(JSON.stringify({ error: errorDetail, errorCode, details: responseText }), {
+        status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { raw: responseText };
-    }
+    try { result = JSON.parse(responseText); } catch { result = { raw: responseText }; }
 
-    console.log('WhatsApp TEXT message sent successfully to client:', phoneWithCountryCode);
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Mensagem enviada com sucesso para o cliente',
-      result 
-    }), {
+    return new Response(JSON.stringify({ success: true, message: 'Mensagem enviada com sucesso para o cliente', result }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-
   } catch (error: unknown) {
-    console.error('Error in send-whatsapp-to-client function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro interno do servidor';
-    return new Response(JSON.stringify({ 
-      error: errorMessage 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    console.error('Error in send-whatsapp-to-client:', error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro interno do servidor' }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

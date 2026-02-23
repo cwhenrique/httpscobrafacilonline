@@ -11,7 +11,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-
   try {
     const { userId } = await req.json();
 
@@ -22,76 +21,24 @@ serve(async (req) => {
       });
     }
 
-    // Get Evolution API credentials from environment
-    const rawEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    const uazapiUrl = Deno.env.get('UAZAPI_URL');
+    const adminToken = Deno.env.get('UAZAPI_ADMIN_TOKEN');
 
-    if (!rawEvolutionApiUrl || !evolutionApiKey) {
-      console.error('Evolution API not configured in environment');
-      return new Response(JSON.stringify({ error: 'Evolution API não configurada no servidor' }), {
+    if (!uazapiUrl || !adminToken) {
+      console.error('UAZAPI not configured');
+      return new Response(JSON.stringify({ error: 'UAZAPI não configurada no servidor' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Evolution API request helper with auth fallback (some deployments use different auth header)
-    const evolutionFetch = async (
-      url: string,
-      init: RequestInit & { headers?: Record<string, string> } = {}
-    ) => {
-      const baseHeaders = (init.headers ?? {}) as Record<string, string>;
-
-      // 1) Default: apikey header (official docs)
-      let resp = await fetch(url, {
-        ...init,
-        headers: {
-          ...baseHeaders,
-          apikey: evolutionApiKey,
-        },
-      });
-
-      // 2) Fallback: Authorization Bearer
-      if (resp.status === 401) {
-        resp = await fetch(url, {
-          ...init,
-          headers: {
-            ...baseHeaders,
-            Authorization: `Bearer ${evolutionApiKey}`,
-          },
-        });
-      }
-
-      // 3) Fallback: apikey as query param
-      if (resp.status === 401) {
-        const u = new URL(url);
-        if (!u.searchParams.get('apikey')) u.searchParams.set('apikey', evolutionApiKey);
-        resp = await fetch(u.toString(), {
-          ...init,
-          headers: {
-            ...baseHeaders,
-          },
-        });
-      }
-
-      return resp;
-    };
-
-    // Clean the URL - auto-add https:// if missing
-    const normalizedUrl = rawEvolutionApiUrl.match(/^https?:\/\//) ? rawEvolutionApiUrl : `https://${rawEvolutionApiUrl}`;
-    const urlMatch = normalizedUrl.match(/^(https?:\/\/[^\/]+)/);
-    const evolutionApiUrl = urlMatch ? urlMatch[1] : normalizedUrl;
-    console.log('Raw EVOLUTION_API_URL:', rawEvolutionApiUrl);
-    console.log('Cleaned base URL:', evolutionApiUrl);
-
-    // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Check if user already has an instance
+    // Check if user already has an instance with token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id')
+      .select('whatsapp_instance_id, whatsapp_instance_token')
       .eq('id', userId)
       .single();
 
@@ -103,293 +50,169 @@ serve(async (req) => {
       });
     }
 
-    // Generate unique instance name using short userId
+    // If user already has a token, check if instance is already connected
+    if (profile?.whatsapp_instance_token) {
+      try {
+        const statusResp = await fetch(`${uazapiUrl}/instance/status`, {
+          method: 'GET',
+          headers: { 'token': profile.whatsapp_instance_token },
+        });
+        const statusData = await statusResp.json().catch(() => null);
+        console.log('Existing instance status:', statusData);
+
+        if (statusData?.status === 'connected' || statusData?.state === 'connected') {
+          return new Response(JSON.stringify({
+            success: true,
+            alreadyConnected: true,
+            message: 'WhatsApp já está conectado',
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Instance exists but not connected - try to connect and get QR
+        const connectResp = await fetch(`${uazapiUrl}/instance/connect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'token': profile.whatsapp_instance_token,
+          },
+          body: JSON.stringify({}),
+        });
+        const connectData = await connectResp.json().catch(() => null);
+        console.log('Connect response:', connectData);
+
+        const qrCode = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+        if (qrCode) {
+          return new Response(JSON.stringify({
+            success: true,
+            instanceName: profile.whatsapp_instance_id,
+            qrCode,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Return pending if no QR yet
+        return new Response(JSON.stringify({
+          success: true,
+          instanceName: profile.whatsapp_instance_id,
+          pendingQr: true,
+          message: 'QR Code sendo gerado, aguarde...',
+        }), {
+          status: 202,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        console.log('Error checking existing instance, will create new:', e);
+      }
+    }
+
+    // Create new instance via UAZAPI
     const shortUserId = userId.substring(0, 8);
-    const instanceName = profile?.whatsapp_instance_id || `cf_${shortUserId}`;
+    const instanceName = `cf_${shortUserId}`;
+    console.log(`Creating UAZAPI instance: ${instanceName}`);
 
-    console.log(`Creating/fetching instance: ${instanceName}`);
-
-    // First, try to create the instance (if it already exists, Evolution API will return it)
-    // Configure webhook URL for automatic reconnection
-    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-connection-webhook`;
-    console.log('Configuring webhook URL:', webhookUrl);
-    
-    const createResponse = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
+    const createResponse = await fetch(`${uazapiUrl}/instance/init`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'admintoken': adminToken,
       },
-      body: JSON.stringify({
-        instanceName: instanceName,
-        qrcode: true,
-        integration: 'WHATSAPP-BAILEYS',
-        rejectCall: false,
-        readMessages: false,
-        readStatus: false,
-        alwaysOnline: true,
-        syncFullHistory: false,
-        webhook: {
-          enabled: true,
-          url: webhookUrl,
-          byEvents: false,
-          base64: true,
-          events: [
-            "CONNECTION_UPDATE",
-            "QRCODE_UPDATED",
-            "MESSAGES_UPSERT"
-          ]
-        }
-      }),
+      body: JSON.stringify({ name: instanceName }),
     });
 
     const createText = await createResponse.text();
-    console.log('Create instance response:', createResponse.status, createText.substring(0, 200));
+    console.log('Create instance response:', createResponse.status, createText.substring(0, 300));
 
-    // Detect server offline (502/503 or HTML response = service unreachable)
+    // Detect server offline
     const isHtml = createText.trim().startsWith('<!') || createText.includes('<html');
     if (createResponse.status === 502 || createResponse.status === 503 || isHtml) {
-      console.error('Evolution API server is offline or returned HTML');
-      return new Response(
-        JSON.stringify({
-          error: 'Servidor WhatsApp temporariamente indisponível. Tente novamente em alguns minutos.',
-          serverOffline: true,
-          instanceName,
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({
+        error: 'Servidor WhatsApp temporariamente indisponível. Tente novamente em alguns minutos.',
+        serverOffline: true,
+        instanceName,
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    if (createResponse.status === 401) {
-      return new Response(
-        JSON.stringify({
-          error:
-            'Não autorizado na Evolution API ao criar instância. Verifique se a chave (EVOLUTION_API_KEY) tem permissão para criar instâncias.',
-          instanceName,
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    let createData: any = null;
+    try {
+      createData = JSON.parse(createText);
+    } catch {
+      console.error('Failed to parse create response');
+      return new Response(JSON.stringify({ error: 'Resposta inválida do servidor UAZAPI' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
+    // Extract token from response
+    const instanceToken = createData?.token || createData?.data?.token;
+    if (!instanceToken) {
+      console.error('No token in create response:', createData);
+      return new Response(JSON.stringify({ error: 'Token da instância não retornado pela UAZAPI' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Instance created, token received');
+
+    // Save instance info to profile
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        whatsapp_instance_id: instanceName,
+        whatsapp_instance_token: instanceToken,
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating profile:', updateError);
+    }
+
+    // Now connect to get QR code
     let qrCodeBase64 = null;
-
-    // If 403 ("already in use"), check state and delete+recreate if close
-    if (createResponse.status === 403) {
-      console.log('[Create] Instance already exists (403), checking state...');
-      let existingState = 'unknown';
-      try {
-        const stResp = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`);
-        const stData = await stResp.json().catch(() => null);
-        existingState = stData?.instance?.state || stData?.state || 'unknown';
-        console.log(`[Create] Existing instance state: ${existingState}`);
-      } catch { /* ignore */ }
-
-      if (existingState === 'open' || existingState === 'connected') {
-        return new Response(
-          JSON.stringify({ success: true, alreadyConnected: true, message: 'WhatsApp já está conectado' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      if (existingState === 'close' || existingState === 'unknown') {
-        console.log('[Create] Deleting stuck instance and recreating...');
-        try {
-          const delResp = await evolutionFetch(`${evolutionApiUrl}/instance/delete/${instanceName}`, { method: 'DELETE' });
-          console.log(`[Create] Delete status: ${delResp.status}`);
-          await delResp.text();
-        } catch (e) {
-          console.log('[Create] Delete error (continuing):', e);
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Retry create
-        const retryResp = await evolutionFetch(`${evolutionApiUrl}/instance/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            instanceName,
-            qrcode: true,
-            integration: 'WHATSAPP-BAILEYS',
-            rejectCall: false,
-            readMessages: false,
-            readStatus: false,
-            alwaysOnline: true,
-            syncFullHistory: false,
-            webhook: {
-              enabled: true,
-              url: webhookUrl,
-              byEvents: false,
-              base64: true,
-              events: ["CONNECTION_UPDATE", "QRCODE_UPDATED", "MESSAGES_UPSERT"]
-            }
-          }),
-        });
-        const retryText = await retryResp.text();
-        console.log(`[Create] Retry create status: ${retryResp.status}`);
-
-        try {
-          const retryData = JSON.parse(retryText);
-          if (retryData.base64) qrCodeBase64 = retryData.base64;
-          else if (retryData.qrcode?.base64) qrCodeBase64 = retryData.qrcode.base64;
-          else if (retryData.code) qrCodeBase64 = retryData.code;
-        } catch { /* ignore */ }
-      }
-    }
-
-    // If instance was created or already exists, try to get QR code (fast-path)
-    if (createResponse.ok || (createResponse.status === 403 && !qrCodeBase64)) {
-      // First, check instance state
-      const stateResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connectionState/${instanceName}`, {
-        method: 'GET',
+    try {
+      const connectResp = await fetch(`${uazapiUrl}/instance/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'token': instanceToken,
+        },
+        body: JSON.stringify({}),
       });
+      const connectData = await connectResp.json().catch(() => null);
+      console.log('Connect response:', JSON.stringify(connectData).substring(0, 200));
 
-      const stateText = await stateResponse.text();
-      console.log('State check response:', stateResponse.status, stateText);
-
-      let instanceState = null;
-      try {
-        const stateData = JSON.parse(stateText);
-        instanceState = stateData.instance?.state || stateData.state;
-        console.log('Instance state:', instanceState);
-        
-        // If already connected, return success
-        if (instanceState === 'open' || instanceState === 'connected') {
-          return new Response(
-            JSON.stringify({
-              success: true,
-              alreadyConnected: true,
-              message: 'WhatsApp já está conectado',
-            }),
-            {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-          );
-        }
-      } catch (e) {
-        console.error('Error parsing state response:', e);
-      }
-
-      // If instance is 'close' or undefined, we need to do logout first to reset
-      if (instanceState === 'close' || !instanceState) {
-        console.log('Instance is closed or undefined, doing logout first...');
-        try {
-          const logoutResponse = await evolutionFetch(`${evolutionApiUrl}/instance/logout/${instanceName}`, {
-            method: 'DELETE',
-          });
-          console.log('Logout response:', logoutResponse.status);
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        } catch (e) {
-          console.log('Logout attempt error (continuing anyway):', e);
-        }
-      }
-
-      // Try to connect and get QR code
-      const connectResponse = await evolutionFetch(`${evolutionApiUrl}/instance/connect/${instanceName}`, {
-        method: 'GET',
-      });
-
-      const connectText = await connectResponse.text();
-      console.log('Connect instance response:', connectResponse.status, connectText);
-
-      if (connectResponse.ok) {
-        try {
-          const connectData = JSON.parse(connectText);
-          
-          // Check for error in response body
-          if (connectData.error === true) {
-            console.log('Connect returned error, trying restart...');
-          } else if (connectData.base64) {
-            qrCodeBase64 = connectData.base64;
-          } else if (connectData.code) {
-            qrCodeBase64 = connectData.code;
-          } else if (connectData.qrcode?.base64) {
-            qrCodeBase64 = connectData.qrcode.base64;
-          } else if (connectData.instance?.state === 'open') {
-            return new Response(
-              JSON.stringify({
-                success: true,
-                alreadyConnected: true,
-                message: 'WhatsApp já está conectado',
-              }),
-              {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              }
-            );
-          }
-        } catch (e) {
-          console.error('Error parsing connect response:', e);
-        }
-      }
-
-      // IMPORTANT: não tente loops longos de restart/delete aqui.
-      // Se o QR ainda não estiver pronto, o frontend fará polling via whatsapp-get-qrcode.
-    }
-
-    // Save instance ID to profile if new
-    if (!profile?.whatsapp_instance_id) {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          whatsapp_instance_id: instanceName,
-        })
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('Error updating profile with instance:', updateError);
-      }
-    }
-
-    // Check if webhook delivered a QR code
-    if (!qrCodeBase64) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const { data: qrRow } = await supabase
-        .from('whatsapp_qr_codes')
-        .select('qr_code')
-        .eq('instance_name', instanceName)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (qrRow?.qr_code) {
-        console.log('Found QR code from webhook!');
-        qrCodeBase64 = qrRow.qr_code;
-      }
+      qrCodeBase64 = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+    } catch (e) {
+      console.error('Error connecting instance:', e);
     }
 
     if (qrCodeBase64) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          instanceName,
-          qrCode: qrCodeBase64,
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // QR not available (Evolution API v2.3.7 bug) - signal frontend to use pairing code
-    console.log('QR not available, signaling pairing code fallback');
-    return new Response(
-      JSON.stringify({
+      return new Response(JSON.stringify({
         success: true,
         instanceName,
-        pendingQr: true,
-        usePairingCode: true,
-        message: 'QR Code não disponível nesta versão. Use o código de pareamento.',
-      }),
-      {
-        status: 202,
+        qrCode: qrCodeBase64,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+      });
+    }
+
+    // QR not ready yet
+    return new Response(JSON.stringify({
+      success: true,
+      instanceName,
+      pendingQr: true,
+      message: 'Instância criada. QR Code sendo gerado...',
+    }), {
+      status: 202,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error: unknown) {
     console.error('Error in whatsapp-create-instance:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro interno';

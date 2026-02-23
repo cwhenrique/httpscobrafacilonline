@@ -1295,6 +1295,7 @@ export type Database = {
           whatsapp_connected_at: string | null
           whatsapp_connected_phone: string | null
           whatsapp_instance_id: string | null
+          whatsapp_instance_token: string | null
           whatsapp_to_clients_enabled: boolean | null
         }
         Insert: {
@@ -1341,6 +1342,7 @@ export type Database = {
           whatsapp_connected_at?: string | null
           whatsapp_connected_phone?: string | null
           whatsapp_instance_id?: string | null
+          whatsapp_instance_token?: string | null
           whatsapp_to_clients_enabled?: boolean | null
         }
         Update: {
@@ -1387,6 +1389,7 @@ export type Database = {
           whatsapp_connected_at?: string | null
           whatsapp_connected_phone?: string | null
           whatsapp_instance_id?: string | null
+          whatsapp_instance_token?: string | null
           whatsapp_to_clients_enabled?: boolean | null
         }
         Relationships: []
