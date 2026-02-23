@@ -242,6 +242,16 @@ export default function SendOverdueNotification({
       if (config.includeAmount) {
         message += `\n💵 *TOTAL A PAGAR:* ${formatCurrency(totalAmount)}\n`;
       }
+
+      // Adicionar lista de status das parcelas para diários com múltiplos atrasos
+      if (config.includeInstallmentsList && data.installmentDates && data.installmentDates.length > 0) {
+        message += `\n`;
+        message += generateInstallmentStatusList({
+          installmentDates: data.installmentDates,
+          paidCount: data.paidCount || 0,
+          paidIndices: data.paidIndices,
+        });
+      }
     } else {
       const installmentInfo = data.installmentNumber && data.totalInstallments 
         ? `Parcela ${data.installmentNumber}/${data.totalInstallments}` 
@@ -368,8 +378,8 @@ export default function SendOverdueNotification({
       message += `⚠️ *Multa:* +${formatCurrency(appliedPenalty)}\n`;
     }
     
-    // Lista de parcelas (até 20)
-    if (data.installmentDates && data.installmentDates.length > 0 && data.installmentDates.length <= 20) {
+    // Lista de parcelas
+    if (data.installmentDates && data.installmentDates.length > 0 && data.installmentDates.length <= 60) {
       message += `\n`;
       message += generateInstallmentStatusList({
         installmentDates: data.installmentDates,
