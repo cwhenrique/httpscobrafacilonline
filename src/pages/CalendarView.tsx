@@ -86,8 +86,36 @@ export default function CalendarView() {
     fetchLoans();
   }, [fetchLoans]);
 
+  // Parse custom installments from notes tag
+  const parseCustomInstallmentsFromNotes = (notes: string | null): number[] | null => {
+    if (!notes) return null;
+    const match = notes.match(/\[CUSTOM_INSTALLMENTS:([^\]]+)\]/);
+    if (!match) return null;
+    const values = match[1].split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v) && v > 0);
+    return values.length > 0 ? values : null;
+  };
+
   // Calculate installment and interest values for a loan
-  const calculateLoanValues = (loan: Loan) => {
+  const calculateLoanValues = (loan: Loan, installmentIndex?: number) => {
+    // Check for custom interest mode with individual installment values
+    if (loan.interest_mode === 'custom') {
+      const customValues = parseCustomInstallmentsFromNotes(loan.notes);
+      if (customValues) {
+        const totalCustom = customValues.reduce((s, v) => s + v, 0);
+        const totalInterest = totalCustom - loan.principal_amount;
+        const avgValue = totalCustom / customValues.length;
+        const specificValue = (installmentIndex !== undefined && customValues[installmentIndex] !== undefined)
+          ? customValues[installmentIndex]
+          : avgValue;
+        return {
+          installmentValue: specificValue,
+          interestOnlyValue: specificValue - (loan.principal_amount / customValues.length),
+          principalAmount: loan.principal_amount,
+          totalToReceive: totalCustom
+        };
+      }
+    }
+
     // First check if there's a custom installment value set manually
     const customValue = getCustomInstallmentValue(loan.notes);
     if (customValue) {
@@ -112,23 +140,18 @@ export default function CalendarView() {
     let interestOnlyValue = 0;
     
     if (loan.payment_type === 'daily') {
-      // For daily loans: total_interest stores daily amount, interest_rate stores profit
       const dailyAmount = loan.total_interest || 0;
       const dailyDates = Array.isArray(loan.installment_dates) ? loan.installment_dates.length : 1;
       installmentValue = dailyAmount;
       totalInterest = (dailyAmount * dailyDates) - principal;
       interestOnlyValue = dailyAmount - (principal / dailyDates);
     } else {
-      // PRIORIZAR total_interest do banco (arredondamento manual)
-      // Se o usuário arredondou o juros de R$ 157,80 para R$ 160,00, usar R$ 160,00
       if (loan.total_interest && loan.total_interest > 0) {
         totalInterest = loan.total_interest;
       } else {
-        // Fallback: calcular baseado na taxa
         if (interestMode === 'per_installment') {
           totalInterest = principal * (rate / 100) * installments;
         } else {
-          // on_total ou compound
           totalInterest = principal * (rate / 100);
         }
       }
@@ -158,7 +181,7 @@ export default function CalendarView() {
     loans.forEach(loan => {
       if (loan.status === 'paid') return;
 
-      const values = calculateLoanValues(loan);
+      const defaultValues = calculateLoanValues(loan);
 
       // For installment loans, check each installment date
       if ((loan.payment_type === 'installment' || loan.payment_type === 'daily' || loan.payment_type === 'weekly' || loan.payment_type === 'biweekly') && loan.installment_dates) {
@@ -172,6 +195,9 @@ export default function CalendarView() {
         installmentDates.forEach((dateStr, index) => {
           const dateKey = dateStr as string;
           const dueDate = parseISO(dateKey);
+          
+          // Get values specific to this installment index (for custom mode)
+          const values = calculateLoanValues(loan, index);
           
           // Verificar se a parcela foi paga
           const paidAmount = partialPayments[index] || 0;
@@ -212,7 +238,7 @@ export default function CalendarView() {
           type: 'loan',
           loan,
           isOverdue,
-          ...values
+          ...defaultValues
         });
       }
     });

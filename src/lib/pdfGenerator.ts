@@ -1539,15 +1539,20 @@ export const generateSimulationPDF = async (data: SimulationPDFData): Promise<vo
   const LIGHT_CYAN_BG = { r: 207, g: 250, b: 254 }; // cyan-100
   const LIGHT_YELLOW_BG = { r: 254, g: 249, b: 195 }; // yellow-100
 
+  const PURPLE = { r: 168, g: 85, b: 247 }; // purple-500
+  const LIGHT_PURPLE_BG = { r: 243, g: 232, b: 255 }; // purple-100
+
   const getInterestModeColor = () => {
     if (data.interestMode.includes('Compostos')) return CYAN;
     if (data.interestMode.includes('Total')) return YELLOW;
+    if (data.interestMode.includes('Personalizadas')) return PURPLE;
     return PRIMARY_GREEN;
   };
 
   const getInterestModeBg = () => {
     if (data.interestMode.includes('Compostos')) return LIGHT_CYAN_BG;
     if (data.interestMode.includes('Total')) return LIGHT_YELLOW_BG;
+    if (data.interestMode.includes('Personalizadas')) return LIGHT_PURPLE_BG;
     return LIGHT_GREEN_BG;
   };
 
