@@ -395,6 +395,12 @@ export default function Profile() {
       toast.error('WhatsApp disponível apenas para planos pagos');
       return;
     }
+
+    // Restrict WhatsApp connection to authorized email only
+    if (profile?.email !== 'cw@gmail.com') {
+      toast.error('Função de conexão WhatsApp temporariamente restrita.');
+      return;
+    }
     
     setGeneratingQr(true);
     setShowQrModal(true);
@@ -451,6 +457,11 @@ export default function Profile() {
     
     if (!isPaidPlan()) {
       toast.error('WhatsApp disponível apenas para planos pagos');
+      return;
+    }
+
+    if (profile?.email !== 'cw@gmail.com') {
+      toast.error('Função de conexão WhatsApp temporariamente restrita.');
       return;
     }
     
