@@ -1889,7 +1889,12 @@ export type Database = {
         | "view_dashboard"
         | "view_all_clients"
         | "manage_checks"
-      interest_mode: "per_installment" | "on_total" | "compound" | "sac"
+      interest_mode:
+        | "per_installment"
+        | "on_total"
+        | "compound"
+        | "sac"
+        | "custom"
       interest_type: "simple" | "compound"
       loan_payment_type:
         | "single"
@@ -2047,7 +2052,13 @@ export const Constants = {
         "view_all_clients",
         "manage_checks",
       ],
-      interest_mode: ["per_installment", "on_total", "compound", "sac"],
+      interest_mode: [
+        "per_installment",
+        "on_total",
+        "compound",
+        "sac",
+        "custom",
+      ],
       interest_type: ["simple", "compound"],
       loan_payment_type: [
         "single",

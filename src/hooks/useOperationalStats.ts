@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEmployeeContext } from '@/hooks/useEmployeeContext';
 import { Loan } from '@/types/database';
-import { isLoanOverdue, getTotalDailyPenalties, getDaysOverdue, calculateDynamicOverdueInterest, getPartialPaymentsFromNotes } from '@/lib/calculations';
+import { isLoanOverdue, getTotalDailyPenalties, getDaysOverdue, calculateDynamicOverdueInterest, getPartialPaymentsFromNotes, parseCustomInstallments } from '@/lib/calculations';
 import { startOfDay } from 'date-fns';
 
 export interface OperationalStats {
@@ -155,6 +155,13 @@ async function fetchOperationalStats(): Promise<StatsData> {
       } else if (interestMode === 'compound') {
         // Juros compostos: M = P × (1 + i)^n - P
         totalInterest = principal * Math.pow(1 + (rate / 100), installments) - principal;
+      } else if (interestMode === 'custom') {
+        const customValues = parseCustomInstallments(loan.notes);
+        if (customValues) {
+          totalInterest = customValues.reduce((sum: number, v: number) => sum + v, 0) - principal;
+        } else {
+          totalInterest = Number(loan.total_interest) || 0;
+        }
       } else {
         // on_total
         totalInterest = principal * (rate / 100);
