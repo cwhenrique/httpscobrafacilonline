@@ -118,7 +118,7 @@ export function getDaysUntilDue(discountDate: string, dueDate: string): number {
   const due = new Date(dueDate);
   const diffTime = due.getTime() - discount.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return Math.max(0, diffDays);
+  return Math.max(1, Math.abs(diffDays));
 }
 
 export function getStatusLabel(status: CheckDiscountStatus): string {
