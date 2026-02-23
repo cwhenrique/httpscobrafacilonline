@@ -101,11 +101,12 @@ export function calculateDiscountAmount(
 ): number {
   if (discountType === 'percentage') {
     // Fixed percentage regardless of days
-    return nominalValue * (discountRate / 100);
+    return Math.min(nominalValue * (discountRate / 100), nominalValue);
   } else {
     // Proportional: rate is monthly (30 days)
     const proportionalRate = (discountRate / 30) * daysUntilDue;
-    return nominalValue * (proportionalRate / 100);
+    const rawDiscount = nominalValue * (proportionalRate / 100);
+    return Math.min(rawDiscount, nominalValue);
   }
 }
 
