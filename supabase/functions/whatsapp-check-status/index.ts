@@ -106,8 +106,17 @@ serve(async (req) => {
       });
     }
 
-    // Passive check mode
+    // Passive check mode - also update profile if connected
     if (!attemptReconnect) {
+      if (isConnected && (!profile.whatsapp_connected_at || !profile.whatsapp_to_clients_enabled)) {
+        const updateData: Record<string, unknown> = {
+          whatsapp_connected_at: profile.whatsapp_connected_at || new Date().toISOString(),
+          whatsapp_to_clients_enabled: true,
+        };
+        if (phoneNumber) updateData.whatsapp_connected_phone = phoneNumber;
+        await supabase.from('profiles').update(updateData).eq('id', userId);
+      }
+
       return new Response(JSON.stringify({
         connected: isConnected,
         status: state,
