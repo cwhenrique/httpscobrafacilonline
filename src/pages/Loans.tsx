@@ -4525,6 +4525,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         value = renewalFeeValue;
       } else if (selectedLoan.interest_mode === 'sac') {
         value = calculateSACInstallmentValue(selectedLoan.principal_amount, selectedLoan.interest_rate, numInstallments, index);
+      } else if (selectedLoan.interest_mode === 'custom') {
+        const customValues = parseCustomInstallments(selectedLoan.notes);
+        if (customValues && index < customValues.length) value = customValues[index];
       }
       // Adicionar multa se existir para esta parcela
       const penalty = loanPenalties[index] || 0;
@@ -12669,6 +12672,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     <div className="text-sm text-muted-foreground">
                       {isDaily ? (
                         <>Parcela Diária: {formatCurrency(totalPerInstallment)} (Lucro: {formatCurrency(totalInterest)})</>
+                      ) : selectedLoan.interest_mode === 'custom' ? (
+                        <>Parcelas Personalizadas (Total: {formatCurrency(selectedLoan.principal_amount + totalInterest)})</>
                       ) : (
                         <>Parcela: {formatCurrency(totalPerInstallment)} ({formatCurrency(principalPerInstallment)} + {formatCurrency(interestPerInstallment)} juros)</>
                       )}
@@ -12751,6 +12756,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       // SAC: cada parcela tem valor individual decrescente
                       if (selectedLoan.interest_mode === 'sac') {
                         return calculateSACInstallmentValue(selectedLoan.principal_amount, selectedLoan.interest_rate, numInstallments, index);
+                      }
+                      // Parcelas personalizadas: usar valor individual
+                      if (selectedLoan.interest_mode === 'custom') {
+                        const customValues = parseCustomInstallments(selectedLoan.notes);
+                        if (customValues && index < customValues.length) return customValues[index];
                       }
                       // Caso contrário, usar o valor normal da parcela
                       return totalPerInstallment;
@@ -13228,6 +13238,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       let baseValue = totalPerInstallment;
                       if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
                         baseValue = renewalFeeValue;
+                      } else if (selectedLoan.interest_mode === 'custom') {
+                        const customValues = parseCustomInstallments(selectedLoan.notes);
+                        if (customValues && index < customValues.length) baseValue = customValues[index];
                       }
                       const penalty = dailyPenaltiesPartial[index] || 0;
                       const overdueInterest = getOverdueInterestForInstallmentPartial(index).amount;
