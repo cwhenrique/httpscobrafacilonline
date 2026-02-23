@@ -1,25 +1,37 @@
 
 
-## Melhorar resumo no modo "Calcular por Taxa"
+## Corrigir calculo proporcional no Desconto de Cheque
 
 ### Problema
-No modo "Calcular por Taxa", o resumo da operacao nao mostra claramente quanto o usuario deve pagar pelo cheque. Alem disso, quando "Proporcional aos dias" esta selecionado e as datas sao iguais, o desconto fica zero, o que confunde.
+
+A funcao `getDaysUntilDue` usa `Math.max(0, diffDays)`, o que faz com que quando a data de vencimento e anterior ou igual a data do desconto, o numero de dias retorne 0. Isso zera o desconto no modo "Proporcional aos dias", resultando em lucro R$ 0,00 e valor a pagar = valor nominal.
+
+No screenshot do usuario: data desconto = 23/02/2026, vencimento = 20/04/2023 (no passado), entao dias = 0 e desconto = 0.
+
+### Solucao
+
+Usar o valor absoluto dos dias entre as duas datas em vez de limitar a zero. Isso garante que o calculo funcione independente da ordem das datas.
 
 ### Alteracoes
 
-**Arquivo: `src/pages/CheckDiscounts.tsx`**
+**Arquivo: `src/types/checkDiscount.ts`**
 
-1. **Adicionar linha "Valor a Pagar" no resumo** - No card de "Resumo da Operacao", adicionar uma linha destacada mostrando o valor que o usuario deve pagar pelo cheque (purchase value), alem do lucro. A ordem ficara:
-   - Valor do Cheque: R$ 1.000,00
-   - Desconto (taxa aplicada): - R$ 100,00
-   - **Valor a Pagar pelo Cheque: R$ 900,00** (novo, destacado)
-   - Lucro: R$ 100,00
-   - Rentabilidade: 10%
+Alterar a funcao `getDaysUntilDue` para usar `Math.abs` em vez de `Math.max(0, ...)`:
 
-2. **Mostrar calculo detalhado da taxa** - Na linha de detalhes, exibir: "Taxa de 10% = desconto de R$ 100,00" para percentual fixo, ou "10% / 30 dias x N dias = desconto de R$ X" para proporcional.
+```
+// De:
+return Math.max(0, diffDays);
 
-### Detalhes tecnicos
+// Para:
+return Math.max(1, Math.abs(diffDays));
+```
 
-- Alterar o bloco do card de resumo (~linhas 946-991) para incluir a nova linha "Valor a Pagar pelo Cheque" com destaque visual (texto maior, cor primaria)
-- Renomear "Valor de Compra" para "Desconto" no modo calculado (ja que o valor de compra sera mostrado separadamente como "Valor a Pagar")
-- Manter a logica de calculo existente intacta - apenas melhorar a apresentacao visual
+Usar `Math.max(1, ...)` garante que mesmo com datas iguais, pelo menos 1 dia seja considerado no calculo, evitando desconto zero inesperado.
+
+### Impacto
+
+- Afeta apenas o calculo proporcional (tipo "proportional")
+- O tipo "percentage" (percentual fixo) nao usa dias, entao nao e afetado
+- A funcao e usada tanto no frontend (preview do formulario e hook `useCheckDiscounts`) quanto nas funcoes de backend
+- Nenhuma outra parte do sistema usa essa funcao
+
