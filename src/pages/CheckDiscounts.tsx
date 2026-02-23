@@ -955,14 +955,35 @@ export default function CheckDiscounts() {
                       <span className="font-medium">{formatCurrency(formData.nominal_value)}</span>
                     </div>
                     
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Valor de Compra:</span>
-                      <span className="font-medium">- {formatCurrency(calculatedValues.purchaseValue)}</span>
-                    </div>
+                    {calculationMode === 'calculated' && (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Desconto ({formData.discount_rate}%):</span>
+                          <span className="font-medium text-red-500">- {formatCurrency(calculatedValues.profit)}</span>
+                        </div>
+                        
+                        <div className="text-xs text-muted-foreground">
+                          {formData.discount_type === 'percentage' 
+                            ? `Taxa de ${formData.discount_rate}% = desconto de ${formatCurrency(calculatedValues.profit)}`
+                            : `${formData.discount_rate}% / 30 dias × ${calculatedValues.days} dias = desconto de ${formatCurrency(calculatedValues.profit)}`
+                          }
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="flex justify-between items-center bg-primary/10 rounded-lg p-2 -mx-1">
+                          <span className="font-semibold text-sm">💰 Valor a Pagar pelo Cheque:</span>
+                          <span className="text-lg font-bold text-primary">
+                            {formatCurrency(calculatedValues.purchaseValue)}
+                          </span>
+                        </div>
+                      </>
+                    )}
                     
-                    {calculationMode === 'calculated' && calculatedValues.days > 0 && (
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>({calculatedValues.days} dias × {formData.discount_rate}% ao mês)</span>
+                    {calculationMode === 'direct' && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Valor de Compra:</span>
+                        <span className="font-medium">- {formatCurrency(calculatedValues.purchaseValue)}</span>
                       </div>
                     )}
                     
