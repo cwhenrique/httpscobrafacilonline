@@ -397,8 +397,8 @@ export default function Profile() {
     }
 
     // Restrict WhatsApp connection to authorized email only
-    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'Clau_pogian@hotmail.com'];
-    if (!allowedEmails.includes(profile?.email || '')) {
+    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'clau_pogian@hotmail.com'];
+    if (!allowedEmails.includes((profile?.email || '').toLowerCase())) {
       toast.error('Função de conexão WhatsApp temporariamente restrita.');
       return;
     }
@@ -461,8 +461,8 @@ export default function Profile() {
       return;
     }
 
-    const allowedEmailsRefresh = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'Clau_pogian@hotmail.com'];
-    if (!allowedEmailsRefresh.includes(profile?.email || '')) {
+    const allowedEmailsRefresh = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'clau_pogian@hotmail.com'];
+    if (!allowedEmailsRefresh.includes((profile?.email || '').toLowerCase())) {
       toast.error('Função de conexão WhatsApp temporariamente restrita.');
       return;
     }
