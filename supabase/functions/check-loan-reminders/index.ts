@@ -7,182 +7,35 @@ const corsHeaders = {
 };
 
 const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
-const formatDate = (date: Date): string => {
-  return new Intl.DateTimeFormat('pt-BR').format(date);
-};
-
-const cleanApiUrl = (url: string): string => {
-  let cleaned = url.replace(/\/+$/, '');
-  const pathPatterns = [
-    /\/message\/sendText\/[^\/]+$/i,
-    /\/message\/sendList\/[^\/]+$/i,
-    /\/message\/sendText$/i,
-    /\/message\/sendList$/i,
-    /\/message$/i,
-  ];
-  for (const pattern of pathPatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-  return cleaned;
-};
-
-interface ListRow {
-  title: string;
-  description: string;
-  rowId: string;
-}
-
-interface ListSection {
-  title: string;
-  rows: ListRow[];
-}
-
-interface ListData {
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  sections: ListSection[];
-}
-
-const truncate = (str: string, max: number): string => 
-  str.length > max ? str.substring(0, max - 3) + '...' : str;
-
-const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
-  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = "notficacao";
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error("Missing Evolution API configuration");
-    return false;
-  }
-  
-  console.log("Using fixed system instance: notficacao");
-
-  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
-
+const formatPhoneNumber = (phone: string): string => {
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
+  return cleaned;
+};
 
-  const preparedSections = listData.sections.slice(0, 10).map(section => ({
-    title: truncate(section.title, 24),
-    rows: section.rows.slice(0, 10).map(row => ({
-      title: truncate(row.title, 24),
-      description: truncate(row.description, 72),
-      rowId: row.rowId,
-    })),
-  }));
-
+const sendWhatsApp = async (phone: string, message: string, instanceToken: string): Promise<boolean> => {
+  const uazapiUrl = Deno.env.get("UAZAPI_URL");
+  if (!uazapiUrl || !instanceToken) return false;
+  const formattedPhone = formatPhoneNumber(phone);
   try {
-    const response = await fetch(
-      `${evolutionApiUrl}/message/sendList/${instanceName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: cleaned,
-          title: truncate(listData.title, 60),
-          description: truncate(listData.description, 1024),
-          buttonText: truncate(listData.buttonText, 20),
-          footerText: truncate(listData.footerText, 60),
-          sections: preparedSections,
-        }),
-      }
-    );
-
-    const data = await response.json();
-    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
-    
-    if (!response.ok) {
-      console.error("sendList failed, trying fallback text");
-      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
-      const textResponse = await fetch(
-        `${evolutionApiUrl}/message/sendText/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: cleaned,
-            text: fallbackMessage,
-          }),
-        }
-      );
-      return textResponse.ok;
-    }
-    
-    return true;
+    const response = await fetch(`${uazapiUrl}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "token": instanceToken },
+      body: JSON.stringify({ phone: formattedPhone, message }),
+    });
+    console.log(`WhatsApp sent to ${formattedPhone}: ${response.status}`);
+    return response.ok;
   } catch (error) {
-    console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
+    console.error(`Failed to send WhatsApp to ${formattedPhone}:`, error);
     return false;
   }
 };
 
-// Send push notification
-const sendPushNotification = async (
-  supabase: any,
-  userId: string,
-  title: string,
-  body: string,
-  url?: string
-): Promise<void> => {
-  try {
-    // Get user's push subscriptions
-    const { data: subscriptions } = await supabase
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (!subscriptions || subscriptions.length === 0) return;
-
-    // Send via edge function
-    for (const sub of subscriptions) {
-      try {
-        const response = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({
-              userId,
-              title,
-              body,
-              url,
-            }),
-          }
-        );
-        if (response.ok) {
-          console.log(`Push notification sent to user ${userId}`);
-        }
-      } catch (e) {
-        console.error(`Failed to send push to user ${userId}:`, e);
-      }
-    }
-  } catch (error) {
-    console.error("Error sending push notification:", error);
-  }
-};
-
-const getContractId = (id: string): string => {
-  return `EMP-${id.substring(0, 4).toUpperCase()}`;
-};
+const getContractId = (id: string): string => `EMP-${id.substring(0, 4).toUpperCase()}`;
 
 const getPaymentTypeLabel = (type: string): string => {
   switch (type) {
@@ -204,35 +57,23 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    console.log("Checking loans due today:", todayStr);
-
     const { data: loans, error: loansError } = await supabase
       .from('loans')
-      .select(`
-        *,
-        clients!inner(full_name, phone)
-      `)
+      .select(`*, clients!inner(full_name, phone)`)
       .eq('status', 'pending');
 
-    if (loansError) {
-      console.error("Error fetching loans:", loansError);
-      throw loansError;
-    }
-
-    console.log(`Found ${loans?.length || 0} pending loans`);
+    if (loansError) throw loansError;
 
     const userLoansMap: Map<string, any[]> = new Map();
 
     for (const loan of loans || []) {
       const client = loan.clients as { full_name: string; phone: string | null };
-      
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
       
@@ -242,9 +83,8 @@ const handler = async (req: Request): Promise<Response> => {
           totalInterest = loan.principal_amount * (loan.interest_rate / 100);
         } else if (loan.interest_mode === 'compound') {
           const i = loan.interest_rate / 100;
-          if (i === 0 || !isFinite(i)) {
-            totalInterest = 0;
-          } else {
+          if (i === 0 || !isFinite(i)) totalInterest = 0;
+          else {
             const factor = Math.pow(1 + i, numInstallments);
             const pmt = loan.principal_amount * (i * factor) / (factor - 1);
             totalInterest = (pmt * numInstallments) - loan.principal_amount;
@@ -256,7 +96,6 @@ const handler = async (req: Request): Promise<Response> => {
       
       const remainingBalance = loan.remaining_balance;
       const totalToReceive = remainingBalance + (loan.total_paid || 0);
-      
       const totalPerInstallment = totalToReceive / numInstallments;
       const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
 
@@ -268,9 +107,7 @@ const handler = async (req: Request): Promise<Response> => {
         nextDueDate = installmentDates[paidInstallments];
       } else {
         nextDueDate = loan.due_date;
-        if (loan.payment_type === 'single') {
-          installmentAmount = remainingBalance;
-        }
+        if (loan.payment_type === 'single') installmentAmount = remainingBalance;
       }
 
       if (!nextDueDate || nextDueDate !== todayStr) continue;
@@ -278,7 +115,6 @@ const handler = async (req: Request): Promise<Response> => {
       const loanInfo = {
         ...loan,
         clientName: client.full_name,
-        clientPhone: client.phone,
         installmentAmount,
         currentInstallment,
         totalInstallments: numInstallments,
@@ -288,155 +124,54 @@ const handler = async (req: Request): Promise<Response> => {
         totalToReceive,
       };
 
-      if (!userLoansMap.has(loan.user_id)) {
-        userLoansMap.set(loan.user_id, []);
-      }
+      if (!userLoansMap.has(loan.user_id)) userLoansMap.set(loan.user_id, []);
       userLoansMap.get(loan.user_id)!.push(loanInfo);
     }
 
     let sentCount = 0;
 
     for (const [userId, userLoans] of userLoansMap) {
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('phone, full_name, is_active')
+        .select('phone, full_name, is_active, whatsapp_instance_token')
         .eq('id', userId)
         .single();
 
-      if (profileError || !profile?.phone || profile.is_active === false) {
-        console.log(`User ${userId} is inactive or has no phone, skipping`);
-        continue;
-      }
+      if (!profile?.phone || profile.is_active === false || !profile.whatsapp_instance_token) continue;
 
       for (const loan of userLoans) {
         const contractId = getContractId(loan.id);
         const progressPercent = Math.round((loan.paidInstallments / loan.totalInstallments) * 100);
-        
-        // Build interactive list message
-        const sections: ListSection[] = [];
 
-        // Loan details section
-        sections.push({
-          title: "💰 Valores",
-          rows: [
-            {
-              title: "Emprestado",
-              description: formatCurrency(loan.principal_amount),
-              rowId: "principal",
-            },
-            {
-              title: "Restante a Receber",
-              description: formatCurrency(loan.remainingBalance),
-              rowId: "remaining",
-            },
-            {
-              title: "Taxa de Juros",
-              description: `${loan.interest_rate}%`,
-              rowId: "rate",
-            },
-          ],
-        });
+        let message = `⏰ *VENCIMENTO HOJE - ${contractId}*\n\n`;
+        message += `👤 *Cliente:* ${loan.clientName}\n`;
+        message += `━━━━━━━━━━━━━━━━\n\n`;
+        message += `📋 *Tipo:* ${getPaymentTypeLabel(loan.payment_type)}\n`;
+        message += `💵 *Valor da Parcela:* ${formatCurrency(loan.installmentAmount)}\n`;
+        message += `📊 *Parcela:* ${loan.currentInstallment}/${loan.totalInstallments}\n\n`;
+        message += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
+        message += `📈 *Juros:* ${loan.interest_rate}%\n`;
+        message += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
+        message += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
+        message += `📊 *Saldo Devedor:* ${formatCurrency(loan.remainingBalance)}\n\n`;
+        message += `━━━━━━━━━━━━━━━━\n`;
+        message += `CobraFácil`;
 
-        // Installment status section
-        sections.push({
-          title: "📊 Parcelas",
-          rows: [
-            {
-              title: `✅ Pagas`,
-              description: `${loan.paidInstallments}/${loan.totalInstallments} - ${formatCurrency(loan.totalPaid)}`,
-              rowId: "paid",
-            },
-            {
-              title: `⏰ Pendentes`,
-              description: `${loan.totalInstallments - loan.paidInstallments} - ${formatCurrency(loan.remainingBalance)}`,
-              rowId: "pending",
-            },
-            {
-              title: `📈 Progresso`,
-              description: `${progressPercent}% concluído`,
-              rowId: "progress",
-            },
-          ],
-        });
-
-        // Today's installment section
-        sections.push({
-          title: "📅 Vence Hoje",
-          rows: [
-            {
-              title: `Parcela ${loan.currentInstallment}`,
-              description: formatCurrency(loan.installmentAmount),
-              rowId: "today",
-            },
-            {
-              title: `Saldo Devedor`,
-              description: formatCurrency(loan.remainingBalance),
-              rowId: "balance",
-            },
-          ],
-        });
-
-        // Build rich description with all loan details
-        let loanDescription = `👤 *Cliente:* ${loan.clientName}\n`;
-        loanDescription += `━━━━━━━━━━━━━━━━\n\n`;
-        loanDescription += `📋 *Tipo:* ${getPaymentTypeLabel(loan.payment_type)}\n`;
-        loanDescription += `💵 *Valor da Parcela:* ${formatCurrency(loan.installmentAmount)}\n`;
-        loanDescription += `📊 *Parcela:* ${loan.currentInstallment}/${loan.totalInstallments}\n\n`;
-        loanDescription += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
-        loanDescription += `📈 *Juros:* ${loan.interest_rate}%\n`;
-        loanDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
-        loanDescription += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
-        loanDescription += `📊 *Saldo Devedor:* ${formatCurrency(loan.remainingBalance)}\n\n`;
-        loanDescription += `━━━━━━━━━━━━━━━━\n`;
-        loanDescription += `Clique para ver mais detalhes.`;
-
-        const listData: ListData = {
-          title: `⏰ Vencimento Hoje - ${contractId}`,
-          description: loanDescription,
-          buttonText: "📋 Ver Detalhes",
-          footerText: "CobraFácil",
-          sections: sections,
-        };
-
-        console.log(`Sending loan reminder LIST to user ${userId} for loan ${loan.id}`);
-        
-        const sent = await sendWhatsAppList(profile.phone, listData);
-        if (sent) {
-          sentCount++;
-          
-          // Also send push notification
-          await sendPushNotification(
-            supabase,
-            userId,
-            `⏰ Parcela vence hoje - ${loan.clientName}`,
-            `Parcela ${loan.currentInstallment}/${loan.totalInstallments} de ${formatCurrency(loan.installmentAmount)}`,
-            '/loans'
-          );
-        }
+        const sent = await sendWhatsApp(profile.phone, message, profile.whatsapp_instance_token);
+        if (sent) sentCount++;
       }
     }
 
     console.log(`Sent ${sentCount} loan reminder messages`);
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        sentCount,
-        checkedLoans: loans?.length || 0 
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      JSON.stringify({ success: true, sentCount, checkedLoans: loans?.length || 0 }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
     console.error("Error in check-loan-reminders:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };

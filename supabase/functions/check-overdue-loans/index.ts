@@ -17,116 +17,32 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
-const cleanApiUrl = (url: string): string => {
-  let cleaned = url.replace(/\/+$/, '');
-  const pathPatterns = [
-    /\/message\/sendText\/[^\/]+$/i,
-    /\/message\/sendList\/[^\/]+$/i,
-    /\/message\/sendText$/i,
-    /\/message\/sendList$/i,
-    /\/message$/i,
-  ];
-  for (const pattern of pathPatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-  return cleaned;
-};
-
-interface ListRow {
-  title: string;
-  description: string;
-  rowId: string;
-}
-
-interface ListSection {
-  title: string;
-  rows: ListRow[];
-}
-
-interface ListData {
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  sections: ListSection[];
-}
-
-const truncate = (str: string, max: number): string => 
-  str.length > max ? str.substring(0, max - 3) + '...' : str;
-
-const sendWhatsAppList = async (phone: string, listData: ListData): Promise<boolean> => {
-  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = "notficacao";
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error("Missing Evolution API configuration");
-    return false;
-  }
-  
-  console.log("Using fixed system instance: notficacao");
-
-  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
-
+const formatPhoneNumber = (phone: string): string => {
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
+  return cleaned;
+};
 
-  const preparedSections = listData.sections.slice(0, 10).map(section => ({
-    title: truncate(section.title, 24),
-    rows: section.rows.slice(0, 10).map(row => ({
-      title: truncate(row.title, 24),
-      description: truncate(row.description, 72),
-      rowId: row.rowId,
-    })),
-  }));
+const sendWhatsApp = async (phone: string, message: string, instanceToken: string): Promise<boolean> => {
+  const uazapiUrl = Deno.env.get("UAZAPI_URL");
+  if (!uazapiUrl || !instanceToken) {
+    console.error("Missing UAZAPI config or instance token");
+    return false;
+  }
 
+  const formattedPhone = formatPhoneNumber(phone);
   try {
-    const response = await fetch(
-      `${evolutionApiUrl}/message/sendList/${instanceName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: cleaned,
-          title: truncate(listData.title, 60),
-          description: truncate(listData.description, 1024),
-          buttonText: truncate(listData.buttonText, 20),
-          footerText: truncate(listData.footerText, 60),
-          sections: preparedSections,
-        }),
-      }
-    );
-
-    const data = await response.json();
-    console.log(`WhatsApp LIST sent to ${cleaned}:`, data);
-    
-    if (!response.ok) {
-      console.error("sendList failed, trying fallback text");
-      const fallbackMessage = `${listData.title}\n\n${listData.description}\n\n${listData.footerText}`;
-      const textResponse = await fetch(
-        `${evolutionApiUrl}/message/sendText/${instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: cleaned,
-            text: fallbackMessage,
-          }),
-        }
-      );
-      return textResponse.ok;
-    }
-    
-    return true;
+    const response = await fetch(`${uazapiUrl}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "token": instanceToken },
+      body: JSON.stringify({ phone: formattedPhone, message }),
+    });
+    const data = await response.json().catch(() => null);
+    console.log(`WhatsApp sent to ${formattedPhone}:`, response.status);
+    return response.ok;
   } catch (error) {
-    console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
+    console.error(`Failed to send WhatsApp to ${formattedPhone}:`, error);
     return false;
   }
 };
@@ -147,12 +63,7 @@ const sendPushNotification = async (
           "Content-Type": "application/json",
           "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
         },
-        body: JSON.stringify({
-          userId,
-          title,
-          body,
-          url,
-        }),
+        body: JSON.stringify({ userId, title, body, url }),
       }
     );
     if (response.ok) {
@@ -176,19 +87,12 @@ const getPartialPaymentsFromNotes = (notes: string | null): Record<number, numbe
   return payments;
 };
 
-// Helper para extrair configuração de multa por atraso das notas
-// Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
 const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
   const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
   if (!match) return null;
-  return {
-    type: match[1] as 'percentage' | 'fixed',
-    value: parseFloat(match[2])
-  };
+  return { type: match[1] as 'percentage' | 'fixed', value: parseFloat(match[2]) };
 };
 
-// Helper para extrair multas já aplicadas por parcela
-// Formato: [DAILY_PENALTY:índice:valor]
 const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number> => {
   const penalties: Record<number, number> = {};
   const matches = (notes || '').matchAll(/\[DAILY_PENALTY:(\d+):([0-9.]+)\]/g);
@@ -198,8 +102,6 @@ const getDailyPenaltiesFromNotes = (notes: string | null): Record<number, number
   return penalties;
 };
 
-// Helper para extrair a última data de aplicação de multa
-// Formato: [PENALTY_LAST_APPLIED:YYYY-MM-DD]
 const getLastPenaltyDateFromNotes = (notes: string | null): string | null => {
   const match = (notes || '').match(/\[PENALTY_LAST_APPLIED:([0-9-]+)\]/);
   return match ? match[1] : null;
@@ -241,10 +143,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: loans, error: loansError } = await supabase
       .from('loans')
-      .select(`
-        *,
-        clients!inner(full_name, phone)
-      `)
+      .select(`*, clients!inner(full_name, phone)`)
       .in('status', ['pending', 'overdue']);
 
     if (loansError) {
@@ -259,13 +158,9 @@ const handler = async (req: Request): Promise<Response> => {
     let penaltiesApplied = 0;
 
     for (const loan of loans || []) {
-      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) {
-        console.log(`Skipping historical contract ${loan.id}`);
-        continue;
-      }
+      if (loan.notes?.includes('[HISTORICAL_CONTRACT]')) continue;
 
       const client = loan.clients as { full_name: string; phone: string | null };
-      
       const installmentDates = (loan.installment_dates as string[]) || [];
       const numInstallments = loan.installments || 1;
       
@@ -275,9 +170,8 @@ const handler = async (req: Request): Promise<Response> => {
           totalInterest = loan.principal_amount * (loan.interest_rate / 100);
         } else if (loan.interest_mode === 'compound') {
           const i = loan.interest_rate / 100;
-          if (i === 0 || !isFinite(i)) {
-            totalInterest = 0;
-          } else {
+          if (i === 0 || !isFinite(i)) { totalInterest = 0; }
+          else {
             const factor = Math.pow(1 + i, numInstallments);
             const pmt = loan.principal_amount * (i * factor) / (factor - 1);
             totalInterest = (pmt * numInstallments) - loan.principal_amount;
@@ -289,11 +183,8 @@ const handler = async (req: Request): Promise<Response> => {
       
       const remainingBalance = loan.remaining_balance;
       const totalToReceive = remainingBalance + (loan.total_paid || 0);
-      
       const totalPerInstallment = totalToReceive / numInstallments;
-      
       const partialPayments = getPartialPaymentsFromNotes(loan.notes);
-      
       const installmentValue = loan.payment_type === 'daily' 
         ? (loan.total_interest || totalPerInstallment)
         : totalPerInstallment;
@@ -306,11 +197,9 @@ const handler = async (req: Request): Promise<Response> => {
         for (let i = 0; i < installmentDates.length; i++) {
           const paidAmount = partialPayments[i] || 0;
           const isPaid = paidAmount >= installmentValue * 0.99;
-          
           if (!isPaid) {
             const installmentDate = new Date(installmentDates[i]);
             installmentDate.setHours(0, 0, 0, 0);
-            
             if (installmentDate < today) {
               nextDueDate = installmentDates[i];
               overdueInstallmentIndex = i;
@@ -339,68 +228,33 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (dueDate < today) {
         const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        
         const isFirstOverdueDetection = loan.status !== 'overdue';
-        
-        if (isFirstOverdueDetection) {
-          overdueUpdates.push(loan.id);
-        }
+        if (isFirstOverdueDetection) overdueUpdates.push(loan.id);
 
-        // ========== APLICAR MULTA DIÁRIA AUTOMÁTICA ==========
+        // Apply daily penalty
         const overdueConfig = getOverdueConfigFromNotes(loan.notes);
         if (overdueConfig && overdueInstallmentIndex !== null) {
           const lastPenaltyDate = getLastPenaltyDateFromNotes(loan.notes);
           const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
-          
-          // Só aplicar se não aplicou hoje ainda
           if (lastPenaltyDate !== todayStr) {
-            // Calcular quantos dias de multa aplicar
-            // Se é a primeira vez, aplicar para todos os dias de atraso
-            // Se já tem multa, aplicar só mais 1 dia
-            let daysToApply = 1;
-            if (!lastPenaltyDate) {
-              daysToApply = daysOverdue; // Primeira detecção: aplica todos os dias
-            }
-            
-            // Calcular valor da multa (% sobre valor total do empréstimo)
-            let dailyPenalty = 0;
-            if (overdueConfig.type === 'percentage') {
-              dailyPenalty = totalToReceive * (overdueConfig.value / 100);
-            } else {
-              dailyPenalty = overdueConfig.value;
-            }
-            
+            let daysToApply = !lastPenaltyDate ? daysOverdue : 1;
+            let dailyPenalty = overdueConfig.type === 'percentage'
+              ? totalToReceive * (overdueConfig.value / 100)
+              : overdueConfig.value;
             const penaltyToAdd = dailyPenalty * daysToApply;
             const currentPenalty = existingPenalties[overdueInstallmentIndex] || 0;
             const newTotalPenalty = currentPenalty + penaltyToAdd;
-            
-            // Atualizar notas com nova multa
             let updatedNotes = loan.notes || '';
-            
-            // Remover tag antiga de multa para esta parcela
             updatedNotes = updatedNotes.replace(new RegExp(`\\[DAILY_PENALTY:${overdueInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
-            
-            // Remover tag de última aplicação
             updatedNotes = updatedNotes.replace(/\[PENALTY_LAST_APPLIED:[0-9-]+\]/g, '');
-            
-            // Adicionar novas tags
             updatedNotes = `[DAILY_PENALTY:${overdueInstallmentIndex}:${newTotalPenalty.toFixed(2)}] [PENALTY_LAST_APPLIED:${todayStr}] ${updatedNotes}`.trim();
-            
-            // Atualizar empréstimo
             const newBalance = loan.remaining_balance + penaltyToAdd;
-            
             const { error: updateError } = await supabase
               .from('loans')
-              .update({
-                notes: updatedNotes,
-                remaining_balance: newBalance
-              })
+              .update({ notes: updatedNotes, remaining_balance: newBalance })
               .eq('id', loan.id);
-            
-            if (updateError) {
-              console.error(`Error applying penalty to loan ${loan.id}:`, updateError);
-            } else {
-              console.log(`Applied penalty of ${formatCurrency(penaltyToAdd)} to loan ${loan.id} (${daysToApply} days @ ${overdueConfig.type === 'percentage' ? overdueConfig.value + '%' : formatCurrency(overdueConfig.value)}/day)`);
+            if (!updateError) {
+              console.log(`Applied penalty of ${formatCurrency(penaltyToAdd)} to loan ${loan.id}`);
               penaltiesApplied++;
             }
           }
@@ -426,43 +280,30 @@ const handler = async (req: Request): Promise<Response> => {
           daysOverdue,
         };
 
-        if (!userAlertMap.has(loan.user_id)) {
-          userAlertMap.set(loan.user_id, new Map());
-        }
-        
+        if (!userAlertMap.has(loan.user_id)) userAlertMap.set(loan.user_id, new Map());
         const userAlerts = userAlertMap.get(loan.user_id)!;
-        if (!userAlerts.has(daysOverdue)) {
-          userAlerts.set(daysOverdue, []);
-        }
+        if (!userAlerts.has(daysOverdue)) userAlerts.set(daysOverdue, []);
         userAlerts.get(daysOverdue)!.push(loanInfo);
       }
     }
 
-    // Update overdue loan statuses
+    // Update overdue statuses
     if (overdueUpdates.length > 0) {
-      const { error: updateError } = await supabase
-        .from('loans')
-        .update({ status: 'overdue' })
-        .in('id', overdueUpdates);
-      
-      if (updateError) {
-        console.error("Error updating overdue statuses:", updateError);
-      } else {
-        console.log(`Updated ${overdueUpdates.length} loans to overdue status`);
-      }
+      await supabase.from('loans').update({ status: 'overdue' }).in('id', overdueUpdates);
+      console.log(`Updated ${overdueUpdates.length} loans to overdue status`);
     }
 
     let sentCount = 0;
 
     for (const [userId, alertDaysMap] of userAlertMap) {
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('phone, full_name, is_active')
+        .select('phone, full_name, is_active, whatsapp_instance_token')
         .eq('id', userId)
         .single();
 
-      if (profileError || !profile?.phone || profile.is_active === false) {
-        console.log(`User ${userId} is inactive or has no phone, skipping`);
+      if (!profile?.phone || profile.is_active === false || !profile.whatsapp_instance_token) {
+        console.log(`User ${userId} skipped (inactive/no phone/no token)`);
         continue;
       }
 
@@ -474,126 +315,36 @@ const handler = async (req: Request): Promise<Response> => {
           const contractId = getContractId(loan.id);
           const progressPercent = Math.round((loan.paidInstallments / loan.totalInstallments) * 100);
 
-          // Build interactive list message
-          const sections: ListSection[] = [];
-
-          // Loan info section
-          sections.push({
-            title: "💰 Valores",
-            rows: [
-              {
-                title: "Valor Emprestado",
-                description: formatCurrency(loan.principal_amount),
-                rowId: "principal",
-              },
-              {
-                title: "Restante a Receber",
-                description: formatCurrency(loan.remainingBalance),
-                rowId: "remaining",
-              },
-              {
-                title: "Taxa de Juros",
-                description: `${loan.interest_rate}%`,
-                rowId: "rate",
-              },
-            ],
-          });
-
-          // Installment status section
-          sections.push({
-            title: "📊 Situação",
-            rows: [
-              {
-                title: `✅ Parcelas Pagas`,
-                description: `${loan.paidInstallments}/${loan.totalInstallments} - ${formatCurrency(loan.totalPaid)}`,
-                rowId: "paid",
-              },
-              {
-                title: `❌ Pendentes`,
-                description: `${loan.totalInstallments - loan.paidInstallments} - ${formatCurrency(loan.remainingBalance)}`,
-                rowId: "pending",
-              },
-              {
-                title: `📈 Progresso`,
-                description: `${progressPercent}% concluído`,
-                rowId: "progress",
-              },
-            ],
-          });
-
-          // Overdue info section
-          sections.push({
-            title: `${emoji} Atraso`,
-            rows: [
-              {
-                title: "Venceu em",
-                description: formatDate(new Date(loan.dueDate)),
-                rowId: "due_date",
-              },
-              {
-                title: "Dias em Atraso",
-                description: `${alertDay} dia${alertDay > 1 ? 's' : ''}`,
-                rowId: "days",
-              },
-              {
-                title: "Saldo Devedor",
-                description: formatCurrency(loan.remainingBalance),
-                rowId: "balance",
-              },
-            ],
-          });
-
-          // Extrair multas aplicadas e config de juros por atraso
           const existingPenalties = getDailyPenaltiesFromNotes(loan.notes);
           const totalPenalty = Object.values(existingPenalties).reduce((sum, v) => sum + v, 0);
           const overdueConfig = getOverdueConfigFromNotes(loan.notes);
           const originalBalance = loan.remainingBalance - totalPenalty;
 
-          // Build rich description with overdue details
-          let overdueDescription = `👤 *Cliente:* ${loan.clientName}\n`;
-          overdueDescription += `📋 *Contrato:* ${contractId}\n`;
-          overdueDescription += `━━━━━━━━━━━━━━━━\n\n`;
-          overdueDescription += `🚨 *${alertDay} DIA${alertDay > 1 ? 'S' : ''} EM ATRASO*\n\n`;
-          overdueDescription += `📅 *Venceu em:* ${formatDate(new Date(loan.dueDate))}\n`;
-          overdueDescription += `💸 *Saldo Original:* ${formatCurrency(originalBalance)}\n`;
-          
-          // Mostrar multa aplicada se houver
-          if (totalPenalty > 0) {
-            overdueDescription += `⚠️ *Multa Aplicada:* +${formatCurrency(totalPenalty)}\n`;
-          }
-          
-          // Mostrar taxa de juros por atraso se configurada
+          let message = `${emoji} *${title.toUpperCase()}*\n\n`;
+          message += `👤 *Cliente:* ${loan.clientName}\n`;
+          message += `📋 *Contrato:* ${contractId}\n`;
+          message += `━━━━━━━━━━━━━━━━\n\n`;
+          message += `📅 *Venceu em:* ${formatDate(new Date(loan.dueDate))}\n`;
+          message += `💸 *Saldo Original:* ${formatCurrency(originalBalance)}\n`;
+          if (totalPenalty > 0) message += `⚠️ *Multa Aplicada:* +${formatCurrency(totalPenalty)}\n`;
           if (overdueConfig) {
             const taxaInfo = overdueConfig.type === 'percentage' 
               ? `${overdueConfig.value}% ao dia`
               : `${formatCurrency(overdueConfig.value)}/dia`;
-            overdueDescription += `📈 *Taxa por Atraso:* ${taxaInfo}\n`;
+            message += `📈 *Taxa por Atraso:* ${taxaInfo}\n`;
           }
-          
-          overdueDescription += `💵 *TOTAL A RECEBER:* ${formatCurrency(loan.remainingBalance)}\n\n`;
-          overdueDescription += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
-          overdueDescription += `📈 *Juros:* ${loan.interest_rate}%\n`;
-          overdueDescription += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
-          overdueDescription += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
-          overdueDescription += `📊 *Parcelas:* ${loan.paidInstallments}/${loan.totalInstallments} pagas\n\n`;
-          overdueDescription += `━━━━━━━━━━━━━━━━\n`;
-          overdueDescription += `⚠️ AÇÃO URGENTE NECESSÁRIA`;
+          message += `💵 *TOTAL A RECEBER:* ${formatCurrency(loan.remainingBalance)}\n\n`;
+          message += `💰 *Emprestado:* ${formatCurrency(loan.principal_amount)}\n`;
+          message += `📈 *Juros:* ${loan.interest_rate}%\n`;
+          message += `💵 *Total Contrato:* ${formatCurrency(loan.totalToReceive)}\n\n`;
+          message += `✅ *Já Pago:* ${formatCurrency(loan.totalPaid)} (${progressPercent}%)\n`;
+          message += `📊 *Parcelas:* ${loan.paidInstallments}/${loan.totalInstallments} pagas\n\n`;
+          message += `━━━━━━━━━━━━━━━━\n`;
+          message += `⚠️ AÇÃO URGENTE NECESSÁRIA`;
 
-          const listData: ListData = {
-            title: `${emoji} ${title}`,
-            description: overdueDescription,
-            buttonText: "📋 Ver Detalhes",
-            footerText: "CobraFácil - Urgente",
-            sections: sections,
-          };
-
-          console.log(`Sending ${alertDay}-day overdue LIST to user ${userId} for loan ${loan.id}`);
-          
-          const sent = await sendWhatsAppList(profile.phone, listData);
+          const sent = await sendWhatsApp(profile.phone, message, profile.whatsapp_instance_token);
           if (sent) {
             sentCount++;
-            
-            // Also send push notification
             await sendPushNotification(
               userId,
               `🚨 ${alertDay} dia${alertDay > 1 ? 's' : ''} em atraso - ${loan.clientName}`,
@@ -608,26 +359,14 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Sent ${sentCount} overdue alerts, applied ${penaltiesApplied} penalties`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        sentCount,
-        overdueLoans: overdueUpdates.length,
-        penaltiesApplied,
-        checkedLoans: loans?.length || 0 
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      JSON.stringify({ success: true, sentCount, overdueLoans: overdueUpdates.length, penaltiesApplied, checkedLoans: loans?.length || 0 }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
     console.error("Error in check-overdue-loans:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };
