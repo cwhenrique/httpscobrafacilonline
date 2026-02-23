@@ -93,7 +93,7 @@ serve(async (req) => {
     // Find trial users whose trial expires in the next 8 hours (wider window for reduced frequency)
     const { data: expiringUsers, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, phone, full_name, trial_expires_at')
+      .select('id, email, phone, full_name, trial_expires_at, whatsapp_instance_token')
       .eq('subscription_plan', 'trial')
       .eq('is_active', true)
       .gte('trial_expires_at', now.toISOString())
@@ -115,10 +115,10 @@ serve(async (req) => {
     };
 
     for (const user of expiringUsers || []) {
-      if (!user.phone) {
-        console.log(`User ${user.email} has no phone number`);
+      if (!user.phone || !user.whatsapp_instance_token) {
+        console.log(`User ${user.email} has no phone number or instance token`);
         results.noPhone++;
-        results.details.push({ email: user.email || 'unknown', status: 'no_phone' });
+        results.details.push({ email: user.email || 'unknown', status: 'no_phone_or_token' });
         continue;
       }
 

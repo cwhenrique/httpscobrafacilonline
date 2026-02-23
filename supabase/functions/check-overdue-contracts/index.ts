@@ -17,57 +17,32 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
-const cleanApiUrl = (url: string): string => {
-  let cleaned = url.replace(/\/+$/, '');
-  const pathPatterns = [
-    /\/message\/sendText\/[^\/]+$/i,
-    /\/message\/sendText$/i,
-    /\/message$/i,
-  ];
-  for (const pattern of pathPatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-  return cleaned;
-};
-
-const sendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
-  const evolutionApiUrlRaw = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  // Usar instância fixa "notficacao" para notificações do sistema
-  const instanceName = "notficacao";
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error("Missing Evolution API configuration");
+const sendWhatsApp = async (phone: string, message: string, instanceToken: string): Promise<boolean> => {
+  const uazapiUrl = Deno.env.get("UAZAPI_URL");
+  if (!uazapiUrl || !instanceToken) {
+    console.error("Missing UAZAPI URL or instance token");
     return false;
   }
-  
-  console.log("Using fixed system instance: notficacao");
-
-  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
 
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
   if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
 
   try {
-    const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: cleaned,
-          text: message,
-        }),
-      }
-    );
+    const response = await fetch(`${uazapiUrl}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "token": instanceToken },
+      body: JSON.stringify({ phone: cleaned, message }),
+    });
 
-    const data = await response.json();
-    console.log(`WhatsApp sent to ${cleaned}:`, data);
-    return response.ok;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to send WhatsApp to ${cleaned}: ${errorText}`);
+      return false;
+    }
+
+    console.log(`WhatsApp sent to ${cleaned} via UAZAPI`);
+    return true;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
     return false;
@@ -145,9 +120,10 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all ACTIVE users with phone configured
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, phone, full_name')
+      .select('id, phone, full_name, whatsapp_instance_token')
       .eq('is_active', true)
-      .not('phone', 'is', null);
+      .not('phone', 'is', null)
+      .not('whatsapp_instance_token', 'is', null);
 
     if (profilesError) {
       console.error("Error fetching profiles:", profilesError);
@@ -297,7 +273,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           console.log(`Sending ${overdueInfo.days}-day receivables overdue alert to user ${profile.id}`);
-          const sent = await sendWhatsApp(profile.phone, message);
+          const sent = await sendWhatsApp(profile.phone, message, profile.whatsapp_instance_token);
           if (sent) sentCount++;
         }
 
@@ -336,7 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           console.log(`Sending ${overdueInfo.days}-day payables overdue alert to user ${profile.id}`);
-          const sent = await sendWhatsApp(profile.phone, message);
+          const sent = await sendWhatsApp(profile.phone, message, profile.whatsapp_instance_token);
           if (sent) sentCount++;
         }
 
