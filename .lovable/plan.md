@@ -1,31 +1,52 @@
 
 
-## Corrigir "Valor base" no pagamento parcial para parcelas personalizadas
+## Corrigir comprovante (receipt) para parcelas personalizadas
 
 ### Problema
 
-No modal de pagamento parcial, o campo "Valor base" mostra R$ 490,00 (media simples = total / parcelas) em vez do valor real da parcela personalizada (R$ 400,00). O "Total da parcela" mostra R$ 400,00 corretamente porque `getInstallmentValuePartial` ja foi corrigido, mas o `baseValue` exibido na linha 13352-13354 ainda usa `totalPerInstallment` sem considerar o modo `custom`.
+O comprovante de emprestimo exibe "5x de R$ 490,00" (media simples) em vez de mostrar que sao parcelas personalizadas com valores individuais. Isso acontece em 3 locais: o dialog de preview visual, a mensagem WhatsApp e o PDF.
+
+### Causa Raiz
+
+1. **`handleGenerateLoanReceipt` (linha 5593)**: calcula `installmentValue = totalToReceive / numInstallments` sem considerar o modo `custom`
+2. **`ContractReceiptData` interface**: so tem um campo `installmentValue: number` - nao suporta array de valores
+3. **ReceiptPreviewDialog (linhas 116 e 473)**: exibe `Nx de R$ X` com valor unico
+4. **pdfGenerator (linha 410)**: exibe `Nx de R$ X` com valor unico
+5. **LoanCreatedReceiptPrompt (linhas 93 e 140)**: mesma exibicao nas mensagens WhatsApp
+6. **`setLoanCreatedData` (linha 4240-4252)**: passa `installmentValueNum` como media
 
 ### Solucao
 
-Uma unica alteracao no arquivo `src/pages/Loans.tsx`, linha 13352-13354:
+**Arquivo: `src/lib/pdfGenerator.ts`**
 
-**Arquivo: `src/pages/Loans.tsx` (linha ~13352-13354)**
+1. Adicionar campo opcional `customInstallmentValues?: number[]` na interface `ContractReceiptData.negotiation`
+2. Na funcao `generateContractReceipt`, quando `customInstallmentValues` existir, exibir "Parcelas Personalizadas" em vez de "5x de R$ 490"
 
-Adicionar verificacao de `custom` no calculo do `baseValue` exibido:
+**Arquivo: `src/pages/Loans.tsx`**
 
-```typescript
-const baseValue = renewalFeeInstallmentIndex !== null && (selectedPartialIndex ?? 0) === renewalFeeInstallmentIndex 
-  ? renewalFeeValue 
-  : selectedLoan.interest_mode === 'custom'
-    ? (() => {
-        const customValues = parseCustomInstallments(selectedLoan.notes);
-        return customValues && (selectedPartialIndex ?? 0) < customValues.length
-          ? customValues[selectedPartialIndex ?? 0]
-          : totalPerInstallment;
-      })()
-    : totalPerInstallment;
+3. Em `handleGenerateLoanReceipt` (linha 5593): quando `loan.interest_mode === 'custom'`, usar `parseCustomInstallments(loan.notes)` para preencher `customInstallmentValues` no receipt data
+4. Na construcao de `receiptData.dueDates` (linha 5637): usar valor individual de cada parcela para verificar `isPaid` quando custom
+5. Em `setLoanCreatedData` (linha 4240-4252): quando o modo for custom, nao calcular media
+
+**Arquivo: `src/components/ReceiptPreviewDialog.tsx`**
+
+6. Na mensagem WhatsApp (linha 116): quando `customInstallmentValues` existir, listar "Parcelas Personalizadas" em vez de "Nx de R$ X"
+7. No preview visual (linha 473): mesma logica - mostrar "Parcelas Personalizadas" e listar valores individuais ou apenas indicar que sao personalizadas
+
+**Arquivo: `src/components/LoanCreatedReceiptPrompt.tsx`**
+
+8. Nas funcoes `generateClientMessage` (linha 93) e `generateSelfMessage` (linha 140): quando o emprestimo for custom, nao exibir "Nx de R$ X" e sim indicar parcelas personalizadas
+
+### Exibicao Proposta
+
+Em vez de:
+```
+Parcelas: 5x de R$ 490,00
 ```
 
-Isso garante que o "Valor base" exiba o valor individual correto da parcela personalizada, alinhado com o "Total da parcela" que ja funciona corretamente.
+Exibir:
+```
+Parcelas Personalizadas
+```
 
+Os valores individuais ja aparecem na secao "DATAS DE VENCIMENTO" do comprovante, entao basta remover a informacao enganosa da media.
