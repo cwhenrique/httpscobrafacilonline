@@ -1,28 +1,53 @@
 
-## Corrigir formula do calculo proporcional no Desconto de Cheque
 
-### Problema
+## Corrigir botao "Pagar" que desaparece em Vendas de Produtos
 
-A formula atual para "Proporcional aos dias" calcula: `(taxa / 30) * dias * valor`. Para 1040 dias a 10%, isso resulta em 346% de desconto (R$ 3.466,67), gerando valor a pagar negativo (-R$ 2.466,67). O correto seria calcular por meses: 10% * ~34 meses, mas limitando o desconto ao valor do cheque.
+### Problema Identificado
 
-Na pratica, o usuario espera:
-- Cheque de R$ 1.000 a 10% ao mes, 1 mes = desconto R$ 100, pagar R$ 900
-- 2 meses = desconto R$ 200, pagar R$ 800
-- E assim por diante, com desconto nunca ultrapassando o valor do cheque
+O usuario Fernando Gomes tem **1.943 parcelas** na tabela `product_sale_payments`, porem o Supabase retorna no maximo **1.000 registros** por consulta (limite padrao). Como a query busca TODAS as parcelas de uma vez sem paginacao, muitas vendas ficam sem suas parcelas carregadas, fazendo o botao "Pagar" desaparecer.
 
 ### Solucao
 
-Alterar a funcao `calculateDiscountAmount` em `src/types/checkDiscount.ts` para limitar o desconto ao valor nominal do cheque usando `Math.min`:
+Remover o limite de 1000 registros adicionando `.limit()` maior ou usando paginacao. A abordagem mais simples e segura e buscar todas as parcelas em lotes.
+
+### Alteracoes
+
+**Arquivo: `src/hooks/useProductSales.ts`**
+
+Na funcao `useProductSalePayments` (linha ~447-468), alterar a query para buscar todos os registros em lotes de 1000, concatenando os resultados:
 
 ```typescript
-// Proporcional: taxa mensal aplicada proporcionalmente aos dias
-const proportionalRate = (discountRate / 30) * daysUntilDue;
-const rawDiscount = nominalValue * (proportionalRate / 100);
-return Math.min(rawDiscount, nominalValue); // nunca exceder o valor do cheque
+queryFn: async () => {
+  if (!effectiveUserId) throw new Error('Usuario nao autenticado');
+
+  const allData: ProductSalePayment[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from('product_sale_payments')
+      .select('*, productSale:product_sales(*)')
+      .eq('user_id', effectiveUserId)
+      .order('due_date', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (saleId) {
+      query = query.eq('product_sale_id', saleId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    allData.push(...(data as ProductSalePayment[]));
+    hasMore = data.length === pageSize;
+    from += pageSize;
+  }
+
+  return allData;
+}
 ```
 
-Tambem aplicar o mesmo limite para o modo percentual fixo, por seguranca.
+Isso garante que todas as parcelas sejam carregadas independente da quantidade, buscando em paginas de 1000 ate nao haver mais dados.
 
-### Arquivo alterado
-
-**`src/types/checkDiscount.ts`** - Funcao `calculateDiscountAmount` (~linha 96-109): adicionar `Math.min(..., nominalValue)` no retorno para ambos os tipos de desconto.
