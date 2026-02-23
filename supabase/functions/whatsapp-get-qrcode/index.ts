@@ -87,7 +87,7 @@ serve(async (req) => {
           body: JSON.stringify({}),
         });
         const connectData = await connectResp.json().catch(() => null);
-        const qr = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+        const qr = connectData?.instance?.qrcode || connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
 
         if (qr) return respond({ success: true, qrCode: qr, instanceName: newInstanceName });
         return respond({ success: true, pendingQr: true, instanceName: newInstanceName, message: 'Instância criada, QR sendo gerado...' }, 202);
@@ -109,8 +109,10 @@ serve(async (req) => {
         headers: { 'token': instanceToken },
       });
       const statusData = await statusResp.json().catch(() => null);
-      state = statusData?.status || statusData?.state || 'unknown';
-      console.log(`[QR] Status: ${state}`);
+      console.log(`[QR] Raw status:`, JSON.stringify(statusData).substring(0, 300));
+      // UAZAPI returns status inside instance object or at top level
+      state = statusData?.instance?.status || statusData?.status || statusData?.state || 'unknown';
+      console.log(`[QR] Parsed state: ${state}`);
     } catch { /* ignore */ }
 
     if (state === 'connected') {
@@ -138,8 +140,10 @@ serve(async (req) => {
       });
       const connectData = await connectResp.json().catch(() => null);
       console.log(`[QR] Connect response keys: ${connectData ? Object.keys(connectData) : 'null'}`);
+      console.log(`[QR] Instance keys: ${connectData?.instance ? Object.keys(connectData.instance) : 'none'}`);
 
-      const qr = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+      // UAZAPI returns QR inside instance.qrcode or at top level
+      const qr = connectData?.instance?.qrcode || connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
       if (qr) return respond({ success: true, qrCode: qr, instanceName });
     } catch (e) {
       console.error('[QR] Connect error:', e);

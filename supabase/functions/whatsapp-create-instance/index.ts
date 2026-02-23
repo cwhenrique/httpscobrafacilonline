@@ -75,8 +75,9 @@ serve(async (req) => {
         });
         const statusData = await statusResp.json().catch(() => null);
         console.log('Existing instance status:', statusData);
+        const instanceState = statusData?.instance?.status || statusData?.status || statusData?.state;
 
-        if (statusData?.status === 'connected' || statusData?.state === 'connected') {
+        if (instanceState === 'connected') {
           return new Response(JSON.stringify({
             success: true,
             alreadyConnected: true,
@@ -98,7 +99,7 @@ serve(async (req) => {
         const connectData = await connectResp.json().catch(() => null);
         console.log('Connect response:', connectData);
 
-        const qrCode = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+        const qrCode = connectData?.instance?.qrcode || connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
         if (qrCode) {
           return new Response(JSON.stringify({
             success: true,
@@ -204,7 +205,7 @@ serve(async (req) => {
       const connectData = await connectResp.json().catch(() => null);
       console.log('Connect response:', JSON.stringify(connectData).substring(0, 200));
 
-      qrCodeBase64 = connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
+      qrCodeBase64 = connectData?.instance?.qrcode || connectData?.qrcode || connectData?.qr || connectData?.base64 || null;
     } catch (e) {
       console.error('Error connecting instance:', e);
     }
