@@ -43,7 +43,7 @@ interface OverdueNotificationData {
   daysOverdue: number;
   loanId: string;
   overdueInterestAmount?: number;
-  penaltyType?: 'percentage' | 'fixed';
+  penaltyType?: 'percentage' | 'fixed' | 'percentage_total';
   penaltyValue?: number;
   interestAmount?: number;
   principalAmount?: number;
