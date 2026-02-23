@@ -72,11 +72,13 @@ serve(async (req) => {
         headers: { 'token': instanceToken },
       });
       statusData = await statusResp.json().catch(() => null);
-      state = statusData?.status || statusData?.state || 'unknown';
+      // UAZAPI returns status inside instance object or at top level
+      state = statusData?.instance?.status || statusData?.status || statusData?.state || 'unknown';
 
       // Extract phone number if available
-      if (statusData?.phone || statusData?.ownerJid) {
-        const rawPhone = statusData.phone || statusData.ownerJid?.split('@')[0];
+      const inst = statusData?.instance || statusData;
+      if (inst?.owner || inst?.phone || inst?.ownerJid) {
+        const rawPhone = inst.owner?.split('@')[0] || inst.phone || inst.ownerJid?.split('@')[0];
         if (rawPhone) phoneNumber = rawPhone.replace(/\D/g, '');
       }
 
