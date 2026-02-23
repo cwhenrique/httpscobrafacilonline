@@ -75,7 +75,7 @@ serve(async (req) => {
         headers: { 'token': instanceToken },
       });
       const statusData = await statusResp.json().catch(() => null);
-      const state = statusData?.status || statusData?.state || 'unknown';
+      const state = statusData?.instance?.status || statusData?.status || statusData?.state || 'unknown';
       console.log(`Instance state: ${state}`);
 
       if (state !== 'connected' && state !== 'open') {
