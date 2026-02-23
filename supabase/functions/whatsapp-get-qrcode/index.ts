@@ -41,11 +41,6 @@ serve(async (req) => {
       .eq('id', userId)
       .single();
 
-    // Restrict to authorized email only
-    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'clau_pogian@hotmail.com'];
-    if (!allowedEmails.includes((profile?.email || '').toLowerCase())) {
-      return respond({ error: 'Função temporariamente restrita.' }, 403);
-    }
 
     // If no instance exists, create one automatically
     if (!profile?.whatsapp_instance_token) {

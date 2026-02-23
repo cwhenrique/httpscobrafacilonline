@@ -50,14 +50,6 @@ serve(async (req) => {
       });
     }
 
-    // Restrict to authorized email only
-    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'clau_pogian@hotmail.com'];
-    if (!allowedEmails.includes((profile?.email || '').toLowerCase())) {
-      return new Response(JSON.stringify({ error: 'Função temporariamente restrita.' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
