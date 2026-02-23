@@ -113,7 +113,9 @@ const generateWhatsAppMessage = (data: ContractReceiptData): string => {
     message += `📈 Taxa de Juros: ${data.negotiation.interestRate.toFixed(2)}%\n`;
   }
   
-  message += `📊 Parcelas: ${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}\n`;
+  message += data.negotiation.customInstallmentValues
+    ? `📊 Parcelas: ${data.negotiation.installments}x Personalizadas\n`
+    : `📊 Parcelas: ${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}\n`;
   
   // Mostrar data do contrato e primeiro vencimento separadamente
   const contractDate = data.negotiation.contractDate || data.negotiation.startDate;
@@ -470,7 +472,11 @@ export default function ReceiptPreviewDialog({ open, onOpenChange, data, clientP
                 )}
                 <div>
                   <span className="text-muted-foreground">Parcelas:</span>
-                  <p className="font-medium">{data.negotiation.installments}x de {formatCurrency(data.negotiation.installmentValue)}</p>
+                  <p className="font-medium">
+                    {data.negotiation.customInstallmentValues
+                      ? `${data.negotiation.installments}x Personalizadas`
+                      : `${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}`}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Data do Contrato:</span>
