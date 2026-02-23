@@ -449,20 +449,32 @@ export function useProductSalePayments(saleId?: string) {
     queryFn: async () => {
       if (!effectiveUserId) throw new Error('Usuário não autenticado');
 
-      let query = supabase
-        .from('product_sale_payments')
-        .select('*, productSale:product_sales(*)')
-        .eq('user_id', effectiveUserId)
-        .order('due_date', { ascending: true });
+      const allData: ProductSalePayment[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (saleId) {
-        query = query.eq('product_sale_id', saleId);
+      while (hasMore) {
+        let query = supabase
+          .from('product_sale_payments')
+          .select('*, productSale:product_sales(*)')
+          .eq('user_id', effectiveUserId)
+          .order('due_date', { ascending: true })
+          .range(from, from + pageSize - 1);
+
+        if (saleId) {
+          query = query.eq('product_sale_id', saleId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        allData.push(...(data as ProductSalePayment[]));
+        hasMore = data.length === pageSize;
+        from += pageSize;
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as ProductSalePayment[];
+      return allData;
     },
     enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
