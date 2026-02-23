@@ -214,6 +214,14 @@ const getEffectiveInstallmentValue = (
     return loan.remaining_balance / remainingInstallments;
   }
   
+  // Parcelas personalizadas: usar valor individual
+  if (loan.interest_mode === 'custom' && !isDaily) {
+    const customValues = parseCustomInstallments(loan.notes);
+    if (customValues && paidInstallmentsCount < customValues.length) {
+      return customValues[paidInstallmentsCount];
+    }
+  }
+
   // SAC: cada parcela tem valor individual decrescente
   if (loan.interest_mode === 'sac' && !isDaily) {
     const numInstallments = loan.installments || 1;
@@ -458,6 +466,11 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   const getInstallmentValue = (index: number) => {
     if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
       return renewalFeeValue;
+    }
+    // Parcelas personalizadas: usar valor individual
+    if (loan.interest_mode === 'custom') {
+      const customValues = parseCustomInstallments(loan.notes);
+      if (customValues && index < customValues.length) return customValues[index];
     }
     if (loan.interest_mode === 'sac') {
       return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
