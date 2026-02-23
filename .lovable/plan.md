@@ -1,94 +1,39 @@
 
-## Nova Modalidade de Juros: Parcelas Personalizadas (custom)
 
-### Resumo
+## Corrigir validacao de juros no modo "Parcelas Personalizadas"
 
-Adicionar uma nova modalidade de juros chamada **"Parcelas Personalizadas"** (`custom`) que permite ao usuario definir valores individuais para cada parcela ao criar um emprestimo mensal, semanal ou quinzenal. Exemplo: Parcela 1 = R$ 300, Parcela 2 = R$ 200, Parcela 3 = R$ 400.
+### Problema
 
-### Alteracoes Necessarias
+Quando o usuario seleciona o modo "Parcelas Personalizadas" (`custom`), o campo de taxa de juros esta escondido (correto), porem a validacao na submissao do formulario ainda exige que `interest_rate` seja preenchido. Como o campo esta vazio, o sistema mostra "Informe a taxa de juros" e bloqueia a criacao.
 
-#### 1. Banco de Dados - Adicionar novo valor ao enum `interest_mode`
+O calculo de juros total ja esta correto no codigo (soma das parcelas - principal), mas a validacao impede que o formulario seja submetido.
 
-Criar uma migracao SQL para adicionar `'custom'` ao enum `interest_mode`:
+### Solucao
 
-```sql
-ALTER TYPE interest_mode ADD VALUE 'custom';
-```
+Uma unica alteracao no arquivo `src/pages/Loans.tsx`:
 
-Isso permite que o campo `interest_mode` aceite o valor `'custom'` nos emprestimos.
+**Arquivo: `src/pages/Loans.tsx` (~linha 3820-3828)**
 
-#### 2. Tipo TypeScript - `src/types/database.ts`
-
-Atualizar o tipo `InterestMode` para incluir `'custom'`:
+Pular a validacao de taxa de juros quando o modo for `custom`, ja que nesse modo os juros sao calculados automaticamente a partir dos valores das parcelas:
 
 ```typescript
-export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom';
+// Permitir taxa de juros 0% (zero é um valor válido)
+// Para custom, a taxa não se aplica - pular validação
+if (formData.interest_mode !== 'custom') {
+  const interestRateValue = formData.interest_rate !== '' && formData.interest_rate !== undefined && formData.interest_rate !== null
+    ? parseFloat(String(formData.interest_rate))
+    : NaN;
+  if (isNaN(interestRateValue) || interestRateValue < 0) {
+    toast.error('Informe a taxa de juros (pode ser 0%)');
+    setIsCreatingLoan(false);
+    return;
+  }
+}
 ```
 
-#### 3. Formulario de Criacao - `src/pages/Loans.tsx`
+Isso e suficiente porque o restante do codigo ja trata corretamente o modo `custom`:
+- Linha 3864-3877: calcula `totalInterest = customTotal - principal` e define `rate = 0`
+- Linha 7337: esconde o campo de taxa de juros
+- Linha 7392: esconde o campo "Juros Total"
+- Linha 7406-7443: exibe os inputs individuais e o resumo automatico
 
-**3a. Adicionar opcao no Select de "Juros Aplicado"** (~linha 7309):
-- Novo `SelectItem` com valor `"custom"` e label "Parcelas Personalizadas"
-
-**3b. Estado do formulario** (~linha 2215):
-- Atualizar o tipo do `interest_mode` para incluir `'custom'`
-- Adicionar estado `customInstallmentValues: string[]` para guardar os valores individuais de cada parcela
-
-**3c. UI condicional para parcelas personalizadas**:
-- Quando `interest_mode === 'custom'`, esconder os campos "Taxa de Juros (%)" e "Valor da Parcela" fixos
-- Exibir uma lista de inputs, um por parcela (baseado no numero de parcelas informado), onde o usuario digita o valor de cada uma
-- Cada input mostrara "Parcela 1:", "Parcela 2:", etc.
-- Exibir um resumo automatico: soma total, lucro (soma - principal)
-- O campo "Juros Total" sera calculado automaticamente como soma das parcelas - principal
-
-**3d. Logica de criacao do emprestimo** (~linha 3849):
-- Quando `interest_mode === 'custom'`:
-  - `total_interest` = soma dos valores das parcelas - principal
-  - `remaining_balance` = soma dos valores das parcelas
-  - `interest_rate` = 0 (nao se aplica)
-  - Salvar os valores individuais nas notas com tag `[CUSTOM_INSTALLMENTS:300,200,400]` para referencia futura
-
-#### 4. Exibicao e Pagamento - `src/pages/Loans.tsx`
-
-**4a. Valor da parcela na listagem de vencimentos**:
-- As funcoes helper (`getInstallmentValueForIndex`, `getExpectedInstallmentValue`, etc.) precisam verificar se o emprestimo tem a tag `[CUSTOM_INSTALLMENTS:...]` e retornar o valor correto para cada indice
-
-**4b. Processamento de pagamento**:
-- O `principal_paid` e `interest_paid` serao calculados proporcionalmente ao valor da parcela customizada
-
-#### 5. Helpers de calculo - `src/lib/calculations.ts`
-
-- Adicionar funcao `parseCustomInstallments(notes: string): number[] | null` para extrair valores da tag
-- Atualizar `calculateTotalToReceive` para tratar `interest_mode === 'custom'` usando a soma dos valores customizados
-- Atualizar funcoes que calculam valor de parcela por indice para verificar se ha valores customizados
-
-#### 6. Hook `useLoans.ts`
-
-- Atualizar tipos do `createLoan` e `editLoan` para aceitar `'custom'` no `interest_mode`
-
-#### 7. Outros arquivos impactados
-
-- **`src/hooks/useOperationalStats.ts`**: Tratar `custom` nos calculos de estatisticas
-- **`src/pages/ReportsLoans.tsx`**: Tratar `custom` nos relatorios
-- **`src/pages/CalendarView.tsx`**: Tratar `custom` na visualizacao de calendario
-- **`src/lib/pdfGenerator.ts`**: Exibir "Parcelas Personalizadas" como modo de juros no PDF
-- **Formulario de edicao** (~linha 14304): Adicionar opcao `custom` no Select de edicao
-
-### Fluxo do Usuario
-
-1. Usuario seleciona modalidade "Parcelas Personalizadas" no campo "Juros Aplicado"
-2. Os campos de taxa de juros sao escondidos
-3. Usuario informa o numero de parcelas (ex: 3)
-4. Aparece uma lista com 3 campos de valor
-5. Usuario preenche: Parcela 1 = R$ 300, Parcela 2 = R$ 200, Parcela 3 = R$ 400
-6. Sistema calcula automaticamente: Total = R$ 900, Lucro = R$ 900 - Principal
-7. Usuario confirma e o emprestimo e criado com os valores individuais
-
-### Armazenamento
-
-Os valores customizados serao armazenados na coluna `notes` do emprestimo usando a tag:
-```
-[CUSTOM_INSTALLMENTS:300.00,200.00,400.00]
-```
-
-Isso evita alteracoes na estrutura da tabela `loans` e permite retrocompatibilidade.
