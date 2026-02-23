@@ -49,8 +49,8 @@ serve(async (req) => {
         planDescription = 'VITALÍCIO';
         break;
       default: // trial
-        expiresAt.setHours(expiresAt.getHours() + 24);
-        planDescription = '24 horas (Trial)';
+        expiresAt = null; // Trial starts counting on first login
+        planDescription = '24 horas (Trial - inicia no primeiro login)';
     }
 
     // Create user
@@ -80,7 +80,7 @@ serve(async (req) => {
 
     // Set expiration dates based on plan type
     if (subscription_plan === 'trial') {
-      profileUpdate.trial_expires_at = expiresAt?.toISOString();
+      profileUpdate.trial_expires_at = null; // Will be set on first login
       profileUpdate.subscription_expires_at = null;
     } else if (subscription_plan === 'lifetime') {
       profileUpdate.trial_expires_at = null;

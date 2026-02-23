@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('is_active')
+        .select('is_active, subscription_plan, trial_expires_at')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -35,6 +35,19 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
           description: 'Seu período de acesso expirou. Entre em contato para renovar.',
         });
         await supabase.auth.signOut();
+        setCheckingActive(false);
+        return;
+      }
+
+      // Trial user doing first login: start the 24h countdown now
+      if (data.subscription_plan === 'trial' && !data.trial_expires_at) {
+        const trialEnd = new Date();
+        trialEnd.setHours(trialEnd.getHours() + 24);
+        await supabase
+          .from('profiles')
+          .update({ trial_expires_at: trialEnd.toISOString() })
+          .eq('id', user.id);
+        console.log('Trial countdown started for user:', user.id, 'expires at:', trialEnd.toISOString());
       }
 
       setCheckingActive(false);
