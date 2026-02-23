@@ -1,53 +1,94 @@
 
+## Nova Modalidade de Juros: Parcelas Personalizadas (custom)
 
-## Corrigir botao "Pagar" que desaparece em Vendas de Produtos
+### Resumo
 
-### Problema Identificado
+Adicionar uma nova modalidade de juros chamada **"Parcelas Personalizadas"** (`custom`) que permite ao usuario definir valores individuais para cada parcela ao criar um emprestimo mensal, semanal ou quinzenal. Exemplo: Parcela 1 = R$ 300, Parcela 2 = R$ 200, Parcela 3 = R$ 400.
 
-O usuario Fernando Gomes tem **1.943 parcelas** na tabela `product_sale_payments`, porem o Supabase retorna no maximo **1.000 registros** por consulta (limite padrao). Como a query busca TODAS as parcelas de uma vez sem paginacao, muitas vendas ficam sem suas parcelas carregadas, fazendo o botao "Pagar" desaparecer.
+### Alteracoes Necessarias
 
-### Solucao
+#### 1. Banco de Dados - Adicionar novo valor ao enum `interest_mode`
 
-Remover o limite de 1000 registros adicionando `.limit()` maior ou usando paginacao. A abordagem mais simples e segura e buscar todas as parcelas em lotes.
+Criar uma migracao SQL para adicionar `'custom'` ao enum `interest_mode`:
 
-### Alteracoes
-
-**Arquivo: `src/hooks/useProductSales.ts`**
-
-Na funcao `useProductSalePayments` (linha ~447-468), alterar a query para buscar todos os registros em lotes de 1000, concatenando os resultados:
-
-```typescript
-queryFn: async () => {
-  if (!effectiveUserId) throw new Error('Usuario nao autenticado');
-
-  const allData: ProductSalePayment[] = [];
-  let from = 0;
-  const pageSize = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from('product_sale_payments')
-      .select('*, productSale:product_sales(*)')
-      .eq('user_id', effectiveUserId)
-      .order('due_date', { ascending: true })
-      .range(from, from + pageSize - 1);
-
-    if (saleId) {
-      query = query.eq('product_sale_id', saleId);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    allData.push(...(data as ProductSalePayment[]));
-    hasMore = data.length === pageSize;
-    from += pageSize;
-  }
-
-  return allData;
-}
+```sql
+ALTER TYPE interest_mode ADD VALUE 'custom';
 ```
 
-Isso garante que todas as parcelas sejam carregadas independente da quantidade, buscando em paginas de 1000 ate nao haver mais dados.
+Isso permite que o campo `interest_mode` aceite o valor `'custom'` nos emprestimos.
 
+#### 2. Tipo TypeScript - `src/types/database.ts`
+
+Atualizar o tipo `InterestMode` para incluir `'custom'`:
+
+```typescript
+export type InterestMode = 'per_installment' | 'on_total' | 'compound' | 'sac' | 'custom';
+```
+
+#### 3. Formulario de Criacao - `src/pages/Loans.tsx`
+
+**3a. Adicionar opcao no Select de "Juros Aplicado"** (~linha 7309):
+- Novo `SelectItem` com valor `"custom"` e label "Parcelas Personalizadas"
+
+**3b. Estado do formulario** (~linha 2215):
+- Atualizar o tipo do `interest_mode` para incluir `'custom'`
+- Adicionar estado `customInstallmentValues: string[]` para guardar os valores individuais de cada parcela
+
+**3c. UI condicional para parcelas personalizadas**:
+- Quando `interest_mode === 'custom'`, esconder os campos "Taxa de Juros (%)" e "Valor da Parcela" fixos
+- Exibir uma lista de inputs, um por parcela (baseado no numero de parcelas informado), onde o usuario digita o valor de cada uma
+- Cada input mostrara "Parcela 1:", "Parcela 2:", etc.
+- Exibir um resumo automatico: soma total, lucro (soma - principal)
+- O campo "Juros Total" sera calculado automaticamente como soma das parcelas - principal
+
+**3d. Logica de criacao do emprestimo** (~linha 3849):
+- Quando `interest_mode === 'custom'`:
+  - `total_interest` = soma dos valores das parcelas - principal
+  - `remaining_balance` = soma dos valores das parcelas
+  - `interest_rate` = 0 (nao se aplica)
+  - Salvar os valores individuais nas notas com tag `[CUSTOM_INSTALLMENTS:300,200,400]` para referencia futura
+
+#### 4. Exibicao e Pagamento - `src/pages/Loans.tsx`
+
+**4a. Valor da parcela na listagem de vencimentos**:
+- As funcoes helper (`getInstallmentValueForIndex`, `getExpectedInstallmentValue`, etc.) precisam verificar se o emprestimo tem a tag `[CUSTOM_INSTALLMENTS:...]` e retornar o valor correto para cada indice
+
+**4b. Processamento de pagamento**:
+- O `principal_paid` e `interest_paid` serao calculados proporcionalmente ao valor da parcela customizada
+
+#### 5. Helpers de calculo - `src/lib/calculations.ts`
+
+- Adicionar funcao `parseCustomInstallments(notes: string): number[] | null` para extrair valores da tag
+- Atualizar `calculateTotalToReceive` para tratar `interest_mode === 'custom'` usando a soma dos valores customizados
+- Atualizar funcoes que calculam valor de parcela por indice para verificar se ha valores customizados
+
+#### 6. Hook `useLoans.ts`
+
+- Atualizar tipos do `createLoan` e `editLoan` para aceitar `'custom'` no `interest_mode`
+
+#### 7. Outros arquivos impactados
+
+- **`src/hooks/useOperationalStats.ts`**: Tratar `custom` nos calculos de estatisticas
+- **`src/pages/ReportsLoans.tsx`**: Tratar `custom` nos relatorios
+- **`src/pages/CalendarView.tsx`**: Tratar `custom` na visualizacao de calendario
+- **`src/lib/pdfGenerator.ts`**: Exibir "Parcelas Personalizadas" como modo de juros no PDF
+- **Formulario de edicao** (~linha 14304): Adicionar opcao `custom` no Select de edicao
+
+### Fluxo do Usuario
+
+1. Usuario seleciona modalidade "Parcelas Personalizadas" no campo "Juros Aplicado"
+2. Os campos de taxa de juros sao escondidos
+3. Usuario informa o numero de parcelas (ex: 3)
+4. Aparece uma lista com 3 campos de valor
+5. Usuario preenche: Parcela 1 = R$ 300, Parcela 2 = R$ 200, Parcela 3 = R$ 400
+6. Sistema calcula automaticamente: Total = R$ 900, Lucro = R$ 900 - Principal
+7. Usuario confirma e o emprestimo e criado com os valores individuais
+
+### Armazenamento
+
+Os valores customizados serao armazenados na coluna `notes` do emprestimo usando a tag:
+```
+[CUSTOM_INSTALLMENTS:300.00,200.00,400.00]
+```
+
+Isso evita alteracoes na estrutura da tabela `loans` e permite retrocompatibilidade.
