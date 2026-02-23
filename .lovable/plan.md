@@ -1,37 +1,28 @@
 
-
-## Corrigir calculo proporcional no Desconto de Cheque
+## Corrigir formula do calculo proporcional no Desconto de Cheque
 
 ### Problema
 
-A funcao `getDaysUntilDue` usa `Math.max(0, diffDays)`, o que faz com que quando a data de vencimento e anterior ou igual a data do desconto, o numero de dias retorne 0. Isso zera o desconto no modo "Proporcional aos dias", resultando em lucro R$ 0,00 e valor a pagar = valor nominal.
+A formula atual para "Proporcional aos dias" calcula: `(taxa / 30) * dias * valor`. Para 1040 dias a 10%, isso resulta em 346% de desconto (R$ 3.466,67), gerando valor a pagar negativo (-R$ 2.466,67). O correto seria calcular por meses: 10% * ~34 meses, mas limitando o desconto ao valor do cheque.
 
-No screenshot do usuario: data desconto = 23/02/2026, vencimento = 20/04/2023 (no passado), entao dias = 0 e desconto = 0.
+Na pratica, o usuario espera:
+- Cheque de R$ 1.000 a 10% ao mes, 1 mes = desconto R$ 100, pagar R$ 900
+- 2 meses = desconto R$ 200, pagar R$ 800
+- E assim por diante, com desconto nunca ultrapassando o valor do cheque
 
 ### Solucao
 
-Usar o valor absoluto dos dias entre as duas datas em vez de limitar a zero. Isso garante que o calculo funcione independente da ordem das datas.
+Alterar a funcao `calculateDiscountAmount` em `src/types/checkDiscount.ts` para limitar o desconto ao valor nominal do cheque usando `Math.min`:
 
-### Alteracoes
-
-**Arquivo: `src/types/checkDiscount.ts`**
-
-Alterar a funcao `getDaysUntilDue` para usar `Math.abs` em vez de `Math.max(0, ...)`:
-
-```
-// De:
-return Math.max(0, diffDays);
-
-// Para:
-return Math.max(1, Math.abs(diffDays));
+```typescript
+// Proporcional: taxa mensal aplicada proporcionalmente aos dias
+const proportionalRate = (discountRate / 30) * daysUntilDue;
+const rawDiscount = nominalValue * (proportionalRate / 100);
+return Math.min(rawDiscount, nominalValue); // nunca exceder o valor do cheque
 ```
 
-Usar `Math.max(1, ...)` garante que mesmo com datas iguais, pelo menos 1 dia seja considerado no calculo, evitando desconto zero inesperado.
+Tambem aplicar o mesmo limite para o modo percentual fixo, por seguranca.
 
-### Impacto
+### Arquivo alterado
 
-- Afeta apenas o calculo proporcional (tipo "proportional")
-- O tipo "percentage" (percentual fixo) nao usa dias, entao nao e afetado
-- A funcao e usada tanto no frontend (preview do formulario e hook `useCheckDiscounts`) quanto nas funcoes de backend
-- Nenhuma outra parte do sistema usa essa funcao
-
+**`src/types/checkDiscount.ts`** - Funcao `calculateDiscountAmount` (~linha 96-109): adicionar `Math.min(..., nominalValue)` no retorno para ambos os tipos de desconto.
