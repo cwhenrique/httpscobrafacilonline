@@ -1,62 +1,27 @@
 
 
-## Adicionar opção "% do valor total" nos juros por atraso
+## Adicionar botao de baixar PDF no historico de pagamentos
 
-### O que muda
+### O que sera feito
 
-Adicionar uma terceira opção de tipo de juros por atraso: **"% do valor total"**. Quando o usuario define ex: 30%, o sistema divide por 30 dias = 1% ao dia aplicado sobre o valor total do contrato.
+Adicionar um botao de download PDF ao lado dos botoes existentes (reenviar, editar, excluir) em cada registro do historico de pagamentos. O botao usara a funcao `generatePaymentReceipt` que ja existe no projeto.
 
-### Como funciona
+### Alteracao
 
-- Tipo atual `percentage`: X% da **parcela** por dia
-- Tipo atual `fixed`: R$ fixo por dia
-- **Novo tipo `percentage_total`**: X% do **valor total do contrato**, dividido por 30 (dias no mes), aplicado por dia de atraso
+**Arquivo: `src/pages/Loans.tsx`**
 
-Exemplo: Contrato de R$ 1.728,00, taxa 5% do valor total -> 5% / 30 = 0,1667% ao dia -> R$ 2,88/dia de atraso
+1. Criar funcao `handleDownloadPaymentPDF(payment)` que monta os dados do `PaymentReceiptData` a partir do pagamento e do emprestimo atual (`paymentHistoryLoanId`), e chama `generatePaymentReceipt`.
 
-### Detalhes Tecnicos
+2. Na area de botoes do historico (entre o botao "Reenviar comprovante" e "Editar data", ~linha 14714-14727), adicionar um novo botao com icone `Download`:
 
-**Tag no banco:** `[OVERDUE_CONFIG:percentage_total:5]` (novo tipo)
-
-**Arquivos a alterar:**
-
-1. **`src/pages/Loans.tsx`** (~8 pontos)
-   - Tipo do state `overdueInterestDialog.interestMode`: adicionar `'percentage_total'`
-   - Tipo do `formData.overdue_penalty_type`: adicionar `'percentage_total'`
-   - Dois blocos de formulario de criacao (daily e installment): adicionar `<SelectItem value="percentage_total">% do valor total</SelectItem>` e preview correspondente
-   - Dialog de configuracao de juros por atraso: adicionar opcao no Select e atualizar preview
-   - `openOverdueInterestDialog`: atualizar tipo para incluir `'percentage_total'`
-   - Logica de materializacao de penalty (linha ~4285): adicionar calculo para `percentage_total`
-   - `handleSaveOverdueInterest`: ja funciona pois usa `overdueInterestDialog.interestMode` dinamicamente
-
-2. **`src/lib/calculations.ts`** (2 funcoes)
-   - `getOverdueConfigFromNotes`: atualizar regex para aceitar `percentage_total`
-   - `calculateDynamicOverdueInterest`: adicionar calculo para o novo tipo (valor total do contrato * taxa / 30 * dias)
-
-3. **`supabase/functions/check-overdue-loans/index.ts`**
-   - `getOverdueConfigFromNotes`: atualizar regex
-   - Calculo de juros: adicionar branch para `percentage_total`
-
-4. **`supabase/functions/check-overdue-contracts/index.ts`**
-   - Mesmas alteracoes
-
-5. **`supabase/functions/check-overdue-vehicles/index.ts`**
-   - Mesmas alteracoes
-
-### Logica de calculo
-
-```text
-percentage:       penaltyPerDay = installmentValue * (rate / 100)
-fixed:            penaltyPerDay = fixedValue
-percentage_total: penaltyPerDay = totalContractValue * (rate / 100) / 30
+```
+[Reenviar] [Download PDF] [Editar] [Excluir]
 ```
 
-Onde `totalContractValue = principal_amount + total_interest`
+### Detalhes tecnicos
 
-### Preview no formulario
-
-Para `percentage_total` com taxa 5% e valor total R$ 1.728,00:
-```
-"A cada dia de atraso, sera aplicado 5% do valor total / 30 dias"
-"Previa: 5% de R$ 1.728,00 / 30 = R$ 2,88/dia"
-```
+- Importar `generatePaymentReceipt` e `PaymentReceiptData` de `@/lib/pdfGenerator` (ja existe import de `generateContractReceipt`)
+- A funcao `handleDownloadPaymentPDF` buscara o loan pelo `paymentHistoryLoanId`, montara o objeto `PaymentReceiptData` com: tipo `'loan'`, contractId, companyName, clientName, installmentNumber, totalInstallments, amountPaid, paymentDate, remainingBalance, penaltyAmount, etc.
+- Icone: `Download` do lucide-react
+- Tooltip: "Baixar comprovante PDF"
+- Estilo consistente com os demais botoes (ghost, icon, h-8 w-8)
