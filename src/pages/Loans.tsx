@@ -3818,13 +3818,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       return;
     }
     // Permitir taxa de juros 0% (zero é um valor válido)
-    const interestRateValue = formData.interest_rate !== '' && formData.interest_rate !== undefined && formData.interest_rate !== null
-      ? parseFloat(String(formData.interest_rate))
-      : NaN;
-    if (isNaN(interestRateValue) || interestRateValue < 0) {
-      toast.error('Informe a taxa de juros (pode ser 0%)');
-      setIsCreatingLoan(false);
-      return;
+    // Para custom, a taxa não se aplica - pular validação
+    if (formData.interest_mode !== 'custom') {
+      const interestRateValue = formData.interest_rate !== '' && formData.interest_rate !== undefined && formData.interest_rate !== null
+        ? parseFloat(String(formData.interest_rate))
+        : NaN;
+      if (isNaN(interestRateValue) || interestRateValue < 0) {
+        toast.error('Informe a taxa de juros (pode ser 0%)');
+        setIsCreatingLoan(false);
+        return;
+      }
     }
     // For single payment, due_date comes from start_date (first payment date)
     // For installments, due_date comes from the last installment date
