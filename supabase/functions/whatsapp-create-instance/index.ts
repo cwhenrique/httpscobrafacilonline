@@ -38,9 +38,25 @@ serve(async (req) => {
     // Check if user already has an instance with token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id, whatsapp_instance_token')
+      .select('whatsapp_instance_id, whatsapp_instance_token, email')
       .eq('id', userId)
       .single();
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return new Response(JSON.stringify({ error: 'Erro ao buscar perfil' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Restrict to authorized email only
+    if (profile?.email !== 'cw@gmail.com') {
+      return new Response(JSON.stringify({ error: 'Função temporariamente restrita.' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);

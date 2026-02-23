@@ -37,9 +37,14 @@ serve(async (req) => {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('whatsapp_instance_id, whatsapp_instance_token')
+      .select('whatsapp_instance_id, whatsapp_instance_token, email')
       .eq('id', userId)
       .single();
+
+    // Restrict to authorized email only
+    if (profile?.email !== 'cw@gmail.com') {
+      return respond({ error: 'Função temporariamente restrita.' }, 403);
+    }
 
     // If no instance exists, create one automatically
     if (!profile?.whatsapp_instance_token) {
