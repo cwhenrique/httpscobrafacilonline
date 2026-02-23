@@ -33,16 +33,10 @@ const getPaymentTypeLabel = (type: string): string => {
   return labels[type] || 'Mensal';
 };
 
-const cleanApiUrl = (url: string): string => {
-  let cleaned = url.replace(/\/+$/, '');
-  const pathPatterns = [
-    /\/message\/sendText\/[^\/]+$/i,
-    /\/message\/sendText$/i,
-    /\/message$/i,
-  ];
-  for (const pattern of pathPatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
+const formatPhoneNumber = (phone: string): string => {
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
   return cleaned;
 };
 
@@ -51,10 +45,8 @@ interface ProfileWithWhatsApp {
   phone: string;
   full_name: string | null;
   subscription_plan: string | null;
-  whatsapp_instance_id: string | null;
+  whatsapp_instance_token: string | null;
   whatsapp_connected_phone: string | null;
-  evolution_api_url: string | null;
-  evolution_api_key: string | null;
   report_schedule_hours: number[] | null;
   relatorio_ativo: boolean;
 }
@@ -129,55 +121,25 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
   }
 };
 
-// Send WhatsApp message to user's own instance (self-message)
+// Send WhatsApp message to user's own instance via UAZAPI
 const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string): Promise<boolean> => {
-  // Check if user has WhatsApp connected
-  if (!profile.whatsapp_instance_id || !profile.whatsapp_connected_phone) {
+  if (!profile.whatsapp_instance_token || !profile.whatsapp_connected_phone) {
     console.log(`User ${profile.id} has no WhatsApp connected, skipping`);
     return false;
   }
-
-  // Use user's credentials or fallback to global
-  const evolutionApiUrlRaw = profile.evolution_api_url || Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = profile.evolution_api_key || Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = profile.whatsapp_instance_id;
-
-  if (!evolutionApiUrlRaw || !evolutionApiKey) {
-    console.error(`Missing Evolution API configuration for user ${profile.id}`);
-    return false;
-  }
-
-  console.log(`Using user's own instance: ${instanceName}`);
-
-  const evolutionApiUrl = cleanApiUrl(evolutionApiUrlRaw);
-
-  // Clean the connected phone number
-  let cleaned = profile.whatsapp_connected_phone.replace(/\D/g, '');
-  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
-
+  const uazapiUrl = Deno.env.get("UAZAPI_URL");
+  if (!uazapiUrl) return false;
+  const formattedPhone = formatPhoneNumber(profile.whatsapp_connected_phone);
   try {
-    const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instanceName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: cleaned,
-          text: message,
-        }),
-      }
-    );
-
-    const data = await response.json();
-    console.log(`WhatsApp sent to ${cleaned}:`, data);
-    
+    const response = await fetch(`${uazapiUrl}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "token": profile.whatsapp_instance_token },
+      body: JSON.stringify({ phone: formattedPhone, message }),
+    });
+    console.log(`WhatsApp sent to ${formattedPhone}: ${response.status}`);
     return response.ok;
   } catch (error) {
-    console.error(`Failed to send WhatsApp to ${cleaned}:`, error);
+    console.error(`Failed to send WhatsApp to ${formattedPhone}:`, error);
     return false;
   }
 };
@@ -238,11 +200,11 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all ACTIVE PAYING users with WhatsApp connected
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan, whatsapp_instance_id, whatsapp_connected_phone, evolution_api_url, evolution_api_key, report_schedule_hours, relatorio_ativo')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_token, whatsapp_connected_phone, report_schedule_hours, relatorio_ativo')
       .eq('is_active', true)
       .not('phone', 'is', null)
       .not('subscription_plan', 'eq', 'trial')
-      .or('whatsapp_instance_id.not.is.null,relatorio_ativo.eq.true')
+      .or('whatsapp_instance_token.not.is.null,relatorio_ativo.eq.true')
       .order('id');
     
     console.log("Querying PAYING users with WhatsApp connected OR relatorio_ativo");
