@@ -8213,12 +8213,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   isDaily,
                   manualPenaltyAmount: totalAppliedPenalties > 0 ? totalAppliedPenalties : undefined,
                   hasDynamicPenalty: overdueConfigValue > 0,
-                  installmentDates: dates,
-                  paidCount,
-                };
-              }}
-              getDueTodayNotificationData={(loan) => {
-                const todayInfo = getTodayInstallmentInfo(loan);
+                    installmentDates: dates,
+                    paidCount,
+                    paidIndices: getPaidIndicesFromNotes(loan),
+                  };
+                }}
+                getDueTodayNotificationData={(loan) => {
+                  const todayInfo = getTodayInstallmentInfo(loan);
                 if (!todayInfo) return null;
                 
                 const numInstallments = loan.installments || 1;
@@ -8257,6 +8258,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   isDaily,
                   installmentDates: (loan.installment_dates as string[]) || [],
                   paidCount,
+                  paidIndices: getPaidIndicesFromNotes(loan),
                 };
               }}
             />
@@ -10616,6 +10618,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     hasDynamicPenalty: overdueConfigValue > 0,
                     installmentDates: dates,
                     paidCount,
+                    paidIndices: getPaidIndicesFromNotes(loan),
                   };
                 }}
                 getDueTodayNotificationData={(loan) => {
@@ -10658,6 +10661,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     isDaily,
                     installmentDates: (loan.installment_dates as string[]) || [],
                     paidCount,
+                    paidIndices: getPaidIndicesFromNotes(loan),
                   };
                 }}
               />

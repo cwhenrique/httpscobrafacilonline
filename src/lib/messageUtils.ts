@@ -129,7 +129,7 @@ interface GenerateInstallmentListOptions {
 export const generateInstallmentStatusList = (options: GenerateInstallmentListOptions): string => {
   const { installmentDates, paidCount, paidIndices } = options;
   
-  if (!installmentDates || installmentDates.length === 0 || installmentDates.length > 20) {
+  if (!installmentDates || installmentDates.length === 0 || installmentDates.length > 60) {
     return '';
   }
   
