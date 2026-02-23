@@ -2095,6 +2095,46 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setLoadingPaymentHistory(false);
   };
   
+  // Handle download payment PDF from payment history
+  const handleDownloadPaymentPDF = async (payment: any) => {
+    if (!paymentHistoryLoanId) return;
+    const loan = loans.find(l => l.id === paymentHistoryLoanId);
+    if (!loan) return;
+
+    const clientName = loan.client?.full_name || 'Cliente';
+    const numInstallments = loan.installments || 1;
+    const installmentMatch = payment.notes?.match(/Parcela (\d+)/);
+    const installmentNumber = installmentMatch ? parseInt(installmentMatch[1]) : getPaidInstallmentsCount(loan);
+    const companyName = profile?.company_name || profile?.full_name || 'CobraFácil';
+    const penaltyMatch = payment.notes?.match(/Multa: R\$ ?([0-9.,]+)/);
+    const penaltyAmount = penaltyMatch ? parseFloat(penaltyMatch[1].replace('.', '').replace(',', '.')) : undefined;
+
+    const data: PaymentReceiptData = {
+      type: 'loan',
+      contractId: loan.id,
+      companyName,
+      customLogoUrl: profile?.company_logo_url,
+      clientName,
+      installmentNumber,
+      totalInstallments: numInstallments,
+      amountPaid: payment.amount,
+      paymentDate: payment.payment_date,
+      remainingBalance: Math.max(0, loan.remaining_balance),
+      totalPaid: loan.total_paid || 0,
+      totalContract: loan.principal_amount + (loan.total_interest || 0),
+      billingSignatureName: profile?.billing_signature_name || companyName,
+      penaltyAmount,
+    };
+
+    try {
+      await generatePaymentReceipt(data);
+      toast.success('Comprovante PDF baixado!');
+    } catch (e) {
+      console.error('Erro ao gerar PDF:', e);
+      toast.error('Erro ao gerar comprovante PDF.');
+    }
+  };
+
   // Handle resend receipt from payment history
   const handleResendReceipt = (payment: any) => {
     if (!paymentHistoryLoanId) return;
@@ -14724,6 +14764,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Reenviar comprovante</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                    onClick={() => handleDownloadPaymentPDF(payment)}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Baixar comprovante PDF</TooltipContent>
                               </Tooltip>
                               <Tooltip>
                                 <TooltipTrigger asChild>
