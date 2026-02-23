@@ -13351,7 +13351,14 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                     const overdueInfo = getOverdueInterestForInstallmentPartial(selectedPartialIndex ?? 0);
                                     const baseValue = renewalFeeInstallmentIndex !== null && (selectedPartialIndex ?? 0) === renewalFeeInstallmentIndex 
                                       ? renewalFeeValue 
-                                      : totalPerInstallment;
+                                      : selectedLoan.interest_mode === 'custom'
+                                        ? (() => {
+                                            const customValues = parseCustomInstallments(selectedLoan.notes);
+                                            return customValues && (selectedPartialIndex ?? 0) < customValues.length
+                                              ? customValues[selectedPartialIndex ?? 0]
+                                              : totalPerInstallment;
+                                          })()
+                                        : totalPerInstallment;
                                     const penalty = dailyPenaltiesPartial[selectedPartialIndex ?? 0] || 0;
                                     const totalValue = getInstallmentValuePartial(selectedPartialIndex ?? 0);
                                     
