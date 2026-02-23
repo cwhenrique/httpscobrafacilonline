@@ -1,63 +1,96 @@
 
-
-## Corrigir exibicao de valores individuais no modo "Parcelas Personalizadas"
+## Corrigir valores de parcelas personalizadas no modal de pagamento
 
 ### Problema
 
-Ao criar um emprestimo com "Parcelas Personalizadas" (custom), os valores individuais (ex: 250, 300, 400, 500, 700) sao ignorados na exibicao. Todas as parcelas mostram o mesmo valor (430), que e a media simples (total 2150 / 5 parcelas = 430).
+O modal "Registrar Pagamento" ignora os valores individuais das parcelas personalizadas e exibe todas com o mesmo valor (R$ 400 = media de R$ 2000 / 5 parcelas). O screenshot mostra Parcela 3/5, 4/5 e 5/5 todas com R$ 400,00, mas deveriam ter valores individuais.
 
 ### Causa Raiz
 
-Existem **duas funcoes** `getInstallmentValue` no arquivo `Loans.tsx`:
+Existem **4 funcoes** no modal de pagamento que calculam valor da parcela sem considerar o modo `custom`:
 
-1. **Linha ~113** (dentro de `getPaidIndicesFromNotes`): Corretamente verifica `custom` e usa `parseCustomInstallments` para retornar o valor individual
-2. **Linha ~458** (dentro de `getPaidInstallmentsCount`): NAO verifica `custom`, retorna `baseInstallmentValue` (media) para todas as parcelas
-
-Alem disso, a funcao **`getEffectiveInstallmentValue`** (linha ~193) tambem nao trata o modo `custom`.
-
-Esses helpers sao usados em toda a interface para exibir o valor de cada parcela, calcular se esta paga, e determinar valores pendentes.
+1. **`totalPerInstallment`** (linha ~12632): calculado como `principalPerInstallment + interestPerInstallment` (media simples)
+2. **`getInstallmentBaseValue`** (linha ~12746): retorna `totalPerInstallment` como fallback, sem checar `custom`
+3. **`getInstallmentValue`** no handler de pagamento (linha ~4522): usa `baseInstallmentValue` sem checar `custom`
+4. **`getInstallmentValuePartial`** (linha ~13227): usa `totalPerInstallment` sem checar `custom`
+5. **Header do dialog** (linha ~12673): exibe `totalPerInstallment` fixo como "Parcela: R$ X"
 
 ### Solucao
 
-Adicionar tratamento do modo `custom` nas funcoes que faltam:
-
 **Arquivo: `src/pages/Loans.tsx`**
 
-**Correcao 1 - `getPaidInstallmentsCount` (linha ~458-466):**
-Adicionar verificacao de custom antes do fallback:
+**Correcao 1 - `getInstallmentBaseValue` (linha 12746-12757):**
+Adicionar tratamento de `custom` antes do fallback:
 
 ```typescript
-const getInstallmentValue = (index: number) => {
+const getInstallmentBaseValue = (index: number) => {
   if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
     return renewalFeeValue;
   }
-  // Parcelas personalizadas: usar valor individual
-  if (loan.interest_mode === 'custom') {
-    const customValues = parseCustomInstallments(loan.notes);
-    if (customValues && index < customValues.length) return customValues[index];
-  }
-  if (loan.interest_mode === 'sac') {
+  if (selectedLoan.interest_mode === 'sac') {
     return calculateSACInstallmentValue(...);
   }
-  return baseInstallmentValue;
+  // Parcelas personalizadas: usar valor individual
+  if (selectedLoan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(selectedLoan.notes);
+    if (customValues && index < customValues.length) return customValues[index];
+  }
+  return totalPerInstallment;
 };
 ```
 
-**Correcao 2 - `getEffectiveInstallmentValue` (linha ~193-224):**
-Adicionar verificacao de custom:
+**Correcao 2 - `getInstallmentValue` no handler de pagamento (linha 4522-4532):**
+Adicionar tratamento de `custom`:
 
 ```typescript
-if (loan.interest_mode === 'custom' && !isDaily) {
-  const customValues = parseCustomInstallments(loan.notes);
-  if (customValues && paidInstallmentsCount < customValues.length) {
-    return customValues[paidInstallmentsCount];
+const getInstallmentValue = (index: number) => {
+  let value = baseInstallmentValue;
+  if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+    value = renewalFeeValue;
+  } else if (selectedLoan.interest_mode === 'sac') {
+    value = calculateSACInstallmentValue(...);
+  } else if (selectedLoan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(selectedLoan.notes);
+    if (customValues && index < customValues.length) value = customValues[index];
   }
-}
+  const penalty = loanPenalties[index] || 0;
+  return value + penalty;
+};
 ```
 
-**Correcao 3 - Verificar todos os outros locais** no arquivo que calculam `installmentValue` sem considerar custom (busca completa por `baseInstallmentValue` e `installmentValue` no contexto de exibicao de parcelas), garantindo que cada parcela exiba seu valor real quando o modo for `custom`.
+**Correcao 3 - `getInstallmentValuePartial` (linha 13227-13235):**
+Adicionar tratamento de `custom`:
+
+```typescript
+const getInstallmentValuePartial = (index: number) => {
+  let baseValue = totalPerInstallment;
+  if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+    baseValue = renewalFeeValue;
+  } else if (selectedLoan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(selectedLoan.notes);
+    if (customValues && index < customValues.length) baseValue = customValues[index];
+  }
+  const penalty = dailyPenaltiesPartial[index] || 0;
+  const overdueInterest = getOverdueInterestForInstallmentPartial(index).amount;
+  return baseValue + penalty + overdueInterest;
+};
+```
+
+**Correcao 4 - Header do dialog (linha 12669-12675):**
+Para `custom`, mostrar "Parcelas Personalizadas" em vez de um valor fixo:
+
+```typescript
+<div className="text-sm text-muted-foreground">
+  {isDaily ? (
+    <>Parcela Diaria: {formatCurrency(totalPerInstallment)} (Lucro: {formatCurrency(totalInterest)})</>
+  ) : selectedLoan.interest_mode === 'custom' ? (
+    <>Parcelas Personalizadas (Total: {formatCurrency(selectedLoan.principal_amount + totalInterest)})</>
+  ) : (
+    <>Parcela: {formatCurrency(totalPerInstallment)} ({formatCurrency(principalPerInstallment)} + {formatCurrency(interestPerInstallment)} juros)</>
+  )}
+</div>
+```
 
 ### Resultado Esperado
 
-Apos a correcao, ao criar um emprestimo com parcelas personalizadas de 250, 300, 400, 500 e 700, cada parcela exibira seu valor individual correto na listagem de vencimentos.
-
+Cada parcela no modal de pagamento exibira seu valor individual correto conforme definido na criacao do emprestimo, tanto na lista de selecao de parcelas quanto no calculo de pagamento.
