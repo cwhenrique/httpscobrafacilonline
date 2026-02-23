@@ -41,6 +41,7 @@ interface LoanData {
   totalToReceive: number;
   installments: number;
   installmentValue: number;
+  isCustom?: boolean;
   contractDate: string; // Data do contrato (quando foi fechado)
   startDate: string; // Data da primeira parcela (primeiro vencimento)
   dueDate: string;
@@ -90,7 +91,9 @@ export default function LoanCreatedReceiptPrompt({
     message += `💰 *Total a Pagar:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += loan.isCustom
+        ? `📊 *Parcelas:* ${loan.installments}x Personalizadas\n`
+        : `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
     message += `📅 *Primeiro Vencimento:* ${formatDate(loan.startDate)}\n`;
@@ -137,7 +140,9 @@ export default function LoanCreatedReceiptPrompt({
     message += `💵 *Total a Receber:* ${formatCurrency(loan.totalToReceive)}\n`;
     
     if (loan.installments > 1) {
-      message += `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
+      message += loan.isCustom
+        ? `📊 *Parcelas:* ${loan.installments}x Personalizadas\n`
+        : `📊 *Parcelas:* ${loan.installments}x de ${formatCurrency(loan.installmentValue)}\n`;
     }
     
     message += `📅 *1º Vencimento:* ${formatDate(loan.startDate)}\n`;
@@ -355,7 +360,7 @@ export default function LoanCreatedReceiptPrompt({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <span>{loan.installments}x {formatCurrency(loan.installmentValue)}</span>
+                  <span>{loan.isCustom ? `${loan.installments}x Personalizadas` : `${loan.installments}x ${formatCurrency(loan.installmentValue)}`}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-muted-foreground" />

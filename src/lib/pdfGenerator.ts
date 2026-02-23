@@ -114,6 +114,7 @@ export interface ContractReceiptData {
     interestRate?: number;
     installments: number;
     installmentValue: number;
+    customInstallmentValues?: number[];
     totalToReceive: number;
     startDate: string; // Mantido para compatibilidade - usar contractDate quando disponível
     contractDate?: string; // Data do contrato (quando foi fechado)
@@ -407,7 +408,12 @@ export const generateContractReceipt = async (data: ContractReceiptData): Promis
   doc.setFont('helvetica', 'bold');
   doc.text('Parcelas:', col1X, negY);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}`, col1X + 25, negY);
+  doc.text(
+    data.negotiation.customInstallmentValues
+      ? `${data.negotiation.installments}x Personalizadas`
+      : `${data.negotiation.installments}x de ${formatCurrency(data.negotiation.installmentValue)}`,
+    col1X + 25, negY
+  );
 
   // Usar contractDate se disponível, senão startDate
   const contractDateDisplay = data.negotiation.contractDate || data.negotiation.startDate;

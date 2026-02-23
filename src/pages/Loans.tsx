@@ -1134,6 +1134,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     totalToReceive: number;
     installments: number;
     installmentValue: number;
+    isCustom?: boolean;
     contractDate: string;
     startDate: string;
     dueDate: string;
@@ -4238,6 +4239,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     if (result?.data) {
       const client = clients.find(c => c.id === formData.client_id);
       const installmentValueNum = installmentValue ? parseFloat(installmentValue) : (principal + totalInterest) / numInstallments;
+      const isCustomMode = formData.interest_mode === 'custom';
       
       setLoanCreatedData({
         id: result.data.id,
@@ -4250,6 +4252,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         totalToReceive: principal + totalInterest,
         installments: numInstallments,
         installmentValue: installmentValueNum,
+        isCustom: isCustomMode,
         contractDate: formData.contract_date,
         startDate: formData.start_date,
         dueDate: finalDueDate,
@@ -5621,20 +5624,23 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         interestRate: loan.interest_rate,
         installments: numInstallments,
         installmentValue: installmentValue,
+        customInstallmentValues: loan.interest_mode === 'custom' ? (parseCustomInstallments(loan.notes) || undefined) : undefined,
         totalToReceive: totalToReceive,
-        startDate: loan.contract_date || loan.start_date, // Fallback para compatibilidade
-        contractDate: loan.contract_date || loan.start_date, // Data do contrato
-        firstDueDate: loan.start_date, // Data do primeiro vencimento
+        startDate: loan.contract_date || loan.start_date,
+        contractDate: loan.contract_date || loan.start_date,
+        firstDueDate: loan.start_date,
       },
       dueDates: (() => {
         const dates = (loan.installment_dates as string[]) || [loan.due_date];
         const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+        const customValues = loan.interest_mode === 'custom' ? parseCustomInstallments(loan.notes) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
         return dates.map((date, index) => {
           const paidAmount = partialPayments[index] || 0;
-          const isPaid = paidAmount >= installmentValue * 0.99;
+          const expectedValue = customValues && index < customValues.length ? customValues[index] : installmentValue;
+          const isPaid = paidAmount >= expectedValue * 0.99;
           const dueDate = new Date(date + 'T12:00:00');
           const isOverdue = !isPaid && dueDate < today;
           return { date, isPaid, isOverdue };
