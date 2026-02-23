@@ -42,8 +42,8 @@ serve(async (req) => {
       .single();
 
     // Restrict to authorized email only
-    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'Clau_pogian@hotmail.com'];
-    if (!allowedEmails.includes(profile?.email)) {
+    const allowedEmails = ['cw@gmail.com', 'contatodiegoreiis@gmail.com', 'renatochave89@gmail.com', 'kaique-lima98@outlook.com', 'clau_pogian@hotmail.com'];
+    if (!allowedEmails.includes((profile?.email || '').toLowerCase())) {
       return respond({ error: 'Função temporariamente restrita.' }, 403);
     }
 
