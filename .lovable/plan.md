@@ -1,39 +1,63 @@
 
 
-## Corrigir validacao de juros no modo "Parcelas Personalizadas"
+## Corrigir exibicao de valores individuais no modo "Parcelas Personalizadas"
 
 ### Problema
 
-Quando o usuario seleciona o modo "Parcelas Personalizadas" (`custom`), o campo de taxa de juros esta escondido (correto), porem a validacao na submissao do formulario ainda exige que `interest_rate` seja preenchido. Como o campo esta vazio, o sistema mostra "Informe a taxa de juros" e bloqueia a criacao.
+Ao criar um emprestimo com "Parcelas Personalizadas" (custom), os valores individuais (ex: 250, 300, 400, 500, 700) sao ignorados na exibicao. Todas as parcelas mostram o mesmo valor (430), que e a media simples (total 2150 / 5 parcelas = 430).
 
-O calculo de juros total ja esta correto no codigo (soma das parcelas - principal), mas a validacao impede que o formulario seja submetido.
+### Causa Raiz
+
+Existem **duas funcoes** `getInstallmentValue` no arquivo `Loans.tsx`:
+
+1. **Linha ~113** (dentro de `getPaidIndicesFromNotes`): Corretamente verifica `custom` e usa `parseCustomInstallments` para retornar o valor individual
+2. **Linha ~458** (dentro de `getPaidInstallmentsCount`): NAO verifica `custom`, retorna `baseInstallmentValue` (media) para todas as parcelas
+
+Alem disso, a funcao **`getEffectiveInstallmentValue`** (linha ~193) tambem nao trata o modo `custom`.
+
+Esses helpers sao usados em toda a interface para exibir o valor de cada parcela, calcular se esta paga, e determinar valores pendentes.
 
 ### Solucao
 
-Uma unica alteracao no arquivo `src/pages/Loans.tsx`:
+Adicionar tratamento do modo `custom` nas funcoes que faltam:
 
-**Arquivo: `src/pages/Loans.tsx` (~linha 3820-3828)**
+**Arquivo: `src/pages/Loans.tsx`**
 
-Pular a validacao de taxa de juros quando o modo for `custom`, ja que nesse modo os juros sao calculados automaticamente a partir dos valores das parcelas:
+**Correcao 1 - `getPaidInstallmentsCount` (linha ~458-466):**
+Adicionar verificacao de custom antes do fallback:
 
 ```typescript
-// Permitir taxa de juros 0% (zero é um valor válido)
-// Para custom, a taxa não se aplica - pular validação
-if (formData.interest_mode !== 'custom') {
-  const interestRateValue = formData.interest_rate !== '' && formData.interest_rate !== undefined && formData.interest_rate !== null
-    ? parseFloat(String(formData.interest_rate))
-    : NaN;
-  if (isNaN(interestRateValue) || interestRateValue < 0) {
-    toast.error('Informe a taxa de juros (pode ser 0%)');
-    setIsCreatingLoan(false);
-    return;
+const getInstallmentValue = (index: number) => {
+  if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) {
+    return renewalFeeValue;
+  }
+  // Parcelas personalizadas: usar valor individual
+  if (loan.interest_mode === 'custom') {
+    const customValues = parseCustomInstallments(loan.notes);
+    if (customValues && index < customValues.length) return customValues[index];
+  }
+  if (loan.interest_mode === 'sac') {
+    return calculateSACInstallmentValue(...);
+  }
+  return baseInstallmentValue;
+};
+```
+
+**Correcao 2 - `getEffectiveInstallmentValue` (linha ~193-224):**
+Adicionar verificacao de custom:
+
+```typescript
+if (loan.interest_mode === 'custom' && !isDaily) {
+  const customValues = parseCustomInstallments(loan.notes);
+  if (customValues && paidInstallmentsCount < customValues.length) {
+    return customValues[paidInstallmentsCount];
   }
 }
 ```
 
-Isso e suficiente porque o restante do codigo ja trata corretamente o modo `custom`:
-- Linha 3864-3877: calcula `totalInterest = customTotal - principal` e define `rate = 0`
-- Linha 7337: esconde o campo de taxa de juros
-- Linha 7392: esconde o campo "Juros Total"
-- Linha 7406-7443: exibe os inputs individuais e o resumo automatico
+**Correcao 3 - Verificar todos os outros locais** no arquivo que calculam `installmentValue` sem considerar custom (busca completa por `baseInstallmentValue` e `installmentValue` no contexto de exibicao de parcelas), garantindo que cada parcela exiba seu valor real quando o modo for `custom`.
+
+### Resultado Esperado
+
+Apos a correcao, ao criar um emprestimo com parcelas personalizadas de 250, 300, 400, 500 e 700, cada parcela exibira seu valor individual correto na listagem de vencimentos.
 
