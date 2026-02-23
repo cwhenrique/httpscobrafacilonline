@@ -65,11 +65,11 @@ const getContractTypeLabel = (type: string): string => {
 
 // Helper para extrair configuração de multa por atraso das notas
 // Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
-const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
-  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed' | 'percentage_total'; value: number } | null => {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
   if (!match) return null;
   return {
-    type: match[1] as 'percentage' | 'fixed',
+    type: match[1] as 'percentage' | 'fixed' | 'percentage_total',
     value: parseFloat(match[2])
   };
 };
@@ -251,7 +251,9 @@ const handler = async (req: Request): Promise<Response> => {
             if (r.overdueConfig) {
               const taxaInfo = r.overdueConfig.type === 'percentage' 
                 ? `${r.overdueConfig.value}% ao dia`
-                : `${formatCurrency(r.overdueConfig.value)}/dia`;
+                : r.overdueConfig.type === 'percentage_total'
+                  ? `${r.overdueConfig.value}% do total/30 dias`
+                  : `${formatCurrency(r.overdueConfig.value)}/dia`;
               itemLine += `\n   📈 Taxa atraso: ${taxaInfo}`;
             }
             return itemLine;
@@ -290,7 +292,9 @@ const handler = async (req: Request): Promise<Response> => {
             if (p.overdueConfig) {
               const taxaInfo = p.overdueConfig.type === 'percentage' 
                 ? `${p.overdueConfig.value}% ao dia`
-                : `${formatCurrency(p.overdueConfig.value)}/dia`;
+                : p.overdueConfig.type === 'percentage_total'
+                  ? `${p.overdueConfig.value}% do total/30 dias`
+                  : `${formatCurrency(p.overdueConfig.value)}/dia`;
               itemLine += `\n   📈 Taxa atraso: ${taxaInfo}`;
             }
             return itemLine;

@@ -670,13 +670,13 @@ export function calculateSACInstallmentValue(
  * @returns Configuração de tipo e valor do juros por atraso
  */
 export function getOverdueConfigFromNotes(notes: string | null): {
-  type: 'percentage' | 'fixed' | null;
+  type: 'percentage' | 'fixed' | 'percentage_total' | null;
   value: number;
 } {
-  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
   if (match) {
     return {
-      type: match[1] as 'percentage' | 'fixed',
+      type: match[1] as 'percentage' | 'fixed' | 'percentage_total',
       value: parseFloat(match[2])
     };
   }
@@ -729,6 +729,11 @@ export function calculateDynamicOverdueInterest(
   if (config.type === 'percentage') {
     // % do valor da parcela por dia
     return (installmentValue * (config.value / 100)) * daysOverdue;
+  } else if (config.type === 'percentage_total') {
+    // % do valor total do contrato / 30 dias
+    const totalContractValue = loan.principal_amount + (loan.total_interest || 0);
+    const penaltyPerDay = totalContractValue * (config.value / 100) / 30;
+    return penaltyPerDay * daysOverdue;
   } else {
     // Valor fixo por dia
     return config.value * daysOverdue;

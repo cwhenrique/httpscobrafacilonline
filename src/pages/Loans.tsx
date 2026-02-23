@@ -360,7 +360,7 @@ interface CumulativePenaltyResult {
 
 const calculateCumulativePenalty = (
   overdueInstallmentsDetails: OverdueInstallmentDetail[],
-  penaltyType: 'percentage' | 'fixed',
+  penaltyType: 'percentage' | 'fixed' | 'percentage_total',
   penaltyValue: number,
   installmentValue: number,
   numInstallments: number
@@ -1148,7 +1148,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     daily_amount: string;
     overdue_daily_rate: string;
     overdue_fixed_amount: string;
-    overdue_penalty_type: 'percentage' | 'fixed';
+    overdue_penalty_type: 'percentage' | 'fixed' | 'percentage_total';
     apply_overdue_penalty: boolean;
     send_notification: boolean;
   }>({
@@ -1228,7 +1228,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     isOpen: boolean;
     loanId: string;
     currentNotes: string | null;
-    interestMode: 'percentage' | 'fixed';
+    interestMode: 'percentage' | 'fixed' | 'percentage_total';
     overdueInstallments: Array<{
       index: number;
       dueDate: string;
@@ -1666,8 +1666,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     installmentValue: number
   ) => {
     // Buscar configuração existente de juros por atraso
-    const existingConfig = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-    const existingMode = existingConfig ? existingConfig[1] as 'percentage' | 'fixed' : 'percentage';
+    const existingConfig = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+    const existingMode = existingConfig ? existingConfig[1] as 'percentage' | 'fixed' | 'percentage_total' : 'percentage';
     const existingValue = existingConfig ? existingConfig[2] : '';
     
     setOverdueInterestDialog({
@@ -2185,7 +2185,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     is_historical_contract: false, // Contract being registered retroactively
     send_creation_notification: false, // Send WhatsApp notification on creation (default: off)
     overdue_penalty_enabled: false, // Juros por atraso automático
-    overdue_penalty_type: 'percentage' as 'percentage' | 'fixed',
+    overdue_penalty_type: 'percentage' as 'percentage' | 'fixed' | 'percentage_total',
     overdue_penalty_value: '', // Valor da multa (% ou fixo)
   });
   
@@ -4223,8 +4223,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // salvamos como tags [DAILY_PENALTY:index:valor] para que o getInstallmentValue
     // do processamento inclua automaticamente o valor da multa/juros de atraso.
     let currentNotesForPenalty = freshLoanData.notes || '';
-    const overdueMatchForPenalty = currentNotesForPenalty.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-    const overdueConfigTypeForPenalty = overdueMatchForPenalty?.[1] as 'percentage' | 'fixed' | null;
+    const overdueMatchForPenalty = currentNotesForPenalty.match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+    const overdueConfigTypeForPenalty = overdueMatchForPenalty?.[1] as 'percentage' | 'fixed' | 'percentage_total' | null;
     const overdueConfigValueForPenalty = overdueMatchForPenalty ? parseFloat(overdueMatchForPenalty[2]) : 0;
     
     let penaltyTagsAdded = false;
@@ -4284,6 +4284,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         let overdueInterest = 0;
         if (overdueConfigTypeForPenalty === 'percentage') {
           overdueInterest = (baseValueForPenalty * (overdueConfigValueForPenalty / 100)) * daysOverdueForIdx;
+        } else if (overdueConfigTypeForPenalty === 'percentage_total') {
+          const totalContractValue = selectedLoan.principal_amount + (selectedLoan.total_interest || 0);
+          overdueInterest = (totalContractValue * (overdueConfigValueForPenalty / 100) / 30) * daysOverdueForIdx;
         } else {
           overdueInterest = overdueConfigValueForPenalty * daysOverdueForIdx;
         }
@@ -5346,8 +5349,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const interestPerInstallment = totalInterest / numInstallments;
     
     // Calcular juros dinâmicos de atraso
-    const overdueMatch = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
-    const overdueConfigType = overdueMatch?.[1] as 'percentage' | 'fixed' | null;
+    const overdueMatch = (loan.notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
+    const overdueConfigType = overdueMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | null;
     const overdueConfigValue = overdueMatch ? parseFloat(overdueMatch[2]) : 0;
     
     // Calcular dias de atraso
@@ -5381,6 +5384,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       
       if (overdueConfigType === 'percentage') {
         dynamicInterest = (installmentValue * (overdueConfigValue / 100)) * daysOverdue;
+      } else if (overdueConfigType === 'percentage_total') {
+        const totalContractValue = loan.principal_amount + totalInterest;
+        dynamicInterest = (totalContractValue * (overdueConfigValue / 100) / 30) * daysOverdue;
       } else {
         dynamicInterest = overdueConfigValue * daysOverdue;
       }
@@ -5898,9 +5904,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     if (!loan) return;
     
     // Parse existing overdue config from notes
-    const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+    const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
     const hasExistingOverdueConfig = !!overdueConfigMatch;
-    const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+    const existingOverdueType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | undefined;
     const existingOverdueValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
     
     // Clean notes for display (remove internal tags)
@@ -6960,27 +6966,28 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                             value={formData.overdue_penalty_type}
                             onValueChange={(val) => setFormData(prev => ({ 
                               ...prev, 
-                              overdue_penalty_type: val as 'percentage' | 'fixed' 
+                              overdue_penalty_type: val as 'percentage' | 'fixed' | 'percentage_total' 
                             }))}
                           >
                             <SelectTrigger className="h-9">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="percentage">% do valor total</SelectItem>
+                              <SelectItem value="percentage">% da parcela por dia</SelectItem>
+                              <SelectItem value="percentage_total">% do valor total / 30 dias</SelectItem>
                               <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">
-                            {formData.overdue_penalty_type === 'percentage' ? 'Taxa (%)' : 'Valor (R$)'}
+                            {formData.overdue_penalty_type === 'fixed' ? 'Valor (R$)' : 'Taxa (%)'}
                           </Label>
                           <Input
                             type="number"
-                            step={formData.overdue_penalty_type === 'percentage' ? '0.5' : '0.01'}
+                            step={formData.overdue_penalty_type === 'fixed' ? '0.01' : '0.5'}
                             min="0"
-                            placeholder={formData.overdue_penalty_type === 'percentage' ? 'Ex: 1, 2' : 'Ex: 5.00'}
+                            placeholder={formData.overdue_penalty_type === 'fixed' ? 'Ex: 5.00' : 'Ex: 1, 2'}
                             value={formData.overdue_penalty_value}
                             onChange={(e) => setFormData(prev => ({ 
                               ...prev, 
@@ -6991,13 +6998,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                         </div>
                         {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
                           <div className="col-span-2 text-xs text-amber-500 space-y-1">
-                            <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor total</p>
-                            {formData.daily_amount && installmentDates.length > 0 && (() => {
-                              const totalValue = parseFloat(formData.daily_amount) * installmentDates.length;
-                              const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100);
+                            <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela</p>
+                            {formData.daily_amount && (() => {
+                              const dailyPenalty = parseFloat(formData.daily_amount) * (parseFloat(formData.overdue_penalty_value) / 100);
                               return (
                                 <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
-                                  📊 Prévia: {formData.overdue_penalty_value}% de R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = R$ {dailyPenalty.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+                                  📊 Prévia: {formData.overdue_penalty_value}% de {formatCurrency(parseFloat(formData.daily_amount))} = {formatCurrency(dailyPenalty)}/dia
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        {formData.overdue_penalty_type === 'percentage_total' && formData.overdue_penalty_value && (
+                          <div className="col-span-2 text-xs text-amber-500 space-y-1">
+                            <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% do valor total / 30 dias</p>
+                            {formData.daily_amount && installmentDates.length > 0 && (() => {
+                              const totalValue = parseFloat(formData.daily_amount) * installmentDates.length;
+                              const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100) / 30;
+                              return (
+                                <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
+                                  📊 Prévia: {formData.overdue_penalty_value}% de {formatCurrency(totalValue)} / 30 = {formatCurrency(dailyPenalty)}/dia
                                 </p>
                               );
                             })()}
@@ -7558,27 +7578,28 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                           value={formData.overdue_penalty_type}
                           onValueChange={(val) => setFormData(prev => ({ 
                             ...prev, 
-                            overdue_penalty_type: val as 'percentage' | 'fixed' 
+                            overdue_penalty_type: val as 'percentage' | 'fixed' | 'percentage_total' 
                           }))}
                         >
                           <SelectTrigger className="h-9">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="percentage">% do valor total</SelectItem>
+                            <SelectItem value="percentage">% da parcela por dia</SelectItem>
+                            <SelectItem value="percentage_total">% do valor total / 30 dias</SelectItem>
                             <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">
-                          {formData.overdue_penalty_type === 'percentage' ? 'Taxa (%)' : 'Valor (R$)'}
+                          {formData.overdue_penalty_type === 'fixed' ? 'Valor (R$)' : 'Taxa (%)'}
                         </Label>
                         <Input
                           type="number"
-                          step={formData.overdue_penalty_type === 'percentage' ? '0.5' : '0.01'}
+                          step={formData.overdue_penalty_type === 'fixed' ? '0.01' : '0.5'}
                           min="0"
-                          placeholder={formData.overdue_penalty_type === 'percentage' ? 'Ex: 1, 2' : 'Ex: 5.00'}
+                          placeholder={formData.overdue_penalty_type === 'fixed' ? 'Ex: 5.00' : 'Ex: 1, 2'}
                           value={formData.overdue_penalty_value}
                           onChange={(e) => setFormData(prev => ({ 
                             ...prev, 
@@ -7589,13 +7610,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                       </div>
                       {formData.overdue_penalty_type === 'percentage' && formData.overdue_penalty_value && (
                         <div className="col-span-2 text-xs text-amber-500 space-y-1">
-                          <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor total</p>
-                          {installmentValue && formData.installments && (() => {
-                            const totalValue = parseFloat(installmentValue) * parseInt(formData.installments);
-                            const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100);
+                          <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% sobre o valor da parcela</p>
+                          {installmentValue && (() => {
+                            const dailyPenalty = parseFloat(installmentValue) * (parseFloat(formData.overdue_penalty_value) / 100);
                             return (
                               <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
-                                📊 Prévia: {formData.overdue_penalty_value}% de R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = R$ {dailyPenalty.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/dia
+                                📊 Prévia: {formData.overdue_penalty_value}% de {formatCurrency(parseFloat(installmentValue))} = {formatCurrency(dailyPenalty)}/dia
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      {formData.overdue_penalty_type === 'percentage_total' && formData.overdue_penalty_value && (
+                        <div className="col-span-2 text-xs text-amber-500 space-y-1">
+                          <p>⚠️ A cada dia de atraso, será aplicado {formData.overdue_penalty_value}% do valor total / 30 dias</p>
+                          {installmentValue && formData.installments && (() => {
+                            const totalValue = parseFloat(installmentValue) * parseInt(formData.installments);
+                            const dailyPenalty = totalValue * (parseFloat(formData.overdue_penalty_value) / 100) / 30;
+                            return (
+                              <p className="bg-amber-500/20 p-2 rounded text-amber-300 font-medium">
+                                📊 Prévia: {formData.overdue_penalty_value}% de {formatCurrency(totalValue)} / 30 = {formatCurrency(dailyPenalty)}/dia
                               </p>
                             );
                           })()}
@@ -8528,9 +8562,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 })();
                 
                 // Parse overdue config from notes (percentage or fixed value)
-                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+                const overdueConfigMatch = loan.notes?.match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
                 const hasOverdueConfig = !!overdueConfigMatch;
-                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | undefined;
+                const overdueConfigType = overdueConfigMatch?.[1] as 'percentage' | 'fixed' | 'percentage_total' | undefined;
                 const overdueConfigValue = overdueConfigMatch ? parseFloat(overdueConfigMatch[2]) : 0;
                 
                 // Calculate days overdue
@@ -8558,6 +8592,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                     // Para outros tipos (mensal, semanal, etc.), manter cálculo simples
                     if (overdueConfigType === 'percentage') {
                       dynamicPenaltyAmount = (totalPerInstallment * (overdueConfigValue / 100)) * daysOverdue;
+                    } else if (overdueConfigType === 'percentage_total') {
+                      const totalContractValue = loan.principal_amount + (loan.total_interest || 0);
+                      dynamicPenaltyAmount = (totalContractValue * (overdueConfigValue / 100) / 30) * daysOverdue;
                     } else {
                       dynamicPenaltyAmount = overdueConfigValue * daysOverdue;
                     }
@@ -9337,7 +9374,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 variant="ghost" 
                                 onClick={() => {
                                   setConfiguringPenaltyLoanId(loan.id);
-                                  setInlinePenaltyType(overdueConfigType || 'percentage');
+                                   setInlinePenaltyType(overdueConfigType === 'percentage_total' ? 'percentage' : (overdueConfigType || 'percentage'));
                                   setInlinePenaltyValue(overdueConfigValue.toString());
                                 }}
                                 className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300 dark:hover:bg-blue-500/10"
@@ -9394,7 +9431,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                 loanId: loan.id,
                                 // Juros por atraso (calculado por dia) - sempre passa separadamente
                                 overdueInterestAmount: dynamicPenaltyAmount > 0 ? dynamicPenaltyAmount : undefined,
-                                penaltyType: overdueConfigType || undefined,
+                                 penaltyType: overdueConfigType === 'percentage_total' ? 'percentage' : (overdueConfigType || undefined),
                                 penaltyValue: overdueConfigValue > 0 ? overdueConfigValue : undefined,
                                 interestAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.interestPerInstallment > 0 ? v.interestPerInstallment : undefined; })(),
                                 principalAmount: (() => { const v = getEffectivePerInstallmentValues(loan.notes, loan.payment_type === 'daily', numInstallments, principalPerInstallment, calculatedInterestPerInstallment); return v.principalPerInstallment > 0 ? v.principalPerInstallment : undefined; })(),
@@ -11519,7 +11556,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                                   variant="ghost" 
                                   onClick={() => {
                                     setConfiguringPenaltyLoanId(loan.id);
-                                    setInlinePenaltyType(overdueConfigType || 'percentage');
+                                    setInlinePenaltyType(overdueConfigType === 'percentage_total' ? 'percentage' : (overdueConfigType || 'percentage'));
                                     setInlinePenaltyValue(overdueConfigValue.toString());
                                   }}
                                   className="flex-1 text-blue-700 hover:text-blue-800 hover:bg-blue-500/10 dark:text-blue-300/70 dark:hover:text-blue-300"
@@ -15079,14 +15116,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 <Select 
                   value={overdueInterestDialog?.interestMode} 
                   onValueChange={(v) => {
-                    setOverdueInterestDialog(prev => prev ? {...prev, interestMode: v as 'percentage' | 'fixed'} : null);
+                    setOverdueInterestDialog(prev => prev ? {...prev, interestMode: v as 'percentage' | 'fixed' | 'percentage_total'} : null);
                   }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="percentage">Porcentagem (% por dia)</SelectItem>
+                    <SelectItem value="percentage">% da parcela por dia</SelectItem>
+                    <SelectItem value="percentage_total">% do valor total / 30 dias</SelectItem>
                     <SelectItem value="fixed">Valor fixo (R$ por dia)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -15095,22 +15133,26 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               {/* Valor */}
               <div className="space-y-2">
                 <Label>
-                  {overdueInterestDialog?.interestMode === 'percentage' 
-                    ? 'Porcentagem por dia de atraso (%)' 
-                    : 'Valor fixo por dia de atraso (R$)'}
+                  {overdueInterestDialog?.interestMode === 'fixed' 
+                    ? 'Valor fixo por dia de atraso (R$)' 
+                    : overdueInterestDialog?.interestMode === 'percentage_total'
+                      ? 'Porcentagem do valor total (%)'
+                      : 'Porcentagem por dia de atraso (%)'}
                 </Label>
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder={overdueInterestDialog?.interestMode === 'percentage' ? 'Ex: 1.5' : 'Ex: 5.00'}
+                  placeholder={overdueInterestDialog?.interestMode === 'fixed' ? 'Ex: 5.00' : 'Ex: 1.5'}
                   value={overdueInterestValue}
                   onChange={(e) => setOverdueInterestValue(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
                   {overdueInterestDialog?.interestMode === 'percentage' 
                     ? 'Os juros serão calculados: % × valor da parcela × dias em atraso' 
-                    : 'Os juros serão calculados: R$/dia × dias em atraso'}
+                    : overdueInterestDialog?.interestMode === 'percentage_total'
+                      ? 'Os juros serão calculados: % × valor total do contrato / 30 × dias em atraso'
+                      : 'Os juros serão calculados: R$/dia × dias em atraso'}
                 </p>
               </div>
               
@@ -15119,22 +15161,33 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 <div className="p-3 bg-blue-500/10 rounded border border-blue-500/30 space-y-2">
                   <p className="text-sm font-medium text-blue-600">
                     Juros configurado: {overdueInterestDialog.interestMode === 'percentage' 
-                      ? `${overdueInterestValue}% por dia`
-                      : `R$ ${parseFloat(overdueInterestValue || '0').toFixed(2)} por dia`}
+                      ? `${overdueInterestValue}% da parcela por dia`
+                      : overdueInterestDialog.interestMode === 'percentage_total'
+                        ? `${overdueInterestValue}% do valor total / 30 dias`
+                        : `R$ ${parseFloat(overdueInterestValue || '0').toFixed(2)} por dia`}
                   </p>
                   {overdueInterestDialog.overdueInstallments.length > 0 && (
                     <div className="text-xs text-blue-600/80">
                       <p className="font-medium mb-1">Prévia para parcelas em atraso:</p>
                       {overdueInterestDialog.overdueInstallments.slice(0, 3).map((inst) => {
-                        const interestAmount = overdueInterestDialog.interestMode === 'percentage'
-                          ? inst.installmentValue * (parseFloat(overdueInterestValue) / 100) * inst.daysOverdue
-                          : parseFloat(overdueInterestValue) * inst.daysOverdue;
+                        let interestAmount = 0;
+                        if (overdueInterestDialog.interestMode === 'percentage') {
+                          interestAmount = inst.installmentValue * (parseFloat(overdueInterestValue) / 100) * inst.daysOverdue;
+                        } else if (overdueInterestDialog.interestMode === 'percentage_total') {
+                          const totalInstallments = overdueInterestDialog.overdueInstallments.length > 0 ? overdueInterestDialog.overdueInstallments.length : 1;
+                          const totalValue = inst.installmentValue * totalInstallments;
+                          interestAmount = (totalValue * (parseFloat(overdueInterestValue) / 100) / 30) * inst.daysOverdue;
+                        } else {
+                          interestAmount = parseFloat(overdueInterestValue) * inst.daysOverdue;
+                        }
                         return (
                           <p key={inst.index}>
                             Parcela {inst.index + 1}: {inst.daysOverdue} dias × {
                               overdueInterestDialog.interestMode === 'percentage' 
                                 ? `${overdueInterestValue}%` 
-                                : `R$ ${parseFloat(overdueInterestValue).toFixed(2)}`
+                                : overdueInterestDialog.interestMode === 'percentage_total'
+                                  ? `${overdueInterestValue}%/30`
+                                  : `R$ ${parseFloat(overdueInterestValue).toFixed(2)}`
                             } = {formatCurrency(interestAmount)}
                           </p>
                         );

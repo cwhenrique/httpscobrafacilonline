@@ -55,11 +55,11 @@ const getContractId = (id: string): string => {
 
 // Helper para extrair configuração de multa por atraso das notas
 // Formato: [OVERDUE_CONFIG:percentage:1] ou [OVERDUE_CONFIG:fixed:5.00]
-const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed'; value: number } | null => {
-  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage|fixed):([0-9.]+)\]/);
+const getOverdueConfigFromNotes = (notes: string | null): { type: 'percentage' | 'fixed' | 'percentage_total'; value: number } | null => {
+  const match = (notes || '').match(/\[OVERDUE_CONFIG:(percentage_total|percentage|fixed):([0-9.]+)\]/);
   if (!match) return null;
   return {
-    type: match[1] as 'percentage' | 'fixed',
+    type: match[1] as 'percentage' | 'fixed' | 'percentage_total',
     value: parseFloat(match[2])
   };
 };
@@ -236,9 +236,11 @@ const handler = async (req: Request): Promise<Response> => {
           
           // Mostrar taxa de juros por atraso se configurada
           if (overdueConfig) {
-            const taxaInfo = overdueConfig.type === 'percentage' 
+          const taxaInfo = overdueConfig.type === 'percentage' 
               ? `${overdueConfig.value}% ao dia`
-              : `${formatCurrency(overdueConfig.value)}/dia`;
+              : overdueConfig.type === 'percentage_total'
+                ? `${overdueConfig.value}% do total/30 dias`
+                : `${formatCurrency(overdueConfig.value)}/dia`;
             message += `• 📈 Taxa por Atraso: ${taxaInfo}\n`;
           }
           
