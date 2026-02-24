@@ -626,6 +626,51 @@ export function useProductSalePayments(saleId?: string) {
           .eq('id', payment.product_sale_id);
       }
 
+      // OVERPAYMENT: Cascade excess into next pending installments
+      let affectedInstallmentInfo = '';
+      if (overpayment > 0.01) {
+        const { data: pendingPayments } = await supabase
+          .from('product_sale_payments')
+          .select('*')
+          .eq('product_sale_id', payment.product_sale_id)
+          .eq('status', 'pending')
+          .neq('id', paymentId)
+          .order('due_date', { ascending: true })
+          .order('installment_number', { ascending: true });
+
+        let remainingExcess = overpayment;
+        if (pendingPayments && pendingPayments.length > 0) {
+          for (const p of pendingPayments) {
+            if (remainingExcess <= 0.01) break;
+
+            if (remainingExcess >= p.amount) {
+              // Excess covers entire installment - mark as paid
+              await supabase
+                .from('product_sale_payments')
+                .update({
+                  status: 'paid',
+                  paid_date: paidDate,
+                  notes: `[EXCEDENTE] Pago com excedente da parcela ${payment.installment_number}`,
+                })
+                .eq('id', p.id);
+              remainingExcess -= p.amount;
+            } else {
+              // Partial: reduce installment amount
+              const newAmount = p.amount - remainingExcess;
+              await supabase
+                .from('product_sale_payments')
+                .update({
+                  amount: newAmount,
+                  notes: `[EXCEDENTE] Reduzido de R$ ${p.amount.toFixed(2)} para R$ ${newAmount.toFixed(2)} (excedente da parcela ${payment.installment_number})`,
+                })
+                .eq('id', p.id);
+              affectedInstallmentInfo = `Excedente de R$ ${remainingExcess.toFixed(2)} abatido da parcela ${p.installment_number} (novo valor: R$ ${newAmount.toFixed(2)})`;
+              remainingExcess = 0;
+            }
+          }
+        }
+      }
+
       // Update product sale totals
       const newTotalPaid = (sale?.total_paid || 0) + paidAmount;
       const newRemainingBalance = (sale?.remaining_balance || 0) - paidAmount;
@@ -641,8 +686,6 @@ export function useProductSalePayments(saleId?: string) {
 
       if (saleError) throw saleError;
 
-      // WhatsApp notifications removed - only sent via explicit user click
-
       return { 
         payment, 
         remainder: remainder > 0.01 ? remainder : 0, 
@@ -650,6 +693,7 @@ export function useProductSalePayments(saleId?: string) {
         newInstallmentCreated: remainder > 0.01,
         newRemainingBalance: Math.max(0, newRemainingBalance),
         newTotalPaid,
+        affectedInstallmentInfo,
       };
     },
     onSuccess: (result) => {
@@ -664,7 +708,7 @@ export function useProductSalePayments(saleId?: string) {
       } else if (result.overpayment > 0.01) {
         toast({
           title: 'Pagamento registrado',
-          description: `Excedente de R$ ${result.overpayment.toFixed(2)} abatido do saldo total.`,
+          description: result.affectedInstallmentInfo || `Excedente de R$ ${result.overpayment.toFixed(2)} abatido do saldo total.`,
         });
       } else {
         toast({
