@@ -1,44 +1,42 @@
 
 
-# Correcao: Progresso de Parcelas no Comprovante de Emprestimos Diarios
+# Correcao: Mostrar TODAS as parcelas sempre no status
 
-## Problema Identificado
+## Problema
+O sistema atual limita a exibicao das parcelas:
+- Mais de 60: mostra resumo inteligente (ultimas 3 pagas + 5 pendentes)
+- Mais de 180: mostra apenas numeros
 
-O comprovante de pagamento de emprestimos diarios nao exibe a lista de progresso das parcelas porque o sistema tem um limite de **60 parcelas** na funcao `generateInstallmentStatusList` (arquivo `src/lib/messageUtils.ts`, linha 132):
-
-```text
-if (installmentDates.length > 60) {
-    return '';  // <-- retorna vazio, sem lista de parcelas
-}
-```
-
-Emprestimos diarios frequentemente ultrapassam 60 parcelas (ex: 90 dias, 120 dias), fazendo com que o comprovante seja enviado sem o bloco de status das parcelas.
+Voce quer que a lista completa apareca **sempre**, independente da quantidade de parcelas, em emprestimos, vendas de produtos e todos os comprovantes.
 
 ## Solucao
 
 ### Arquivo: `src/lib/messageUtils.ts`
 
-**Mudanca 1**: Aumentar o limite ou implementar uma lista resumida inteligente para emprestimos com mais de 60 parcelas:
+Simplificar a funcao `generateInstallmentStatusList` removendo toda a logica de resumo (smart summary e numeric summary). A funcao vai sempre listar TODAS as parcelas com seus emojis de status, sem nenhum limite.
 
-- Para contratos com ate 60 parcelas: comportamento atual (mostra todas)
-- Para contratos com 61-180 parcelas: mostrar apenas as parcelas pagas + as proximas 5 em aberto + resumo (ex: "... e mais 45 parcelas em aberto")
-- Para contratos com mais de 180 parcelas: mostrar apenas um resumo numerico (ex: "15 pagas / 30 em atraso / 45 em aberto")
+- Remover as funcoes auxiliares `countInstallmentsByStatus`, `generateNumericSummary` e `generateSmartSummary` (linhas 129-222)
+- Remover os blocos condicionais de `totalCount > 180` e `totalCount > 60` (linhas 234-242)
+- Manter apenas o loop que lista todas as parcelas com emojis
 
-Isso garante que emprestimos diarios de longa duracao (90, 120, 150 dias) tambem tenham o progresso visivel no comprovante.
+### Arquivo: `src/lib/installmentStatusUtils.ts`
 
-### Detalhes Tecnicos
+Este arquivo tambem tem funcoes de lista compacta (`generateCompactInstallmentsStatusList`) com limite de 6 parcelas. Remover esse limite para consistencia -- sempre mostrar todas.
 
-Na funcao `generateInstallmentStatusList`:
+### Arquivo: `src/components/SaleCreatedReceiptPrompt.tsx`
 
-1. Remover o `return ''` para `> 60`
-2. Adicionar logica de resumo inteligente:
-   - Contar pagas, em atraso e em aberto
-   - Mostrar as ultimas 3 pagas + proximas 5 pendentes
-   - Adicionar linha de resumo com totais
+Ja mostra todas as parcelas no comprovante de vendas, sem limite. Nenhuma alteracao necessaria.
 
-### Arquivo: `src/pages/Loans.tsx`
+### Resultado esperado
 
-**Mudanca 2**: Garantir que `paidIndices` inclua as parcelas recem-pagas no momento do comprovante, mesmo antes da atualizacao das notes no banco.
+Toda mensagem de cobranca, comprovante ou recibo vai exibir a lista completa de parcelas no formato:
+```
+1️⃣ ✅ 19/02/2026 - Paga
+2️⃣ ✅ 20/02/2026 - Paga
+3️⃣ ❌ 22/02/2026 - Em Atraso (1d)
+4️⃣ ⏳ 24/02/2026 - Em Aberto
+...
+```
 
-A logica atual (linhas 5354-5358) ja faz o merge, mas ha um caso nao coberto: quando `paymentData.selected_installments` esta vazio e `targetInstallmentIndex` e `-1` (pagamento total ou diario simples), nenhum novo indice e adicionado. Corrigir para incluir o indice correto baseado no `paidCount`.
+Independente de serem 10, 60, 90 ou 120 parcelas.
 
