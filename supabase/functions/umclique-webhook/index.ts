@@ -240,7 +240,7 @@ serve(async (req) => {
     // === CONFIRM FLOW ===
     console.log('Client CONFIRMED the report, sending via Um Clique Digital API...');
 
-    // Send report via Um Clique Digital API (template message)
+    // Send report via Um Clique Digital API (2-step: template + text)
     const umcliqueApiKey = Deno.env.get('UMCLIQUE_API_KEY');
     if (!umcliqueApiKey) {
       console.error('UMCLIQUE_API_KEY not configured');
@@ -253,38 +253,67 @@ serve(async (req) => {
       apiPhone = '55' + apiPhone;
     }
 
-    const templateBody = {
-      channel_id: '1060061327180048',
-      to: apiPhone,
-      type: 'template',
-      template_name: 'relatorio',
-      template_language: 'pt_BR',
-      template_variables: [
-        { type: 'text', text: pending.client_name }
-      ],
+    const apiUrl = 'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message';
+    const apiHeaders = {
+      'Content-Type': 'application/json',
+      'X-API-Key': umcliqueApiKey,
     };
 
-    console.log('Sending template via Um Clique API:', JSON.stringify(templateBody));
-
-    const apiResponse = await fetch('https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message', {
+    // Step 1: Send template to open conversation window
+    console.log('Step 1: Sending template to open conversation window for', apiPhone);
+    const templateResponse = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': umcliqueApiKey,
-      },
-      body: JSON.stringify(templateBody),
+      headers: apiHeaders,
+      body: JSON.stringify({
+        channel_id: '1060061327180048',
+        to: apiPhone,
+        type: 'template',
+        template_name: 'relatorio',
+        template_language: 'pt_BR',
+        template_variables: [
+          { type: 'text', text: pending.client_name }
+        ],
+      }),
     });
 
-    const apiResult = await apiResponse.text();
-    console.log('Um Clique API response:', apiResponse.status, apiResult);
+    const templateResult = await templateResponse.text();
+    console.log('Template response:', templateResponse.status, templateResult);
 
-    if (!apiResponse.ok) {
-      console.error('Error sending via Um Clique API:', apiResult);
+    if (!templateResponse.ok) {
+      console.error('Error sending template:', templateResult);
       await supabase
         .from('pending_messages')
         .update({ status: 'failed' })
         .eq('id', pending.id);
-      throw new Error(`Um Clique API error: ${apiResponse.status} - ${apiResult}`);
+      throw new Error(`Template send error: ${templateResponse.status} - ${templateResult}`);
+    }
+
+    // Step 2: Wait for conversation window to open
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Step 3: Send actual report content as text message
+    console.log('Step 3: Sending report text content to', apiPhone);
+    const textResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: apiHeaders,
+      body: JSON.stringify({
+        channel_id: '1060061327180048',
+        to: apiPhone,
+        type: 'text',
+        content: pending.message_content,
+      }),
+    });
+
+    const textResult = await textResponse.text();
+    console.log('Text response:', textResponse.status, textResult);
+
+    if (!textResponse.ok) {
+      console.error('Error sending report text:', textResult);
+      await supabase
+        .from('pending_messages')
+        .update({ status: 'failed' })
+        .eq('id', pending.id);
+      throw new Error(`Text send error: ${textResponse.status} - ${textResult}`);
     }
 
     // Update to confirmed + sent
