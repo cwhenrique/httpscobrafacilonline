@@ -53,9 +53,11 @@ export default function AutoReports() {
 
   const handleSave = async () => {
     setSaving(true);
+    const hourNum = Number(selectedHour);
     const { error } = await updateProfile({
-      auto_report_hour: Number(selectedHour),
+      auto_report_hour: hourNum,
       auto_report_categories: selectedCategories,
+      report_schedule_hours: [hourNum],
     } as any);
     setSaving(false);
 
