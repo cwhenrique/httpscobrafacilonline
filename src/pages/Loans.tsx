@@ -5179,10 +5179,27 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       }).eq('id', selectedLoanId);
     }
     
+    // 🆕 Calcular multa incluída neste pagamento para tag [PENALTY_INCLUDED]
+    let penaltyInPayment = 0;
+    if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+      for (const idx of paymentData.selected_installments) {
+        penaltyInPayment += loanPenalties[idx] || 0;
+      }
+    } else if (paymentData.payment_type === 'partial') {
+      penaltyInPayment = loanPenalties[targetInstallmentIndex] || 0;
+    } else if (paymentData.payment_type === 'total') {
+      penaltyInPayment = getTotalDailyPenalties(selectedLoan.notes);
+    }
+    
     // 🆕 Incluir snapshot de datas na nota do pagamento (se houver)
-    const paymentNoteWithSnapshot = dateSnapshotTag 
+    let paymentNoteWithSnapshot = dateSnapshotTag 
       ? `${installmentNote} ${dateSnapshotTag}` 
       : installmentNote;
+    
+    // 🆕 Adicionar tag [PENALTY_INCLUDED:X.XX] se houver multa neste pagamento
+    if (penaltyInPayment > 0) {
+      paymentNoteWithSnapshot += ` [PENALTY_INCLUDED:${penaltyInPayment.toFixed(2)}]`;
+    }
     
     // 🆕 CORREÇÃO: Capturar resultado do registerPayment e reverter notas em caso de erro
     const paymentResult = await registerPayment({
