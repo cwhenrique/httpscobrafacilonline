@@ -25,7 +25,7 @@ export const DEFAULT_AFFILIATE_LINKS: AffiliateLinks = {
 
 // Renewal-specific links (with ?SCK=renew)
 export const DEFAULT_RENEWAL_LINKS: AffiliateLinks = {
-  monthly: "https://pay.cakto.com.br/35qwwgz?SCK=renew",
+  monthly: "https://pay.cakto.com.br/ej757ic?SCK=renew",
   quarterly: "https://pay.cakto.com.br/eb6ern9?SCK=renew",
   annual: "https://pay.cakto.com.br/fhwfptb?SCK=renew",
   lifetime: "https://pay.cakto.com.br/PLACEHOLDER_LIFETIME?SCK=renew",
