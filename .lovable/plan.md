@@ -1,55 +1,92 @@
 
 
-# Correcao: Cards de Resumo Diario Mostrando Valores Reais
+# Correcao: Multas NAO devem reduzir o saldo restante (remaining_balance)
 
 ## Problema
 
-Os cards "A Cobrar Hoje", "Lucro do Dia" e "Recebido Hoje" na aba "Diario" mostram R$ 0,00 mesmo quando existem parcelas vencendo hoje. A causa raiz esta na logica de calculo (linhas 10460-10473 de `Loans.tsx`):
+No emprestimo de "wellington fidelis da cruz junior" (usuario Mateussilva101210@gmail.com):
+- 4 parcelas de R$ 162, total_to_receive = R$ 648
+- 2 parcelas pagas com multa de R$ 8 cada = R$ 170 x 2 = R$ 340 total_paid
+- remaining_balance atual: R$ 308 (ERRADO)
+- remaining_balance correto: R$ 324 (2 parcelas de R$ 162)
+
+A causa raiz esta no trigger `recalculate_loan_total_paid`. Ele calcula:
 
 ```text
-O codigo busca apenas a parcela no indice `paidCount` (proxima nao paga).
-Se o cliente tem parcelas ATRASADAS de dias anteriores, `paidCount` aponta
-para essas parcelas antigas, NAO para a de hoje.
-
-Exemplo: Cliente com 10 parcelas diarias, pagou 3, esta no dia 7.
-- paidCount = 3 (parcela 4 e a proxima nao paga)
-- dates[3] = dia 4 (atrasada, nao e hoje)
-- Resultado: "A Cobrar Hoje" = R$ 0,00 (ERRADO)
+remaining_balance = total_to_receive - balance_reducing_payments
+                  = 648 - 340
+                  = 308  (ERRADO)
 ```
+
+O valor R$ 340 inclui R$ 16 de multas. Multas sao receita EXTRA que nao existem no `total_to_receive` original, entao nao deveriam ser subtraidas dele.
 
 ## Solucao
 
-### Arquivo: `src/pages/Loans.tsx` (linhas 10449-10491)
+### 1. Arquivo: `src/pages/Loans.tsx` (insercao de pagamento)
 
-Reescrever a logica de calculo do "A Cobrar Hoje" para verificar TODAS as parcelas do emprestimo, nao apenas a proxima nao paga. Para cada parcela:
+Quando um pagamento inclui multa (`loanPenalties[index] > 0`), adicionar uma tag `[PENALTY_INCLUDED:valor]` nas notas do pagamento. Isso permite que o trigger identifique qual parte do pagamento e multa.
 
-1. Verificar se a data da parcela e HOJE
-2. Verificar se a parcela ainda nao foi paga (usando `partialPayments`)
-3. Se sim, somar o valor restante ao total "A Cobrar Hoje"
+Na area onde `installmentNote` e construido e o pagamento e montado (~linha 4830-4841), somar as multas das parcelas pagas e adicionar a tag.
 
-A logica corrigida:
+### 2. Trigger `recalculate_loan_total_paid` (SQL migration)
+
+Modificar o calculo de `balance_reducing_payments` para descontar o valor de multas:
 
 ```text
-Para cada emprestimo diario ativo:
-  Para cada parcela (i) no array installment_dates:
-    Se date[i] == hoje:
-      paidAmount = partialPayments[i] ou 0
-      Se paidAmount < installmentValue * 0.99:
-        dueToday += max(0, installmentValue - paidAmount)
-        dueTodayCount++
-        profitTodayExpected += profitPerInstallment * ratio
+balance_reducing_payments = SUM(amount) - SUM(penalty_from_notes)
 ```
 
-Isso garante que mesmo clientes com parcelas atrasadas de dias anteriores tenham sua parcela de hoje contabilizada corretamente.
+Extrair `[PENALTY_INCLUDED:X.XX]` das notas de cada pagamento e subtrair do total de pagamentos redutores de saldo.
 
-### Nenhuma alteracao nos outros cards
+Logica SQL:
+```sql
+SELECT COALESCE(SUM(
+  amount - COALESCE(
+    (regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric,
+    0
+  )
+), 0) INTO balance_reducing_payments
+FROM public.loan_payments
+WHERE loan_id = ...
+  AND (notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR notes IS NULL)
+  AND (notes NOT LIKE '%[PARTIAL_INTEREST_PAYMENT]%' OR notes IS NULL)
+  AND (notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR notes IS NULL)
+  AND (notes NOT LIKE '%[AMORTIZATION]%' OR notes IS NULL);
+```
 
-- **"Lucro do Dia"** e **"Recebido Hoje"**: Ja usam `payment_date === todayStr` dos `loan_payments`, entao so mostram R$ 0,00 se realmente nao houve pagamentos hoje. Esses estao corretos.
-- **"Em Atraso"**: Ja itera por todas as parcelas. Esta correto.
+### 3. Correcao dos dados existentes
 
-## Resultado Esperado
+Alem das alteracoes de codigo, sera necessario corrigir o emprestimo especifico que ja esta com o saldo errado. Isso pode ser feito via:
+- Atualizar as notas dos 2 pagamentos existentes para incluir `[PENALTY_INCLUDED:8.00]`
+- Executar um recalculo do remaining_balance
 
-- "A Cobrar Hoje" mostrara o valor real das parcelas que vencem hoje, incluindo parcelas de clientes que tem atrasos em dias anteriores
-- "Lucro do Dia" e "Recebido Hoje" continuam refletindo pagamentos reais do dia
-- "Em Atraso" continua somando todas as parcelas vencidas nao pagas
+### 4. Arquivo: `src/pages/Loans.tsx` (PARTIAL_PAID tags)
+
+Atualmente `PARTIAL_PAID` armazena o valor COM multa (170). Isso faz o `getPaidInstallmentsCount` considerar a parcela como paga corretamente, pois compara com `getInstallmentValue` que tambem inclui multa. Esse comportamento esta correto e nao precisa mudar.
+
+### 5. Trigger `update_loan_on_payment` e `revert_loan_on_payment_delete`
+
+O trigger `update_loan_on_payment` tambem precisa ser atualizado para nao subtrair a parte da multa do remaining_balance. Linha relevante:
+
+```sql
+remaining_balance = GREATEST(0, remaining_balance - NEW.amount)
+```
+
+Deve ser:
+
+```sql
+remaining_balance = GREATEST(0, remaining_balance - (NEW.amount - penalty_amount))
+```
+
+Onde `penalty_amount` e extraido da tag `[PENALTY_INCLUDED:X]` nas notas do pagamento.
+
+O mesmo ajuste se aplica ao `revert_loan_on_payment_delete` para reverter corretamente.
+
+## Resumo das alteracoes
+
+| Arquivo/Recurso | Alteracao |
+|---|---|
+| `src/pages/Loans.tsx` | Adicionar tag `[PENALTY_INCLUDED:X]` ao registrar pagamento com multa |
+| Migration SQL | Atualizar 3 triggers: `recalculate_loan_total_paid`, `update_loan_on_payment`, `revert_loan_on_payment_delete` |
+| Migration SQL | Corrigir dados existentes do emprestimo afetado |
 
