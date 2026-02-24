@@ -9,7 +9,8 @@ const corsHeaders = {
 // Keywords de confirmação
 const CONFIRMATION_KEYWORDS = [
   'ok', 'sim', 'confirmo', 'receber', 'quero', 'aceito', '1', 'yes', 'si',
-  'pode', 'manda', 'enviar', 'blz', 'beleza', 'tá', 'ta', 'certo', 'positivo'
+  'pode', 'manda', 'enviar', 'blz', 'beleza', 'tá', 'ta', 'certo', 'positivo',
+  'receber relatorio', 'receber relatório'
 ];
 
 // Keywords de recusa
