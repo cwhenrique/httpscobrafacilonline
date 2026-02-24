@@ -239,13 +239,16 @@ ${downPayment > 0 ? `💵 *Entrada:* ${formatCurrency(downPayment)}\n` : ''}📅
 
 Obrigado pela preferência! 🙏`;
 
-          await supabase.functions.invoke('send-whatsapp-to-client', {
+          const { error: whatsappErr } = await supabase.functions.invoke('send-whatsapp-to-client', {
             body: {
               userId: effectiveUserId,
               clientPhone: saleData.client_phone,
               message: message,
             },
           });
+          if (whatsappErr) {
+            console.warn('WhatsApp notification failed (sale still saved):', whatsappErr.message);
+          }
 
           console.log('WhatsApp notification sent via user instance');
         } catch (whatsappError) {
