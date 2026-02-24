@@ -126,101 +126,6 @@ interface GenerateInstallmentListOptions {
  * - Para empréstimos com <= 10 parcelas: mostra todas
  * - Para empréstimos com > 10 parcelas: mostra todas pagas + até 5 próximas em aberto
  */
-/**
- * Conta parcelas por status para resumos
- */
-const countInstallmentsByStatus = (
-  installmentDates: string[],
-  paidCount: number,
-  paidIndices?: number[]
-): { paid: number; overdue: number; open: number } => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let paid = 0, overdue = 0, open = 0;
-
-  for (let i = 0; i < installmentDates.length; i++) {
-    const isPaid = paidIndices
-      ? paidIndices.includes(i)
-      : i + 1 <= paidCount;
-    if (isPaid) { paid++; continue; }
-    const dueDate = new Date(installmentDates[i] + 'T12:00:00');
-    if (dueDate < today) { overdue++; } else { open++; }
-  }
-  return { paid, overdue, open };
-};
-
-/**
- * Resumo numérico para contratos com >180 parcelas
- */
-const generateNumericSummary = (
-  installmentDates: string[],
-  paidCount: number,
-  paidIndices?: number[]
-): string => {
-  const { paid, overdue, open } = countInstallmentsByStatus(installmentDates, paidCount, paidIndices);
-  let msg = `📊 *STATUS DAS PARCELAS:*\n`;
-  msg += `✅ ${paid} paga${paid !== 1 ? 's' : ''} / `;
-  if (overdue > 0) msg += `❌ ${overdue} em atraso / `;
-  msg += `⏳ ${open} em aberto\n`;
-  msg += `📈 Total: ${installmentDates.length} parcelas\n`;
-  return msg;
-};
-
-/**
- * Resumo inteligente para contratos com 61-180 parcelas:
- * mostra últimas 3 pagas + próximas 5 pendentes + resumo
- */
-const generateSmartSummary = (
-  installmentDates: string[],
-  paidCount: number,
-  paidIndices?: number[]
-): string => {
-  const { paid, overdue, open } = countInstallmentsByStatus(installmentDates, paidCount, paidIndices);
-  const total = installmentDates.length;
-
-  // Encontrar os índices das últimas 3 pagas e próximas 5 pendentes
-  const paidList: number[] = [];
-  const pendingList: number[] = [];
-
-  for (let i = 0; i < total; i++) {
-    const isPaid = paidIndices ? paidIndices.includes(i) : i + 1 <= paidCount;
-    if (isPaid) {
-      paidList.push(i);
-    } else if (pendingList.length < 5) {
-      pendingList.push(i);
-    }
-  }
-
-  // Últimas 3 pagas
-  const lastPaid = paidList.slice(-3);
-
-  let msg = `📊 *STATUS DAS PARCELAS:*\n`;
-
-  // Indicar parcelas anteriores omitidas
-  if (paidList.length > 3) {
-    msg += `   _... ${paidList.length - 3} parcela${paidList.length - 3 > 1 ? 's' : ''} paga${paidList.length - 3 > 1 ? 's' : ''} anterior${paidList.length - 3 > 1 ? 'es' : ''}_\n`;
-  }
-
-  for (const i of lastPaid) {
-    const num = i + 1;
-    const { emoji, status } = getInstallmentStatus(num, paidCount, installmentDates[i], paidIndices);
-    msg += `${num <= 9 ? `${num}️⃣` : `${num}.`} ${emoji} ${formatDate(installmentDates[i])} - ${status}\n`;
-  }
-
-  for (const i of pendingList) {
-    const num = i + 1;
-    const { emoji, status } = getInstallmentStatus(num, paidCount, installmentDates[i], paidIndices);
-    msg += `${num <= 9 ? `${num}️⃣` : `${num}.`} ${emoji} ${formatDate(installmentDates[i])} - ${status}\n`;
-  }
-
-  const remaining = total - lastPaid.length - pendingList.length;
-  if (remaining > 0) {
-    msg += `   _... e mais ${remaining} parcela${remaining > 1 ? 's' : ''}_\n`;
-  }
-
-  msg += `\n✅ ${paid} | ❌ ${overdue} | ⏳ ${open} — Total: ${total}\n`;
-  return msg;
-};
 
 export const generateInstallmentStatusList = (options: GenerateInstallmentListOptions): string => {
   const { installmentDates, paidCount, paidIndices } = options;
@@ -231,17 +136,7 @@ export const generateInstallmentStatusList = (options: GenerateInstallmentListOp
   
   const totalCount = installmentDates.length;
   
-  // Para contratos com mais de 180 parcelas: apenas resumo numérico
-  if (totalCount > 180) {
-    return generateNumericSummary(installmentDates, paidCount, paidIndices);
-  }
-  
-  // Para contratos com 61-180 parcelas: resumo inteligente
-  if (totalCount > 60) {
-    return generateSmartSummary(installmentDates, paidCount, paidIndices);
-  }
-  
-  // Para contratos com até 60 parcelas: mostra todas
+  // Always show all installments
   let message = `📊 *STATUS DAS PARCELAS:*\n`;
   
   for (let i = 0; i < totalCount; i++) {
@@ -249,7 +144,7 @@ export const generateInstallmentStatusList = (options: GenerateInstallmentListOp
     const dateStr = installmentDates[i];
     const { emoji, status } = getInstallmentStatus(installmentNum, paidCount, dateStr, paidIndices);
     
-    message += `${installmentNum}️⃣ ${emoji} ${formatDate(dateStr)} - ${status}\n`;
+    message += `${installmentNum <= 9 ? `${installmentNum}️⃣` : `${installmentNum}.`} ${emoji} ${formatDate(dateStr)} - ${status}\n`;
   }
   
   return message;
