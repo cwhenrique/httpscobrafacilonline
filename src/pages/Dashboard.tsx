@@ -309,7 +309,7 @@ export default function Dashboard() {
                       </Link>
                     ) : (
                       <Button
-                        onClick={() => window.open('https://pay.cakto.com.br/DKbJ3gL', '_blank')}
+                        onClick={() => window.open('https://pay.cakto.com.br/3c4qf8i', '_blank')}
                         className="gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold"
                       >
                         Assinar Agora
