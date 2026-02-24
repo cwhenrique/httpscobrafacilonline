@@ -1,36 +1,44 @@
 
-# Correcao do Bug: Pagamento Excedente em Vendas de Produtos
 
-## Problema
-Quando um cliente paga mais do que o valor da parcela (ex: parcela de R$120, paga R$160), o sistema apenas abate o excedente do saldo total, mas **nao reduz o valor da proxima parcela**. O esperado e que a proxima parcela pendente tenha seu valor reduzido em R$40 (de R$120 para R$80).
+# Correcao: Progresso de Parcelas no Comprovante de Emprestimos Diarios
+
+## Problema Identificado
+
+O comprovante de pagamento de emprestimos diarios nao exibe a lista de progresso das parcelas porque o sistema tem um limite de **60 parcelas** na funcao `generateInstallmentStatusList` (arquivo `src/lib/messageUtils.ts`, linha 132):
+
+```text
+if (installmentDates.length > 60) {
+    return '';  // <-- retorna vazio, sem lista de parcelas
+}
+```
+
+Emprestimos diarios frequentemente ultrapassam 60 parcelas (ex: 90 dias, 120 dias), fazendo com que o comprovante seja enviado sem o bloco de status das parcelas.
 
 ## Solucao
 
-### Arquivo: `src/hooks/useProductSales.ts`
+### Arquivo: `src/lib/messageUtils.ts`
 
-Na funcao `markAsPaidFlexible`, apos detectar um overpayment, adicionar logica para:
+**Mudanca 1**: Aumentar o limite ou implementar uma lista resumida inteligente para emprestimos com mais de 60 parcelas:
 
-1. Buscar a proxima parcela pendente (ordenada por `due_date` e `installment_number`)
-2. Reduzir o valor dessa parcela pelo excedente
-3. Se o excedente for maior ou igual ao valor da proxima parcela, marca-la como paga e continuar aplicando o restante nas parcelas seguintes (cascata)
-4. Adicionar nota explicativa na parcela reduzida
+- Para contratos com ate 60 parcelas: comportamento atual (mostra todas)
+- Para contratos com 61-180 parcelas: mostrar apenas as parcelas pagas + as proximas 5 em aberto + resumo (ex: "... e mais 45 parcelas em aberto")
+- Para contratos com mais de 180 parcelas: mostrar apenas um resumo numerico (ex: "15 pagas / 30 em atraso / 45 em aberto")
+
+Isso garante que emprestimos diarios de longa duracao (90, 120, 150 dias) tambem tenham o progresso visivel no comprovante.
 
 ### Detalhes Tecnicos
 
-No bloco de overpayment (apos linha 627), adicionar:
+Na funcao `generateInstallmentStatusList`:
 
-```text
-OVERPAYMENT (paidAmount > originalAmount):
-  1. Buscar todas as parcelas pendentes da venda, ordenadas por due_date ASC
-  2. Loop pelo excedente:
-     - Se excedente >= valor da parcela: marcar como paga, subtrair, continuar
-     - Se excedente < valor da parcela: reduzir o amount da parcela, parar
-  3. Adicionar nota "[EXCEDENTE]" nas parcelas afetadas
-```
+1. Remover o `return ''` para `> 60`
+2. Adicionar logica de resumo inteligente:
+   - Contar pagas, em atraso e em aberto
+   - Mostrar as ultimas 3 pagas + proximas 5 pendentes
+   - Adicionar linha de resumo com totais
 
-Isso garante que o excedente e distribuido corretamente pelas proximas parcelas, igual ao comportamento esperado pelo usuario.
+### Arquivo: `src/pages/Loans.tsx`
 
-### Mensagem de Feedback
+**Mudanca 2**: Garantir que `paidIndices` inclua as parcelas recem-pagas no momento do comprovante, mesmo antes da atualizacao das notes no banco.
 
-Atualizar o toast de overpayment para informar qual parcela foi reduzida, ex:
-"Excedente de R$ 40,00 abatido da parcela 2 (novo valor: R$ 80,00)"
+A logica atual (linhas 5354-5358) ja faz o merge, mas ha um caso nao coberto: quando `paymentData.selected_installments` esta vazio e `targetInstallmentIndex` e `-1` (pagamento total ou diario simples), nenhum novo indice e adicionado. Corrigir para incluir o indice correto baseado no `paidCount`.
+
