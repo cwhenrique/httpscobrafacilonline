@@ -52,8 +52,8 @@ interface ProfileWithWhatsApp {
 }
 
 // Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
-// Step 1: Send template to open conversation window, Step 2: Send report text
-const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string): Promise<boolean> => {
+// Sends template first, then saves content to pending_messages for webhook delivery on user confirmation
+const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any): Promise<boolean> => {
   const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
   if (!umcliqueApiKey) {
     console.error("UMCLIQUE_API_KEY not configured");
@@ -71,7 +71,26 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
   };
 
   try {
-    // Step 1: Send template to open conversation window
+    // Save report content to pending_messages so webhook can deliver on confirmation
+    const { error: pendingError } = await supabase
+      .from('pending_messages')
+      .insert({
+        user_id: userId,
+        client_phone: cleaned,
+        client_name: userName,
+        message_type: 'daily_report',
+        message_content: message,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      });
+    
+    if (pendingError) {
+      console.error(`Failed to save pending message for ${cleaned}:`, pendingError);
+    } else {
+      console.log(`Saved report to pending_messages for ${cleaned}`);
+    }
+
+    // Send template to prompt user to confirm
     console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
     const templateResponse = await fetch(apiUrl, {
       method: "POST",
@@ -96,25 +115,7 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       return false;
     }
 
-    // Step 2: Wait for conversation window to open
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Step 3: Send report text
-    console.log(`Sending report text to ${cleaned}`);
-    const textResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        channel_id: "1060061327180048",
-        to: cleaned,
-        type: "text",
-        content: message,
-      }),
-    });
-
-    const textResult = await textResponse.text();
-    console.log(`Text response for ${cleaned}:`, textResponse.status, textResult);
-    return textResponse.ok;
+    return true;
   } catch (error) {
     console.error(`Failed to send via Um Clique API to ${cleaned}:`, error);
     return false;
@@ -717,7 +718,7 @@ const handler = async (req: Request): Promise<Response> => {
       
       // Route: relatorio_ativo users go via Um Clique Digital API, others via Evolution API
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
