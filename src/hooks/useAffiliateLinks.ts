@@ -17,7 +17,7 @@ interface AffiliateData {
 
 // Default links (no affiliate)
 export const DEFAULT_AFFILIATE_LINKS: AffiliateLinks = {
-  monthly: "https://pay.cakto.com.br/di6pnvu",
+  monthly: "https://pay.cakto.com.br/ej757ic",
   quarterly: "https://pay.cakto.com.br/3823rxj",
   annual: "https://pay.cakto.com.br/j35f794",
   lifetime: "https://pay.cakto.com.br/PLACEHOLDER_LIFETIME",
