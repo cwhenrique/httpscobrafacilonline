@@ -1,52 +1,36 @@
 
+# Correcao do Bug: Pagamento Excedente em Vendas de Produtos
 
-## Corrigir comprovante (receipt) para parcelas personalizadas
+## Problema
+Quando um cliente paga mais do que o valor da parcela (ex: parcela de R$120, paga R$160), o sistema apenas abate o excedente do saldo total, mas **nao reduz o valor da proxima parcela**. O esperado e que a proxima parcela pendente tenha seu valor reduzido em R$40 (de R$120 para R$80).
 
-### Problema
+## Solucao
 
-O comprovante de emprestimo exibe "5x de R$ 490,00" (media simples) em vez de mostrar que sao parcelas personalizadas com valores individuais. Isso acontece em 3 locais: o dialog de preview visual, a mensagem WhatsApp e o PDF.
+### Arquivo: `src/hooks/useProductSales.ts`
 
-### Causa Raiz
+Na funcao `markAsPaidFlexible`, apos detectar um overpayment, adicionar logica para:
 
-1. **`handleGenerateLoanReceipt` (linha 5593)**: calcula `installmentValue = totalToReceive / numInstallments` sem considerar o modo `custom`
-2. **`ContractReceiptData` interface**: so tem um campo `installmentValue: number` - nao suporta array de valores
-3. **ReceiptPreviewDialog (linhas 116 e 473)**: exibe `Nx de R$ X` com valor unico
-4. **pdfGenerator (linha 410)**: exibe `Nx de R$ X` com valor unico
-5. **LoanCreatedReceiptPrompt (linhas 93 e 140)**: mesma exibicao nas mensagens WhatsApp
-6. **`setLoanCreatedData` (linha 4240-4252)**: passa `installmentValueNum` como media
+1. Buscar a proxima parcela pendente (ordenada por `due_date` e `installment_number`)
+2. Reduzir o valor dessa parcela pelo excedente
+3. Se o excedente for maior ou igual ao valor da proxima parcela, marca-la como paga e continuar aplicando o restante nas parcelas seguintes (cascata)
+4. Adicionar nota explicativa na parcela reduzida
 
-### Solucao
+### Detalhes Tecnicos
 
-**Arquivo: `src/lib/pdfGenerator.ts`**
+No bloco de overpayment (apos linha 627), adicionar:
 
-1. Adicionar campo opcional `customInstallmentValues?: number[]` na interface `ContractReceiptData.negotiation`
-2. Na funcao `generateContractReceipt`, quando `customInstallmentValues` existir, exibir "Parcelas Personalizadas" em vez de "5x de R$ 490"
-
-**Arquivo: `src/pages/Loans.tsx`**
-
-3. Em `handleGenerateLoanReceipt` (linha 5593): quando `loan.interest_mode === 'custom'`, usar `parseCustomInstallments(loan.notes)` para preencher `customInstallmentValues` no receipt data
-4. Na construcao de `receiptData.dueDates` (linha 5637): usar valor individual de cada parcela para verificar `isPaid` quando custom
-5. Em `setLoanCreatedData` (linha 4240-4252): quando o modo for custom, nao calcular media
-
-**Arquivo: `src/components/ReceiptPreviewDialog.tsx`**
-
-6. Na mensagem WhatsApp (linha 116): quando `customInstallmentValues` existir, listar "Parcelas Personalizadas" em vez de "Nx de R$ X"
-7. No preview visual (linha 473): mesma logica - mostrar "Parcelas Personalizadas" e listar valores individuais ou apenas indicar que sao personalizadas
-
-**Arquivo: `src/components/LoanCreatedReceiptPrompt.tsx`**
-
-8. Nas funcoes `generateClientMessage` (linha 93) e `generateSelfMessage` (linha 140): quando o emprestimo for custom, nao exibir "Nx de R$ X" e sim indicar parcelas personalizadas
-
-### Exibicao Proposta
-
-Em vez de:
-```
-Parcelas: 5x de R$ 490,00
+```text
+OVERPAYMENT (paidAmount > originalAmount):
+  1. Buscar todas as parcelas pendentes da venda, ordenadas por due_date ASC
+  2. Loop pelo excedente:
+     - Se excedente >= valor da parcela: marcar como paga, subtrair, continuar
+     - Se excedente < valor da parcela: reduzir o amount da parcela, parar
+  3. Adicionar nota "[EXCEDENTE]" nas parcelas afetadas
 ```
 
-Exibir:
-```
-Parcelas Personalizadas
-```
+Isso garante que o excedente e distribuido corretamente pelas proximas parcelas, igual ao comportamento esperado pelo usuario.
 
-Os valores individuais ja aparecem na secao "DATAS DE VENCIMENTO" do comprovante, entao basta remover a informacao enganosa da media.
+### Mensagem de Feedback
+
+Atualizar o toast de overpayment para informar qual parcela foi reduzida, ex:
+"Excedente de R$ 40,00 abatido da parcela 2 (novo valor: R$ 80,00)"
