@@ -5352,9 +5352,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     setPaymentPaidCount(newRemainingBalance <= 0 ? numInstallments : getPaidInstallmentsCount(selectedLoan) + (paymentData.selected_installments.length || 1));
     // Incluir os índices das parcelas recém-pagas que ainda não estão nas notes
     const existingPaidIndices = getPaidIndicesFromNotes(selectedLoan);
-    const newlyPaidIndices = paymentData.selected_installments.length > 0 
-      ? paymentData.selected_installments 
-      : (targetInstallmentIndex >= 0 ? [targetInstallmentIndex] : []);
+    let newlyPaidIndices: number[] = [];
+    if (paymentData.selected_installments.length > 0) {
+      newlyPaidIndices = paymentData.selected_installments;
+    } else if (targetInstallmentIndex >= 0) {
+      newlyPaidIndices = [targetInstallmentIndex];
+    } else {
+      // Caso de pagamento diário simples sem seleção explícita:
+      // incluir o índice baseado no paidCount atual
+      const currentPaidCount = getPaidInstallmentsCount(selectedLoan);
+      if (currentPaidCount < numInstallments) {
+        newlyPaidIndices = [currentPaidCount];
+      }
+    }
     const allPaidIndices = [...new Set([...existingPaidIndices, ...newlyPaidIndices])];
     // Se quitou tudo, marcar todas as parcelas como pagas
     if (newRemainingBalance <= 0) {
