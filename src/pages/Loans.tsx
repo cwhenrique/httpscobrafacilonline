@@ -10457,18 +10457,19 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 const dates = (loan.installment_dates as string[]) || [];
                 const partialPayments = getPartialPaymentsFromNotes(loan.notes);
                 
-                // Verificar próxima parcela não paga
-                if (paidCount < dates.length) {
-                  const nextDueDate = new Date(dates[paidCount] + 'T12:00:00');
-                  nextDueDate.setHours(0, 0, 0, 0);
-                  
-                  if (nextDueDate.getTime() === today.getTime()) {
-                    const alreadyPaidPartial = partialPayments[paidCount] || 0;
-                    const remainingDue = Math.max(0, dailyInstallmentAmount - alreadyPaidPartial);
-                    dueToday += remainingDue;
-                    const ratio = dailyInstallmentAmount > 0 ? remainingDue / dailyInstallmentAmount : 0;
-                    profitTodayExpected += profitPerInstallment * ratio;
-                    dueTodayCount++;
+                // Verificar TODAS as parcelas que vencem hoje (não apenas a próxima não paga)
+                for (let i = 0; i < dates.length; i++) {
+                  const instDate = new Date(dates[i] + 'T12:00:00');
+                  instDate.setHours(0, 0, 0, 0);
+                  if (instDate.getTime() === today.getTime()) {
+                    const alreadyPaidPartial = partialPayments[i] || 0;
+                    if (alreadyPaidPartial < dailyInstallmentAmount * 0.99) {
+                      const remainingDue = Math.max(0, dailyInstallmentAmount - alreadyPaidPartial);
+                      dueToday += remainingDue;
+                      const ratio = dailyInstallmentAmount > 0 ? remainingDue / dailyInstallmentAmount : 0;
+                      profitTodayExpected += profitPerInstallment * ratio;
+                      dueTodayCount++;
+                    }
                   }
                 }
                 
