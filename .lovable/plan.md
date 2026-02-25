@@ -1,133 +1,56 @@
 
 
-# Correção: Multas/juros por atraso devem ser valores EXTRAS, não descontados do saldo original
+# Correção: Multas/Penalidades devem entrar como Lucro nos Relatórios
 
 ## Problema
 
-O sistema tem uma inconsistência na forma como multas (DAILY_PENALTY) interagem com o `remaining_balance`:
+Quando um pagamento inclui multa (tag `[PENALTY_INCLUDED:X.XX]`), esse valor **não é contabilizado como lucro**. O lucro é calculado exclusivamente a partir de `interest_paid`, que não inclui a multa.
 
-1. A Edge Function `check-overdue-loans` **soma** a multa diretamente ao `remaining_balance`: `newBalance = loan.remaining_balance + penaltyToAdd`
-2. Porém, o trigger `recalculate_loan_total_paid` (que dispara em todo pagamento) **recalcula** o `remaining_balance` como `total_to_receive - balance_reducing_payments`, onde `total_to_receive = principal + total_interest` — **sem incluir multas**. Isso sobrescreve a adição feita pela Edge Function.
-3. O frontend tenta compensar com lógica de detecção `penaltiesLikelyIncluded`, comparando se o `remaining_balance` é maior que o esperado. Essa heurística falha em cenários como: pagamentos parciais, contratos antigos, ou quando o trigger já recalculou o saldo.
+Exemplo real do banco:
+- Pagamento de R$ 480 → `interest_paid: 180` + `[PENALTY_INCLUDED:40.00]`
+- O lucro registrado é R$ 180, mas deveria ser **R$ 220** (juros + multa)
 
-**Resultado:** O saldo exibido fica inconsistente — às vezes desconta a multa do original, às vezes duplica.
+## Onde o lucro é calculado
 
-## Solução: Multas vivem APENAS nas tags, NUNCA no remaining_balance
+1. **`src/pages/ReportsLoans.tsx` (linha 405, 631)** — `realizedProfit` usa apenas `sum(interest_paid)`
+2. **`src/pages/ReportsLoans.tsx` (linhas 454-467)** — `paymentsInPeriod` extrai `interestPaid` sem somar penalty
+3. **`src/hooks/useDashboardStats.ts`** — `pending_interest` na função RPC não considera penalties pagas
+4. **Evolução mensal (linha 760)** — `lucro = recebido - principal` (este já captura indiretamente, pois `amount` inclui penalty)
 
-A arquitetura correta (que já funciona parcialmente) é:
+## Solução
 
-```text
-remaining_balance = saldo ORIGINAL do contrato (principal + juros - pagamentos)
-Multas = tags [DAILY_PENALTY:X:Y] nas notas (valor EXTRA)
-Total a receber = remaining_balance + sum(DAILY_PENALTY tags)
-```
+### 1. `src/pages/ReportsLoans.tsx` — Extrair penalty das notas e somar ao lucro
 
-### 1. Edge Function `check-overdue-loans` — Parar de modificar remaining_balance
+Em todos os locais que constroem objetos de pagamento (linhas ~298, ~454, ~463), adicionar extração da tag `[PENALTY_INCLUDED]` e somar ao `interestPaid`:
 
-**Arquivo:** `supabase/functions/check-overdue-loans/index.ts`
-
-Remover a linha que atualiza `remaining_balance` ao aplicar multas. Apenas atualizar as `notes` com a tag `[DAILY_PENALTY]`.
-
-Antes:
 ```typescript
-const newBalance = loan.remaining_balance + penaltyToAdd;
-const { error: updateError } = await supabase
-  .from('loans')
-  .update({ notes: updatedNotes, remaining_balance: newBalance })
-  .eq('id', loan.id);
+const getPenaltyFromNotes = (notes: string | null): number => {
+  const match = (notes || '').match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+// Onde se constrói payment objects:
+interestPaid: Number(p.interest_paid || 0) + getPenaltyFromNotes(p.notes),
 ```
 
-Depois:
-```typescript
-const { error: updateError } = await supabase
-  .from('loans')
-  .update({ notes: updatedNotes })
-  .eq('id', loan.id);
-```
+Isso corrige automaticamente:
+- `realizedProfitInPeriod` (linha 631)
+- Lucro por tipo de pagamento (linha 405)
+- Cards de "Lucro Realizado"
+- Tabelas de pagamentos
 
-### 2. Frontend — Remover heurística `penaltiesLikelyIncluded`
+### 2. `src/hooks/useDashboardStats.ts` — Incluir penalties pagas no totalOverdueInterest
 
-**Arquivo:** `src/pages/Loans.tsx`
+O cálculo de `totalToReceive` já soma multas pendentes via `calculateDynamicOverdueInterest`. Nenhuma alteração necessária aqui — o dashboard mostra o que FALTA receber (incluindo multas), não o lucro realizado.
 
-Em todos os locais onde existe a lógica `penaltiesLikelyIncluded`, simplificar para SEMPRE somar multas ao remaining_balance:
+### 3. `src/hooks/useOperationalStats.ts` — Verificar se lucro operacional inclui penalties
 
-**Cards (linhas ~8696-8717):**
-Antes:
-```typescript
-const penaltiesLikelyIncluded = loan.remaining_balance > expectedBaseRemaining;
-let remainingToReceive;
-if (loan.status === 'paid') {
-  remainingToReceive = 0;
-} else {
-  if (penaltiesLikelyIncluded) {
-    remainingToReceive = Math.max(0, loan.remaining_balance);
-  } else {
-    remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-  }
-}
-```
+Verificar se o hook usado pelo ReportsLoans também precisa da mesma correção no mapeamento de pagamentos.
 
-Depois:
-```typescript
-let remainingToReceive;
-if (loan.status === 'paid') {
-  remainingToReceive = 0;
-} else {
-  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-}
-```
-
-**Tabela/lista (linhas ~11011-11022):**
-Mesma simplificação — remover `penaltiesLikelyIncludedTable` e sempre somar:
-```typescript
-const remainingToReceive = loan.status === 'paid'
-  ? 0
-  : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
-```
-
-### 3. Corrigir empréstimos existentes com remaining_balance inflado
-
-Empréstimos que já tiveram multas somadas ao `remaining_balance` pela Edge Function precisam ser corrigidos. Criar uma query para identificar e ajustar:
-
-```sql
--- Identificar empréstimos onde remaining_balance inclui multas indevidamente
--- e recalcular o saldo correto
-UPDATE loans
-SET remaining_balance = GREATEST(0,
-  CASE 
-    WHEN payment_type = 'daily' 
-    THEN (COALESCE(total_interest, 0) * COALESCE(installments, 1)) - (
-      SELECT COALESCE(SUM(
-        amount - COALESCE((regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric, 0)
-      ), 0)
-      FROM loan_payments lp
-      WHERE lp.loan_id = loans.id
-        AND (lp.notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR lp.notes IS NULL)
-        AND (lp.notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR lp.notes IS NULL)
-        AND (lp.notes NOT LIKE '%[AMORTIZATION]%' OR lp.notes IS NULL)
-    )
-    ELSE (principal_amount + COALESCE(total_interest, 0)) - (
-      SELECT COALESCE(SUM(
-        amount - COALESCE((regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric, 0)
-      ), 0)
-      FROM loan_payments lp
-      WHERE lp.loan_id = loans.id
-        AND (lp.notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR lp.notes IS NULL)
-        AND (lp.notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR lp.notes IS NULL)
-        AND (lp.notes NOT LIKE '%[AMORTIZATION]%' OR lp.notes IS NULL)
-    )
-  END
-)
-WHERE status != 'paid'
-  AND notes LIKE '%[DAILY_PENALTY:%';
-```
-
-## Resumo das alterações
+## Resumo
 
 | Arquivo | Alteração |
 |---|---|
-| `supabase/functions/check-overdue-loans/index.ts` | Remover atualização de `remaining_balance` ao aplicar multas — só atualizar `notes` |
-| `src/pages/Loans.tsx` (cards ~8696-8717) | Remover heurística `penaltiesLikelyIncluded`, sempre somar multas ao remaining |
-| `src/pages/Loans.tsx` (tabela ~11011-11022) | Mesma simplificação para visualização em lista |
-| Banco de dados | Recalcular `remaining_balance` de empréstimos ativos com multas, removendo multas que foram indevidamente incorporadas ao saldo |
+| `src/pages/ReportsLoans.tsx` | Adicionar helper `getPenaltyFromNotes()` e somar penalty ao `interestPaid` em todos os mapeamentos de pagamentos (~3 locais) |
+| Nenhuma migração necessária | Os dados já contêm `[PENALTY_INCLUDED:X.XX]` nas notas — basta extrair |
 
