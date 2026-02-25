@@ -1,52 +1,56 @@
 
 
-# Template de Relatório Sendo Enviado em Duplicata
+# Adicionar Permissão "Calendário de Cobranças" para Funcionários
 
-## Diagnóstico
+## Situação Atual
 
-Analisando a tabela `pending_messages`, confirmei que usuários com `relatorio_ativo=true` estão recebendo **duas inserções** (e dois templates) no mesmo horário:
-
-| Usuário | Timestamps | Diferença |
-|---|---|---|
-| `5dfd21d1` | 21:01:01, 21:01:02 | 1 segundo |
-| `8f0911fe` | 21:02:01, 21:02:02 | 1 segundo |
-
-A causa raiz: o `pg_cron` + `pg_net` pode executar a mesma chamada HTTP duas vezes (retry automático em timeout ou latência). A função `sendWhatsAppViaUmClique` **não verifica** se já existe um `pending_messages` para aquele usuário no dia antes de inserir e enviar o template.
+O calendário de cobranças (`/calendar`) usa a permissão `view_loans` para controle de acesso. Isso significa que qualquer funcionário com permissão de ver empréstimos automaticamente tem acesso ao calendário. Não existe uma permissão separada para bloquear/liberar o calendário independentemente.
 
 ## Solução
 
-Adicionar **deduplicação** na função `sendWhatsAppViaUmClique` dentro de `supabase/functions/daily-summary/index.ts`:
+Criar uma nova permissão `view_calendar` no enum `employee_permission` e usá-la para controlar o acesso ao calendário de cobranças de forma independente.
 
-### Alteração (linhas 73-91)
+### 1. Migração SQL
 
-Antes de inserir na `pending_messages` e enviar o template, verificar se já existe um registro `daily_report` para aquele `user_id` criado hoje:
+Adicionar o valor `view_calendar` ao enum:
 
-```typescript
-// Check for existing pending message today to prevent duplicate templates
-const todayStart = new Date();
-todayStart.setHours(0, 0, 0, 0);
-
-const { data: existing } = await supabase
-  .from('pending_messages')
-  .select('id')
-  .eq('user_id', userId)
-  .eq('message_type', 'daily_report')
-  .gte('created_at', todayStart.toISOString())
-  .limit(1);
-
-if (existing && existing.length > 0) {
-  console.log(`Skipping duplicate template for user ${userId} - already sent today`);
-  return true; // Already sent, skip
-}
-
-// Then proceed with insert + template send...
+```sql
+ALTER TYPE public.employee_permission ADD VALUE IF NOT EXISTS 'view_calendar';
 ```
 
-Isso garante que, independentemente de quantas vezes a função seja chamada (retry do pg_net, batches sobrepostos, etc.), cada usuário recebe **apenas um** template por dia.
+### 2. Atualizar `src/hooks/useEmployeeContext.tsx`
 
-## Arquivo Alterado
+Adicionar `'view_calendar'` ao tipo `EmployeePermission`.
 
-| Arquivo | Alteração |
+### 3. Atualizar `src/components/EmployeeManagement.tsx`
+
+Adicionar na seção "Outros" do `PERMISSION_GROUPS`:
+
+```typescript
+{ key: 'view_calendar' as EmployeePermission, label: 'Ver calendário de cobranças' },
+```
+
+### 4. Atualizar rota e menu lateral
+
+- **`src/App.tsx`** (linha 104): Trocar `permission="view_loans"` por `permission="view_calendar"` na rota `/calendar`.
+- **`src/components/layout/DashboardLayout.tsx`** (linha 68): Trocar `permission: 'view_loans'` por `permission: 'view_calendar'` no item do menu "Calendário de Cobranças".
+
+### 5. Atualizar `src/components/PermissionRoute.tsx`
+
+Adicionar o label para a nova permissão:
+
+```typescript
+view_calendar: 'Visualizar Calendário de Cobranças',
+```
+
+## Resumo de Arquivos
+
+| Arquivo | Alteracao |
 |---|---|
-| `supabase/functions/daily-summary/index.ts` | Adicionar verificação de duplicata antes de inserir em `pending_messages` e enviar template |
+| Migração SQL | `ALTER TYPE employee_permission ADD VALUE 'view_calendar'` |
+| `src/hooks/useEmployeeContext.tsx` | Adicionar `'view_calendar'` ao tipo |
+| `src/components/EmployeeManagement.tsx` | Adicionar checkbox na UI de permissões |
+| `src/components/PermissionRoute.tsx` | Adicionar label da permissão |
+| `src/App.tsx` | Rota `/calendar` usa `view_calendar` |
+| `src/components/layout/DashboardLayout.tsx` | Menu usa `view_calendar` |
 
