@@ -522,8 +522,6 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
     // Parcela só é considerada paga se: valor pago >= 99% E não tem sub-parcela pendente
     if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
       paidCount++;
-    } else {
-      break; // Para no primeiro não pago
     }
   }
   
