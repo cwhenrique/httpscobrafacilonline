@@ -5189,6 +5189,40 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       penaltyInPayment = getTotalDailyPenalties(selectedLoan.notes);
     }
     
+    // 🆕 FALLBACK: Se não encontrou multas via DAILY_PENALTY, verificar OVERDUE_CONSOLIDATED
+    // Isso cobre o caso onde a multa consolidada não foi convertida em tags individuais
+    if (penaltyInPayment === 0) {
+      const consolidatedMatch = (selectedLoan.notes || '').match(/\[OVERDUE_CONSOLIDATED:([0-9.]+):/);
+      if (consolidatedMatch) {
+        const consolidatedTotal = parseFloat(consolidatedMatch[1]);
+        // Se o valor pago excede o valor base das parcelas, a diferença é a multa
+        const numInst = selectedLoan.installments || 1;
+        const isDailyType = selectedLoan.payment_type === 'daily';
+        const baseInstallmentValue = isDailyType 
+          ? (selectedLoan.total_interest || 0) 
+          : (selectedLoan.principal_amount + (selectedLoan.total_interest || 0)) / numInst;
+        
+        if (paymentData.payment_type === 'installment' && paymentData.selected_installments.length > 0) {
+          const totalBaseValue = baseInstallmentValue * paymentData.selected_installments.length;
+          const excess = amount - totalBaseValue;
+          if (excess > 0.01 && excess <= consolidatedTotal + 0.01) {
+            penaltyInPayment = excess;
+          }
+        } else if (paymentData.payment_type === 'partial') {
+          const excess = amount - baseInstallmentValue;
+          if (excess > 0.01 && excess <= consolidatedTotal + 0.01) {
+            penaltyInPayment = excess;
+          }
+        } else if (paymentData.payment_type === 'total') {
+          penaltyInPayment = consolidatedTotal;
+        }
+        
+        if (penaltyInPayment > 0) {
+          console.log(`[PENALTY_FALLBACK] Detected penalty from OVERDUE_CONSOLIDATED: ${penaltyInPayment.toFixed(2)}`);
+        }
+      }
+    }
+    
     // 🆕 Incluir snapshot de datas na nota do pagamento (se houver)
     let paymentNoteWithSnapshot = dateSnapshotTag 
       ? `${installmentNote} ${dateSnapshotTag}` 
@@ -5238,6 +5272,49 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     // Isso garante que as tags só existem quando há um pagamento real correspondente
     if (shouldSaveNotesAfterPayment) {
       await supabase.from('loans').update({ notes: notesToSaveAfterPayment }).eq('id', selectedLoanId);
+    }
+    
+    // 🆕 LIMPEZA: Remover tags [DAILY_PENALTY:X:Y] e [OVERDUE_CONSOLIDATED:...] das parcelas pagas
+    // Isso evita que multas já pagas continuem inflando o remaining_balance no frontend
+    {
+      const paidIndicesForCleanup: number[] = paymentData.selected_installments.length > 0
+        ? paymentData.selected_installments
+        : targetInstallmentIndex >= 0 ? [targetInstallmentIndex] : [];
+      
+      if (paidIndicesForCleanup.length > 0 || paymentData.payment_type === 'total') {
+        // Buscar notas mais recentes do banco (podem ter sido atualizadas acima)
+        const { data: freshNotesData } = await supabase.from('loans').select('notes').eq('id', selectedLoanId).single();
+        let cleanedNotes = freshNotesData?.notes || '';
+        let notesChanged = false;
+        
+        if (paymentData.payment_type === 'total') {
+          // Pagamento total: remover TODAS as tags de multa
+          const beforeClean = cleanedNotes;
+          cleanedNotes = cleanedNotes.replace(/\[DAILY_PENALTY:\d+:[0-9.]+\]\n?/g, '');
+          cleanedNotes = cleanedNotes.replace(/\[OVERDUE_CONSOLIDATED:[^\]]+\]\n?/g, '');
+          notesChanged = cleanedNotes !== beforeClean;
+        } else {
+          // Parcelas específicas: remover apenas as tags dessas parcelas
+          for (const idx of paidIndicesForCleanup) {
+            const regex = new RegExp(`\\[DAILY_PENALTY:${idx}:[0-9.]+\\]\\n?`, 'g');
+            const beforeClean = cleanedNotes;
+            cleanedNotes = cleanedNotes.replace(regex, '');
+            if (cleanedNotes !== beforeClean) notesChanged = true;
+          }
+          // Se todas as DAILY_PENALTY foram removidas, remover OVERDUE_CONSOLIDATED também
+          if (!/\[DAILY_PENALTY:\d+:[0-9.]+\]/.test(cleanedNotes)) {
+            const beforeClean = cleanedNotes;
+            cleanedNotes = cleanedNotes.replace(/\[OVERDUE_CONSOLIDATED:[^\]]+\]\n?/g, '');
+            if (cleanedNotes !== beforeClean) notesChanged = true;
+          }
+        }
+        
+        if (notesChanged) {
+          cleanedNotes = cleanedNotes.replace(/\n{3,}/g, '\n\n').trim();
+          await supabase.from('loans').update({ notes: cleanedNotes }).eq('id', selectedLoanId);
+          console.log(`[PENALTY_CLEANUP] Removed paid penalty tags for installments: ${paidIndicesForCleanup.join(', ')}`);
+        }
+      }
     }
     
     // 🆕 CORREÇÃO: Atualizar due_date automaticamente para a próxima parcela não paga
