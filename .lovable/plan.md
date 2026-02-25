@@ -1,56 +1,24 @@
 
 
-# Adicionar Permissão "Calendário de Cobranças" para Funcionários
+# Remover Assistente de Voz da página de Configurações
 
 ## Situação Atual
 
-O calendário de cobranças (`/calendar`) usa a permissão `view_loans` para controle de acesso. Isso significa que qualquer funcionário com permissão de ver empréstimos automaticamente tem acesso ao calendário. Não existe uma permissão separada para bloquear/liberar o calendário independentemente.
+A seção "Assistente de Voz" está na página **Configurações** (`src/pages/Settings.tsx`), linhas 387-468. Ela aparece para usuários com planos `monthly`/`annual` ou emails privilegiados (`clau_pogian@hotmail.com`, `maicon.francoso1@gmail.com`).
 
-## Solução
+## Alterações
 
-Criar uma nova permissão `view_calendar` no enum `employee_permission` e usá-la para controlar o acesso ao calendário de cobranças de forma independente.
+### `src/pages/Settings.tsx`
 
-### 1. Migração SQL
-
-Adicionar o valor `view_calendar` ao enum:
-
-```sql
-ALTER TYPE public.employee_permission ADD VALUE IF NOT EXISTS 'view_calendar';
-```
-
-### 2. Atualizar `src/hooks/useEmployeeContext.tsx`
-
-Adicionar `'view_calendar'` ao tipo `EmployeePermission`.
-
-### 3. Atualizar `src/components/EmployeeManagement.tsx`
-
-Adicionar na seção "Outros" do `PERMISSION_GROUPS`:
-
-```typescript
-{ key: 'view_calendar' as EmployeePermission, label: 'Ver calendário de cobranças' },
-```
-
-### 4. Atualizar rota e menu lateral
-
-- **`src/App.tsx`** (linha 104): Trocar `permission="view_loans"` por `permission="view_calendar"` na rota `/calendar`.
-- **`src/components/layout/DashboardLayout.tsx`** (linha 68): Trocar `permission: 'view_loans'` por `permission: 'view_calendar'` no item do menu "Calendário de Cobranças".
-
-### 5. Atualizar `src/components/PermissionRoute.tsx`
-
-Adicionar o label para a nova permissão:
-
-```typescript
-view_calendar: 'Visualizar Calendário de Cobranças',
-```
-
-## Resumo de Arquivos
-
-| Arquivo | Alteracao |
-|---|---|
-| Migração SQL | `ALTER TYPE employee_permission ADD VALUE 'view_calendar'` |
-| `src/hooks/useEmployeeContext.tsx` | Adicionar `'view_calendar'` ao tipo |
-| `src/components/EmployeeManagement.tsx` | Adicionar checkbox na UI de permissões |
-| `src/components/PermissionRoute.tsx` | Adicionar label da permissão |
-| `src/App.tsx` | Rota `/calendar` usa `view_calendar` |
-| `src/components/layout/DashboardLayout.tsx` | Menu usa `view_calendar` |
+1. **Remover o bloco JSX** do card "Assistente de Voz" (linhas 387-468)
+2. **Remover estados e funções relacionados**:
+   - `voiceAssistantEnabled` / `setVoiceAssistantEnabled` (state)
+   - `togglingVoice` / `setTogglingVoice` (state)
+   - `testingVoice` / `setTestingVoice` (state)
+   - `handleToggleVoiceAssistant` (função)
+   - `handleTestVoiceAssistant` (função)
+   - `canAccessVoiceAssistant` (função)
+   - `VOICE_PRIVILEGED_EMAILS` (constante)
+   - `useEffect` que seta `voiceAssistantEnabled`
+3. **Remover imports não utilizados**: `Mic`, `MicOff`, `Switch` (se não usado em outro lugar), `Badge` (verificar uso)
 
