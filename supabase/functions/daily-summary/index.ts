@@ -71,6 +71,23 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
   };
 
   try {
+    // Check for existing pending message today to prevent duplicate templates
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const { data: existing } = await supabase
+      .from('pending_messages')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('message_type', 'daily_report')
+      .gte('created_at', todayStart.toISOString())
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      console.log(`Skipping duplicate template for user ${userId} - already sent today`);
+      return true;
+    }
+
     // Save report content to pending_messages so webhook can deliver on confirmation
     const { error: pendingError } = await supabase
       .from('pending_messages')
