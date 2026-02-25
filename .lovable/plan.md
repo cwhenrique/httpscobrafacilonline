@@ -1,56 +1,91 @@
 
 
-# Correção: Multas/Penalidades devem entrar como Lucro nos Relatórios
+# Correção: Parcelas Pagas e Em Atraso no Modo Lista
 
 ## Problema
 
-Quando um pagamento inclui multa (tag `[PENALTY_INCLUDED:X.XX]`), esse valor **não é contabilizado como lucro**. O lucro é calculado exclusivamente a partir de `interest_paid`, que não inclui a multa.
+No modo lista (LoansTableView), a coluna "Parcelas" mostra apenas `paidCount/total` e um texto genérico "em atraso". Isso não reflete corretamente situações onde pagamentos são feitos fora de ordem (ex: parcelas 1 e 3 pagas, parcela 2 em atraso). O contador mostra "1 pago" quando deveria mostrar "2 pagas" e "1 em atraso".
 
-Exemplo real do banco:
-- Pagamento de R$ 480 → `interest_paid: 180` + `[PENALTY_INCLUDED:40.00]`
-- O lucro registrado é R$ 180, mas deveria ser **R$ 220** (juros + multa)
-
-## Onde o lucro é calculado
-
-1. **`src/pages/ReportsLoans.tsx` (linha 405, 631)** — `realizedProfit` usa apenas `sum(interest_paid)`
-2. **`src/pages/ReportsLoans.tsx` (linhas 454-467)** — `paymentsInPeriod` extrai `interestPaid` sem somar penalty
-3. **`src/hooks/useDashboardStats.ts`** — `pending_interest` na função RPC não considera penalties pagas
-4. **Evolução mensal (linha 760)** — `lucro = recebido - principal` (este já captura indiretamente, pois `amount` inclui penalty)
+A causa raiz: `getPaidInstallmentsCount` já conta corretamente parcelas pagas por índice (usando tags `[PARTIAL_PAID]`), mas o componente de lista não calcula nem exibe o **número de parcelas em atraso** separadamente.
 
 ## Solução
 
-### 1. `src/pages/ReportsLoans.tsx` — Extrair penalty das notas e somar ao lucro
+### 1. Criar função `getOverdueInstallmentsCount` em `src/pages/Loans.tsx`
 
-Em todos os locais que constroem objetos de pagamento (linhas ~298, ~454, ~463), adicionar extração da tag `[PENALTY_INCLUDED]` e somar ao `interestPaid`:
+Nova função que percorre todas as parcelas não pagas e verifica quais têm data de vencimento no passado:
 
 ```typescript
-const getPenaltyFromNotes = (notes: string | null): number => {
-  const match = (notes || '').match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
-  return match ? parseFloat(match[1]) : 0;
+const getOverdueInstallmentsCount = (loan: Loan): number => {
+  if (loan.status === 'paid' || loan.remaining_balance <= 0) return 0;
+  
+  const dates = safeDates(loan.installment_dates);
+  if (dates.length === 0) {
+    // Single payment — check due_date
+    const dueDate = new Date(loan.due_date + 'T12:00:00');
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    return dueDate < today ? 1 : 0;
+  }
+  
+  const numInstallments = loan.installments || 1;
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  // ... determine installment value per index (same logic as getPaidInstallmentsCount)
+  // Count unpaid installments where date < today
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  let overdueCount = 0;
+  for (let i = 0; i < Math.min(dates.length, numInstallments); i++) {
+    const isPaid = /* check if installment i is paid */;
+    if (!isPaid) {
+      const dueDate = new Date(dates[i] + 'T12:00:00');
+      if (dueDate < today) overdueCount++;
+    }
+  }
+  return overdueCount;
 };
-
-// Onde se constrói payment objects:
-interestPaid: Number(p.interest_paid || 0) + getPenaltyFromNotes(p.notes),
 ```
 
-Isso corrige automaticamente:
-- `realizedProfitInPeriod` (linha 631)
-- Lucro por tipo de pagamento (linha 405)
-- Cards de "Lucro Realizado"
-- Tabelas de pagamentos
+### 2. Passar `getOverdueInstallmentsCount` como prop para LoansTableView
 
-### 2. `src/hooks/useDashboardStats.ts` — Incluir penalties pagas no totalOverdueInterest
+**Arquivo:** `src/components/LoansTableView.tsx`
 
-O cálculo de `totalToReceive` já soma multas pendentes via `calculateDynamicOverdueInterest`. Nenhuma alteração necessária aqui — o dashboard mostra o que FALTA receber (incluindo multas), não o lucro realizado.
+- Adicionar prop `getOverdueInstallmentsCount: (loan: Loan) => number`
+- Na coluna "Parcelas", mostrar:
+  - `✅ X pagas` (verde)
+  - `🔴 Y em atraso` (vermelho, se Y > 0)
 
-### 3. `src/hooks/useOperationalStats.ts` — Verificar se lucro operacional inclui penalties
+### 3. Atualizar a coluna "Parcelas" no LoansTableView
 
-Verificar se o hook usado pelo ReportsLoans também precisa da mesma correção no mapeamento de pagamentos.
+Antes (linhas 478-488):
+```tsx
+<TableCell className="hidden md:table-cell">
+  <div className="flex flex-col">
+    <span className="text-sm">{paidCount}/{numInstallments}</span>
+    {isOverdue && !isPaid && (
+      <span className="text-[10px] text-destructive">em atraso</span>
+    )}
+  </div>
+</TableCell>
+```
+
+Depois:
+```tsx
+<TableCell className="hidden md:table-cell">
+  <div className="flex flex-col gap-0.5">
+    <span className="text-sm text-emerald-600 dark:text-emerald-400">
+      ✅ {paidCount}/{numInstallments}
+    </span>
+    {overdueCount > 0 && (
+      <span className="text-[10px] text-destructive font-medium">
+        🔴 {overdueCount} em atraso
+      </span>
+    )}
+  </div>
+</TableCell>
+```
 
 ## Resumo
 
 | Arquivo | Alteração |
 |---|---|
-| `src/pages/ReportsLoans.tsx` | Adicionar helper `getPenaltyFromNotes()` e somar penalty ao `interestPaid` em todos os mapeamentos de pagamentos (~3 locais) |
-| Nenhuma migração necessária | Os dados já contêm `[PENALTY_INCLUDED:X.XX]` nas notas — basta extrair |
+| `src/pages/Loans.tsx` | Criar `getOverdueInstallmentsCount()` e passá-la como prop ao `LoansTableView` |
+| `src/components/LoansTableView.tsx` | Adicionar prop `getOverdueInstallmentsCount`, calcular e exibir número de parcelas em atraso na coluna "Parcelas" |
 
