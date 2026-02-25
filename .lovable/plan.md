@@ -1,58 +1,133 @@
 
 
-# Diagnóstico: Saldo incorreto no empréstimo de Sarona Ketlen
+# Correção: Multas/juros por atraso devem ser valores EXTRAS, não descontados do saldo original
 
-## Problema identificado
+## Problema
 
-O empréstimo `c8de9345` (4 parcelas de R$ 123, total R$ 492) tem `remaining_balance = 33` quando deveria ser **123** (1 parcela restante).
+O sistema tem uma inconsistência na forma como multas (DAILY_PENALTY) interagem com o `remaining_balance`:
 
-**O que aconteceu:**
+1. A Edge Function `check-overdue-loans` **soma** a multa diretamente ao `remaining_balance`: `newBalance = loan.remaining_balance + penaltyToAdd`
+2. Porém, o trigger `recalculate_loan_total_paid` (que dispara em todo pagamento) **recalcula** o `remaining_balance` como `total_to_receive - balance_reducing_payments`, onde `total_to_receive = principal + total_interest` — **sem incluir multas**. Isso sobrescreve a adição feita pela Edge Function.
+3. O frontend tenta compensar com lógica de detecção `penaltiesLikelyIncluded`, comparando se o `remaining_balance` é maior que o esperado. Essa heurística falha em cenários como: pagamentos parciais, contratos antigos, ou quando o trigger já recalculou o saldo.
+
+**Resultado:** O saldo exibido fica inconsistente — às vezes desconta a multa do original, às vezes duplica.
+
+## Solução: Multas vivem APENAS nas tags, NUNCA no remaining_balance
+
+A arquitetura correta (que já funciona parcialmente) é:
 
 ```text
-Parcela 1: R$ 123 → paga ✓ (nota: [CONTRATO_ANTIGO])
-Parcela 2: R$ 123 + R$ 60 multa = R$ 183 → paga ✓ (90 + 93)
-Parcela 3: R$ 123 + R$ 30 multa = R$ 153 → paga ✓
-Parcela 4: R$ 123 → pendente
-
-Total pago: R$ 459 | Falta: R$ 123
-Porém o sistema mostra: remaining_balance = 33
+remaining_balance = saldo ORIGINAL do contrato (principal + juros - pagamentos)
+Multas = tags [DAILY_PENALTY:X:Y] nas notas (valor EXTRA)
+Total a receber = remaining_balance + sum(DAILY_PENALTY tags)
 ```
 
-**Causa raiz:** Os pagamentos das parcelas 2 e 3 incluíram multas (R$ 60 da `[OVERDUE_CONSOLIDATED]` e R$ 30 da `[DAILY_PENALTY:2:30]`), mas nenhum desses pagamentos recebeu a tag `[PENALTY_INCLUDED:X.XX]`. Sem essa tag, o trigger do banco tratou o valor total (incluindo multas) como abatimento do saldo, reduzindo `remaining_balance` em R$ 90 a mais do que deveria.
+### 1. Edge Function `check-overdue-loans` — Parar de modificar remaining_balance
 
-Dois bugs causam isso:
-1. A multa `[OVERDUE_CONSOLIDATED]` não é convertida em `[DAILY_PENALTY]` por parcela quando o pagamento é feito via fluxo de pagamento parcial ou contratos antigos
-2. Mesmo quando `[DAILY_PENALTY]` existe, o cálculo de `penaltyInPayment` pode falhar se o `payment_type` não bate com as condições esperadas (ex: pagamento parcial vs installment)
+**Arquivo:** `supabase/functions/check-overdue-loans/index.ts`
 
-## Correções
+Remover a linha que atualiza `remaining_balance` ao aplicar multas. Apenas atualizar as `notes` com a tag `[DAILY_PENALTY]`.
 
-### 1. Correção de dados — empréstimo Sarona Ketlen
+Antes:
+```typescript
+const newBalance = loan.remaining_balance + penaltyToAdd;
+const { error: updateError } = await supabase
+  .from('loans')
+  .update({ notes: updatedNotes, remaining_balance: newBalance })
+  .eq('id', loan.id);
+```
 
-Atualizar `remaining_balance` de 33 para 123 e limpar a tag `[DAILY_PENALTY:2:30.00]` (já paga):
+Depois:
+```typescript
+const { error: updateError } = await supabase
+  .from('loans')
+  .update({ notes: updatedNotes })
+  .eq('id', loan.id);
+```
+
+### 2. Frontend — Remover heurística `penaltiesLikelyIncluded`
+
+**Arquivo:** `src/pages/Loans.tsx`
+
+Em todos os locais onde existe a lógica `penaltiesLikelyIncluded`, simplificar para SEMPRE somar multas ao remaining_balance:
+
+**Cards (linhas ~8696-8717):**
+Antes:
+```typescript
+const penaltiesLikelyIncluded = loan.remaining_balance > expectedBaseRemaining;
+let remainingToReceive;
+if (loan.status === 'paid') {
+  remainingToReceive = 0;
+} else {
+  if (penaltiesLikelyIncluded) {
+    remainingToReceive = Math.max(0, loan.remaining_balance);
+  } else {
+    remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
+  }
+}
+```
+
+Depois:
+```typescript
+let remainingToReceive;
+if (loan.status === 'paid') {
+  remainingToReceive = 0;
+} else {
+  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
+}
+```
+
+**Tabela/lista (linhas ~11011-11022):**
+Mesma simplificação — remover `penaltiesLikelyIncludedTable` e sempre somar:
+```typescript
+const remainingToReceive = loan.status === 'paid'
+  ? 0
+  : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
+```
+
+### 3. Corrigir empréstimos existentes com remaining_balance inflado
+
+Empréstimos que já tiveram multas somadas ao `remaining_balance` pela Edge Function precisam ser corrigidos. Criar uma query para identificar e ajustar:
 
 ```sql
-UPDATE loans 
-SET remaining_balance = 123,
-    notes = REPLACE(notes, '[DAILY_PENALTY:2:30.00]' || E'\n', '')
-WHERE id = 'c8de9345-2dd2-4422-b144-409359c221fa';
+-- Identificar empréstimos onde remaining_balance inclui multas indevidamente
+-- e recalcular o saldo correto
+UPDATE loans
+SET remaining_balance = GREATEST(0,
+  CASE 
+    WHEN payment_type = 'daily' 
+    THEN (COALESCE(total_interest, 0) * COALESCE(installments, 1)) - (
+      SELECT COALESCE(SUM(
+        amount - COALESCE((regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric, 0)
+      ), 0)
+      FROM loan_payments lp
+      WHERE lp.loan_id = loans.id
+        AND (lp.notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR lp.notes IS NULL)
+        AND (lp.notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR lp.notes IS NULL)
+        AND (lp.notes NOT LIKE '%[AMORTIZATION]%' OR lp.notes IS NULL)
+    )
+    ELSE (principal_amount + COALESCE(total_interest, 0)) - (
+      SELECT COALESCE(SUM(
+        amount - COALESCE((regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric, 0)
+      ), 0)
+      FROM loan_payments lp
+      WHERE lp.loan_id = loans.id
+        AND (lp.notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR lp.notes IS NULL)
+        AND (lp.notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR lp.notes IS NULL)
+        AND (lp.notes NOT LIKE '%[AMORTIZATION]%' OR lp.notes IS NULL)
+    )
+  END
+)
+WHERE status != 'paid'
+  AND notes LIKE '%[DAILY_PENALTY:%';
 ```
 
-### 2. Correção de código — `src/pages/Loans.tsx`
+## Resumo das alterações
 
-No cálculo de `penaltyInPayment` (linhas ~5180-5200), adicionar detecção de multas consolidadas (`[OVERDUE_CONSOLIDATED]`) quando não existem tags `[DAILY_PENALTY]` individuais para as parcelas sendo pagas. Isso garante que a tag `[PENALTY_INCLUDED]` seja adicionada ao pagamento.
-
-Lógica:
-- Após calcular `penaltyInPayment` via `loanPenalties`, verificar se o valor do pagamento excede o valor base da parcela
-- Se o excesso corresponder a uma multa consolidada conhecida, incluir na tag `[PENALTY_INCLUDED]`
-
-### 3. Limpeza de tags pagas — `src/pages/Loans.tsx`
-
-Após registrar pagamento com sucesso, remover as tags `[DAILY_PENALTY:X:Y]` das parcelas que acabaram de ser quitadas. Isso evita que multas já pagas continuem sendo exibidas como pendentes no frontend (que soma `getTotalDailyPenalties` ao `remaining_balance`).
-
-## Resumo
-
-| Item | Alteração |
+| Arquivo | Alteração |
 |---|---|
-| Banco de dados | Corrigir `remaining_balance` de 33 → 123; limpar tag de multa paga |
-| `src/pages/Loans.tsx` | Incluir `[OVERDUE_CONSOLIDATED]` no cálculo de `penaltyInPayment`; limpar tags `[DAILY_PENALTY]` após pagamento |
+| `supabase/functions/check-overdue-loans/index.ts` | Remover atualização de `remaining_balance` ao aplicar multas — só atualizar `notes` |
+| `src/pages/Loans.tsx` (cards ~8696-8717) | Remover heurística `penaltiesLikelyIncluded`, sempre somar multas ao remaining |
+| `src/pages/Loans.tsx` (tabela ~11011-11022) | Mesma simplificação para visualização em lista |
+| Banco de dados | Recalcular `remaining_balance` de empréstimos ativos com multas, removendo multas que foram indevidamente incorporadas ao saldo |
 
