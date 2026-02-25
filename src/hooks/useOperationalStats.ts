@@ -91,7 +91,7 @@ async function fetchOperationalStats(): Promise<StatsData> {
       due_date, total_interest, total_paid, remaining_balance, status, notes,
       created_at, updated_at,
       client:clients(full_name, phone),
-      payments:loan_payments(id, amount, interest_paid, principal_paid, payment_date)
+      payments:loan_payments(id, amount, interest_paid, principal_paid, payment_date, notes)
     `)
     .order('created_at', { ascending: false })
     .limit(1000);
@@ -123,8 +123,12 @@ async function fetchOperationalStats(): Promise<StatsData> {
     const isDaily = loan.payment_type === 'daily';
     
     const payments = loan.payments || [];
+    const getPenalty = (notes: string | null): number => {
+      const match = (notes || '').match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+      return match ? parseFloat(match[1]) : 0;
+    };
     const totalInterestReceived = payments.reduce(
-      (sum: number, p: any) => sum + Number(p.interest_paid || 0), 
+      (sum: number, p: any) => sum + Number(p.interest_paid || 0) + getPenalty(p.notes), 
       0
     );
     

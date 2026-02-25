@@ -107,6 +107,12 @@ const StatCard = ({
   </motion.div>
 );
 
+// Helper: extract penalty value from payment notes tag [PENALTY_INCLUDED:X.XX]
+const getPenaltyFromNotes = (notes: string | null): number => {
+  const match = (notes || '').match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
 // Loading skeleton
 const StatCardSkeleton = () => (
   <Card className="border-primary/30">
@@ -297,7 +303,7 @@ export default function ReportsLoans() {
             date: p.payment_date,
             amount: Number(p.amount || 0),
             principalPaid: Number(p.principal_paid || 0),
-            interestPaid: Number(p.interest_paid || 0),
+            interestPaid: Number(p.interest_paid || 0) + getPenaltyFromNotes(p.notes),
             notes: p.notes,
           })),
         };
@@ -453,7 +459,7 @@ export default function ReportsLoans() {
             payments.push({
               loanId: loan.id,
               amount: Number(payment.amount || 0),
-              interestPaid: Number(payment.interest_paid || 0),
+              interestPaid: Number(payment.interest_paid || 0) + getPenaltyFromNotes(payment.notes),
               principalPaid: Number(payment.principal_paid || 0),
               paymentDate,
             });
@@ -462,7 +468,7 @@ export default function ReportsLoans() {
           payments.push({
             loanId: loan.id,
             amount: Number(payment.amount || 0),
-            interestPaid: Number(payment.interest_paid || 0),
+            interestPaid: Number(payment.interest_paid || 0) + getPenaltyFromNotes(payment.notes),
             principalPaid: Number(payment.principal_paid || 0),
             paymentDate,
           });
