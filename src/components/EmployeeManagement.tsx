@@ -48,6 +48,7 @@ const PERMISSION_GROUPS = {
     { key: 'manage_vehicles' as EmployeePermission, label: 'Gerenciar veículos' },
     { key: 'manage_products' as EmployeePermission, label: 'Gerenciar produtos' },
     { key: 'view_settings' as EmployeePermission, label: 'Ver configurações' },
+    { key: 'view_calendar' as EmployeePermission, label: 'Ver calendário de cobranças' },
   ],
 };
 

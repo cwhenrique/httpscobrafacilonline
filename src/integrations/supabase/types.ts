@@ -1889,6 +1889,7 @@ export type Database = {
         | "view_dashboard"
         | "view_all_clients"
         | "manage_checks"
+        | "view_calendar"
       interest_mode:
         | "per_installment"
         | "on_total"
@@ -2051,6 +2052,7 @@ export const Constants = {
         "view_dashboard",
         "view_all_clients",
         "manage_checks",
+        "view_calendar",
       ],
       interest_mode: [
         "per_installment",

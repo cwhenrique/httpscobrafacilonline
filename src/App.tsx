@@ -101,7 +101,7 @@ const AppContent = () => {
               <Route path="/product-sales" element={<ProtectedRoute><PermissionRoute permission="manage_products"><ProductSales /></PermissionRoute></ProtectedRoute>} />
               <Route path="/vehicles" element={<ProtectedRoute><PermissionRoute permission="manage_vehicles"><Vehicles /></PermissionRoute></ProtectedRoute>} />
               <Route path="/check-discounts" element={<ProtectedRoute><PermissionRoute permission="manage_checks"><CheckDiscounts /></PermissionRoute></ProtectedRoute>} />
-              <Route path="/calendar" element={<ProtectedRoute><PermissionRoute permission="view_loans"><CalendarView /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><PermissionRoute permission="view_calendar"><CalendarView /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsLoans /></PermissionRoute></ProtectedRoute>} />
               <Route path="/reports-sales" element={<ProtectedRoute><PermissionRoute permission="view_reports"><ReportsSales /></PermissionRoute></ProtectedRoute>} />
               <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
