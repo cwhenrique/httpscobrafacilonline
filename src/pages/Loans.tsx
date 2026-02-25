@@ -528,7 +528,34 @@ const getPaidInstallmentsCount = (loan: { notes?: string | null; installments?: 
   return paidCount;
 };
 
-// 🆕 Helper para contar parcelas com juros pagos (para contratos de juros antigos)
+// Helper para calcular quantas parcelas estão em atraso (não pagas com data no passado)
+const getOverdueInstallmentsCount = (loan: Loan): number => {
+  if (loan.status === 'paid' || loan.remaining_balance <= 0) return 0;
+  
+  const dates = safeDates(loan.installment_dates);
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  
+  if (dates.length === 0) {
+    // Single payment — check due_date
+    const dueDate = new Date(loan.due_date + 'T12:00:00');
+    return dueDate < today ? 1 : 0;
+  }
+  
+  const numInstallments = loan.installments || 1;
+  const paidIndices = getPaidIndicesFromNotes(loan);
+  const paidSet = new Set(paidIndices);
+  
+  let overdueCount = 0;
+  for (let i = 0; i < Math.min(dates.length, numInstallments); i++) {
+    if (paidSet.has(i)) continue;
+    const dueDate = new Date(dates[i] + 'T12:00:00');
+    if (dueDate < today) overdueCount++;
+  }
+  return overdueCount;
+};
+
+
 // Cada índice único de INTEREST_ONLY_PAID representa uma parcela com juros pago
 const getInterestPaidInstallmentsCount = (notes: string | null): number => {
   const interestOnlyPayments = getInterestOnlyPaymentsFromNotes(notes);
@@ -8447,6 +8474,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               onDelete={setDeleteId}
               onViewHistory={openPaymentHistory}
               getPaidInstallmentsCount={getPaidInstallmentsCount}
+              getOverdueInstallmentsCount={getOverdueInstallmentsCount}
               profile={profile}
               getOverdueNotificationData={(loan) => {
                 const numInstallments = loan.installments || 1;
@@ -10841,6 +10869,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 onDelete={setDeleteId}
                 onViewHistory={openPaymentHistory}
                 getPaidInstallmentsCount={getPaidInstallmentsCount}
+                getOverdueInstallmentsCount={getOverdueInstallmentsCount}
                 profile={profile}
                 getOverdueNotificationData={(loan) => {
                   const numInstallments = loan.installments || 1;
