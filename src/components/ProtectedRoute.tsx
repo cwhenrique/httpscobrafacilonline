@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('is_active, subscription_plan, trial_expires_at')
+        .select('is_active, subscription_plan, trial_expires_at, subscription_expires_at')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -37,6 +37,28 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         await supabase.auth.signOut();
         setCheckingActive(false);
         return;
+      }
+
+      // Check if subscription/trial is expired (skip for lifetime plans)
+      if (data.subscription_plan !== 'lifetime') {
+        const now = new Date();
+        const isTrialExpired = data.subscription_plan === 'trial' && data.trial_expires_at && new Date(data.trial_expires_at) < now;
+        const isSubExpired = data.subscription_plan !== 'trial' && data.subscription_expires_at && new Date(data.subscription_expires_at) < now;
+
+        if (isTrialExpired || isSubExpired) {
+          // Deactivate in background
+          await supabase
+            .from('profiles')
+            .update({ is_active: false })
+            .eq('id', user.id);
+          
+          toast.error('Plano expirado', {
+            description: 'Seu período de acesso expirou. Renove seu plano para continuar.',
+          });
+          await supabase.auth.signOut();
+          setCheckingActive(false);
+          return;
+        }
       }
 
       // Trial user doing first login: start the 24h countdown now
