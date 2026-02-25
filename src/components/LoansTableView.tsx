@@ -14,7 +14,9 @@ import {
   getDaysOverdue, 
   calculateDynamicOverdueInterest,
   calculateInstallmentValue,
-  isLoanOverdue
+  isLoanOverdue,
+  getNextUnpaidInstallmentDate,
+  getPartialPaymentsFromNotes
 } from '@/lib/calculations';
 import { getAvatarUrl } from '@/lib/avatarUtils';
 import { Loan } from '@/types/database';
@@ -115,10 +117,9 @@ export function LoansTableView({
   };
 
   const getNextDueDate = (loan: Loan): string | null => {
-    const dates = (loan.installment_dates as string[]) || [];
-    const paidCount = getPaidInstallmentsCount(loan);
-    if (paidCount < dates.length) {
-      return dates[paidCount];
+    const nextDate = getNextUnpaidInstallmentDate(loan);
+    if (nextDate) {
+      return nextDate.toISOString().split('T')[0];
     }
     return loan.due_date;
   };
@@ -475,9 +476,16 @@ export function LoansTableView({
                   {formatCurrency(loan.remaining_balance)}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <span className="text-sm">
-                    {paidCount}/{numInstallments}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-sm">
+                      {paidCount}/{numInstallments}
+                    </span>
+                    {isOverdue && !isPaid && (
+                      <span className="text-[10px] text-destructive">
+                        em atraso
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell text-sm">
                   {isPaid ? (

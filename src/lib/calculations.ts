@@ -408,8 +408,6 @@ export function calculatePaidInstallments(loan: LoanForCalculation): number {
     const paidAmount = partialPayments[i] || 0;
     if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
       paidCount++;
-    } else {
-      break;
     }
   }
   
@@ -430,11 +428,38 @@ export function getNextUnpaidInstallmentDate(loan: LoanForCalculation): Date | n
   }
   
   const dates = (loan.installment_dates as string[]) || [];
-  const paidCount = calculatePaidInstallments(loan);
-  
-  if (dates.length > 0 && paidCount < dates.length) {
-    // Usar T12:00:00 para evitar problemas de timezone
-    return new Date(dates[paidCount] + 'T12:00:00');
+  if (dates.length > 0) {
+    const numInstallments = loan.installments || 1;
+    const partialPayments = getPartialPaymentsFromNotes(loan.notes || null);
+    const advanceSubparcelas = getAdvanceSubparcelasFromNotes(loan.notes || null);
+    const hasSubparcelaForIndex = (index: number) => 
+      advanceSubparcelas.some(s => s.originalIndex === index);
+    
+    // Reuse the same installment value logic from calculatePaidInstallments
+    const baseValue = calculateInstallmentValue(loan);
+    const isCustom = loan.interest_mode === 'custom';
+    const isSAC = loan.interest_mode === 'sac';
+    const renewalFeeMatch = (loan.notes || '').match(/\[RENEWAL_FEE_INSTALLMENT:(\d+):([0-9.]+)(?::[0-9.]+)?\]/);
+    const renewalFeeInstallmentIndex = renewalFeeMatch ? parseInt(renewalFeeMatch[1]) : null;
+    const renewalFeeValue = renewalFeeMatch ? parseFloat(renewalFeeMatch[2]) : 0;
+    
+    const getInstallmentValue = (index: number) => {
+      if (renewalFeeInstallmentIndex !== null && index === renewalFeeInstallmentIndex) return renewalFeeValue;
+      if (isCustom) {
+        const customValues = parseCustomInstallments(loan.notes || null);
+        if (customValues && index < customValues.length) return customValues[index];
+      }
+      if (isSAC) return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, index);
+      return baseValue;
+    };
+    
+    for (let i = 0; i < dates.length; i++) {
+      const paidAmount = partialPayments[i] || 0;
+      const installmentValue = getInstallmentValue(i);
+      if (paidAmount < installmentValue * 0.99 || hasSubparcelaForIndex(i)) {
+        return new Date(dates[i] + 'T12:00:00');
+      }
+    }
   }
   
   // Fallback para due_date
