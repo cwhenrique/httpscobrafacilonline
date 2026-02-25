@@ -81,6 +81,7 @@ interface LoansTableViewProps {
   onDelete: (loanId: string) => void;
   onViewHistory: (loanId: string) => void;
   getPaidInstallmentsCount: (loan: Loan) => number;
+  getOverdueInstallmentsCount?: (loan: Loan) => number;
   // New props for WhatsApp notifications
   profile?: Profile | null;
   getOverdueNotificationData?: (loan: Loan) => OverdueNotificationData | null;
@@ -96,6 +97,7 @@ export function LoansTableView({
   onDelete,
   onViewHistory,
   getPaidInstallmentsCount,
+  getOverdueInstallmentsCount,
   profile,
   getOverdueNotificationData,
   getDueTodayNotificationData,
@@ -476,16 +478,21 @@ export function LoansTableView({
                   {formatCurrency(loan.remaining_balance)}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <div className="flex flex-col">
-                    <span className="text-sm">
-                      {paidCount}/{numInstallments}
-                    </span>
-                    {isOverdue && !isPaid && (
-                      <span className="text-[10px] text-destructive">
-                        em atraso
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const overdueCount = getOverdueInstallmentsCount ? getOverdueInstallmentsCount(loan) : 0;
+                    return (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm text-emerald-600 dark:text-emerald-400">
+                          ✅ {paidCount}/{numInstallments}
+                        </span>
+                        {overdueCount > 0 && (
+                          <span className="text-[10px] text-destructive font-medium">
+                            🔴 {overdueCount} em atraso
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell text-sm">
                   {isPaid ? (
