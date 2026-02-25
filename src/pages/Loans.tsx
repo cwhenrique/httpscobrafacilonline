@@ -8695,25 +8695,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 // IMPORTANTE: Se o status é 'paid', o remaining é sempre 0
                 const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
                 
-                // Detectar se o remaining_balance já inclui as multas
-                // Isso acontece quando o remaining foi atualizado diretamente com multas incorporadas
-                const expectedBaseRemaining = isDaily 
-                  ? dailyTotalToReceive - (loan.total_paid || 0)
-                  : originalTotal - (loan.total_paid || 0);
-                
-                // Se remaining_balance > expectedBaseRemaining, as multas já estão incluídas
-                const penaltiesLikelyIncluded = loan.remaining_balance > expectedBaseRemaining;
-                
+                // Multas são SEMPRE extras — remaining_balance contém apenas o saldo base
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
                 } else {
-                  // Só adicionar multas se não parecem já estar incluídas no remaining_balance
-                  if (penaltiesLikelyIncluded) {
-                    remainingToReceive = Math.max(0, loan.remaining_balance);
-                  } else {
-                    remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
-                  }
+                  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -11008,18 +10995,10 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue, overdueInstallmentsDetails } = getLoanStatus(loan);
                   const totalAppliedPenaltiesDaily = getTotalDailyPenalties(loan.notes);
                   
-                  // Detectar se multas já estão no remaining_balance para evitar duplicação
-                  const originalTotalTable = loan.principal_amount + (loan.total_interest || 0);
-                  const expectedBaseRemainingTable = isDaily 
-                    ? dailyTotalToReceive - (loan.total_paid || 0)
-                    : originalTotalTable - (loan.total_paid || 0);
-                  const penaltiesLikelyIncludedTable = loan.remaining_balance > expectedBaseRemainingTable;
-                  
+                  // Multas são SEMPRE extras — remaining_balance contém apenas o saldo base
                   const remainingToReceive = loan.status === 'paid' 
                     ? 0 
-                    : Math.max(0, penaltiesLikelyIncludedTable 
-                        ? loan.remaining_balance 
-                        : loan.remaining_balance + totalAppliedPenaltiesDaily);
+                    : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
                   
                   const isDueToday = (() => {
                     if (isPaid) return false;

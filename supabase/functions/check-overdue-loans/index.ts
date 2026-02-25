@@ -250,10 +250,10 @@ const handler = async (req: Request): Promise<Response> => {
             updatedNotes = updatedNotes.replace(new RegExp(`\\[DAILY_PENALTY:${overdueInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
             updatedNotes = updatedNotes.replace(/\[PENALTY_LAST_APPLIED:[0-9-]+\]/g, '');
             updatedNotes = `[DAILY_PENALTY:${overdueInstallmentIndex}:${newTotalPenalty.toFixed(2)}] [PENALTY_LAST_APPLIED:${todayStr}] ${updatedNotes}`.trim();
-            const newBalance = loan.remaining_balance + penaltyToAdd;
+            // Multas vivem APENAS nas tags, NUNCA no remaining_balance
             const { error: updateError } = await supabase
               .from('loans')
-              .update({ notes: updatedNotes, remaining_balance: newBalance })
+              .update({ notes: updatedNotes })
               .eq('id', loan.id);
             if (!updateError) {
               console.log(`Applied penalty of ${formatCurrency(penaltyToAdd)} to loan ${loan.id}`);
