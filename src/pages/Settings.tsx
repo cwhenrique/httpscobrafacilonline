@@ -8,20 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
+
 import { toast } from 'sonner';
-import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Mic, MicOff, Info, ExternalLink } from 'lucide-react';
+import { User, Building, Loader2, Phone, CheckCircle, AlertCircle, MessageCircle, Info, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
 import EmployeeManagement from '@/components/EmployeeManagement';
 import EmployeeFeatureCard from '@/components/EmployeeFeatureCard';
 import BillingMessageConfigCard from '@/components/BillingMessageConfigCard';
-
-// Emails com acesso privilegiado ao assistente de voz (independente do plano)
-const VOICE_PRIVILEGED_EMAILS = [
-  'clau_pogian@hotmail.com',
-  'maicon.francoso1@gmail.com',
-];
 
 export default function Settings() {
   const { user } = useAuth();
@@ -29,18 +22,6 @@ export default function Settings() {
   const { profile, isProfileComplete, updateProfile } = useProfile();
   const { isEmployee } = useEmployeeContext();
 
-  // Check if user can access voice assistant (only recurring plans or privileged emails)
-  const canAccessVoiceAssistant = (): boolean => {
-    const email = profile?.email?.toLowerCase() || '';
-    
-    // Privileged emails always have access
-    if (VOICE_PRIVILEGED_EMAILS.includes(email)) return true;
-    
-    // Only monthly and annual plans have access
-    const plan = profile?.subscription_plan;
-    return plan === 'monthly' || plan === 'annual';
-  };
-  
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -68,100 +49,6 @@ export default function Settings() {
     }
   }, [profile, user]);
 
-  const handleToggleVoiceAssistant = async (enabled: boolean) => {
-    if (!user?.id) return;
-
-    setTogglingVoice(true);
-    setVoiceAssistantEnabled(enabled);
-
-    try {
-      // Ensure phone is saved (voice assistant identifies the user by their WhatsApp number)
-      const currentDigits = (profile?.phone || '').replace(/\D/g, '');
-      const formDigits = (formData.phone || '').replace(/\D/g, '');
-      const phoneToSave = currentDigits || formDigits;
-
-      if (enabled) {
-        if (!phoneToSave || phoneToSave.length < 10) {
-          toast.error('Informe seu WhatsApp e salve o perfil para usar o assistente de voz');
-          setVoiceAssistantEnabled(false);
-          return;
-        }
-
-        const { error: profileError } = await updateProfile({
-          voice_assistant_enabled: true,
-          ...(currentDigits ? {} : { phone: phoneToSave }),
-        });
-
-        if (profileError) {
-          toast.error('Erro ao salvar configuração');
-          setVoiceAssistantEnabled(false);
-        } else {
-          toast.success('Assistente de voz ativado!');
-        }
-      } else {
-        const { error: profileError } = await updateProfile({
-          voice_assistant_enabled: false,
-        });
-
-        if (profileError) {
-          toast.error('Erro ao salvar configuração');
-          setVoiceAssistantEnabled(true);
-        } else {
-          toast.success('Assistente de voz desativado');
-        }
-      }
-    } catch (error) {
-      console.error('Error toggling voice assistant:', error);
-      toast.error('Erro ao configurar assistente de voz');
-      setVoiceAssistantEnabled(!enabled);
-    } finally {
-      setTogglingVoice(false);
-    }
-  };
-
-  const handleTestVoiceAssistant = async () => {
-    if (!profile?.phone) {
-      toast.error('Configure seu número de WhatsApp primeiro');
-      return;
-    }
-
-    setTestingVoice(true);
-    try {
-      const phoneDigits = profile.phone.replace(/\D/g, '');
-      const formattedPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
-
-      const message = `🎤 *Assistente de Voz CobraFácil Ativado!*
-
-Olá ${profile.full_name || 'usuário'}! Seu assistente de voz está funcionando.
-
-📱 *Como usar:*
-Envie um áudio para este mesmo número com sua pergunta.
-
-🎤 *Comandos disponíveis:*
-• "Quanto o [nome] me deve?"
-• "Qual o contrato do [nome]?"
-• "O que vence hoje/amanhã/esta semana?"
-• "Quem está atrasado?"
-• "Me dá um resumo"
-
-A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
-
-      const { error } = await supabase.functions.invoke('send-whatsapp', {
-        body: { 
-          phone: formattedPhone, 
-          message 
-        }
-      });
-
-      if (error) throw error;
-      toast.success('Mensagem de teste enviada para seu WhatsApp!');
-    } catch (error) {
-      console.error('Error testing voice assistant:', error);
-      toast.error('Erro ao enviar mensagem de teste');
-    } finally {
-      setTestingVoice(false);
-    }
-  };
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -383,91 +270,6 @@ A resposta virá em texto neste mesmo chat. Experimente agora! 🚀`;
 
         {/* Templates de Mensagem de Cobrança */}
         <BillingMessageConfigCard />
-
-        {/* Voice Assistant - Only for recurring plans or privileged emails */}
-        {canAccessVoiceAssistant() && (
-        <Card className="shadow-soft border-purple-500/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-500/10">
-                  <Mic className="w-5 h-5 text-purple-500" />
-                </div>
-                <div>
-                  <CardTitle>Assistente de Voz</CardTitle>
-                  <CardDescription>
-                    Faça consultas por áudio no WhatsApp do CobraFácil
-                  </CardDescription>
-                </div>
-              </div>
-              {voiceAssistantEnabled ? (
-                <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30">
-                  <Mic className="w-3 h-3 mr-1" />
-                  Ativo
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="bg-muted text-muted-foreground">
-                  <MicOff className="w-3 h-3 mr-1" />
-                  Inativo
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div>
-                <p className="font-medium text-sm">Ativar Assistente de Voz</p>
-                <p className="text-xs text-muted-foreground">Responde a comandos de voz no WhatsApp</p>
-              </div>
-              <Switch
-                checked={voiceAssistantEnabled}
-                onCheckedChange={handleToggleVoiceAssistant}
-                disabled={togglingVoice}
-              />
-            </div>
-
-            {voiceAssistantEnabled && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                  <p className="font-medium text-sm mb-2">📱 Como usar:</p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Envie um áudio para o <strong>mesmo número do CobraFácil</strong> que você recebe as notificações diárias. A resposta virá em texto no mesmo chat.
-                  </p>
-                  <p className="font-medium text-sm mb-2">🎤 Comandos disponíveis:</p>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    <li>• "Quanto o João me deve?"</li>
-                    <li>• "Qual o contrato do Pedro?"</li>
-                    <li>• "O que vence hoje/amanhã?"</li>
-                    <li>• "Quem está atrasado?"</li>
-                    <li>• "Me dá um resumo"</li>
-                  </ul>
-                </div>
-                
-                <Button
-                  onClick={handleTestVoiceAssistant}
-                  disabled={testingVoice}
-                  variant="outline"
-                  className="w-full border-purple-500/30 text-purple-600 hover:bg-purple-500/10"
-                >
-                  {testingVoice ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-4 h-4 mr-2" />
-                      Testar Assistente de Voz
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        )}
-
-
 
         {/* Employee Management Section */}
         {!isEmployee && (
