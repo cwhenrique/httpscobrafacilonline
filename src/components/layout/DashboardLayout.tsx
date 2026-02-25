@@ -65,7 +65,7 @@ const navigation: NavigationItem[] = [
   // Empréstimos
   { name: 'Empréstimos', href: '/loans', icon: DollarSign, permission: 'view_loans' },
   { name: 'Relatório de Empréstimos', href: '/reports', icon: BarChart3, permission: 'view_reports' },
-  { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar, permission: 'view_loans' },
+  { name: 'Calendário de Cobranças', href: '/calendar', icon: Calendar, permission: 'view_calendar' },
   // Desconto de Cheque
   { name: 'Desconto de Cheque', href: '/check-discounts', icon: FileCheck, permission: 'manage_checks' },
   // Vendas e Veículos

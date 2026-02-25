@@ -19,7 +19,8 @@ export type EmployeePermission =
   | 'manage_products'
   | 'manage_checks'
   | 'view_settings'
-  | 'view_dashboard';
+  | 'view_dashboard'
+  | 'view_calendar';
 
 interface EmployeeContextType {
   isEmployee: boolean;

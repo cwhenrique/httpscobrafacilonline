@@ -27,6 +27,7 @@ const PERMISSION_LABELS: Record<EmployeePermission, string> = {
   manage_checks: 'Gerenciar Cheques',
   view_settings: 'Visualizar Configurações',
   view_dashboard: 'Visualizar Dashboard',
+  view_calendar: 'Visualizar Calendário de Cobranças',
 };
 
 export function PermissionRoute({ permission, children }: PermissionRouteProps) {
