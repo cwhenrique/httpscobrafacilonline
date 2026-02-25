@@ -1,92 +1,126 @@
 
 
-# Correcao: Multas NAO devem reduzir o saldo restante (remaining_balance)
+# Correcao: Parcelas pagas exibidas incorretamente na visualizacao em lista
 
 ## Problema
 
-No emprestimo de "wellington fidelis da cruz junior" (usuario Mateussilva101210@gmail.com):
-- 4 parcelas de R$ 162, total_to_receive = R$ 648
-- 2 parcelas pagas com multa de R$ 8 cada = R$ 170 x 2 = R$ 340 total_paid
-- remaining_balance atual: R$ 308 (ERRADO)
-- remaining_balance correto: R$ 324 (2 parcelas de R$ 162)
-
-A causa raiz esta no trigger `recalculate_loan_total_paid`. Ele calcula:
+Na visualizacao em lista (LoansTableView), a coluna "Parcelas" mostra `{paidCount}/{numInstallments}` (ex: "1/4" quando deveria ser "3/4"). Isso acontece porque tanto `getPaidInstallmentsCount` (em Loans.tsx) quanto `calculatePaidInstallments` (em calculations.ts) usam `break` ao encontrar a primeira parcela nao paga sequencialmente.
 
 ```text
-remaining_balance = total_to_receive - balance_reducing_payments
-                  = 648 - 340
-                  = 308  (ERRADO)
+Exemplo:
+- Parcela 0: PARTIAL_PAID:0:162.00 → paga ✅
+- Parcela 1: sem tag (pagamento antigo, antes do sistema de tracking) → 0 >= 162 * 0.99? NAO
+- break! → retorna paidCount = 1
+- Parcela 2: PARTIAL_PAID:2:162.00 → nunca avaliada
+- Parcela 3: PARTIAL_PAID:3:162.00 → nunca avaliada
 ```
 
-O valor R$ 340 inclui R$ 16 de multas. Multas sao receita EXTRA que nao existem no `total_to_receive` original, entao nao deveriam ser subtraidas dele.
+Isso ocorre quando:
+1. O emprestimo teve parcelas pagas antes do sistema de tracking `[PARTIAL_PAID]` existir (parcelas antigas sem tag)
+2. Pagamentos foram feitos fora de ordem (ex: pagar parcela 3 antes da 2)
 
 ## Solucao
 
-### 1. Arquivo: `src/pages/Loans.tsx` (insercao de pagamento)
+### 1. `src/lib/calculations.ts` - funcao `calculatePaidInstallments`
 
-Quando um pagamento inclui multa (`loanPenalties[index] > 0`), adicionar uma tag `[PENALTY_INCLUDED:valor]` nas notas do pagamento. Isso permite que o trigger identifique qual parte do pagamento e multa.
+Remover o `break` (linha 412) e contar TODAS as parcelas pagas, independente da ordem. Manter a mesma logica de verificacao (`paidAmount >= installmentValue * 0.99`), mas sem parar no primeiro gap.
 
-Na area onde `installmentNote` e construido e o pagamento e montado (~linha 4830-4841), somar as multas das parcelas pagas e adicionar a tag.
-
-### 2. Trigger `recalculate_loan_total_paid` (SQL migration)
-
-Modificar o calculo de `balance_reducing_payments` para descontar o valor de multas:
-
-```text
-balance_reducing_payments = SUM(amount) - SUM(penalty_from_notes)
+Antes:
+```typescript
+if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+  paidCount++;
+} else {
+  break;  // ← REMOVER
+}
 ```
 
-Extrair `[PENALTY_INCLUDED:X.XX]` das notas de cada pagamento e subtrair do total de pagamentos redutores de saldo.
-
-Logica SQL:
-```sql
-SELECT COALESCE(SUM(
-  amount - COALESCE(
-    (regexp_match(notes, '\[PENALTY_INCLUDED:([0-9.]+)\]'))[1]::numeric,
-    0
-  )
-), 0) INTO balance_reducing_payments
-FROM public.loan_payments
-WHERE loan_id = ...
-  AND (notes NOT LIKE '%[INTEREST_ONLY_PAYMENT]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[PARTIAL_INTEREST_PAYMENT]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[PRE_RENEGOTIATION]%' OR notes IS NULL)
-  AND (notes NOT LIKE '%[AMORTIZATION]%' OR notes IS NULL);
+Depois:
+```typescript
+if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+  paidCount++;
+}
+// Sem break - continua contando todas as parcelas pagas
 ```
 
-### 3. Correcao dos dados existentes
+### 2. `src/pages/Loans.tsx` - funcao `getPaidInstallmentsCount` (linha ~518-528)
 
-Alem das alteracoes de codigo, sera necessario corrigir o emprestimo especifico que ja esta com o saldo errado. Isso pode ser feito via:
-- Atualizar as notas dos 2 pagamentos existentes para incluir `[PENALTY_INCLUDED:8.00]`
-- Executar um recalculo do remaining_balance
+Mesma correcao: remover o `break` (linha 526).
 
-### 4. Arquivo: `src/pages/Loans.tsx` (PARTIAL_PAID tags)
-
-Atualmente `PARTIAL_PAID` armazena o valor COM multa (170). Isso faz o `getPaidInstallmentsCount` considerar a parcela como paga corretamente, pois compara com `getInstallmentValue` que tambem inclui multa. Esse comportamento esta correto e nao precisa mudar.
-
-### 5. Trigger `update_loan_on_payment` e `revert_loan_on_payment_delete`
-
-O trigger `update_loan_on_payment` tambem precisa ser atualizado para nao subtrair a parte da multa do remaining_balance. Linha relevante:
-
-```sql
-remaining_balance = GREATEST(0, remaining_balance - NEW.amount)
+Antes:
+```typescript
+if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+  paidCount++;
+} else {
+  break;
+}
 ```
 
-Deve ser:
-
-```sql
-remaining_balance = GREATEST(0, remaining_balance - (NEW.amount - penalty_amount))
+Depois:
+```typescript
+if (paidAmount >= installmentValue * 0.99 && !hasSubparcelaForIndex(i)) {
+  paidCount++;
+}
 ```
 
-Onde `penalty_amount` e extraido da tag `[PENALTY_INCLUDED:X]` nas notas do pagamento.
+### 3. `src/components/LoansTableView.tsx` - melhorar exibicao de parcelas
 
-O mesmo ajuste se aplica ao `revert_loan_on_payment_delete` para reverter corretamente.
+Na coluna "Parcelas" (linha 477-481), alem de mostrar `paidCount/total`, adicionar indicador visual quando ha parcelas em atraso. Isso da ao usuario visibilidade imediata sobre o estado do emprestimo na lista.
+
+Antes:
+```tsx
+<span className="text-sm">
+  {paidCount}/{numInstallments}
+</span>
+```
+
+Depois:
+```tsx
+<div className="flex flex-col">
+  <span className="text-sm">
+    {paidCount}/{numInstallments}
+  </span>
+  {isOverdue && !isPaid && (
+    <span className="text-[10px] text-red-500">
+      em atraso
+    </span>
+  )}
+</div>
+```
+
+### 4. Impacto em `getNextDueDate`
+
+A funcao `getNextDueDate` em LoansTableView (linha 117-124) usa `dates[paidCount]` para determinar o proximo vencimento. Com o `break` removido e `paidCount` agora contando corretamente todas as parcelas pagas (ex: 3 em vez de 1), o proximo vencimento apontara para a parcela REALMENTE nao paga, em vez de apontar para uma parcela ja paga.
+
+Porem, se parcelas foram pagas fora de ordem (ex: 0, 2, 3 pagas mas 1 nao), `dates[3]` seria incorreto. Para resolver isso, `getNextDueDate` precisa procurar a primeira parcela NAO paga explicitamente, em vez de usar `dates[paidCount]`.
+
+Correcao em `getNextDueDate`:
+```typescript
+const getNextDueDate = (loan: Loan): string | null => {
+  const dates = (loan.installment_dates as string[]) || [];
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  // Encontrar primeira parcela nao paga
+  for (let i = 0; i < dates.length; i++) {
+    const paidAmount = partialPayments[i] || 0;
+    const installmentValue = getInstallmentValueForLoan(loan, i);
+    if (paidAmount < installmentValue * 0.99) {
+      return dates[i];
+    }
+  }
+  return loan.due_date;
+};
+```
+
+Mesma correcao precisa ser aplicada em `getNextUnpaidInstallmentDate` em calculations.ts (linha 423-442) e nos locais de Loans.tsx que usam `dates[paidCount]`.
+
+### 5. Funcao auxiliar para obter valor da parcela
+
+Para que `getNextDueDate` em LoansTableView possa verificar parcelas individuais, sera necessario extrair a logica de calculo do valor da parcela para uma funcao reutilizavel ou importar `calculateInstallmentValue` de calculations.ts (ja existe).
 
 ## Resumo das alteracoes
 
-| Arquivo/Recurso | Alteracao |
+| Arquivo | Alteracao |
 |---|---|
-| `src/pages/Loans.tsx` | Adicionar tag `[PENALTY_INCLUDED:X]` ao registrar pagamento com multa |
-| Migration SQL | Atualizar 3 triggers: `recalculate_loan_total_paid`, `update_loan_on_payment`, `revert_loan_on_payment_delete` |
-| Migration SQL | Corrigir dados existentes do emprestimo afetado |
+| `src/lib/calculations.ts` | Remover `break` em `calculatePaidInstallments`; atualizar `getNextUnpaidInstallmentDate` para iterar parcelas individuais |
+| `src/pages/Loans.tsx` | Remover `break` em `getPaidInstallmentsCount` |
+| `src/components/LoansTableView.tsx` | Atualizar `getNextDueDate` para buscar primeira parcela nao paga; melhorar exibicao visual de parcelas |
 
