@@ -156,6 +156,26 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('focus', handleFocus);
   }, [user?.id, contextReady, fetchEmployeeContext]);
 
+  // Ping de presença a cada 2 minutos (somente funcionários)
+  useEffect(() => {
+    if (!isEmployee || !contextReady || loading) return;
+
+    // Registrar login na primeira vez
+    supabase.rpc('update_employee_last_login').then(({ error }) => {
+      if (error) console.error('[EmployeeContext] Erro ao registrar login:', error);
+      else console.log('[EmployeeContext] ✓ Login registrado');
+    });
+
+    // Ping periódico de presença
+    const interval = setInterval(() => {
+      supabase.rpc('update_employee_last_seen').then(({ error }) => {
+        if (error) console.error('[EmployeeContext] Erro no ping de presença:', error);
+      });
+    }, 2 * 60 * 1000); // 2 minutos
+
+    return () => clearInterval(interval);
+  }, [isEmployee, contextReady, loading]);
+
   // Para dono: usar user.id; para funcionário: usar owner_id
   const effectiveUserId = isEmployee ? ownerId : (user?.id ?? null);
 

@@ -692,6 +692,8 @@ export type Database = {
           employee_user_id: string
           id: string
           is_active: boolean | null
+          last_login_at: string | null
+          last_seen_at: string | null
           name: string
           owner_id: string
           updated_at: string | null
@@ -702,6 +704,8 @@ export type Database = {
           employee_user_id: string
           id?: string
           is_active?: boolean | null
+          last_login_at?: string | null
+          last_seen_at?: string | null
           name: string
           owner_id: string
           updated_at?: string | null
@@ -712,6 +716,8 @@ export type Database = {
           employee_user_id?: string
           id?: string
           is_active?: boolean | null
+          last_login_at?: string | null
+          last_seen_at?: string | null
           name?: string
           owner_id?: string
           updated_at?: string | null
@@ -1932,6 +1938,8 @@ export type Database = {
         Returns: undefined
       }
       payment_created_second: { Args: { ts: string }; Returns: string }
+      update_employee_last_login: { Args: never; Returns: undefined }
+      update_employee_last_seen: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"

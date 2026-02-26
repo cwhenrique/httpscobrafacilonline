@@ -10,7 +10,9 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle, KeyRound, UserCog } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Loader2, Lock, Check, UserCheck, UserX, AlertTriangle, KeyRound, UserCog, Circle, Clock } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { EmployeePermission } from '@/hooks/useEmployeeContext';
 import { ClientAssignmentDialog } from '@/components/ClientAssignmentDialog';
@@ -23,6 +25,8 @@ interface Employee {
   created_at: string;
   employee_user_id: string;
   permissions: EmployeePermission[];
+  last_seen_at: string | null;
+  last_login_at: string | null;
 }
 
 const PERMISSION_GROUPS = {
@@ -101,7 +105,7 @@ export default function EmployeeManagement() {
     try {
       const { data: employeesData, error } = await supabase
         .from('employees')
-        .select('id, name, email, is_active, created_at, employee_user_id')
+        .select('id, name, email, is_active, created_at, employee_user_id, last_seen_at, last_login_at')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -503,11 +507,58 @@ export default function EmployeeManagement() {
                       ) : (
                         <Badge variant="secondary" className="text-xs">Inativo</Badge>
                       )}
+                      {/* Status online indicator */}
+                      {employee.is_active && (() => {
+                        const lastSeen = employee.last_seen_at ? new Date(employee.last_seen_at) : null;
+                        const now = new Date();
+                        const diffMinutes = lastSeen ? (now.getTime() - lastSeen.getTime()) / 60000 : Infinity;
+                        
+                        if (diffMinutes <= 3) {
+                          return (
+                            <Badge className="text-xs bg-green-500/15 text-green-600 border-green-500/30 hover:bg-green-500/20">
+                              <Circle className="w-2 h-2 mr-1 fill-green-500 text-green-500" />
+                              Online
+                            </Badge>
+                          );
+                        } else if (diffMinutes <= 30) {
+                          return (
+                            <Badge className="text-xs bg-yellow-500/15 text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/20">
+                              <Circle className="w-2 h-2 mr-1 fill-yellow-500 text-yellow-500" />
+                              Recente
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <p className="text-sm text-muted-foreground">{employee.email}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {employee.permissions.length} permissões
-                    </p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        {employee.permissions.length} permissões
+                      </p>
+                      {employee.is_active && (() => {
+                        const lastSeen = employee.last_seen_at ? new Date(employee.last_seen_at) : null;
+                        const now = new Date();
+                        const diffMinutes = lastSeen ? (now.getTime() - lastSeen.getTime()) / 60000 : Infinity;
+                        
+                        if (diffMinutes > 3 && lastSeen) {
+                          return (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Visto {formatDistanceToNow(lastSeen, { addSuffix: true, locale: ptBR })}
+                            </p>
+                          );
+                        } else if (!lastSeen) {
+                          return (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Nunca acessou
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
                 </div>
 
