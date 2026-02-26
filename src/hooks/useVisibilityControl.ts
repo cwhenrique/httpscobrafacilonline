@@ -5,14 +5,8 @@ export function useVisibilityControl() {
   const queryClient = useQueryClient();
   
   useEffect(() => {
-    // Marcar que o app está ativo na sessão
-    sessionStorage.setItem('pwa_session_active', 'true');
-    
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Voltou ao app - apenas manter sessão ativa
-        sessionStorage.setItem('pwa_session_active', 'true');
-        
         // Verificar quanto tempo ficou oculto
         const lastHidden = sessionStorage.getItem('pwa_last_hidden');
         const hiddenDuration = lastHidden ? Date.now() - parseInt(lastHidden) : 0;
@@ -31,9 +25,8 @@ export function useVisibilityControl() {
       }
     };
     
-    // Limpar sessão quando a janela for fechada de verdade
+    // Limpar dados de formulário quando a janela for fechada
     const handleBeforeUnload = () => {
-      sessionStorage.removeItem('pwa_session_active');
       sessionStorage.removeItem('hideEmployeeBanner');
       // Limpar dados do formulário de cliente
       sessionStorage.removeItem('client_dialog_open');
