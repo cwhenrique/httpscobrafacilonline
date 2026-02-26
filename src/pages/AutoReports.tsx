@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import whatsappReportExample from '@/assets/whatsapp-relatorio-exemplo.png';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -42,12 +42,16 @@ export default function AutoReports() {
   const { profile, loading, updateProfile } = useProfile();
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
-  const [selectedHour, setSelectedHour] = useState<string>(
-    String(profile?.auto_report_hour ?? 8)
-  );
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    profile?.auto_report_categories || ['loans']
-  );
+  const [selectedHour, setSelectedHour] = useState<string>('8');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['loans']);
+
+  // Sync state when profile loads from database
+  useEffect(() => {
+    if (profile) {
+      setSelectedHour(String(profile.auto_report_hour ?? 8));
+      setSelectedCategories(profile.auto_report_categories || ['loans']);
+    }
+  }, [profile]);
 
   const isActive = profile?.relatorio_ativo === true;
 
