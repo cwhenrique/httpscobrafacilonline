@@ -73,20 +73,26 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
   try {
 
     // NORMAL MODE: Save to pending and send template for confirmation
-    // Check for existing pending message today to prevent duplicate templates
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Check for existing pending message today (BRT timezone = UTC-3) to prevent duplicate templates
+    // Use BRT midnight to avoid timezone issues where UTC midnight = 21h BRT previous day
+    const now = new Date();
+    const brtOffset = -3 * 60; // BRT is UTC-3
+    const brtNow = new Date(now.getTime() + brtOffset * 60 * 1000);
+    const brtTodayStart = new Date(brtNow);
+    brtTodayStart.setHours(0, 0, 0, 0);
+    // Convert BRT midnight back to UTC for the query
+    const todayStartUTC = new Date(brtTodayStart.getTime() - brtOffset * 60 * 1000);
 
     const { data: existing } = await supabase
       .from('pending_messages')
       .select('id')
       .eq('user_id', userId)
       .eq('message_type', 'daily_report')
-      .gte('created_at', todayStart.toISOString())
+      .gte('created_at', todayStartUTC.toISOString())
       .limit(1);
 
     if (existing && existing.length > 0) {
-      console.log(`Skipping duplicate template for user ${userId} - already sent today`);
+      console.log(`Skipping duplicate template for user ${userId} - already sent today (BRT). Cutoff: ${todayStartUTC.toISOString()}`);
       return true;
     }
 
