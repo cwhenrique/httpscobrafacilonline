@@ -4753,6 +4753,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       
       amount = regularAmount + subparcelaAmount;
       
+      // 🆕 CORREÇÃO: Respeitar valor digitado pelo usuário (pagamento parcial de parcela com multa)
+      const userEnteredAmount = parseFloat(paymentData.amount);
+      if (paymentData.amount && !isNaN(userEnteredAmount) && userEnteredAmount > 0 && userEnteredAmount < amount - 0.01) {
+        amount = userEnteredAmount;
+      }
+      
       // 🆕 Validar se há valor a pagar
       if (amount <= 0.01) {
         toast.error('Parcela(s) selecionada(s) já está(ão) completamente paga(s)');
@@ -4772,14 +4778,18 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const interestRatio = totalContract > 0 ? (totalContract - selectedLoan.principal_amount) / totalContract : 0;
       
       if (regularCount > 0) {
-        const paymentRatio = fullInstallmentsTotal > 0 ? regularAmount / (regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) || 1) : 0;
+        const originalRegularTotal = regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0) || 1;
+        const effectiveRegularAmount = Math.min(amount, originalRegularTotal);
+        const paymentRatio = effectiveRegularAmount / originalRegularTotal;
         interest_paid = ((interestPerInstallment * regularCount) + extraAmount) * paymentRatio;
         principal_paid = principalPerInstallment * regularCount * paymentRatio;
       }
       // Add sub-parcela proportional split
-      if (subparcelaAmount > 0) {
-        interest_paid += subparcelaAmount * interestRatio;
-        principal_paid += subparcelaAmount * (1 - interestRatio);
+      const effectiveSubAmount = Math.max(0, amount - regularIndices.reduce((sum, i) => sum + getInstallmentValue(i), 0));
+      if (effectiveSubAmount > 0 && subparcelaAmount > 0) {
+        const subRatio = effectiveSubAmount / subparcelaAmount;
+        interest_paid += effectiveSubAmount * interestRatio * subRatio;
+        principal_paid += effectiveSubAmount * (1 - interestRatio) * subRatio;
       }
     } else {
       // Partial payment - permite pagar menos que uma parcela
@@ -4876,13 +4886,32 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         ? `Parcela ${allLabels[0]} de ${numInstallments}`
         : `Parcelas ${allLabels.join(', ')} de ${numInstallments}`;
       
-      // Marcar parcelas regulares como pagas no tracking
+      // Marcar parcelas regulares como pagas no tracking (com suporte a pagamento parcial)
+      let remainingPayment = amount;
       for (const idx of regularIndicesForNotes) {
         const installmentVal = getInstallmentValue(idx);
+        const alreadyPaidForIdx = existingPartials[idx] || 0;
+        const remainingForIdx = Math.max(0, installmentVal - alreadyPaidForIdx);
+        
+        // Quanto deste pagamento vai para esta parcela
+        const paidForThis = Math.min(remainingPayment, remainingForIdx);
+        const newTotalPaid = alreadyPaidForIdx + paidForThis;
+        remainingPayment -= paidForThis;
+        
         // Remover tracking parcial anterior se existir
         updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
-        // Adicionar como totalmente paga
-        updatedNotes += `[PARTIAL_PAID:${idx}:${installmentVal.toFixed(2)}]`;
+        // Registrar o valor efetivamente pago
+        updatedNotes += `[PARTIAL_PAID:${idx}:${newTotalPaid.toFixed(2)}]`;
+        
+        // Se o valor pago é menor que o restante, criar sub-parcela com o saldo
+        if (paidForThis < remainingForIdx - 0.01) {
+          const dates = safeDates(selectedLoan.installment_dates);
+          const dueDate = dates[idx] || selectedLoan.due_date;
+          const uniqueId = Date.now().toString();
+          const subRemainder = remainingForIdx - paidForThis;
+          updatedNotes += `[ADVANCE_SUBPARCELA:${idx}:${subRemainder.toFixed(2)}:${dueDate}:${uniqueId}]`;
+          installmentNote = `Pagamento parcial - Parcela ${idx + 1}/${numInstallments}. Sub-parcela: ${formatCurrency(subRemainder)}`;
+        }
         
         // IMPORTANTE: Se esta parcela tinha taxa extra, remover a tag pois já foi paga
         if (renewalFeeInstallmentIndex !== null && idx === renewalFeeInstallmentIndex) {
