@@ -342,7 +342,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseAnonKey2}`,
       },
-      body: JSON.stringify({ testPhone: senderPhone, directSend: false }),
+      body: JSON.stringify({ testPhone: senderPhone, directSend: false, force: true }),
     });
 
     const genResult = await genResponse.text();
