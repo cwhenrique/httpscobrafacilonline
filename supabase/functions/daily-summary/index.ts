@@ -53,7 +53,7 @@ interface ProfileWithWhatsApp {
 
 // Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
 // Always saves to pending_messages and sends template for user confirmation
-const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any): Promise<boolean> => {
+const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any, force = false): Promise<boolean> => {
   const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
   if (!umcliqueApiKey) {
     console.error("UMCLIQUE_API_KEY not configured");
@@ -91,9 +91,12 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       .gte('created_at', todayStartUTC.toISOString())
       .limit(1);
 
-    if (existing && existing.length > 0) {
+    if (existing && existing.length > 0 && !force) {
       console.log(`Skipping duplicate template for user ${userId} - already sent today (BRT). Cutoff: ${todayStartUTC.toISOString()}`);
       return true;
+    }
+    if (force) {
+      console.log(`Force mode: bypassing dedup for user ${userId}`);
     }
 
     // Save report content to pending_messages so webhook can deliver on confirmation
@@ -198,6 +201,7 @@ const handler = async (req: Request): Promise<Response> => {
     let targetHour: number | null = null;
     let batch = 0;
     let batchSize = 30; // Otimizado: batch maior para reduzir número de cron jobs
+    let force = false;
     
     try {
       const body = await req.json();
@@ -206,6 +210,7 @@ const handler = async (req: Request): Promise<Response> => {
       targetHour = typeof body.targetHour === 'number' ? body.targetHour : null;
       batch = typeof body.batch === 'number' ? body.batch : 0;
       batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
+      force = body.force === true;
       
     } catch {
       // No body or invalid JSON, default to report mode
@@ -745,7 +750,7 @@ const handler = async (req: Request): Promise<Response> => {
       
       // Route: relatorio_ativo users go via Um Clique Digital API, others via UAZAPI
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
