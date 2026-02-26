@@ -5260,6 +5260,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       paymentNoteWithSnapshot += ` [PENALTY_INCLUDED:${penaltyInPayment.toFixed(2)}]`;
     }
     
+    // 🆕 Multa é lucro puro — não deve contar como principal pago
+    if (penaltyInPayment > 0) {
+      principal_paid = Math.max(0, principal_paid - penaltyInPayment);
+      interest_paid += penaltyInPayment;
+    }
+
     // 🆕 CORREÇÃO: Capturar resultado do registerPayment e reverter notas em caso de erro
     const paymentResult = await registerPayment({
       loan_id: selectedLoanId,
