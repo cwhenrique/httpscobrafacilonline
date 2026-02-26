@@ -313,11 +313,17 @@ export default function EmployeeManagement() {
   }
 
   function togglePermission(permission: EmployeePermission) {
-    setFormPermissions(prev =>
-      prev.includes(permission)
-        ? prev.filter(p => p !== permission)
-        : [...prev, permission]
-    );
+    setFormPermissions(prev => {
+      if (prev.includes(permission)) {
+        return prev.filter(p => p !== permission);
+      }
+      const updated = [...prev, permission];
+      // Auto-selecionar view_all_clients quando view_all_loans é marcado
+      if (permission === 'view_all_loans' && !updated.includes('view_all_clients')) {
+        updated.push('view_all_clients');
+      }
+      return updated;
+    });
   }
 
   if (loading) {

@@ -2915,7 +2915,8 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
   const dailyLoansCount = useMemo(() => loans.filter(l => l.payment_type === 'daily').length, [loans]);
 
   const filteredLoans = loansForCurrentTab.filter(loan => {
-    const matchesSearch = loan.client?.full_name.toLowerCase().includes(search.toLowerCase());
+    const clientName = loan.client?.full_name || '';
+    const matchesSearch = !search || clientName.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
     
     // Filtro por funcionário criador (só para donos)

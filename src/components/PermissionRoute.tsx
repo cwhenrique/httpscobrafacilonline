@@ -11,6 +11,7 @@ interface PermissionRouteProps {
 
 const PERMISSION_LABELS: Record<EmployeePermission, string> = {
   view_loans: 'Visualizar Empréstimos',
+  view_all_loans: 'Ver Todos os Empréstimos',
   create_loans: 'Criar Empréstimos',
   register_payments: 'Registrar Pagamentos',
   adjust_dates: 'Ajustar Datas',
