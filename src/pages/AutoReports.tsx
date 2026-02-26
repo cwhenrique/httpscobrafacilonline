@@ -223,8 +223,8 @@ export default function AutoReports() {
                   </div>
                   <Star className="w-8 h-8 text-emerald-400" />
                   <div className="font-semibold">Anual</div>
-                  <div className="text-lg font-bold text-emerald-400">R$ 199,00/ano</div>
-                  <div className="text-sm text-emerald-500 font-medium">Economia de R$ 39,80</div>
+                  <div className="text-lg font-bold text-emerald-400">R$ 147,90/ano</div>
+                  <div className="text-sm text-emerald-500 font-medium">Economia de R$ 90,90</div>
                 </button>
               </div>
             </CardContent>
