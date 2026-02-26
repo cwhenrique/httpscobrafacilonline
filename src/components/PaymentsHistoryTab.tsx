@@ -113,12 +113,16 @@ export function PaymentsHistoryTab() {
   });
 
   // Summary totals
-  const summary = useMemo(() => ({
-    totalReceived: payments.reduce((s, p) => s + p.amount, 0),
-    totalInterest: payments.reduce((s, p) => s + p.interest_paid, 0),
-    totalPrincipal: payments.reduce((s, p) => s + p.principal_paid, 0),
-    count: payments.length,
-  }), [payments]);
+  const summary = useMemo(() => {
+    const totalReceived = payments.reduce((s, p) => s + p.amount, 0);
+    const totalPrincipal = payments.reduce((s, p) => s + p.principal_paid, 0);
+    return {
+      totalReceived,
+      totalInterest: totalReceived - totalPrincipal,
+      totalPrincipal,
+      count: payments.length,
+    };
+  }, [payments]);
 
   // Group payments by creator when owner has employees
   const groupedPayments = useMemo(() => {
@@ -135,12 +139,16 @@ export function PaymentsHistoryTab() {
     return { ownerPayments, byEmployee };
   }, [payments, employees, hasActiveEmployees]);
 
-  const calcSummary = (list: PaymentRecord[]) => ({
-    totalReceived: list.reduce((s, p) => s + p.amount, 0),
-    totalInterest: list.reduce((s, p) => s + p.interest_paid, 0),
-    totalPrincipal: list.reduce((s, p) => s + p.principal_paid, 0),
-    count: list.length,
-  });
+  const calcSummary = (list: PaymentRecord[]) => {
+    const totalReceived = list.reduce((s, p) => s + p.amount, 0);
+    const totalPrincipal = list.reduce((s, p) => s + p.principal_paid, 0);
+    return {
+      totalReceived,
+      totalInterest: totalReceived - totalPrincipal,
+      totalPrincipal,
+      count: list.length,
+    };
+  };
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -310,12 +318,16 @@ function CollapsibleSection({
   onToggle: () => void; 
   periodLabel: string;
 }) {
-  const sectionSummary = useMemo(() => ({
-    totalReceived: payments.reduce((s, p) => s + p.amount, 0),
-    totalInterest: payments.reduce((s, p) => s + p.interest_paid, 0),
-    totalPrincipal: payments.reduce((s, p) => s + p.principal_paid, 0),
-    count: payments.length,
-  }), [payments]);
+  const sectionSummary = useMemo(() => {
+    const totalReceived = payments.reduce((s, p) => s + p.amount, 0);
+    const totalPrincipal = payments.reduce((s, p) => s + p.principal_paid, 0);
+    return {
+      totalReceived,
+      totalInterest: totalReceived - totalPrincipal,
+      totalPrincipal,
+      count: payments.length,
+    };
+  }, [payments]);
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
