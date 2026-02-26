@@ -5046,9 +5046,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${newPartialTotal.toFixed(2)}]`;
         
         const remaining = targetInstallmentValue - newPartialTotal;
-        if (remaining > 0) {
-          installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Falta: ${formatCurrency(remaining)}`;
-        } else if (remaining < 0) {
+        if (remaining > 0.01) {
+          // Criar sub-parcela com o valor restante
+          const uniqueId = Date.now().toString();
+          const dates = safeDates(selectedLoan.installment_dates);
+          const originalDueDate = dates[targetInstallmentIndex] || selectedLoan.due_date;
+          const subDueDate = paymentData.new_due_date || originalDueDate;
+          updatedNotes += `[ADVANCE_SUBPARCELA:${targetInstallmentIndex}:${remaining.toFixed(2)}:${subDueDate}:${uniqueId}]`;
+          installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Sub-parcela: ${formatCurrency(remaining)}`;
+        } else if (remaining < -0.01) {
           installmentNote = `Pagamento - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Excedente: ${formatCurrency(Math.abs(remaining))}`;
           // Se esta parcela tinha taxa extra e foi quitada (mesmo com excedente), remover a tag
           if (renewalFeeInstallmentIndex !== null && targetInstallmentIndex === renewalFeeInstallmentIndex) {
