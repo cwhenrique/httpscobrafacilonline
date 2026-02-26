@@ -53,8 +53,9 @@ interface ProfileWithWhatsApp {
 }
 
 // Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
-// Always saves to pending_messages and sends template for user confirmation
-const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any, force = false): Promise<boolean> => {
+// directSend=true: sends template + report content immediately (for paid subscribers)
+// directSend=false: saves as pending and waits for user confirmation via webhook
+const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any, force = false, directSend = false): Promise<boolean> => {
   const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
   if (!umcliqueApiKey) {
     console.error("UMCLIQUE_API_KEY not configured");
@@ -84,20 +85,30 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
     // Convert BRT midnight back to UTC for the query
     const todayStartUTC = new Date(brtTodayStart.getTime() - brtOffset * 60 * 1000);
 
-    // Only block if there's a PENDING (unconfirmed) template waiting - don't block scheduled reports
-    // just because a previous one was already confirmed/sent
+    // Only block if there's a PENDING or CONFIRMED message from the same hour window today
+    // This prevents duplicate sends at the same scheduled hour, but allows different hours
     const { data: existingPending } = await supabase
       .from('pending_messages')
-      .select('id')
+      .select('id, created_at')
       .eq('user_id', userId)
       .eq('message_type', 'daily_report')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'confirmed'])
       .gte('created_at', todayStartUTC.toISOString())
-      .limit(1);
+      .limit(10);
 
     if (existingPending && existingPending.length > 0 && !force) {
-      console.log(`Skipping duplicate template for user ${userId} - pending template already exists today (BRT). Cutoff: ${todayStartUTC.toISOString()}`);
-      return true;
+      // Check if any existing message was created within the same hour (±30min window)
+      const nowMs = now.getTime();
+      const hasSameHourMessage = existingPending.some((msg: any) => {
+        const msgTime = new Date(msg.created_at).getTime();
+        return Math.abs(nowMs - msgTime) < 30 * 60 * 1000; // 30 min window
+      });
+      
+      if (hasSameHourMessage) {
+        console.log(`Skipping duplicate for user ${userId} - message already exists in same hour window. Cutoff: ${todayStartUTC.toISOString()}`);
+        return true;
+      }
+      console.log(`Existing messages found but from different hours - proceeding for user ${userId}`);
     }
     if (force) {
       console.log(`Force mode: bypassing dedup for user ${userId}`);
@@ -149,8 +160,7 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
 
     console.log(`Saved report to pending_messages for ${cleaned} (id: ${inserted.id})`);
 
-
-    // Send template to prompt user to confirm
+    // Send template to open conversation window (required by Meta for 24h window)
     console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
     const templateResponse = await fetch(apiUrl, {
       method: "POST",
@@ -173,6 +183,53 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
     if (!templateResponse.ok) {
       console.error(`Failed to send template to ${cleaned}:`, templateResult);
       return false;
+    }
+
+    // DIRECT SEND MODE: Send report content immediately after template (no confirmation needed)
+    if (directSend) {
+      console.log(`Direct send mode: waiting 2s then sending report content to ${cleaned}`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const textResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          channel_id: "1060061327180048",
+          to: cleaned,
+          type: "text",
+          content: message,
+        }),
+      });
+
+      const textResult = await textResponse.text();
+      console.log(`Direct send text response for ${cleaned}:`, textResponse.status, textResult);
+
+      if (!textResponse.ok) {
+        console.error(`Failed to send report text to ${cleaned}:`, textResult);
+        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
+        return false;
+      }
+
+      // Mark as confirmed + sent automatically
+      await supabase
+        .from('pending_messages')
+        .update({
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+        })
+        .eq('id', inserted.id);
+
+      // Register in whatsapp_messages for audit
+      await supabase.from('whatsapp_messages').insert({
+        user_id: userId,
+        contract_type: 'loan',
+        message_type: 'daily_report',
+        client_phone: cleaned,
+        client_name: userName,
+      });
+
+      console.log(`Direct send completed successfully for ${cleaned}`);
     }
 
     return true;
@@ -780,8 +837,10 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
       // Route: relatorio_ativo users go via Um Clique Digital API, others via UAZAPI
+      // For scheduled sends (not manual test), use directSend to skip confirmation flow
+      const isScheduledSend = !testPhone;
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force, isScheduledSend)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
