@@ -358,6 +358,18 @@ const getRemainingWithoutPenalties = (loan: { remaining_balance: number; notes: 
   return Math.max(0, loan.remaining_balance - totalPenalties);
 };
 
+// Helper para contar parcelas extras (multas) já incluídas no campo installments
+// EXTRA_INSTALLMENTS incrementam o campo installments, fazendo o trigger incluir
+// esses valores no remaining_balance. Precisamos saber isso para não duplicar.
+const getExtraInstallmentsCount = (notes: string | null): number => {
+  const matches = (notes || '').matchAll(/\[EXTRA_INSTALLMENTS:(\d+):[^\]]+\]/g);
+  let total = 0;
+  for (const match of matches) {
+    total += parseInt(match[1]);
+  }
+  return total;
+};
+
 // Helper para calcular multas cumulativas para TODAS as parcelas em atraso
 interface OverdueInstallmentDetail {
   index: number;
@@ -4961,9 +4973,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         const originalDueDate = dates[targetInstallmentIndex] || selectedLoan.due_date;
         
         if (remainderAmount > 0.01) {
-          // Marcar a parcela original como totalmente paga (para não aparecer como pendente)
+          // Marcar a parcela com o valor REALMENTE pago (não o valor total da parcela)
+          // Isso garante que o sistema saiba que a parcela não foi totalmente quitada
+          const actualPaidForInstallment = accumulatedPaid + amount;
           updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${targetInstallmentIndex}:[0-9.]+\\]`, 'g'), '');
-          updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${targetInstallmentValue.toFixed(2)}]`;
+          updatedNotes += `[PARTIAL_PAID:${targetInstallmentIndex}:${actualPaidForInstallment.toFixed(2)}]`;
           
           // Criar sub-parcela com o valor restante, data de vencimento original e ID único
           // Tag: [ADVANCE_SUBPARCELA:índice_original:valor_restante:data_vencimento:id_único]
@@ -6655,7 +6669,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             }
             
             const paidAmount = partialPayments[i] || 0;
-            const isPaid = paidAmount >= installmentValue * 0.99;
+            // Verificar se existe sub-parcela pendente para este índice
+            const hasSubparcela = (loan.notes || '').includes(`[ADVANCE_SUBPARCELA:${i}:`);
+            const isPaid = paidAmount >= installmentValue * 0.99 && !hasSubparcela;
             const dueDateObj = new Date(dueDate + 'T12:00:00');
             
             let status: 'paid' | 'pending' | 'overdue' = 'pending';
@@ -8700,8 +8716,11 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 let totalToReceive = isDaily ? dailyTotalToReceive : originalTotal;
                 
                 // Adicionar multas aplicadas ao total a receber
+                // Para daily loans com EXTRA_INSTALLMENTS, as multas já estão em dailyTotalToReceive
                 const totalAppliedPenaltiesForTotal = getTotalDailyPenalties(loan.notes);
-                totalToReceive += totalAppliedPenaltiesForTotal;
+                const extraCountForTotal = getExtraInstallmentsCount(loan.notes);
+                const penaltiesAlreadyInTotal = isDaily ? extraCountForTotal * (loan.total_interest || 0) : 0;
+                totalToReceive += totalAppliedPenaltiesForTotal - penaltiesAlreadyInTotal;
                 
                 // Para pagamentos "só juros", o totalToReceive deve refletir o remaining + total_paid
                 // porque o usuário pode ter adicionado juros extras
@@ -8730,12 +8749,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 // IMPORTANTE: Se o status é 'paid', o remaining é sempre 0
                 const totalAppliedPenalties = getTotalDailyPenalties(loan.notes);
                 
-                // Multas são SEMPRE extras — remaining_balance contém apenas o saldo base
+                // EXTRA_INSTALLMENTS já adicionam parcelas de multa ao campo 'installments',
+                // fazendo o trigger incluir essas multas no remaining_balance.
+                // Precisamos descontar para não duplicar ao somar DAILY_PENALTY.
+                const extraCount = getExtraInstallmentsCount(loan.notes);
+                const penaltiesAlreadyInBalance = isDaily ? extraCount * (loan.total_interest || 0) : 0;
+                
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
                 } else {
-                  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties);
+                  remainingToReceive = Math.max(0, loan.remaining_balance + totalAppliedPenalties - penaltiesAlreadyInBalance);
                 }
                 
                 const initials = loan.client?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -11031,10 +11055,13 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const { isPaid, isRenegotiated, isOverdue, overdueInstallmentIndex, overdueDate, daysOverdue, overdueInstallmentsDetails } = getLoanStatus(loan);
                   const totalAppliedPenaltiesDaily = getTotalDailyPenalties(loan.notes);
                   
-                  // Multas são SEMPRE extras — remaining_balance contém apenas o saldo base
+                  // EXTRA_INSTALLMENTS já incluem multas no remaining_balance via trigger
+                  const extraCountList = getExtraInstallmentsCount(loan.notes);
+                  const penaltiesAlreadyInBalanceList = extraCountList * (loan.total_interest || 0);
+                  
                   const remainingToReceive = loan.status === 'paid' 
                     ? 0 
-                    : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily);
+                    : Math.max(0, loan.remaining_balance + totalAppliedPenaltiesDaily - penaltiesAlreadyInBalanceList);
                   
                   const isDueToday = (() => {
                     if (isPaid) return false;
