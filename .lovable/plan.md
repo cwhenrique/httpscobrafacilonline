@@ -1,39 +1,47 @@
 
 
-## Status Online e Último Acesso dos Funcionários
+## Problema: Relatórios não chegam no horário agendado
 
-### O que será feito
+### Diagnóstico
 
-Adicionar rastreamento de quando cada funcionário fez login pela última vez e se está online agora, visível na aba "Gerenciar" da página de Funcionários.
+Analisei os cron jobs, a edge function `daily-summary`, o webhook `umclique-webhook`, e os dados de `pending_messages`. A função está sendo chamada corretamente pelos crons nos horários certos. O problema é o **fluxo de confirmação obrigatório**.
+
+O fluxo atual para TODOS os assinantes pagantes:
+1. Cron dispara `daily-summary` no horário configurado
+2. Relatório é salvo em `pending_messages` com status "pending"
+3. Um template "relatorio" é enviado ao usuário perguntando se quer receber
+4. Usuário precisa responder "sim" para receber o relatório real
+5. O webhook `umclique-webhook` processa a resposta e entrega o conteúdo
+
+**Evidência nos dados**: Dos ~20 assinantes ativos hoje, a maioria tem mensagens em status "pending" (nunca confirmaram). Apenas 5-6 confirmaram e receberam. Os templates estão sendo enviados, mas os usuários não respondem.
+
+**Problema secundário**: O dedup (anti-duplicação) bloqueia o envio agendado se já existe uma pending_message daquele dia, mesmo que tenha sido criada por uma solicitação on-demand via webhook em horário diferente.
+
+### Solução
+
+Para assinantes pagantes (`relatorio_ativo = true`), enviar o relatório **diretamente** sem exigir confirmação. O template fica apenas como abertura de janela de conversa, seguido imediatamente pelo conteúdo.
 
 ### Alterações
 
-#### 1. Migration SQL — Adicionar colunas na tabela `employees`
-- `last_seen_at` (timestamptz) — atualizado a cada ação do funcionário ou periodicamente
-- `last_login_at` (timestamptz) — atualizado no login
+#### 1. `supabase/functions/daily-summary/index.ts` — Envio direto para assinantes
+Modificar a função `sendWhatsAppViaUmClique` para aceitar um parâmetro `directSend`. Quando `directSend = true`:
+- Ainda salva em `pending_messages` (para auditoria)
+- Envia o template para abrir a janela de conversa
+- Aguarda 2 segundos
+- Envia o conteúdo do relatório como texto logo em seguida
+- Marca como `confirmed` + `sent_at` automaticamente
 
-Criar uma função `update_employee_last_seen` (Security Definer) que atualiza `last_seen_at` para o funcionário autenticado. Será chamada pelo frontend periodicamente.
+Na chamada principal (linha 783-784), quando `relatorio_ativo = true` E NÃO é teste manual, passar `directSend: true`.
 
-Criar um trigger no `employee_activity_log` que atualiza `last_seen_at` automaticamente a cada atividade registrada.
+#### 2. Corrigir dedup para não bloquear envios agendados
+Ajustar a lógica de dedup para considerar a hora do envio. Se já existe uma pending de outro horário (ex: on-demand), não bloquear o agendado. Alternativa mais simples: o dedup só bloqueia se existe pending da mesma `targetHour`.
 
-#### 2. `src/hooks/useEmployeeContext.tsx` — Ping de presença
-Adicionar um `setInterval` de 2 minutos que chama `update_employee_last_seen` via RPC quando o usuário é funcionário. Isso mantém o `last_seen_at` atualizado enquanto o app está aberto.
-
-Atualizar `last_login_at` no carregamento inicial do contexto (uma vez por sessão).
-
-#### 3. `src/components/EmployeeManagement.tsx` — Exibir status
-No card de cada funcionário, mostrar:
-- **Indicador verde** "Online" se `last_seen_at` < 3 minutos atrás
-- **Indicador amarelo** "Visto recentemente" se `last_seen_at` < 30 minutos
-- **Indicador cinza** "Offline" com texto "Último acesso: há X min/horas/dias"
-- Data/hora do último login
-
-#### 4. Buscar `last_seen_at` e `last_login_at` no fetch de funcionários
-Adicionar essas colunas na query `select` existente em `fetchEmployees()`.
+#### 3. `supabase/functions/umclique-webhook/index.ts` — Manter fluxo on-demand
+O webhook continua funcionando para solicitações on-demand (quando usuário envia "relatorio"). Quando confirma e já existe pending com conteúdo, entrega normalmente. Sem alterações necessárias.
 
 ### Detalhes técnicos
 
-- O ping RPC é leve (um UPDATE simples por employee_user_id)
-- O trigger no `employee_activity_log` garante que qualquer ação também atualize o `last_seen_at`, mesmo sem o ping
-- Considerar funcionário "online" se `last_seen_at` foi nos últimos 3 minutos
+- O template "relatorio" é necessário para abrir a janela de 24h da Meta. Enviamos template → esperamos 2s → enviamos texto.
+- O dedup atual usa `created_at >= brtMidnight AND status = 'pending'`. Precisamos ajustar para não bloquear quando é um horário diferente.
+- Fluxo para não-assinantes (UAZAPI) não muda — já é direto.
 
