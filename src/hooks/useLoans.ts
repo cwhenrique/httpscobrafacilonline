@@ -771,17 +771,25 @@ export function useLoans() {
 
     // 4. Limpar tags relacionadas das notas do empréstimo
 
-    // Se era pagamento de sub-parcela de adiantamento, reverter a tag PAID para tag normal
+    // Se era pagamento de sub-parcela, reverter a tag PAID para tag normal
+    // Detectar por múltiplos formatos de notas (adiantamento e pagamento parcial)
     const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
-    if (subparcelaPaidMatch) {
-      const originalIndex = parseInt(subparcelaPaidMatch[1]) - 1;
+    const partialSubparcelaMatch = paymentNotes.match(/Pagamento parcial - Parcela (\d+)[\/  de]+\d+\. Sub-parcela:/);
+
+    const subparcelaOriginalIndex = subparcelaPaidMatch 
+      ? parseInt(subparcelaPaidMatch[1]) - 1
+      : partialSubparcelaMatch
+        ? parseInt(partialSubparcelaMatch[1]) - 1
+        : null;
+
+    if (subparcelaOriginalIndex !== null) {
       // Buscar a tag PAID correspondente e reverter para PENDENTE
       const paidTagRegex = new RegExp(
-        `\\[ADVANCE_SUBPARCELA_PAID:${originalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
+        `\\[ADVANCE_SUBPARCELA_PAID:${subparcelaOriginalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
         'g'
       );
       const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
-        return `[ADVANCE_SUBPARCELA:${originalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
+        return `[ADVANCE_SUBPARCELA:${subparcelaOriginalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
       });
       if (newNotes !== updatedLoanNotes) {
         updatedLoanNotes = newNotes;
@@ -816,7 +824,7 @@ export function useLoans() {
     // Se era pagamento de parcela específica (sem ser adiantamento)
     // Suportar múltiplos formatos: "Parcela 5 de 10" ou "Parcela 5/10"
     const parcelaMatch = paymentNotes.match(/Parcela (\d+)(?:\/| de )\d+/);
-    if (parcelaMatch && !advanceMatch && !subparcelaPaidMatch && !paymentNotes.includes('[AMORTIZATION]')) {
+    if (parcelaMatch && !advanceMatch && subparcelaOriginalIndex === null && !paymentNotes.includes('[AMORTIZATION]')) {
       const installmentIndex = parseInt(parcelaMatch[1]) - 1;
       // Remover a tag PARTIAL_PAID desta parcela
       let newNotes = updatedLoanNotes.replace(
