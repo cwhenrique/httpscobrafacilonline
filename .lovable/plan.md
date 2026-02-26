@@ -1,47 +1,45 @@
 
 
-## Diagnóstico: Relatório preso como "pending" — nunca enviado
+## Diagnóstico: Pagamento parcial não reconhecido após excluir e pagar novamente
 
 ### Causa Raiz
 
-A lógica de deduplicação pós-insert (linhas 136-158) está bloqueando envios legítimos:
+No fluxo de exclusão de pagamento (`useLoans.ts`, linhas 849-868), quando o pagamento original que **criou** a sub-parcela é excluído, o bloco `parcelaMatch` remove corretamente a tag `[PARTIAL_PAID:4:...]`, **mas NÃO remove** as tags `[ADVANCE_SUBPARCELA:4:...]` e `[ADVANCE_SUBPARCELA_PAID:4:...]` associadas.
 
-1. O cron das 10h BRT cria uma `pending_message` (de3dfb1c) às 13:01 UTC
-2. O template É enviado, mas o `directSend` (envio do texto) aparentemente falha ou a função termina antes de completar
-3. A mensagem fica travada com `status = 'pending'` para sempre
-4. Quando o cron (ou teste manual) tenta reenviar, insere nova mensagem MAS o guard pós-insert encontra a mensagem antiga de3dfb1c (que é mais velha → "primeira"), deleta a nova e retorna `true` **sem enviar nada**
-5. Resultado: mensagem órfã bloqueia todas as tentativas futuras naquele dia
+Isso acontece porque:
+- O bloco `advanceMatch` (linha 826) só detecta notas com "Adiantamento - Parcela N"
+- Mas pagamentos feitos via tipo "Parcela" (checkbox) geram notas com "Pagamento parcial - Parcela N/M. Sub-parcela: R$ X"
+- Esse formato **não** é detectado pelo `advanceMatch`, então as sub-parcelas ficam órfãs
 
-Há também 5 mensagens pendentes acumuladas (3 de ontem que nunca expiraram + 2 de hoje).
+**Resultado**: Após excluir o pagamento, a `PARTIAL_PAID` é removida (R$ 0,00 pago) mas a sub-parcela continua existindo. Quando o usuário paga novamente, o sistema vê `existingPartials[4] = 0` (nada pago) mas a sub-parcela de R$ 75 ainda aparece, criando inconsistência.
 
-### Correção em `supabase/functions/daily-summary/index.ts`
+### Correção
 
-**1) Limpar mensagens pendentes antigas antes de processar** (antes da linha 90):
+**Arquivo: `src/hooks/useLoans.ts`** (linhas 849-868)
+
+No bloco `parcelaMatch`, adicionar a remoção das tags `ADVANCE_SUBPARCELA` e `ADVANCE_SUBPARCELA_PAID` quando a nota do pagamento indica que uma sub-parcela foi criada (contém "Sub-parcela" ou "Pagamento parcial"):
+
 ```typescript
-// Limpar mensagens pendentes antigas (>1h) que nunca foram confirmadas
-await supabase
-  .from('pending_messages')
-  .update({ status: 'expired' })
-  .eq('user_id', userId)
-  .eq('message_type', 'daily_report')
-  .eq('status', 'pending')
-  .lt('created_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString());
+if (parcelaMatch && !advanceMatch && !isSubparcelaPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+  const installmentIndex = parseInt(parcelaMatch[1]) - 1;
+  let newNotes = updatedLoanNotes.replace(
+    new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), ''
+  );
+  newNotes = newNotes.replace(
+    new RegExp(`\\[OVERDUE_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
+  );
+  // 🆕 FIX: Se o pagamento criou sub-parcela, remover as tags também
+  if (paymentNotes.includes('Sub-parcela') || paymentNotes.includes('Pagamento parcial')) {
+    newNotes = newNotes.replace(
+      new RegExp(`\\[ADVANCE_SUBPARCELA:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
+    );
+    newNotes = newNotes.replace(
+      new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
+    );
+  }
+  // ... rest unchanged
+}
 ```
 
-**2) Guard pós-insert: restringir janela para 60 segundos** (linha 143):
-Trocar `.gte('created_at', todayStartUTC.toISOString())` por `.gte('created_at', new Date(now.getTime() - 60000).toISOString())` — apenas detecta corridas paralelas reais, não mensagens de horas atrás.
-
-**3) Quando `force=true`, pular guard pós-insert inteiramente** (linha 146):
-Adicionar `&& !force` na condição para que o modo forçado nunca seja bloqueado.
-
-**4) Limpar dados órfãos atuais deste usuário** via insert tool:
-```sql
-UPDATE pending_messages SET status = 'expired' 
-WHERE user_id = '3cffea17-6b8f-4423-9756-6bdd41868f2b' 
-  AND status = 'pending' AND message_type = 'daily_report';
-```
-
-### Arquivos
-- `supabase/functions/daily-summary/index.ts` — ajustar dedup + cleanup
-- Operação de dados para limpar mensagens órfãs existentes
+Isso garante que ao excluir um pagamento parcial que criou sub-parcela, TUDO é limpo: `PARTIAL_PAID`, `ADVANCE_SUBPARCELA` e `ADVANCE_SUBPARCELA_PAID`.
 
