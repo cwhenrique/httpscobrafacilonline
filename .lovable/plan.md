@@ -1,38 +1,59 @@
 
 
-## Bug: Pagamento parcial não cria sub-parcela
+## Bug: Sub-parcela continua como "Paga" ao excluir pagamento
 
 ### Causa Raiz
 
-No fluxo de pagamento parcial **sem adiantamento** (linhas 5038-5063 de `Loans.tsx`), quando o usuário paga R$ 100 de uma parcela de R$ 119 (R$ 75 + R$ 44 multa), o sistema:
-1. ✅ Calcula corretamente `remaining = 119 - 100 = 19`
-2. ✅ Registra `[PARTIAL_PAID:idx:100.00]`
-3. ❌ **NÃO cria** `[ADVANCE_SUBPARCELA]` com os R$ 19 restantes
+Em `src/hooks/useLoans.ts` (linha 775), ao excluir um pagamento, o sistema tenta reverter `[ADVANCE_SUBPARCELA_PAID]` para `[ADVANCE_SUBPARCELA]` usando o regex:
 
-Apenas o fluxo de adiantamento (`is_advance_payment`, linhas 5006-5028) cria sub-parcelas. O fluxo parcial padrão apenas registra a nota textual "Falta: R$ 19" mas não cria a tag de sub-parcela.
+```
+/Sub-parcela \(Adiant\. P(\d+)\)/
+```
 
-### Correção
+Porém, o pagamento de sub-parcela criado pelo **fluxo de pagamento parcial** (não adiantamento) gera notas com formato diferente:
+- `"Pagamento parcial - Parcela 1/24. Sub-parcela: R$ 19,00"`
+- `"Sub-parcela (Adiant. P1) quitada"` (apenas no fluxo de adiantamento)
 
-Em `src/pages/Loans.tsx`, no bloco de pagamento parcial padrão (linhas 5048-5050), adicionar criação de sub-parcela quando `remaining > 0.01`:
+O regex não reconhece o formato do pagamento parcial, então a tag `ADVANCE_SUBPARCELA_PAID` nunca é revertida para `ADVANCE_SUBPARCELA`.
+
+Além disso, quando a sub-parcela é paga via seleção múltipla de parcelas (linhas 4922-4941 de Loans.tsx), a nota do pagamento contém o número da parcela pai, não o formato "Sub-parcela (Adiant.".
+
+### Correção em `src/hooks/useLoans.ts`
+
+**Linha ~775-790** — Ampliar detecção para cobrir todos os formatos de pagamento de sub-parcela:
 
 ```typescript
-// Linha ~5048-5050, após calcular remaining
-const remaining = targetInstallmentValue - newPartialTotal;
-if (remaining > 0.01) {
-  // Criar sub-parcela com o valor restante
-  const uniqueId = Date.now().toString();
-  const originalDueDate = dates[targetInstallmentIndex] || selectedLoan.due_date;
-  const subDueDate = paymentData.new_due_date || originalDueDate;
-  updatedNotes += `[ADVANCE_SUBPARCELA:${targetInstallmentIndex}:${remaining.toFixed(2)}:${subDueDate}:${uniqueId}]`;
-  installmentNote = `Pagamento parcial - Parcela ${targetInstallmentIndex + 1}/${numInstallments}. Sub-parcela: ${formatCurrency(remaining)}`;
-} else if (remaining < -0.01) {
-  // excedente (lógica existente)
-  ...
-} else {
-  // quitada (lógica existente)
-  ...
+// Detectar pagamento de sub-parcela por múltiplos formatos de notas
+const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
+const partialSubparcelaMatch = paymentNotes.match(/Pagamento parcial - Parcela (\d+)[\/ de]+\d+\. Sub-parcela:/);
+
+const subparcelaOriginalIndex = subparcelaPaidMatch 
+  ? parseInt(subparcelaPaidMatch[1]) - 1
+  : partialSubparcelaMatch
+    ? parseInt(partialSubparcelaMatch[1]) - 1
+    : null;
+
+if (subparcelaOriginalIndex !== null) {
+  // Buscar a tag PAID correspondente e reverter para PENDENTE
+  const paidTagRegex = new RegExp(
+    `\\[ADVANCE_SUBPARCELA_PAID:${subparcelaOriginalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
+    'g'
+  );
+  const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
+    return `[ADVANCE_SUBPARCELA:${subparcelaOriginalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
+  });
+  if (newNotes !== updatedLoanNotes) {
+    updatedLoanNotes = newNotes;
+    notesChanged = true;
+  }
 }
 ```
 
-Isso garante que ao pagar R$ 100 de uma parcela de R$ 119, o sistema crie uma sub-parcela de R$ 19 que aparecerá na lista de parcelas pendentes.
+E atualizar a referência `subparcelaPaidMatch` no guard da linha 819 para usar a nova variável:
+
+```typescript
+if (parcelaMatch && !advanceMatch && subparcelaOriginalIndex === null && !paymentNotes.includes('[AMORTIZATION]')) {
+```
+
+Isso garante que ao excluir o pagamento da sub-parcela (R$ 19), a tag `ADVANCE_SUBPARCELA_PAID` seja revertida para `ADVANCE_SUBPARCELA`, fazendo a sub-parcela aparecer novamente como pendente.
 
