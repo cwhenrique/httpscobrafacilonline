@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type EmployeePermission =
   | 'view_loans'
+  | 'view_all_loans'
   | 'create_loans'
   | 'register_payments'
   | 'adjust_dates'
