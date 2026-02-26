@@ -48,6 +48,7 @@ interface ProfileWithWhatsApp {
   whatsapp_instance_token: string | null;
   whatsapp_connected_phone: string | null;
   report_schedule_hours: number[] | null;
+  auto_report_hour: number;
   relatorio_ativo: boolean;
 }
 
@@ -264,7 +265,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all ACTIVE PAYING users with WhatsApp connected
     let profilesQuery = supabase
       .from('profiles')
-      .select('id, phone, full_name, subscription_plan, whatsapp_instance_token, whatsapp_connected_phone, report_schedule_hours, relatorio_ativo')
+      .select('id, phone, full_name, subscription_plan, whatsapp_instance_token, whatsapp_connected_phone, report_schedule_hours, auto_report_hour, relatorio_ativo')
       .eq('is_active', true)
       .not('phone', 'is', null)
       .not('subscription_plan', 'eq', 'trial')
@@ -299,11 +300,10 @@ const handler = async (req: Request): Promise<Response> => {
       if (!profile.phone) continue;
 
       // If targetHour is specified (from cron), filter by user's scheduled hours
-      // Users WITHOUT any schedule configured receive reports at default hours (8h and 12h)
+      // Use auto_report_hour as source of truth when report_schedule_hours is empty
       if (targetHour !== null && !testPhone) {
         const scheduleHours = profile.report_schedule_hours || [];
-        const DEFAULT_HOURS = [8, 12];
-        const effectiveHours = scheduleHours.length > 0 ? scheduleHours : DEFAULT_HOURS;
+        const effectiveHours = scheduleHours.length > 0 ? scheduleHours : [profile.auto_report_hour ?? 8];
         if (!effectiveHours.includes(targetHour)) {
           console.log(`User ${profile.id} skipped - hour ${targetHour} not in [${effectiveHours.join(',')}]`);
           continue;
