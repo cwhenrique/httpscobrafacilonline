@@ -85,6 +85,15 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
     // Convert BRT midnight back to UTC for the query
     const todayStartUTC = new Date(brtTodayStart.getTime() - brtOffset * 60 * 1000);
 
+    // Clean up stale pending messages (>1h) that were never confirmed/sent
+    await supabase
+      .from('pending_messages')
+      .update({ status: 'expired' })
+      .eq('user_id', userId)
+      .eq('message_type', 'daily_report')
+      .eq('status', 'pending')
+      .lt('created_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString());
+
     // Only block if there's a PENDING or CONFIRMED message from the same hour window today
     // This prevents duplicate sends at the same scheduled hour, but allows different hours
     const { data: existingPending } = await supabase
@@ -140,10 +149,10 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       .eq('user_id', userId)
       .eq('message_type', 'daily_report')
       .eq('status', 'pending')
-      .gte('created_at', todayStartUTC.toISOString())
+      .gte('created_at', new Date(now.getTime() - 60000).toISOString())
       .order('created_at', { ascending: true });
 
-    if (allPending && allPending.length > 1 && inserted) {
+    if (allPending && allPending.length > 1 && inserted && !force) {
       // Keep only the first one, delete ours if it's not the first
       const firstId = allPending[0].id;
       if (inserted.id !== firstId) {
