@@ -13,6 +13,7 @@ export interface ActivityLogEntry {
   amount: number | null;
   client_name: string | null;
   created_at: string;
+  metadata: unknown;
   employee_name?: string;
 }
 
