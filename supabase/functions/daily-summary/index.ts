@@ -103,7 +103,7 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
     }
 
     // Save report content to pending_messages so webhook can deliver on confirmation
-    const { error: pendingError } = await supabase
+    const { data: inserted, error: pendingError } = await supabase
       .from('pending_messages')
       .insert({
         user_id: userId,
@@ -112,14 +112,42 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
         message_type: 'daily_report',
         message_content: message,
         status: 'pending',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      });
-    
+      })
+      .select('id')
+      .single();
+
     if (pendingError) {
-      console.error(`Failed to save pending message for ${cleaned}:`, pendingError);
-    } else {
-      console.log(`Saved report to pending_messages for ${cleaned}`);
+      console.error("Error saving pending message:", pendingError);
+      return false;
     }
+
+    // Post-insert dedup: check if another pending message was created in parallel (race condition guard)
+    const { data: allPending } = await supabase
+      .from('pending_messages')
+      .select('id, created_at')
+      .eq('user_id', userId)
+      .eq('message_type', 'daily_report')
+      .eq('status', 'pending')
+      .gte('created_at', todayStartUTC.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (allPending && allPending.length > 1 && inserted) {
+      // Keep only the first one, delete ours if it's not the first
+      const firstId = allPending[0].id;
+      if (inserted.id !== firstId) {
+        console.log(`Race condition detected: deleting duplicate pending message ${inserted.id}, keeping ${firstId}`);
+        await supabase.from('pending_messages').delete().eq('id', inserted.id);
+        return true; // Another instance is handling this
+      } else {
+        // We're the first - delete the others
+        const duplicateIds = allPending.slice(1).map(p => p.id);
+        console.log(`Race condition detected: we're first (${inserted.id}), deleting ${duplicateIds.length} duplicates`);
+        await supabase.from('pending_messages').delete().in('id', duplicateIds);
+      }
+    }
+
+    console.log(`Saved report to pending_messages for ${cleaned} (id: ${inserted.id})`);
+
 
     // Send template to prompt user to confirm
     console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
