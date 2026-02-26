@@ -88,31 +88,6 @@ const extractSimpleMessage = (body: any): { from: string; text: string } | null 
   }
 };
 
-// Generate and send report on-demand by calling daily-summary
-const generateAndSendReportOnDemand = async (senderPhone: string, supabase: any): Promise<boolean> => {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
-    console.log(`Generating on-demand report for phone ${senderPhone}`);
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/daily-summary`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ testPhone: senderPhone, directSend: true }),
-    });
-
-    const result = await response.text();
-    console.log(`On-demand daily-summary response: ${response.status}`, result);
-    return response.ok;
-  } catch (error) {
-    console.error('Failed to generate on-demand report:', error);
-    return false;
-  }
-};
 
 serve(async (req) => {
   // Handle CORS
@@ -335,8 +310,8 @@ serve(async (req) => {
       });
     }
 
-    // === NO PENDING MESSAGE: Generate report on-demand ===
-    console.log('No pending message found, generating report on-demand for:', senderPhone);
+    // === NO PENDING MESSAGE: Generate report and save as pending (requires confirmation) ===
+    console.log('No pending message found, generating report as pending for:', senderPhone);
 
     // Find which user this phone belongs to
     const last9 = senderPhone.slice(-9);
@@ -357,28 +332,33 @@ serve(async (req) => {
     const userProfile = matchingProfile[0];
     console.log(`Found user ${userProfile.id} (${userProfile.full_name}) for phone ${senderPhone}`);
 
-    // Generate and send report on-demand via daily-summary
-    const sent = await generateAndSendReportOnDemand(senderPhone, supabase);
+    // Generate report and save as pending (NOT directSend) so user must confirm again
+    const supabaseUrl2 = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey2 = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    if (sent) {
-      return new Response(JSON.stringify({
-        success: true,
-        action: 'on_demand_report',
-        userName: userProfile.full_name,
-        message: 'Report generated and sent on-demand',
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } else {
-      return new Response(JSON.stringify({
-        success: false,
-        action: 'on_demand_report_failed',
-        message: 'Failed to generate on-demand report',
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const genResponse = await fetch(`${supabaseUrl2}/functions/v1/daily-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey2}`,
+      },
+      body: JSON.stringify({ testPhone: senderPhone, directSend: false }),
+    });
+
+    const genResult = await genResponse.text();
+    console.log(`Generated pending report for ${senderPhone}: ${genResponse.status}`, genResult);
+
+    return new Response(JSON.stringify({
+      success: genResponse.ok,
+      action: 'report_pending_confirmation',
+      userName: userProfile.full_name,
+      message: genResponse.ok 
+        ? 'Report generated and saved as pending. Template sent for confirmation.'
+        : 'Failed to generate report',
+    }), {
+      status: genResponse.ok ? 200 : 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error: unknown) {
     console.error('Error in umclique-webhook:', error);
