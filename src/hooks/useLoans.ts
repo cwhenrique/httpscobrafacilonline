@@ -155,6 +155,7 @@ export function useLoans() {
     queryClient.invalidateQueries({ queryKey: ['operational-stats'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     queryClient.invalidateQueries({ queryKey: ['all-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['payments-history'] });
   };
 
   const createLoan = async (loan: {
