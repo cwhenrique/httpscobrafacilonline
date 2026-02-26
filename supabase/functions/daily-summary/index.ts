@@ -83,16 +83,19 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
     // Convert BRT midnight back to UTC for the query
     const todayStartUTC = new Date(brtTodayStart.getTime() - brtOffset * 60 * 1000);
 
-    const { data: existing } = await supabase
+    // Only block if there's a PENDING (unconfirmed) template waiting - don't block scheduled reports
+    // just because a previous one was already confirmed/sent
+    const { data: existingPending } = await supabase
       .from('pending_messages')
       .select('id')
       .eq('user_id', userId)
       .eq('message_type', 'daily_report')
+      .eq('status', 'pending')
       .gte('created_at', todayStartUTC.toISOString())
       .limit(1);
 
-    if (existing && existing.length > 0 && !force) {
-      console.log(`Skipping duplicate template for user ${userId} - already sent today (BRT). Cutoff: ${todayStartUTC.toISOString()}`);
+    if (existingPending && existingPending.length > 0 && !force) {
+      console.log(`Skipping duplicate template for user ${userId} - pending template already exists today (BRT). Cutoff: ${todayStartUTC.toISOString()}`);
       return true;
     }
     if (force) {
