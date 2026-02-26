@@ -861,6 +861,15 @@ export function useLoans() {
         new RegExp(`\\[OVERDUE_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'),
         ''
       );
+      // FIX: Se o pagamento criou sub-parcela, remover as tags ADVANCE_SUBPARCELA também
+      if (paymentNotes.includes('Sub-parcela') || paymentNotes.includes('Pagamento parcial')) {
+        newNotes = newNotes.replace(
+          new RegExp(`\\[ADVANCE_SUBPARCELA:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
+        );
+        newNotes = newNotes.replace(
+          new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
+        );
+      }
       if (newNotes !== updatedLoanNotes) {
         updatedLoanNotes = newNotes;
         notesChanged = true;
