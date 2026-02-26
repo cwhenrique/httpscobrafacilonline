@@ -1,51 +1,61 @@
 
 
-## Correção: Multas/juros extras não devem abater saldo nem parcelas
+## Diagnóstico: Atualizações não chegam aos usuários
 
-### Problema atual
-Quando uma multa (penalty) é incluída no pagamento, ela é somada ao `amount` total e distribuída proporcionalmente entre `principal_paid` e `interest_paid`. Os triggers tentam compensar subtraindo a multa do `remaining_balance`, mas o `principal_paid` ainda inclui a porção da multa, o que causa:
-1. A condição 2 do `recalculate_loan_total_paid` contar multa como principal pago
-2. Encerramento prematuro de contratos
+### Causa raiz
+
+O problema é a configuração do **Service Worker (PWA)** que **bloqueia atualizações** para os usuários finais. Existem 3 problemas combinados:
+
+#### 1. `skipWaiting: false` + `clientsClaim: false` (vite.config.ts)
+O novo Service Worker fica **esperando** até que o usuário feche TODAS as abas do app. Se o usuário usa como PWA instalada, ele nunca fecha completamente — apenas minimiza. O SW antigo continua servindo arquivos velhos indefinidamente.
+
+#### 2. `onNeedRefresh` bloqueado por `pwa_session_active` (main.tsx)
+Quando o SW detecta uma atualização, o código verifica `sessionStorage.pwa_session_active`. Como o `useVisibilityControl` **sempre** seta isso como `true` ao montar o componente, a atualização **nunca é aplicada** enquanto o app está aberto. O usuário fica preso na versão antiga.
+
+#### 3. `sessionStorage` não limpa em PWA standalone
+O `beforeunload` deveria limpar `pwa_session_active`, mas em PWAs standalone (display: standalone), o evento `beforeunload` **não dispara de forma confiável** quando o usuário desliza o app para fechar. Resultado: `pwa_session_active` permanece `true` mesmo após fechar e reabrir.
 
 ### Solução
-Tratar multas exatamente como pagamentos de juros: aceitar como lucro mas **não reduzir saldo** nem **contar como parcela paga**.
+
+#### 1. Ativar `skipWaiting: true` e `clientsClaim: true` no Workbox
+O novo SW assume controle imediato sem esperar fechamento de abas.
+
+#### 2. Simplificar `onNeedRefresh` — aplicar atualização automaticamente
+Remover a verificação de `pwa_session_active` e aplicar a atualização diretamente (recarregar a página). Para não interromper o usuário no meio de algo, fazer reload apenas quando o app voltar de background (visibility change).
+
+#### 3. Adicionar verificação periódica de atualizações
+Checar por SW updates a cada 5 minutos para garantir que mesmo usuários que nunca fecham o app recebam atualizações.
 
 ### Alterações
 
-#### 1. `src/pages/Loans.tsx` — Separar multa do principal_paid e interest_paid
-Após calcular `principal_paid` e `interest_paid` (por volta da linha 4770), subtrair a porção de multa do `principal_paid` e mover para `interest_paid`:
-
+#### `vite.config.ts` — Ativar skipWaiting e clientsClaim
 ```typescript
-// Após calcular penaltyInPayment (linha ~5260):
-// Remover a multa do principal_paid — multa é lucro, não reduz saldo
-if (penaltyInPayment > 0) {
-  // A multa já foi incluída no amount e distribuída entre principal/interest
-  // Precisamos garantir que ela vá 100% para interest_paid
-  principal_paid = Math.max(0, principal_paid - penaltyInPayment);
-  interest_paid = interest_paid + penaltyInPayment;
+workbox: {
+  skipWaiting: true,    // era false
+  clientsClaim: true,   // era false
+  // ... resto igual
 }
 ```
 
-Mas como o `penaltyInPayment` é calculado depois (linha 5207), precisamos **reordenar** o código ou aplicar a correção após o cálculo da multa, antes de chamar `registerPayment`.
-
-Concretamente, inserir **antes** da linha 5264 (`registerPayment`):
+#### `src/main.tsx` — Aplicar updates automaticamente
 ```typescript
-// Multa é lucro puro — não deve contar como principal pago
-if (penaltyInPayment > 0) {
-  principal_paid = Math.max(0, principal_paid - penaltyInPayment);
-  interest_paid += penaltyInPayment;
-}
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Aplicar atualização imediatamente — o skipWaiting já garante
+    // que o novo SW assume controle
+    updateSW(true);
+  },
+  onOfflineReady() {
+    console.log('App pronto para uso offline');
+  },
+});
+
+// Verificar atualizações a cada 5 minutos
+setInterval(() => {
+  updateSW();
+}, 5 * 60 * 1000);
 ```
 
-#### 2. `update_loan_on_payment` trigger — Já subtrai penalty do remaining_balance ✓
-O trigger atual já faz `remaining_balance - (amount - penalty_amount)`, o que está correto.
-
-#### 3. `recalculate_loan_total_paid` trigger — Já corrigido na migração anterior ✓
-A condição 2 já desconta `total_penalty_amount` do `total_payments`. Com a correção do `principal_paid`, o `total_principal_payments` também não vai mais incluir multa, tornando a condição duplamente segura.
-
-#### 4. `revert_loan_on_payment_delete` trigger — Já subtrai penalty ✓
-Já faz `remaining_balance + (OLD.amount - penalty_amount)`.
-
-### Resumo
-Uma única alteração no frontend (`Loans.tsx`) para garantir que `principal_paid` nunca inclua valores de multa, e `interest_paid` absorva o valor da multa como lucro puro. Os triggers do banco já tratam o `[PENALTY_INCLUDED]` corretamente para o `remaining_balance`.
+#### `src/hooks/useVisibilityControl.ts` — Forçar reload no retorno se há update pendente
+Ao voltar de background, verificar se o SW mudou e forçar reload para carregar a versão nova. Remover dependência de `pwa_session_active` para atualizações.
 
