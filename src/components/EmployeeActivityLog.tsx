@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, Activity, DollarSign, UserPlus, FileText, Trash2, CreditCard, RefreshCw } from 'lucide-react';
+import { Loader2, Activity, DollarSign, UserPlus, FileText, Trash2, CreditCard, RefreshCw, Percent, TrendingDown, History, Receipt } from 'lucide-react';
 import { useEmployeeActivityLog, type ActivityLogEntry } from '@/hooks/useEmployeeActivityLog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -186,6 +186,21 @@ export default function EmployeeActivityLog() {
                               <Badge variant="outline" className="text-xs">
                                 {config.label}
                               </Badge>
+                              {act.action_type === 'payment_registered' && (() => {
+                                const meta = act.metadata as Record<string, string> | null;
+                                const pt = meta?.payment_type;
+                                if (!pt || pt === 'regular') return null;
+                                const typeConfig: Record<string, { label: string; className: string }> = {
+                                  interest_only: { label: 'Só Juros', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200' },
+                                  partial_interest: { label: 'Juros Parcial', className: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200' },
+                                  amortization: { label: 'Amortização', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200' },
+                                  historical_interest: { label: 'Juros Histórico', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200' },
+                                  installment: { label: 'Parcela', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200' },
+                                };
+                                const tc = typeConfig[pt];
+                                if (!tc) return null;
+                                return <Badge className={`text-xs ${tc.className}`}>{tc.label}</Badge>;
+                              })()}
                             </div>
                             <p className="text-sm text-muted-foreground mt-0.5">{act.description}</p>
                           </div>
