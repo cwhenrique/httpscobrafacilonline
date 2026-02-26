@@ -52,8 +52,9 @@ interface ProfileWithWhatsApp {
 }
 
 // Send WhatsApp message via Um Clique Digital API (Official WhatsApp partner)
-// Sends template first, then saves content to pending_messages for webhook delivery on user confirmation
-const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any): Promise<boolean> => {
+// When directSend=true, sends the report directly without template/pending (on-demand from webhook confirmation)
+// When directSend=false (default), saves to pending_messages and sends template for user confirmation
+const sendWhatsAppViaUmClique = async (phone: string, userName: string, message: string, userId: string, supabase: any, directSend: boolean = false): Promise<boolean> => {
   const umcliqueApiKey = Deno.env.get("UMCLIQUE_API_KEY");
   if (!umcliqueApiKey) {
     console.error("UMCLIQUE_API_KEY not configured");
@@ -71,6 +72,56 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
   };
 
   try {
+    // DIRECT SEND MODE: User already confirmed, send report directly
+    if (directSend) {
+      console.log(`DIRECT SEND: Sending report directly to ${cleaned} for ${userName}`);
+      
+      // Send template first to open conversation window
+      const templateResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          channel_id: "1060061327180048",
+          to: cleaned,
+          type: "template",
+          template_name: "relatorio",
+          template_language: "pt_BR",
+          template_variables: [
+            { type: "text", text: userName }
+          ],
+        }),
+      });
+
+      const templateResult = await templateResponse.text();
+      console.log(`Direct template response for ${cleaned}:`, templateResponse.status, templateResult);
+
+      if (!templateResponse.ok) {
+        console.error(`Failed to send direct template to ${cleaned}:`, templateResult);
+        return false;
+      }
+
+      // Wait for conversation window to open
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Send report content directly as text
+      const textResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          channel_id: "1060061327180048",
+          to: cleaned,
+          type: "text",
+          content: message,
+        }),
+      });
+
+      const textResult = await textResponse.text();
+      console.log(`Direct text response for ${cleaned}:`, textResponse.status, textResult);
+
+      return textResponse.ok;
+    }
+
+    // NORMAL MODE: Save to pending and send template for confirmation
     // Check for existing pending message today to prevent duplicate templates
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -190,6 +241,7 @@ const handler = async (req: Request): Promise<Response> => {
     let targetHour: number | null = null;
     let batch = 0;
     let batchSize = 30; // Otimizado: batch maior para reduzir número de cron jobs
+    let directSend = false; // When true, sends report directly without template/pending (on-demand)
     try {
       const body = await req.json();
       isReminder = body.isReminder === true;
@@ -197,6 +249,7 @@ const handler = async (req: Request): Promise<Response> => {
       targetHour = typeof body.targetHour === 'number' ? body.targetHour : null;
       batch = typeof body.batch === 'number' ? body.batch : 0;
       batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
+      directSend = body.directSend === true;
     } catch {
       // No body or invalid JSON, default to report mode
     }
@@ -733,9 +786,9 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
-      // Route: relatorio_ativo users go via Um Clique Digital API, others via Evolution API
+      // Route: relatorio_ativo users go via Um Clique Digital API, others via UAZAPI
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, directSend)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;
