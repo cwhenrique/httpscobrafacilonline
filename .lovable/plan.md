@@ -1,51 +1,65 @@
 
 
-## Bug: Configuração de juros por atraso não é salva em empréstimos diários
+## Bug: Pagamento parcial de parcela com multa marca como quitada
 
 ### Causa Raiz
 
-O formulário de empréstimo diário usa `handleDailySubmit` (linha 3208), que constrói as `notes` do empréstimo **sem incluir** a tag `[OVERDUE_CONFIG:...]`. O checkbox e campos de configuração existem na UI (linhas 7209-7266), mas o valor nunca é gravado nas notas.
+No fluxo `payment_type === 'installment'` (linhas 4723-4762), o sistema **ignora** o valor digitado pelo usuário e sempre calcula o valor total da parcela (base + multa). Na sequência (linhas 4879-4885), marca a parcela como **totalmente paga** com `[PARTIAL_PAID:idx:valor_total]`.
 
-Em contraste, o `handleSubmit` regular (linha 3905-3909) faz:
+Exemplo: parcela = R$ 74 base + R$ 44 multa = R$ 118. Usuário digita R$ 100, mas o sistema registra R$ 118 e marca como quitada.
+
+### Correção em `src/pages/Loans.tsx`
+
+**1. Respeitar o valor digitado pelo usuário (linhas ~4740-4754)**
+
+Após calcular `regularAmount` (valor total da parcela), verificar se o usuário editou o campo de valor. Se o valor digitado for menor que o calculado, usar o valor digitado:
+
 ```typescript
-if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
-  const penaltyConfig = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]`;
-  notes = `${penaltyConfig}\n${notes}`.trim();
+// Após linha 4754 (amount = regularAmount + subparcelaAmount)
+const userEnteredAmount = parseFloat(paymentData.amount);
+if (paymentData.amount && !isNaN(userEnteredAmount) && userEnteredAmount > 0 && userEnteredAmount < amount - 0.01) {
+  amount = userEnteredAmount;
 }
 ```
 
-Mas `handleDailySubmit` monta as notas na linha 3336-3341 e nunca adiciona essa tag.
+**2. Tratar pagamento parcial no tracking de notas (linhas ~4879-4891)**
 
-### Correção
-
-Em `src/pages/Loans.tsx`, no `handleDailySubmit`, adicionar a tag `[OVERDUE_CONFIG]` nas notas antes de construir o `loanData`.
-
-**Linha ~3279** (após construir `skipTagsStr` e `details`), adicionar:
+Quando o valor pago for menor que o valor total da parcela, NÃO marcar como totalmente paga. Em vez disso, registrar o valor parcial e criar sub-parcela com o restante:
 
 ```typescript
-// Add overdue penalty configuration if enabled
-let overdueTag = '';
-if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
-  overdueTag = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]\n`;
-}
-```
-
-E nas linhas 3336-3341 (construção das notes no loanData), incluir `overdueTag`:
-
-```typescript
-notes: (() => {
-  if (formData.is_historical_contract) {
-    return `[HISTORICAL_CONTRACT]\n${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
+for (const idx of regularIndicesForNotes) {
+  const installmentVal = getInstallmentValue(idx);
+  const alreadyPaid = partialsForCalc[idx] || 0;
+  const remaining = Math.max(0, installmentVal - alreadyPaid);
+  
+  // Se o valor pago é menor que o restante, é pagamento parcial
+  const paidForThis = Math.min(amount, remaining); // amount pode ser menor
+  const newTotalPaid = alreadyPaid + paidForThis;
+  
+  updatedNotes = updatedNotes.replace(new RegExp(`\\[PARTIAL_PAID:${idx}:[0-9.]+\\]`, 'g'), '');
+  updatedNotes += `[PARTIAL_PAID:${idx}:${newTotalPaid.toFixed(2)}]`;
+  
+  if (paidForThis < remaining - 0.01) {
+    // Criar sub-parcela com o valor restante
+    const dates = safeDates(selectedLoan.installment_dates);
+    const dueDate = dates[idx] || selectedLoan.due_date;
+    const uniqueId = Date.now().toString();
+    const subRemainder = remaining - paidForThis;
+    updatedNotes += `[ADVANCE_SUBPARCELA:${idx}:${subRemainder.toFixed(2)}:${dueDate}:${uniqueId}]`;
+    installmentNote = `Pagamento parcial - Parcela ${idx + 1}/${numInstallments}. Sub-parcela: ${formatCurrency(subRemainder)}`;
   }
-  return `${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
-})(),
+  
+  // Taxa extra lógica existente...
+}
 ```
 
-E também na linha 3296 (modo edição), incluir `overdueTag`:
+**3. Ajustar cálculo de interest_paid/principal_paid (linhas ~4774-4778)**
 
-```typescript
-const updatedNotes = `${historicalTags}${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}${partialPaidTags ? '\n' + partialPaidTags : ''}${historicalInterestTag}`.trim();
-```
+Recalcular proporcionalmente com base no valor efetivamente pago (que agora pode ser menor que o total da parcela).
 
-Isso garante que a tag `[OVERDUE_CONFIG:percentage:5]` (por exemplo) seja gravada nas notas do empréstimo diário, permitindo que a Edge Function `check-overdue-loans` detecte e aplique as multas automaticamente.
+### Resultado Esperado
+
+- Parcela de R$ 118 (74+44), usuário paga R$ 100
+- Sistema registra `[PARTIAL_PAID:idx:100.00]` e cria `[ADVANCE_SUBPARCELA:idx:18.00:data:id]`
+- Parcela aparece como parcialmente paga com R$ 18 restantes
 
