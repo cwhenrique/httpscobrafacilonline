@@ -772,28 +772,53 @@ export function useLoans() {
     // 4. Limpar tags relacionadas das notas do empréstimo
 
     // Se era pagamento de sub-parcela, reverter a tag PAID para tag normal
-    // Detectar por múltiplos formatos de notas (adiantamento e pagamento parcial)
-    const subparcelaPaidMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
-    const partialSubparcelaMatch = paymentNotes.match(/Pagamento parcial - Parcela (\d+)[\/  de]+\d+\. Sub-parcela:/);
+    // Detectar por TODOS os formatos de notas possíveis:
+    // 1) "Sub-parcela (Adiant. P1)" — pagamento individual de sub-parcela
+    // 2) "Pagamento parcial - Parcela 1/24. Sub-parcela:" — criação de sub-parcela por pagamento parcial
+    // 3) "Parcela Sub-P1 de 24" ou "Parcelas 1, Sub-P1 de 24" — multi-select com sub-parcelas
+    // 4) [SUBPARCELA_REF:idx:uniqueId] — referência explícita (novo formato)
+    
+    // Coletar TODOS os índices de sub-parcela referenciados nesta nota de pagamento
+    const subparcelaIndicesToRevert: number[] = [];
+    
+    // Formato 1: Sub-parcela (Adiant. Pn)
+    const adiantMatch = paymentNotes.match(/Sub-parcela \(Adiant\. P(\d+)\)/);
+    if (adiantMatch) subparcelaIndicesToRevert.push(parseInt(adiantMatch[1]) - 1);
+    
+    // Formato 2: Pagamento parcial - Parcela n/... Sub-parcela:
+    const partialMatch = paymentNotes.match(/Pagamento parcial - Parcela (\d+)[\/  de]+\d+\. Sub-parcela:/);
+    if (partialMatch) subparcelaIndicesToRevert.push(parseInt(partialMatch[1]) - 1);
+    
+    // Formato 3: Sub-Pn (multi-select) — pode ter múltiplos
+    const subPMatches = Array.from(paymentNotes.matchAll(/Sub-P(\d+)/g));
+    for (const m of subPMatches) {
+      const idx = parseInt(m[1]) - 1;
+      if (!subparcelaIndicesToRevert.includes(idx)) subparcelaIndicesToRevert.push(idx);
+    }
+    
+    // Formato 4: [SUBPARCELA_REF:idx:uniqueId] — referência explícita
+    const refMatches = Array.from(paymentNotes.matchAll(/\[SUBPARCELA_REF:(\d+):(\d+)\]/g));
+    for (const m of refMatches) {
+      const idx = parseInt(m[1]);
+      if (!subparcelaIndicesToRevert.includes(idx)) subparcelaIndicesToRevert.push(idx);
+    }
+    
+    const isSubparcelaPayment = subparcelaIndicesToRevert.length > 0;
 
-    const subparcelaOriginalIndex = subparcelaPaidMatch 
-      ? parseInt(subparcelaPaidMatch[1]) - 1
-      : partialSubparcelaMatch
-        ? parseInt(partialSubparcelaMatch[1]) - 1
-        : null;
-
-    if (subparcelaOriginalIndex !== null) {
-      // Buscar a tag PAID correspondente e reverter para PENDENTE
-      const paidTagRegex = new RegExp(
-        `\\[ADVANCE_SUBPARCELA_PAID:${subparcelaOriginalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
-        'g'
-      );
-      const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
-        return `[ADVANCE_SUBPARCELA:${subparcelaOriginalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
-      });
-      if (newNotes !== updatedLoanNotes) {
-        updatedLoanNotes = newNotes;
-        notesChanged = true;
+    if (isSubparcelaPayment) {
+      for (const originalIndex of subparcelaIndicesToRevert) {
+        // Buscar a tag PAID correspondente e reverter para PENDENTE
+        const paidTagRegex = new RegExp(
+          `\\[ADVANCE_SUBPARCELA_PAID:${originalIndex}:([0-9.]+):([^:\\]]+)(?::(\\d+))?\\]`,
+          'g'
+        );
+        const newNotes = updatedLoanNotes.replace(paidTagRegex, (match, amount, date, id) => {
+          return `[ADVANCE_SUBPARCELA:${originalIndex}:${amount}:${date}${id ? ':' + id : ''}]`;
+        });
+        if (newNotes !== updatedLoanNotes) {
+          updatedLoanNotes = newNotes;
+          notesChanged = true;
+        }
       }
     }
     
@@ -824,7 +849,7 @@ export function useLoans() {
     // Se era pagamento de parcela específica (sem ser adiantamento)
     // Suportar múltiplos formatos: "Parcela 5 de 10" ou "Parcela 5/10"
     const parcelaMatch = paymentNotes.match(/Parcela (\d+)(?:\/| de )\d+/);
-    if (parcelaMatch && !advanceMatch && subparcelaOriginalIndex === null && !paymentNotes.includes('[AMORTIZATION]')) {
+    if (parcelaMatch && !advanceMatch && !isSubparcelaPayment && !paymentNotes.includes('[AMORTIZATION]')) {
       const installmentIndex = parseInt(parcelaMatch[1]) - 1;
       // Remover a tag PARTIAL_PAID desta parcela
       let newNotes = updatedLoanNotes.replace(
@@ -847,7 +872,7 @@ export function useLoans() {
     
     // 🆕 FALLBACK: Se não removeu nenhuma tag pelos métodos acima,
     // tentar identificar e remover pelo valor do pagamento
-    if (!notesChanged && !advanceMatch && !subparcelaPaidMatch && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
+    if (!notesChanged && !advanceMatch && !isSubparcelaPayment && !isInterestOnlyPayment && !paymentNotes.includes('[AMORTIZATION]')) {
       const paymentAmount = paymentData.amount;
       
       // Buscar todas as tags PARTIAL_PAID atuais
@@ -1143,6 +1168,80 @@ export function useLoans() {
     return { success: true };
   };
 
+  // Auto-recuperação: reconciliar sub-parcelas órfãs (PAID sem pagamento correspondente)
+  const reconcileOrphanedSubparcelas = async (loanId: string) => {
+    try {
+      const { data: loan } = await supabase
+        .from('loans')
+        .select('notes')
+        .eq('id', loanId)
+        .single();
+      
+      if (!loan?.notes) return;
+      
+      // Buscar todas as tags PAID
+      const paidTags = Array.from(loan.notes.matchAll(/\[ADVANCE_SUBPARCELA_PAID:(\d+):([0-9.]+):([^:\]]+)(?::(\d+))?\]/g));
+      if (paidTags.length === 0) return;
+      
+      // Buscar todos os pagamentos do empréstimo
+      const { data: payments } = await supabase
+        .from('loan_payments')
+        .select('notes')
+        .eq('loan_id', loanId);
+      
+      const allPaymentNotes = (payments || []).map(p => p.notes || '').join(' ');
+      
+      let updatedNotes = loan.notes;
+      let changed = false;
+      
+      for (const tag of paidTags) {
+        const [fullMatch, idxStr, amount, date, uniqueId] = tag;
+        const idx = parseInt(idxStr);
+        
+        // Verificar se existe pagamento com referência a esta sub-parcela
+        let hasPayment = false;
+        
+        // Formato novo: [SUBPARCELA_REF:idx:uniqueId]
+        if (uniqueId && allPaymentNotes.includes(`[SUBPARCELA_REF:${idx}:${uniqueId}]`)) {
+          hasPayment = true;
+        }
+        
+        // Formatos legados
+        if (!hasPayment && allPaymentNotes.includes(`Sub-parcela (Adiant. P${idx + 1})`)) {
+          hasPayment = true;
+        }
+        if (!hasPayment && allPaymentNotes.includes(`Sub-P${idx + 1}`)) {
+          hasPayment = true;
+        }
+        if (!hasPayment) {
+          const partialRegex = new RegExp(`Pagamento parcial - Parcela ${idx + 1}[\\/ de]+\\d+\\. Sub-parcela:`);
+          if (partialRegex.test(allPaymentNotes)) {
+            hasPayment = true;
+          }
+        }
+        
+        if (!hasPayment) {
+          // Sem pagamento correspondente — reverter para pendente
+          const replacement = `[ADVANCE_SUBPARCELA:${idx}:${amount}:${date}${uniqueId ? ':' + uniqueId : ''}]`;
+          updatedNotes = updatedNotes.replace(fullMatch, replacement);
+          changed = true;
+          console.log(`[RECONCILE] Revertendo sub-parcela órfã: idx=${idx}, amount=${amount}`);
+        }
+      }
+      
+      if (changed) {
+        await supabase
+          .from('loans')
+          .update({ notes: updatedNotes })
+          .eq('id', loanId);
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+        console.log('[RECONCILE] Sub-parcelas órfãs corrigidas com sucesso');
+      }
+    } catch (err) {
+      console.error('[RECONCILE] Erro ao reconciliar sub-parcelas:', err);
+    }
+  };
+
   return {
     loans,
     loading,
@@ -1157,5 +1256,6 @@ export function useLoans() {
     updatePaymentDate,
     addExtraInstallments,
     invalidateLoans,
+    reconcileOrphanedSubparcelas,
   };
 }
