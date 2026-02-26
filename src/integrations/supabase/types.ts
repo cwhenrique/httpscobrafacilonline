@@ -603,6 +603,59 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_activity_log: {
+        Row: {
+          action_type: string
+          amount: number | null
+          client_name: string | null
+          created_at: string
+          description: string
+          employee_id: string
+          employee_user_id: string
+          id: string
+          metadata: Json | null
+          owner_id: string
+          related_id: string | null
+          related_type: string | null
+        }
+        Insert: {
+          action_type: string
+          amount?: number | null
+          client_name?: string | null
+          created_at?: string
+          description: string
+          employee_id: string
+          employee_user_id: string
+          id?: string
+          metadata?: Json | null
+          owner_id: string
+          related_id?: string | null
+          related_type?: string | null
+        }
+        Update: {
+          action_type?: string
+          amount?: number | null
+          client_name?: string | null
+          created_at?: string
+          description?: string
+          employee_id?: string
+          employee_user_id?: string
+          id?: string
+          metadata?: Json | null
+          owner_id?: string
+          related_id?: string | null
+          related_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_activity_log_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_permissions: {
         Row: {
           created_at: string | null
@@ -1865,6 +1918,19 @@ export type Database = {
         Returns: boolean
       }
       is_active_employee: { Args: { _user_id: string }; Returns: boolean }
+      log_employee_activity: {
+        Args: {
+          _action_type: string
+          _amount?: number
+          _client_name?: string
+          _description: string
+          _employee_user_id: string
+          _metadata?: Json
+          _related_id?: string
+          _related_type?: string
+        }
+        Returns: undefined
+      }
       payment_created_second: { Args: { ts: string }; Returns: string }
     }
     Enums: {

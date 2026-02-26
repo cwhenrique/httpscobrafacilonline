@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Navigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import EmployeeManagement from '@/components/EmployeeManagement';
@@ -9,6 +9,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const EmployeeActivityLog = lazy(() => import('@/components/EmployeeActivityLog'));
+const EmployeeReceiptSummary = lazy(() => import('@/components/EmployeeReceiptSummary'));
 
 // URL de pagamento no Cakto para liberar 1 funcionário
 const CAKTO_EMPLOYEE_PAYMENT_URL = 'https://pay.cakto.com.br/pkvkjyp_708910';
@@ -111,7 +115,6 @@ export default function Employees() {
     }
 
     // Usuário normal: redireciona para pagamento no Cakto
-    // O email do usuário é passado como parâmetro para identificar no webhook
     const paymentUrl = `${CAKTO_EMPLOYEE_PAYMENT_URL}?email=${encodeURIComponent(user.email || '')}`;
     window.open(paymentUrl, '_blank');
     
@@ -138,7 +141,29 @@ export default function Employees() {
           currentEmployees={employeeCount}
           maxEmployees={profile?.max_employees || 0}
         >
-          <EmployeeManagement />
+          <Tabs defaultValue="manage" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="manage">Gerenciar</TabsTrigger>
+              <TabsTrigger value="receipts">Recebimentos</TabsTrigger>
+              <TabsTrigger value="activity">Atividades</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="manage">
+              <EmployeeManagement />
+            </TabsContent>
+
+            <TabsContent value="receipts">
+              <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+                <EmployeeReceiptSummary />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="activity">
+              <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+                <EmployeeActivityLog />
+              </Suspense>
+            </TabsContent>
+          </Tabs>
         </EmployeeFeatureCard>
       </div>
     </DashboardLayout>
